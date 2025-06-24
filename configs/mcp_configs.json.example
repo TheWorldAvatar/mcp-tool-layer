@@ -1,0 +1,98 @@
+{  
+    "filesystem": {
+        "command": "docker",
+        "args": [
+            "run",
+            "-i",
+            "--rm",
+            "--mount", "type=bind,src=<your_data_directory_path>,dst=/projects/data",
+            "mcp/filesystem",
+            "/projects"
+        ],
+        "transport": "stdio"
+    }, 
+
+    "github": {
+        "command": "docker",
+        "args": [
+          "run",
+          "-i",
+          "--rm",
+          "-e",
+          "GITHUB_PERSONAL_ACCESS_TOKEN",
+          "mcp/github"
+        ],
+        "env": {
+          "GITHUB_PERSONAL_ACCESS_TOKEN": "<your_github_personal_access_token>"
+        }
+    }, 
+
+    "guassian_parsing": {
+        "command": "python",
+        "args": [
+            "<path_to_mcp_servers>/guassian_parsing_server.py"
+        ],
+        "transport": "stdio"
+    },
+    "Math": {
+        "command": "python",
+        "args": [
+            "<path_to_mcp_servers>/test.py"
+        ],
+        "transport": "stdio"
+    },
+    "postgres": {
+        "command": "python",
+        "args": [
+            "<path_to_mcp_servers>/postgres_server.py"
+        ],
+        "transport": "stdio"
+    },
+
+    "file_path_mapping": {
+        "command": "python",
+        "args": [
+            "<path_to_mcp_servers>/file_path_mapping_server.py"
+        ],
+        "transport": "stdio"
+    },
+
+    "obda_validataion": {
+        "command": "python",
+        "args": [
+            "<path_to_mcp_servers>/obda_validataion_server.py"
+        ],
+        "transport": "stdio"
+    },
+
+    "obda_creation": {
+        "command": "python",
+        "args": [
+            "<path_to_mcp_servers>/obda_creation_server.py"
+        ],
+        "transport": "stdio"
+    },
+
+    "sparql": {
+        "command": "python",
+        "args": [
+            "<path_to_mcp_servers>/sparql_server.py"
+        ],
+        "transport": "stdio"
+    },
+
+    "ttl_validation": {
+        "command": "python",
+        "args": [
+            "<path_to_mcp_servers>/ttl_validation_server.py"
+        ],
+        "transport": "stdio"
+    },
+    "stack_operations": {
+        "command": "python",
+        "args": [
+            "<path_to_mcp_servers>/stack_operations.py"
+        ],
+        "transport": "stdio"
+    }
+}
