@@ -35,6 +35,8 @@ class MCPConfig:
         return process.returncode == 0
 
     def get_config(self, mcp_name_list: list[str]):
+        if len(mcp_name_list) == 1 and mcp_name_list[0] == "all":
+            return {k: v for k, v in self.mcp_configs.items()}
         return {k: v for k, v in self.mcp_configs.items() if k in mcp_name_list}
 
 
