@@ -19,50 +19,26 @@ INSTRUCTION_PROMPT_GOLD = """
 
 I have a gaussian output log file at /data/test/benzene.log. This file contains the output of a gaussian calculation. 
 
-My system uses semantic technologies to represent the data and support queries across data from different domains. 
+My system, the world avatar, uses semantic technologies to represent the data and support queries across data from different domains. More information can be found with "stack_operations" tool. 
 
 In this turn, I want you to integrate the data from the gaussian log file into my system. 
 
-**Important**: In this turn, you don't need to actually do the work and give me the detailed plan only, taking consideration of the tools you have access to, including:
+**Important**: In this turn, you don't need to actually do the work and give me the detailed plan only, taking consideration of the tools you have access to.
 
-- What MCP servers you will use and what specific functions you will call (including those that doesn't exist yet)?
-- What are the dependencies between the tasks?
-- What are the roughly steps you will need to complete the task?
+Keep in mind a strategy that: 
 
-You will need to create a detailed markdown file (named task_decomposition.md, you will need the filesystem tool to create the file) that contains the plan, which follows the following structure:
+1. Read the tool descriptions carefully, where you can learn how the underlying system works. 
+2. Don't be afraid to include hypothetical tools, which will be created for the tasks
+3. Use tools instead of using LLMs to deal with files.
+4. Break the tasks in to as small as possible subtasks, each subtask should be yield a single task file. 
 
-```markdown	
-# Task Decomposition Plan
 
-## Task 1
-
-### Task Description
-
-### Tools to Use
-
-### Expected Output
-c
-### Dependencies
-
-## Task 2
-
-### Task Description
-
-### Tools to Use
-
-### Expected Output
-
-### Dependencies
-
-... 
-```
-
+Create task files with task_generation tool. 
 
 """
  
 
 async def main():
-
     model_config = ModelConfig()
     mcp_tools = ["all"]
     agent = BaseAgent(model_name="gpt-4o-mini", model_config=model_config, remote_model=True, mcp_tools=mcp_tools)

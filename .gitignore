@@ -4,3 +4,8 @@ configs/mcp_configs.json
 /models/__pycache__
 /__pycache__
 *.pyc
+*.log
+/demo/mk_demo
+/mcp_tool_layer.egg-info
+/sandbox
+/playground
