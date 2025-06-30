@@ -105,6 +105,8 @@ def update_stack_database(stack_command: str):
     """
     This function is used to update the data in the stack. The data uploaded include the data the csv file, the obda file and the ttl file.
 
+    This is mandatory for integrating any data into the existing semantic database, with no exception.
+
     Only after the data is uploaded to the stack, the data can be queried.
     
     Run a stack command in WSL, the default command is ./stack.sh start <stack_name> in stack-data-uploader dir, which updates the data in the ontop endpoint"""	
