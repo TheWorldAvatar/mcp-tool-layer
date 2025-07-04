@@ -2,7 +2,7 @@ import json
 import os
 import shutil
 from pathlib import Path
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 import subprocess
 import time
 from src.mcp_descriptions.stack_operations import STACK_INITIALIZATION_DESCRIPTION, STACK_DATABASE_UPDATION_DESCRIPTION, STACK_DATA_REMOVAL_DESCRIPTION 
@@ -12,8 +12,7 @@ mcp_with_instructions = FastMCP(
     instructions="""
        This server is critical for any data integration task to the existing stack/semantic database. 
        You must always use this server as final steps if the task is about data integration. 
-    """,
-    tags=["stack", "semantic database", "data integration"]
+    """
 )
 
 

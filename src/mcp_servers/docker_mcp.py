@@ -1,5 +1,5 @@
 
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 import subprocess
 import json
 import os

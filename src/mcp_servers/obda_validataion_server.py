@@ -2,7 +2,7 @@ import os
 import shutil
 import subprocess
 from pathlib import Path
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 import logging
 from src.mcp_descriptions.obda import OBDA_VALIDATION_DESCRIPTION
 

@@ -13,8 +13,8 @@ Requires:
 from pathlib import Path
 
 from rdflib import Graph
-from mcp.server.fastmcp import FastMCP
-
+from fastmcp import FastMCP
+from src.mcp_descriptions.ttl import TTL_VALIDATION_DESCRIPTION
 # --------------------------------------------------------------------------- #
 mcp = FastMCP("ttl_validator")
  

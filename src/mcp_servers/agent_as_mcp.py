@@ -2,7 +2,7 @@
 import asyncio
 import logging
 import sys
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
  
 # ─────────────────────────  Build the server  ──────────────────────────
 mcp = FastMCP("agent")

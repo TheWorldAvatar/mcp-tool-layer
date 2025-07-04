@@ -31,13 +31,10 @@ import os
 import re
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional
-
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 from logging.handlers import RotatingFileHandler
 from src.mcp_descriptions.obda import OBDA_CREATION_DESCRIPTION
 
- 
 ###############################################################################
 # MCP initialisation
 ###############################################################################
@@ -62,12 +59,10 @@ def _to_local(path: str | Path) -> Path:
     except Exception as exc:
         raise ValueError(f"Cannot convert path '{p}' to local representation") from exc
 
-
 def _camel_case(text: str) -> str:
     """Convert snake_case or arbitrary text to CamelCase, stripping symbols."""
     parts = _CAMEL_RE.sub(" ", text).strip().split()
     return "".join(word.capitalize() for word in parts)
-
 
 def safe_property(colname: str, *, prefix: str = "data") -> str:
     """Generate a safe predicate name from a SQL column.
@@ -80,13 +75,11 @@ def safe_property(colname: str, *, prefix: str = "data") -> str:
         raise ValueError("Column name must be non-empty")
     return f"{prefix}{_camel_case(colname)}"
 
-
-def _ensure_prefixes(prefixes: Dict[str, str]) -> Dict[str, str]:
+def _ensure_prefixes(prefixes: dict[str, str]) -> dict[str, str]:
     """Ensure that the required default prefix (``:``) is present."""
     if "" not in prefixes:
         raise ValueError("A default prefix (key '') must be provided in 'prefixes'.")
     return prefixes
-
 
 def _mapping_id(table: str, column: str | None = None) -> str:
     """Deterministic, OBDA-safe mapping identifier."""
@@ -104,14 +97,13 @@ def create_obda_file(
     *,
     output_path: str,
     table_name: str,
-    columns: List[str],
-    prefixes: Dict[str, str],
+    columns: list[str],  # ✅ Updated: use native typing
+    prefixes: dict[str, str],
     id_column: str = "uuid",
-    ontology_class: Optional[str] = None,
+    ontology_class: str | None = None,
     iri_template: str = "entity_{uuid}",
     use_xsd_typing: bool = False,
 ) -> str:
-
 
     # ------------------------------------------------------------------ validations
     if id_column not in columns:
@@ -172,9 +164,8 @@ def create_obda_file(
     return str(dst)
 
 ###############################################################################
-# CLI entry-point                                                             #
+# CLI entry-point
 ###############################################################################
 
 if __name__ == "__main__":
-    # Running as a standalone Fast-MCP server (stdio transport) ---------------
     mcp.run(transport="stdio")

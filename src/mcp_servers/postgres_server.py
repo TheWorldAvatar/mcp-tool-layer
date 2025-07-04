@@ -1,6 +1,6 @@
 import pandas as pd
 from sqlalchemy import create_engine, text
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 import os
 from src.mcp_descriptions.postgres import POSTGRES_UPLOAD_DESCRIPTION
 

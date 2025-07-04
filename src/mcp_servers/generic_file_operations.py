@@ -1,15 +1,15 @@
 # math_server.py
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 import logging
 import pandas as pd
 import os
 from models.locations import ROOT_DIR, DATA_GENERIC_DIR
 from docx import Document
+from src.mcp_descriptions.generic_file_operations import CSV_FILE_SUMMARY_DESCRIPTION, WORD_FILE_SUMMARY_DESCRIPTION, TEXT_FILE_TRUNCATE_DESCRIPTION
+
 
 mcp = FastMCP("generic_file_operations")
-logger = logging.getLogger(__name__)
-# write to a file
-logger.addHandler(logging.FileHandler("generic_file_operations.log"))
+
 
 def convert_to_absolute_path(file_path: str) -> str:
     """

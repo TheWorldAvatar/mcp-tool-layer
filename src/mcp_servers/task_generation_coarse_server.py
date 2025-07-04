@@ -4,7 +4,7 @@ This server is used to generate task files for the task decomposition agent.
 
 To make sure the Task Decomposition Agent generates syntactically correct task files, this server is used to generate task files. 
 """
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 import subprocess
 import json
 import os
@@ -18,6 +18,8 @@ from datetime import datetime
 from src.mcp_descriptions.task_generation_coarse import TASK_GENERATION_COARSE_DESCRIPTION, TASK_ID_GENERATION_DESCRIPTION, TASK_INDEX_SELECTION_DESCRIPTION    
 
 mcp = FastMCP("task_generation_coarse") 
+
+
 class AddTaskInput(BaseModel):
     task_id: str
     name: str
@@ -86,12 +88,15 @@ def generate_task_id() -> str:
 
 @mcp.tool(name="output_selected_task_index", description=TASK_INDEX_SELECTION_DESCRIPTION, tags=["task_generation_coarse"])
 def output_selected_task_index(meta_task_name: str, selected_task_index: List[int]) -> List[int]:
-
     # write the selected task index to a file
-    with open(os.path.join(SANDBOX_TASK_DIR, meta_task_name, "selected_task_index.txt"), "w") as f:
+    _output_selected_task_index(meta_task_name, selected_task_index)
+    return f"Selected task index {selected_task_index} has been output to {os.path.join(SANDBOX_TASK_DIR, meta_task_name, 'selected_task_index.json')}"
+
+def _output_selected_task_index(meta_task_name: str, selected_task_index: List[int]) -> List[int]:
+    with open(os.path.join(SANDBOX_TASK_DIR, meta_task_name, "selected_task_index.json"), "w") as f:
         json.dump(selected_task_index, f, indent=4)
     return selected_task_index
 
-
 if __name__ == "__main__":
     mcp.run(transport="stdio")
+    # _output_selected_task_index(meta_task_name="jiying", selected_task_index=[0, 1])

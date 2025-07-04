@@ -4,7 +4,7 @@ This server is used to generate task files for the task decomposition agent.
 
 To make sure the Task Decomposition Agent generates syntactically correct task files, this server is used to generate task files. 
 """
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 import subprocess
 import json
 import os

@@ -7,7 +7,7 @@ a lightweight ReAct agent use them to execute code in a sandbox container.
 from __future__ import annotations
 import asyncio
 import logging
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 from models.SubBaseAgent import build_react_agent
 mcp = FastMCP("SandboxOuter")
 log = logging.getLogger(__name__)   

@@ -12,7 +12,7 @@ import json
 from typing import Dict, List, Any, Literal, Optional
 
 import requests
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 import logging
 from src.mcp_descriptions.sparql import SPARQL_QUERY_DESCRIPTION
  

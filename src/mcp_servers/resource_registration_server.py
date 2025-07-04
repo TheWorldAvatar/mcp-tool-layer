@@ -1,5 +1,5 @@
 import mcp
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 from pydantic import BaseModel
 from typing import List
 from models.locations import DATA_GENERIC_DIR, SANDBOX_TASK_DIR
