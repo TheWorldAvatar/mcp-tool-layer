@@ -14,9 +14,8 @@ from typing import Dict, List, Any, Literal, Optional
 import requests
 from mcp.server.fastmcp import FastMCP
 import logging
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+from src.mcp_descriptions.sparql import SPARQL_QUERY_DESCRIPTION
+ 
 
 mcp = FastMCP("OntopSPARQLEndpoint")
 
@@ -47,29 +46,13 @@ def _simplify_bindings(raw: Dict[str, Any]) -> List[Dict[str, str]]:
 ################################################################################
 # MCP tool
 ################################################################################
-@mcp.tool("query_sparql")
+@mcp.tool(name="query_sparql", description=SPARQL_QUERY_DESCRIPTION, tags=["sparql"])
 def query_sparql(
     *,
     endpoint_url: str = "http://localhost:3838/ontop/ui/sparql",
     query: str,
     raw_json: bool = False,
 ) -> Any:
-    """
-    Send a SPARQL SELECT/ASK query to **endpoint_url** and return the answer.
-
-    Args
-    ----
-    endpoint_url : full URL, e.g. "http://localhost:3838/ontop/ui/sparql"
-    query        : the SPARQL 1.1 string
-    raw_json     : if True, return the full SPARQL JSON document;
-                   if False (default), return a simplified list of rows
-
-    Returns
-    -------
-    • SELECT → list of dicts  (unless raw_json=True)
-    • ASK    → bool
-    • other  → raw JSON (construct queries are not altered)
-    """
     try:
         resp = _post_sparql(endpoint_url, query)
     except Exception as exc:  # noqa: broad-except
@@ -84,14 +67,7 @@ def query_sparql(
         return resp
 
     return _simplify_bindings(resp)
-
-
-
-
-
-################################################################################
-# Local test driver ------------------------------------------------------------
-################################################################################
+ 
 if __name__ == "__main__":
     mcp.run(transport="stdio")  # uncomment to expose via stdio
  

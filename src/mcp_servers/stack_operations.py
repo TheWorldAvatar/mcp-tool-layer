@@ -5,7 +5,16 @@ from pathlib import Path
 from mcp.server.fastmcp import FastMCP
 import subprocess
 import time
-mcp = FastMCP("StackOperations")
+from src.mcp_descriptions.stack_operations import STACK_INITIALIZATION_DESCRIPTION, STACK_DATABASE_UPDATION_DESCRIPTION, STACK_DATA_REMOVAL_DESCRIPTION 
+
+mcp_with_instructions = FastMCP(
+    name="StackOperations",	
+    instructions="""
+       This server is critical for any data integration task to the existing stack/semantic database. 
+       You must always use this server as final steps if the task is about data integration. 
+    """,
+    tags=["stack", "semantic database", "data integration"]
+)
 
 
 
@@ -75,19 +84,8 @@ def setup_ontocompchem_stack():
             "error": str(e)
         }
 
-@mcp.tool()
+@mcp_with_instructions.tool(name="initialize_stack", description=STACK_INITIALIZATION_DESCRIPTION, tags=["stack"])
 def initialize_stack(stack_name: str):
-    """
-    
-    Initialize the semantic database stack by running the stack.sh start <stack_name> command in stack-manager dir
-    
-    The stack is an already made docker stack that offers a SPARQL endpoint, a postgres database and a ontop endpoint.
-
-    This is mandatory for the entire semantic data pipeline, i.e., any data introduced will be stored in the stack, and all the queries will be executed against the stack.
-    
-    **Important**: The stack is the only way to store the data, and the only way to query the data.
-    
-    """
     setup_ontocompchem_stack()
     import subprocess
     # Replace this path with the actual mounted WSL path to your stack dir
@@ -100,38 +98,23 @@ def initialize_stack(stack_name: str):
     return result
 
 
-@mcp.tool()
+@mcp_with_instructions.tool(name="update_stack_database", description=STACK_DATABASE_UPDATION_DESCRIPTION, tags=["stack"])
 def update_stack_database(stack_command: str):
-    """
-    This function is used to update the data in the stack. The data uploaded include the data the csv file, the obda file and the ttl file.
-
-    This is mandatory for integrating any data into the existing semantic database, with no exception.
-
-    Only after the data is uploaded to the stack, the data can be queried.
-    
-    Run a stack command in WSL, the default command is ./stack.sh start <stack_name> in stack-data-uploader dir, which updates the data in the ontop endpoint"""	
     # Replace this path with the actual mounted WSL path to your stack dir
     wsl_stack_path = "/mnt/c/Users/xz378/Documents/GitHub/stack/stack-data-uploader"
     full_cmd = f'wsl bash -c "cd {wsl_stack_path} && {stack_command}"'
     result = subprocess.run(full_cmd, capture_output=True, text=True)
     time.sleep(60)  
-    
-    print("STDOUT:", result.stdout)
-    print("STDERR:", result.stderr)
     return result
 
-@mcp.tool()
+@mcp_with_instructions.tool(name="remove_stack_data", description=STACK_DATA_REMOVAL_DESCRIPTION, tags=["stack"])
 # remove all existing stacks     
 def remove_stack_data():
-    """Remove all existing stack data, this must be done before initializing a new stack"""
     wsl_stack_path = "/mnt/c/Users/xz378/Documents/GitHub/stack/stack-manager"
     full_cmd = f'wsl bash -c "cd {wsl_stack_path} && ./stack.sh remove all"'
     result = subprocess.run(full_cmd, capture_output=True, text=True)
     time.sleep(60)
     return result
  
-
-
-
 if __name__ == "__main__":
-    mcp.run(transport="stdio")
+    mcp_with_instructions.run(transport="stdio")

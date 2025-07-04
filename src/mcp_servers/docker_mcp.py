@@ -4,6 +4,14 @@ import subprocess
 import json
 import os
 import logging
+from src.mcp_descriptions.docker import (
+    DOCKER_REMOVE_CONTAINER_DESCRIPTION,
+    DOCKER_LIST_RUNNING_CONTAINERS_DESCRIPTION,
+    DOCKER_EXECUTE_PYTHON_SCRIPT_IN_CONTAINER_DESCRIPTION,
+    DOCKER_CREATE_CONTAINER_DESCRIPTION,
+    DOCKER_EXECUTE_COMMAND_IN_CONTAINER_DESCRIPTION,
+    DOCKER_PYTHON_EXECUTION_IN_CONTAINER_DESCRIPTION
+)
 
 mcp = FastMCP("docker")
 
@@ -11,19 +19,8 @@ logger = logging.getLogger(__name__)
 logger.addHandler(logging.FileHandler("docker.log"))    
 
 
-@mcp.tool()
+@mcp.tool(name="remove_container", description=DOCKER_REMOVE_CONTAINER_DESCRIPTION, tags=["docker"])
 def remove_container(container_id: str) -> str:
-    """Remove a Docker container
-    
-    Args:
-        container_id: The ID of the Docker container
-
-    Example:
-        remove_container("1234567890")
-
-    Note: 
-
-    """
     try:
         subprocess.run(["docker", "rm", "-f", container_id], check=True)
         return f"Container {container_id} removed successfully"
@@ -34,9 +31,8 @@ def remove_container(container_id: str) -> str:
         logger.error(f"Unexpected error: {str(e)}")
         return f"Unexpected error: {str(e)}"
 
-@mcp.tool()
+@mcp.tool(name="list_running_containers", description=DOCKER_LIST_RUNNING_CONTAINERS_DESCRIPTION, tags=["docker"])
 def list_running_containers() -> str:
-    """List all running Docker containers using docker ps command"""
     try:
         # Run docker ps command to get running containers
         result = subprocess.run(
@@ -55,22 +51,8 @@ def list_running_containers() -> str:
         return "Docker command not found. Please ensure Docker is installed and accessible."
 
 
-@mcp.tool()
+@mcp.tool(name="execute_python_script_in_container", description=DOCKER_EXECUTE_PYTHON_SCRIPT_IN_CONTAINER_DESCRIPTION, tags=["docker"])
 def execute_python_script_in_container(container_id: str, script_path: str, args: list = None) -> str:
-    """Execute a Python script in a Docker container, which is mounted to /sandbox
-    
-    Args:
-        container_id: The ID of the Docker container
-        script_path: The path to the Python script in the container
-        args: A list of arguments to pass to the Python script
-
-    Example:
-        execute_python_script_in_container("1234567890", "/sandbox/hello_world.py")
-
-    Dependencies: 
-
-        - The involved third party python libraries should be installed in the container before. 
-    """
     try:
         # Build docker exec command
         cmd = ["docker", "exec", container_id, "python", script_path]
@@ -96,17 +78,8 @@ def execute_python_script_in_container(container_id: str, script_path: str, args
         return f"Unexpected error: {str(e)}"
 
 
-@mcp.tool()
+@mcp.tool(name="create_container", description=DOCKER_CREATE_CONTAINER_DESCRIPTION, tags=["docker"])
 def create_container(image: str, name: str, ports: dict = None, detach: bool = True) -> str:
-    """Create a new Docker container
-    
-    Args:
-        image: Docker image name and tag (e.g., 'python:3.11')
-        name: Container name
-        ports: Dictionary mapping host ports to container ports (e.g., {'8080': '80'})
-        detach: Whether to run container in detached mode
-
-    """
     try:
         # Build docker run command
         cmd = ["docker", "run"]
@@ -152,17 +125,8 @@ def create_container(image: str, name: str, ports: dict = None, detach: bool = T
         logger.error(f"Unexpected error: {str(e)}")
         return f"Unexpected error: {str(e)}"
 
-@mcp.tool()
+@mcp.tool(name="execute_command_in_container", description=DOCKER_EXECUTE_COMMAND_IN_CONTAINER_DESCRIPTION, tags=["docker"])
 async def execute_command_in_container(container_id: str, command: str) -> str:
-    """Execute a command in a Docker container, this is a general command execution tool, which can be used to install python libraries, etc.
-    
-    Args:
-        container_id: The ID of the Docker container
-        command: The command to execute in the container
-
-    Example:
-        execute_command_in_container("1234567890", "pip install <library_name>")
-    """
     try:
         # Run command in the container
         logger.info(f"Running command: {command} in container: {container_id}")
@@ -189,17 +153,8 @@ async def execute_command_in_container(container_id: str, command: str) -> str:
 
      
 
-@mcp.tool()
+@mcp.tool(name="python_execution_in_container", description=DOCKER_PYTHON_EXECUTION_IN_CONTAINER_DESCRIPTION, tags=["docker"])
 def python_execution_in_container(container_id: str, code: str) -> str:
-    """Execute Python code in a Docker container, which is a string of code
-    
-    Args:
-        container_id: The ID of the Docker container
-        code: The Python code to execute in the container
-
-    Dependencies: 
-        - The involved third party python libraries should be installed in the container before. 
-    """
     try:
         # Run python command in the container
         result = subprocess.run(

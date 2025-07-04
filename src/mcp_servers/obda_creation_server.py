@@ -35,35 +35,14 @@ from typing import Dict, List, Optional
 
 from mcp.server.fastmcp import FastMCP
 from logging.handlers import RotatingFileHandler
+from src.mcp_descriptions.obda import OBDA_CREATION_DESCRIPTION
 
-###############################################################################
-# Logging configuration
-###############################################################################
-
-LOG_DIR = Path(os.environ.get("LOG_DIR", "data/log"))
-LOG_DIR.mkdir(parents=True, exist_ok=True)
-LOG_FILE = LOG_DIR / "obda_creation.log"
-
-logger = logging.getLogger("obda_creation_server")
-logger.setLevel(logging.INFO)
-
-# Console handler -------------------------------------------------------------
-console_handler = logging.StreamHandler()
-console_handler.setFormatter(
-    logging.Formatter("%(asctime)s %(levelname)s — %(message)s", "%Y-%m-%dT%H:%M:%S")
-)
-logger.addHandler(console_handler)
-
-# Rotating file handler --------------------------------------------------------
-file_handler = RotatingFileHandler(LOG_FILE, maxBytes=2_000_000, backupCount=3, encoding="utf-8")
-file_handler.setFormatter(console_handler.formatter)  # same format
-logger.addHandler(file_handler)
-
+ 
 ###############################################################################
 # MCP initialisation
 ###############################################################################
 
-mcp = FastMCP("OBDAFileGenerator")
+mcp = FastMCP(name="OBDAFileGenerator")
 
 # Allow overriding via environment variables ----------------------------------
 LOCAL_DATA_ROOT = Path(os.environ.get("LOCAL_DATA_ROOT", "./data"))
@@ -120,7 +99,7 @@ def _mapping_id(table: str, column: str | None = None) -> str:
 # Public tool
 ###############################################################################
 
-@mcp.tool("create_obda_file")
+@mcp.tool(name="create_obda_file", description=OBDA_CREATION_DESCRIPTION, tags=["obda"])
 def create_obda_file(
     *,
     output_path: str,
@@ -132,34 +111,7 @@ def create_obda_file(
     iri_template: str = "entity_{uuid}",
     use_xsd_typing: bool = False,
 ) -> str:
-    """Create an OBDA 2.x mapping file.
 
-    The OBDA file is used to map tabular data in a postgres database to the ontology, allowing using SPARQL queries to query the data from relational databases. 
-
-    To create a OBDA file, you need to first understand the schema of the tabular data and the ontology. 
-
-    Parameters
-    ----------
-    output_path : str
-        Desired file location (MCP path). Created directories if necessary.
-    table_name : str
-        Name of the SQL table (or view) to map.
-    columns : List[str]
-        All column names in the table. ``id_column`` should be included but will
-        not be mapped as a predicate.
-    prefixes : Dict[str, str]
-        Prefix → IRI mapping. The default prefix (key ``""``) is mandatory.
-    id_column : str, default "uuid"
-        Primary-key column used to build IRIs.
-    ontology_class : Optional[str]
-        If provided, emits a *rdf:type* mapping to this class.
-    iri_template : str, default "entity_{uuid}"
-        Template for individual IRIs in the default ``:`` namespace. *Curly*
-        braces must match column names.
-    use_xsd_typing : bool, default False
-        When *True*, each predicate object is explicitly typed as
-        ``xsd:string``.
-    """
 
     # ------------------------------------------------------------------ validations
     if id_column not in columns:
