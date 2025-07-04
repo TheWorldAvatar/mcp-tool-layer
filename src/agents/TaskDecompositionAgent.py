@@ -11,46 +11,69 @@ Task Decomposition Agent:
 """
 
 import asyncio
+import os
 from models.BaseAgent import BaseAgent
 from models.ModelConfig import ModelConfig
+from models.locations import DATA_TEST_DIR, DATA_GENERIC_DIR
+from scripts.clean_task_dir import clean_task_dir
+from src.prompts.DecompositionPrompts import INSTRUCTION_GENERIC_PROMPT, INSTRUCTION_DATA_SNIFFING_PROMPT
 
-
-INSTRUCTION_PROMPT_GOLD = """
-
-I have a gaussian output log file at /data/test/benzene.log. This file contains the output of a gaussian calculation. 
-
-In this turn, I want you to integrate the data from the gaussian log file into my system stack.  
-
-**Important**: In this turn, you don't need to actually do the work and give me the detailed plan only, taking consideration of the tools you have access to.
-
-Keep in mind a strategy that: 
-
-1. Read the tool descriptions carefully, where you can learn how the underlying system works. 
-2. Use as many existing tools as possible, as existing tools are more likely to be compatible with the existing system. 
-3. Don't be afraid to include hypothetical tools, which will be created for the tasks
-4. Use tools instead of using LLMs to deal with files, including data parsing and data extraction. If the tools are not available, you can propose to create them. 
-5. Break the tasks in to as small as possible subtasks, each subtask should be yield a single task file. 
-6. The planning must be compatible with existing systems. 
-
-
-Create task files with task_generation tool. 
-
-"""
  
 
-async def main():
+async def task_decomposition_agent(task_meta_name: str, data_folder_path: str, meta_instruction: str, iteration_number: int):
+    """
+    This agent decomposes a task into smaller subtasks. It iterates n times and hence produce n task groups as candidates. 
+
+    Args:
+        task_meta_name: the name of the task
+        data_folder_path: the path to the data folder
+        meta_instruction: the meta instruction
+
+    Returns:
+        Write each step into a json file with the task id, in /sandbox/tasks/{task_meta_name}/{iteration}/task_files.json
+        Write the task summary in markdown format to the /sandbox/tasks/{task_meta_name}/{iteration}/task_summary.md
+    """
+
+    # clear the task directory before start
+    # clean_task_dir()
     model_config = ModelConfig()
     mcp_tools = ["all"]
     agent = BaseAgent(model_name="gpt-4o", model_config=model_config, remote_model=True, mcp_tools=mcp_tools)
-    response, metadata = await agent.run(INSTRUCTION_PROMPT_GOLD, recursion_limit=200)
-    print(response)
+    for iteration in range(iteration_number):
+        instruction = INSTRUCTION_GENERIC_PROMPT.format(meta_instruction=meta_instruction, 
+        data_folder_path=data_folder_path, 
+        task_meta_name=task_meta_name, 
+        iteration_number=iteration)
+        response, metadata = await agent.run(instruction, recursion_limit=500)        
+        with open(f"sandbox/tasks/{task_meta_name}/{str(iteration)}/task_summary.md", "w") as f:
+            f.write(response)
  
 
+async def data_sniffing_agent(folder_path: str, task_meta_name: str):
+    """
+    This agent sniff the data in the folder and generate a data sniffing report, summarizing the inital data provided. 
+
+    Args:
+        folder_path: the path to the data folder
+        task_meta_name: the name of the task
+
+    Returns:
+        Write the data sniffing report in markdown format to the /sandbox/tasks/{task_meta_name}/data_sniffing_report.md
+        Write a resources.json file in the /sandbox/tasks/{task_meta_name}/resources.json, which is a structured output. 
+    """
+    model_config = ModelConfig()    
+    mcp_set_name = "pretask_mcp_configs.json"
+    mcp_tools = ["filesystem", "generic_file_operations", "resource_registration"]
+    instruction = INSTRUCTION_DATA_SNIFFING_PROMPT.format(folder_path=folder_path, task_meta_name=task_meta_name)
+    agent = BaseAgent(model_name="gpt-4o-mini", remote_model=True, mcp_set_name=mcp_set_name, mcp_tools=mcp_tools, model_config=model_config)
+    response, metadata = await agent.run(instruction)
+    print(response)
+
+
 if __name__ == "__main__":
-    asyncio.run(main())
-
-
-
+    asyncio.run(task_decomposition_agent(task_meta_name="jiying", data_folder_path="", meta_instruction="", iteration_number=1))
+    asyncio.run(data_sniffing_agent(folder_path="/data/generic_data/jiying", task_meta_name="jiying"))
+ 
 
 
 
