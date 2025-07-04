@@ -30,32 +30,33 @@ def summarize_refined_task_files(meta_task_name: str):
         with open(os.path.join(SANDBOX_TASK_DIR, meta_task_name, str(task_index), "refined_task_group.json"), "w") as f:
             json.dump(combined_task_group, f, indent=4)
 
-
-def load_task_summary_contents(meta_task_name: str):
-    """
-    Load the task summary contents from the task_meta_name folder. 
-    """
-    # load all task_summary.md files and join them with iteration separators
-    combined_task_summary = build_overall_reports(os.path.join(SANDBOX_TASK_DIR, meta_task_name))
-    return combined_task_summary
-
-def build_overall_reports(report_dir: str):
+ 
+def build_overall_reports(meta_task_name: str):
     """Build overall task reports from all markdown files in the report directory."""
     overall_task_report = ""
-    for file in os.listdir(report_dir):
-        if file.endswith(".md"):
-            with open(os.path.join(report_dir, file), "r") as f:
-                content = f.read()
-                # Extract iteration number from filename (e.g., "0.md" -> "0")
-                iteration_num = file.replace(".md", "")
-                overall_task_report += f"\n============ Iteration {iteration_num} =============\n"
-                overall_task_report += content
+    meta_task_path = os.path.join(SANDBOX_TASK_DIR, meta_task_name)
+    
+    # Iterate through all subdirectories (iteration numbers)
+    for item in os.listdir(meta_task_path):
+        item_path = os.path.join(meta_task_path, item)
+        # Check if it's a directory and the name is a number (iteration)
+        if os.path.isdir(item_path) and item.isdigit():
+            iteration_num = item
+            task_summary_path = os.path.join(item_path, "task_summary.md")
+            
+            # Check if task_summary.md exists in this iteration directory
+            if os.path.exists(task_summary_path):
+                with open(task_summary_path, "r") as f:
+                    content = f.read()
+                    overall_task_report += f"\n============ Iteration {iteration_num} =============\n"
+                    overall_task_report += content
+    
     return overall_task_report
 
 
 def load_selected_task_index(meta_task_name: str):
     """Load the selected task index from the log file."""
-    with open(os.path.join(SANDBOX_TASK_DIR, meta_task_name, "selected_task_index.txt"), "r") as f:
+    with open(os.path.join(SANDBOX_TASK_DIR, meta_task_name, "selected_task_index.json"), "r") as f:
         return json.load(f)
 
  
@@ -108,3 +109,7 @@ def load_all_task_files_from_indices(selected_indices: list, meta_task_name: str
         tasks = load_task_files(index, meta_task_name)
         all_tasks.append(tasks)
     return all_tasks
+
+
+if __name__ == "__main__":
+    print(build_overall_reports(meta_task_name="jiying"))

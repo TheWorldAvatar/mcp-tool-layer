@@ -2,16 +2,14 @@ from models.locations import DATA_LOG_DIR, SANDBOX_TASK_DIR
 import os
 import json
 from src.agents.TaskEvaluationAgent import task_group_selection_agent, workflow_examination_agent, single_task_refinemment_agent
-from src.engines.utils.task_files import summarize_refined_task_files, load_task_summary_contents, load_selected_task_index, load_task_files, load_all_task_files_from_indices
+from src.engines.utils.task_files import summarize_refined_task_files, load_selected_task_index, load_task_files, load_all_task_files_from_indices, build_overall_reports
 import asyncio
 import pprint   
 from src.engines.utils.task_tree import TaskTree
-from typing import Optional
-from src.engines.utils.task_tree import TaskNode
+
 
 async def workflow_examination_engine(meta_task_name: str, meta_instruction: str):
     # put all the refined task files into a single json file, which is used for the workflow examination agent
-    summarize_refined_task_files(meta_task_name=meta_task_name)
     # load the resource file
     with open(os.path.join(SANDBOX_TASK_DIR, meta_task_name, "resources.json"), "r") as f:
         resources = f.read()
@@ -83,9 +81,11 @@ async def single_node_refinement(meta_task_name: str, meta_instruction: str, ite
 
 
 async def evaluate_task_plans(meta_task_name: str, meta_instruction: str):
-    task_summary_contents = load_task_summary_contents(meta_task_name)
+    task_summary_contents = build_overall_reports(os.path.join(SANDBOX_TASK_DIR, meta_task_name))
     response = await task_group_selection_agent(meta_task_name=meta_task_name, meta_instruction=meta_instruction, candidate_reports=task_summary_contents)
-    
+    summarize_refined_task_files(meta_task_name=meta_task_name)
+    return response
+
 
 async def refine_task_plans(meta_task_name: str, meta_instruction: str):
     selected_task_index = load_selected_task_index(meta_task_name)  
@@ -103,10 +103,8 @@ async def refine_task_plans(meta_task_name: str, meta_instruction: str):
 
 
 if __name__ == "__main__":
-    # asyncio.run(refine_task_plans(meta_task_name="jiying", meta_instruction=""))
-    asyncio.run(evaluate_task_plans(meta_task_name="jiying", meta_instruction=""))
-    asyncio.run(single_node_refinement(meta_task_name="jiying", meta_instruction="", iteration_number=0))
-
+    response = asyncio.run(evaluate_task_plans(meta_task_name="jiying", meta_instruction="General task"))
+    print(response)
 
 
 
