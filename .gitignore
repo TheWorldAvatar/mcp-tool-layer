@@ -9,3 +9,4 @@ configs/mcp_configs.json
 /mcp_tool_layer.egg-info
 /sandbox
 /playground
+configs/pretask_mcp_configs.json

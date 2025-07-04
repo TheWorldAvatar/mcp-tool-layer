@@ -1,0 +1,36 @@
+{
+
+    "filesystem": {
+        "command": "docker",
+        "args": [
+            "run",
+            "-i",
+            "--rm",
+            "--mount", "type=bind,src=<absolute path>/data,dst=/data",
+            "--mount", "type=bind,src=<absolute path>/sandbox,dst=/sandbox",	
+            "mcp/filesystem",
+            "/data",
+            "/sandbox"
+        ],
+        "transport": "stdio"
+    },
+    "generic_file_operations": {
+        "command": "python",
+        "args": ["<absolute path>/src/mcp_servers/generic_file_operations.py"],
+        "transport": "stdio"
+    },
+    "resource_registration": {
+        "command": "python",
+        "args": ["<absolute path>/src/mcp_servers/resource_registration_server.py"],
+        "transport": "stdio"
+    },
+
+    "task_refinement": {
+        "command": "python",
+        "args": [
+            "<absolute path>/src/mcp_servers/task_refinement_server.py"
+        ],
+        "transport": "stdio"
+    }
+
+}
