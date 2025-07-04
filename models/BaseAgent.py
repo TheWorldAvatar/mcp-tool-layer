@@ -29,6 +29,7 @@ class BaseAgent:
         model_name: str = "gpt-4o-mini",
         remote_model: bool = True,
         model_config: ModelConfig | None = None,
+        mcp_set_name: str | None = "mcp_configs.json",
         mcp_tools: list[str] | None = None,
         structured_output: bool = False,
         structured_output_schema: Any = None,
@@ -36,8 +37,11 @@ class BaseAgent:
         self.model_name = model_name
         self.remote_model = remote_model
         self.model_config = model_config or ModelConfig()
-        self.mcp_config = MCPConfig()
+        self.mcp_config = MCPConfig(config_name=mcp_set_name)
         self.mcp_tools = mcp_tools or ["github", "filesystem"]
+        print("="*100)
+        print(f"mcp_tools: {	self.mcp_tools}" )
+        print("="*100)
 
         # Create the LLM up front
         self.llm = LLMCreator(

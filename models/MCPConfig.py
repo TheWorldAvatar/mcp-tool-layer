@@ -1,7 +1,7 @@
 import json
 import os
 import asyncio
-from locations import CONFIGS_DIR
+from models.locations import CONFIGS_DIR
 
 """
 MCPConfig is a class that contains the configuration for the MCP tools.
@@ -11,9 +11,9 @@ It is designed to be used as standard template for creating MCP tools.
 
 class MCPConfig:
 
-    def __init__(self): 
+    def __init__(self, config_name: str = "mcp_configs.json"): 
         # load mcp_configs.json
-        config_path = os.path.join(CONFIGS_DIR, "mcp_configs.json")
+        config_path = os.path.join(CONFIGS_DIR, config_name)
         try:
             with open(config_path, "r") as f:
                 self.mcp_configs = json.load(f)

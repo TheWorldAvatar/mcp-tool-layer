@@ -14,7 +14,7 @@ class LLMCreator():
 
     def __init__(self, model = "gpt-4o-mini", remote_model=True, model_config = None, structured_output=False, structured_output_schema=None):
         # load the environment variables
-        load_dotenv()
+        load_dotenv(override=True)
         self.model = model
         self.remote_model = remote_model
         self.structured_output = structured_output
@@ -46,14 +46,16 @@ class LLMCreator():
                 model=self.model,
                 base_url=self.base_url,
                 api_key=self.api_key,
-                **self.config.get_config()
+                cache=False,
+                **self.config.get_config(model_name=self.model)
             )
         else:
             return ChatOpenAI(
                 model=self.model,
                 base_url=self.base_url,
                 api_key=self.api_key,
-                **self.config.get_config()
+                cache=False,
+                **self.config.get_config(model_name=self.model)
             ).with_structured_output(self.structured_output_schema)
     
     def get_model_info(self):
@@ -71,4 +73,12 @@ class LLMCreator():
         }
         return model_info
 
- 
+if __name__ == "__main__":
+    load_dotenv(override=True)
+    print(os.environ.get("REMOTE_BASE_URL"))
+    from models.ModelConfig import ModelConfig
+    llm_creator = LLMCreator(model="gpt-4o-mini", remote_model=True, model_config=ModelConfig(), structured_output=False, structured_output_schema=None)
+    llm = llm_creator.setup_llm()
+    prompt = "What is the capital of France?"
+    response = llm.invoke(prompt)
+    print(response)

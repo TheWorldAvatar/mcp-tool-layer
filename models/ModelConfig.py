@@ -14,10 +14,17 @@ class ModelConfig:
         self.temperature = temperature
         self.top_p = top_p
  
-    def get_config(self):
-        return {
-            "max_tokens": self.max_tokens,
-            "timeout": self.timeout,
-            "temperature": self.temperature,
-            # "top_p": self.top_p
-        }
+    def get_config(self, model_name: str):
+        if model_name == "o3-mini":
+            return {
+                "timeout": self.timeout,
+                "temperature": self.temperature,
+                # "top_p": self.top_p
+            }
+        else:
+            return {
+                # "max_tokens": self.max_tokens,
+                "timeout": self.timeout,
+                "temperature": self.temperature,
+                "top_p": self.top_p
+            }
