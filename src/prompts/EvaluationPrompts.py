@@ -18,7 +18,7 @@ something like this:
 
 ============ Iteration 0 =============
 
-You should select the iteration number of the two best task plans, e.g., 0 and 1. ànd use the output_selected_task_index tool to output the selected task index (This is very important). 
+You should select the iteration number of the two best task plans ànd use the output_selected_task_index tool to output the selected task index (This is very important). 
 
 ------------------------------
 {candidate_reports}
@@ -32,9 +32,10 @@ The task goal is: {task_goal}
 Add extra step if you find, in the workflow, there are files missing between the steps. You can look at the resource to know what files are available to you in the first place, and review the workflow to see whether some files are missing. Don't be afraid to add extra steps. It is possible for creating new tools for the missing step. 
 Also look at the tools available to you, their descriptions tells you some important information about what are required to do the task. 
 Here is the whole workflow: 
+
 {summarized_task_group}
-You will output the reassembled task group in markdown format, output file path to be /sandbox/tasks/{meta_task_name}/{iteration_index}_reassembled_task_group.md
-Make sure you create the markdown file instead of creating a folder. Just the refined task group in markdown, no other information. 
+
+Use output_refined_task_group tool to output the revised task group. 
 """
 
 
