@@ -1,17 +1,20 @@
 POSTGRES_UPLOAD_DESCRIPTION = """
-    Upload a CSV file to a validationPostgreSQL database.
+    Upload a CSV file to a validation PostgreSQL database. This function is only for validating OBDA files.
 
-    Note: This postgres server is for validating the consistency between the data, the obda file and the ttl file.
-    In order to validate the consistency, we need to upload the data to the validation postgres database.
+    Uploading the CSV file to the validation database does not mean the data is integrated into the semantic stack. 
 
-    You must note that this is not the actual database, it is only used for validation purposes.
+    IMPORTANT: In no circumstances, you should upload any other files to the validation database except for csv files. 
 
-    Args:
-        csv_path (str): Path to the CSV file to be uploaded
-        table_name (str): Name of the table to be created
-    Returns:
-        dict: Dictionary containing:
-            - table_name: Name of the created table
-            - status: Success or error status
-            - message: Descriptive message
+    Mandatory Prerequisites:
+        - Data must be converted to one or more csv files. The tool will not accept any other formats of data.  
+        - In some cases, multiple csv files will be uploaded to the postgres databases into different tables. 
     """
+
+POSTGRES_UPLOAD_DESCRIPTION_EXECUTION = """
+Upload a CSV file to a validation PostgreSQL database. This function is only for and necessary for validating OBDA files. 
+
+
+Mandatory Prerequisites:
+    - Data must be converted to one or more csv files. The tool will not accept any other formats of data.  
+    - In some cases, multiple csv files will be uploaded to the postgres databases into different tables. 
+"""

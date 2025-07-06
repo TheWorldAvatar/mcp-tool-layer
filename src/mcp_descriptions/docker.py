@@ -1,7 +1,7 @@
 # Docker MCP Tool Descriptions
 
-DOCKER_REMOVE_CONTAINER_DESCRIPTION = """Remove a Docker container
-
+DOCKER_REMOVE_CONTAINER_DESCRIPTION = """
+Remove a Docker container
 Args:
     container_id: The ID of the Docker container
 
@@ -13,7 +13,8 @@ Note:
 
 DOCKER_LIST_RUNNING_CONTAINERS_DESCRIPTION = """List all running Docker containers using docker ps command"""
 
-DOCKER_EXECUTE_PYTHON_SCRIPT_IN_CONTAINER_DESCRIPTION = """Execute a Python script in a Docker container, which is mounted to /sandbox
+DOCKER_EXECUTE_PYTHON_SCRIPT_IN_CONTAINER_DESCRIPTION = """
+Execute a Python script in a Docker container, which is mounted to /sandbox
 
 Args:
     container_id: The ID of the Docker container
