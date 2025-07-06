@@ -10,7 +10,7 @@ import logging
 from fastmcp import FastMCP
 from models.SubBaseAgent import build_react_agent
 mcp = FastMCP("SandboxOuter")
-log = logging.getLogger(__name__)   
+ 
 
 
 @mcp.tool()
@@ -46,13 +46,13 @@ async def run_sandbox_operation_python_file(file_path: str) -> str:
         file_path: The path to the python file to run. Please note that the file path is relative to the /sandbox directory.
     """
     prompt = f"""
-    Create a Docker container with Python 3.11, mount the /sandbox directory to /sandbox. 
+    Create a Docker container with Python 3.11, mount the /sandbox directory to /sandbox. and mount the /data directory to /data. 
 
     then run the following python file and return its output:
 
     {file_path}
 
-    Make sure you confirm the file path has the file, if not, search for the file in the /sandbox directory and correct the file path.
+    Make sure you confirm the file path has the file, if not, search for the file in the /sandbox directory or /data directory and correct the file path.
     """
     client, agent = await build_react_agent(mcp_keys=["filesystem", "docker"])
 
