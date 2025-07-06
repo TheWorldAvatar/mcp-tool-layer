@@ -16,25 +16,14 @@ import shutil
 from models.locations import SANDBOX_TASK_DIR, SANDBOX_TASK_ARCHIVE_DIR, DATA_LOG_DIR
 from datetime import datetime
 from src.mcp_descriptions.task_generation import TASK_GENERATION_DESCRIPTION, TASK_ID_GENERATION_DESCRIPTION
+from models.TaskObjects import AddTaskInput
 
 mcp = FastMCP("task_generation")
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.FileHandler("task_generation.log"))    
 
 
-class Tool(BaseModel):
-    name: str
-    description: str
-    exists: bool
-    direct_generation: bool
-
-class AddTaskInput(BaseModel):
-    task_id: str
-    name: str
-    description: str
-    tools: List[Tool]
-    task_dependencies: List[str]
-    output_files: List[str]
+ 
 
 
 @mcp.tool(name="create_new_tool_task", description=TASK_GENERATION_DESCRIPTION, tags=["task_generation"])

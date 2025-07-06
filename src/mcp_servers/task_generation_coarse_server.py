@@ -16,17 +16,10 @@ import shutil
 from models.locations import SANDBOX_TASK_DIR, SANDBOX_TASK_ARCHIVE_DIR, DATA_LOG_DIR, TRACE_FILE_PATH
 from datetime import datetime
 from src.mcp_descriptions.task_generation_coarse import TASK_GENERATION_COARSE_DESCRIPTION, TASK_ID_GENERATION_DESCRIPTION, TASK_INDEX_SELECTION_DESCRIPTION    
+from models.TaskObjects import AddTaskInput
 
 mcp = FastMCP("task_generation_coarse") 
-
-
-class AddTaskInput(BaseModel):
-    task_id: str
-    name: str
-    description: str
-    tools_required: List[str]
-    task_dependencies: List[str]
-
+ 
 
 def update_task_tracing(task_file_path: str, task_meta_name: str, new_task):
     """
