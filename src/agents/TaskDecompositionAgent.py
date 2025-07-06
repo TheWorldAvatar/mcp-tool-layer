@@ -12,22 +12,23 @@ Task Decomposition Agent:
 
 import asyncio
 import os
+import time
 from models.BaseAgent import BaseAgent
 from models.ModelConfig import ModelConfig
-from models.locations import DATA_TEST_DIR, DATA_GENERIC_DIR
+from models.locations import DATA_TEST_DIR, DATA_GENERIC_DIR, SANDBOX_TASK_DIR
 from scripts.clean_task_dir import clean_task_dir
 from src.prompts.DecompositionPrompts import INSTRUCTION_GENERIC_PROMPT, INSTRUCTION_DATA_SNIFFING_PROMPT
 
  
 
-async def task_decomposition_agent(task_meta_name: str, data_folder_path: str, meta_instruction: str, iteration_number: int):
+async def task_decomposition_agent(task_meta_name: str, meta_instruction: str, iteration_number: int):
     """
     This agent decomposes a task into smaller subtasks. It iterates n times and hence produce n task groups as candidates. 
 
     Args:
         task_meta_name: the name of the task
-        data_folder_path: the path to the data folder
         meta_instruction: the meta instruction
+        iteration_number: the number of iterations
 
     Returns:
         Write each step into a json file with the task id, in /sandbox/tasks/{task_meta_name}/{iteration}/task_files.json
@@ -36,18 +37,28 @@ async def task_decomposition_agent(task_meta_name: str, data_folder_path: str, m
 
     # clear the task directory before start
     # clean_task_dir()
+
+        # load the data sniffing report
+    with open(os.path.join(SANDBOX_TASK_DIR, task_meta_name, "data_sniffing_report.md"), "r") as f:
+        data_sniffing_report = f.read()
+
     model_config = ModelConfig()
     mcp_tools = ["all"]
-    agent = BaseAgent(model_name="gpt-4o", model_config=model_config, remote_model=True, mcp_tools=mcp_tools)
     for iteration in range(iteration_number):
+        agent = BaseAgent(model_name="gpt-4o-mini", model_config=model_config, remote_model=True, mcp_tools=mcp_tools, mcp_set_name="task_decomposition_mcp_configs.json")
+        # sleep for 10 seconds
         instruction = INSTRUCTION_GENERIC_PROMPT.format(meta_instruction=meta_instruction, 
-        data_folder_path=data_folder_path, 
+        data_sniffing_report=data_sniffing_report, 
         task_meta_name=task_meta_name, 
         iteration_number=iteration)
-        response, metadata = await agent.run(instruction, recursion_limit=500)        
-        with open(f"sandbox/tasks/{task_meta_name}/{str(iteration)}/task_summary.md", "w") as f:
+        response, metadata = await agent.run(instruction, recursion_limit=500)     
+        print(response)
+
+        output_dir = f"sandbox/tasks/{task_meta_name}/{str(iteration)}"
+        os.makedirs(output_dir, exist_ok=True)
+        with open(f"{output_dir}/task_summary.md", "w") as f:
             f.write(response)
- 
+    
 
 async def data_sniffing_agent(folder_path: str, task_meta_name: str):
     """
@@ -63,16 +74,17 @@ async def data_sniffing_agent(folder_path: str, task_meta_name: str):
     """
     model_config = ModelConfig()    
     mcp_set_name = "pretask_mcp_configs.json"
-    mcp_tools = ["filesystem", "generic_file_operations", "resource_registration"]
+    mcp_tools = ["generic_file_operations", "resource_registration"]
     instruction = INSTRUCTION_DATA_SNIFFING_PROMPT.format(folder_path=folder_path, task_meta_name=task_meta_name)
-    agent = BaseAgent(model_name="gpt-4o-mini", remote_model=True, mcp_set_name=mcp_set_name, mcp_tools=mcp_tools, model_config=model_config)
-    response, metadata = await agent.run(instruction)
+    agent = BaseAgent(model_name="gpt-4.1-mini", remote_model=True, mcp_set_name=mcp_set_name, mcp_tools=mcp_tools, model_config=model_config)
+    response, metadata = await agent.run(instruction, recursion_limit=300)
     print(response)
 
 
 if __name__ == "__main__":
-    asyncio.run(task_decomposition_agent(task_meta_name="jiying", data_folder_path="", meta_instruction="", iteration_number=1))
-    asyncio.run(data_sniffing_agent(folder_path="/data/generic_data/jiying", task_meta_name="jiying"))
+    response = asyncio.run(task_decomposition_agent(task_meta_name="patrick", data_folder_path="", meta_instruction="", iteration_number=1))
+    print(response)
+    # asyncio.run(data_sniffing_agent(folder_path="/data/generic_data/jiying", task_meta_name="jiying"))
  
 
 

@@ -57,10 +57,4 @@ async def main(model_name: str, time_stamp: str, iteration: int):
     with open(os.path.join(output_dir, f"{iteration}.md"), "w") as f:
         f.write(response)
  
-
-if __name__ == "__main__":
-    clean_task_dir()
-    time_stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-
-    for iteration in range(5):
-        asyncio.run(main(model_name="gpt-4o", time_stamp=time_stamp, iteration=iteration))
+ 
