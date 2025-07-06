@@ -11,6 +11,8 @@ from src.engines.utils.task_tree import TaskTree
 async def workflow_examination_engine(meta_task_name: str, meta_instruction: str):
     # put all the refined task files into a single json file, which is used for the workflow examination agent
     # load the resource file
+
+    summarize_refined_task_files(meta_task_name)    # this function is used to summarize the refined task files into a single json file
     with open(os.path.join(SANDBOX_TASK_DIR, meta_task_name, "resources.json"), "r") as f:
         resources = f.read()
     selected_task_indices_list = load_selected_task_index(meta_task_name)
