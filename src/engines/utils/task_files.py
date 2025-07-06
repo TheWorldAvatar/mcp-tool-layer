@@ -1,7 +1,21 @@
 import os
 import json
 from models.locations import DATA_LOG_DIR, SANDBOX_TASK_DIR
+import shutil
 
+def clear_task_dir():
+    """
+    Clear the task directory but preserve archive folder.
+    """
+    if os.path.exists(SANDBOX_TASK_DIR):
+        # Get all items in the task directory
+        for item in os.listdir(SANDBOX_TASK_DIR):
+            item_path = os.path.join(SANDBOX_TASK_DIR, item)
+            # Skip archive folder, remove everything else
+            if os.path.isdir(item_path) and item != "archive":
+                shutil.rmtree(item_path)
+            elif os.path.isfile(item_path):
+                os.remove(item_path)
 
 def delete_task_tracing_file():
     task_tracing_file_path = os.path.join(SANDBOX_TASK_DIR, "task_tracing.json")
@@ -77,7 +91,7 @@ def load_task_files(selected_task_index: int, meta_task_name: str):
     
     # Load the task files, preferring refined versions
     for task_file in task_files:
-        if task_file.endswith('.json'):
+        if task_file.endswith('.json') and task_file != "refined_task_group.json":
             # Check if there's a refined version of this file
             base_name = task_file.replace('.json', '')
             refined_file = f"{base_name}_refined.json"
@@ -105,11 +119,10 @@ def load_all_task_files_from_indices(selected_indices: list, meta_task_name: str
     """Load all task files from multiple selected indices."""
     all_tasks = []
     for index in selected_indices:
-        single_task_group = []
         tasks = load_task_files(index, meta_task_name)
         all_tasks.append(tasks)
     return all_tasks
 
 
 if __name__ == "__main__":
-    print(build_overall_reports(meta_task_name="jiying"))
+    summarize_refined_task_files(meta_task_name="patrick")
