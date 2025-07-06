@@ -10,7 +10,7 @@ from models.MCPConfigDynamic import create_client
 import asyncio
 
 # ✅ Load variables from `.env` into os.environ
-load_dotenv()
+load_dotenv(override=True)
  
 def setup_logging(name: str = __name__, log_file: str = "agent.log") -> logging.Logger:
     logger = logging.getLogger(name)
@@ -37,7 +37,7 @@ async def build_react_agent(
 
 
 async def main():
-    client, agent = await build_react_agent(mcp_keys=["filesystem", "docker"])
+    client, agent = await build_react_agent(mcp_keys=["filesystem", "docker", "generic_file_operations", "python_code_sandbox"])
     INSTRUCTION_PROMPT = """
     Say hello to the world.
     """
