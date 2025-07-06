@@ -4,6 +4,9 @@ import subprocess
 import json
 import os
 import logging
+
+from models.locations import DATA_GENERIC_DIR, SANDBOX_TASK_DIR
+
 from src.mcp_descriptions.docker import (
     DOCKER_REMOVE_CONTAINER_DESCRIPTION,
     DOCKER_LIST_RUNNING_CONTAINERS_DESCRIPTION,
@@ -96,9 +99,11 @@ def create_container(image: str, name: str, ports: dict = None, detach: bool = T
             for host_port, container_port in ports.items():
                 cmd.extend(["-p", f"{host_port}:{container_port}"])
         
-        # Add volume mount for sandbox/code directory
+        # Add volume mounts for sandbox/code and data/generic_data directories
         sandbox_code_path = os.path.join(os.getcwd(), "sandbox")
+        data_generic_path = os.path.join(os.getcwd(), "data", "generic_data")
         cmd.extend(["-v", f"{sandbox_code_path}:/sandbox"])
+        cmd.extend(["-v", f"{data_generic_path}:/data/generic_data"])
         
         # Add the image
         cmd.append(image)
