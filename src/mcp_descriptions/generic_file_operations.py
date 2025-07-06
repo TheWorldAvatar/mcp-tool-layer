@@ -1,3 +1,37 @@
+LIST_FILES_IN_FOLDER_DESCRIPTION = """
+    This function allows listing the files in a folder. Recursively list the files in the folder with their sizes. 
+
+    Args:
+        folder_path: The path to the folder.
+
+    Returns:
+        A string containing the list of files in the folder.
+    """
+
+CODE_OUTPUT_DESCRIPTION = """
+    This function allows writing a code to a file.
+
+    Args:
+        code: The code to write to the file.
+        task_meta_name: The name of the task.
+        iteration_index: The index of the iteration.
+        script_name: The name of the script.
+
+    Returns:
+        A string indicating the code has been written successfully and the path to the file.
+    """
+
+REPORT_OUTPUT_DESCRIPTION = """
+    This function allows writing a file with the given file path and file content.
+
+    Args:
+        file_path: The path to the file.
+        file_content: The content to write to the file.
+
+    Returns:
+        A string indicating the file has been written successfully.
+    """
+
 CSV_FILE_SUMMARY_DESCRIPTION = """
     This function allows reading a csv file, which returns the head and a few sample rows of the csv file.
     
