@@ -24,28 +24,32 @@ Create task files with task_generation tool. (You need to create the task files 
 
 INSTRUCTION_GENERIC_PROMPT = """
 
+Your task is to decompose a large task by making a set of task files to achieve an overal goal **step by step**. 
+
+This is the overall goal: 
+
 {meta_instruction}
-    
-The folder path is: {data_folder_path}
+--- 
 
 You will also need a task_meta_name for creating task files, which is: {task_meta_name} and the iteration number, which is: {iteration_number}
 
+The following is the data sniffing report, which tells you want data are there in the first placeand what are their purposes 
+
+{data_sniffing_report}
+
 **Important**: 
 
-1. You are creating the task plan, not actually doing the work. 
-2. You should consider all the tools you have access to, and make sure the plan is compatible with the existing system. 
+1. You should consider all the tools you have access to, and make sure the plan is compatible with the existing system. 
+2. You are encouraged to propose tools that doesn't exist yet, but are necessary for the task. 
+3. In your task plan, there is no need to do any clean-up or revision of executions, during the execution of the task plans, 
+there will be explicit indication of the execution results. 
 
 Keep in mind a strategy that: 
 
-1. Read the tool descriptions carefully, where you can learn how the underlying system works. 
+1. Read the tool descriptions carefully, where you can learn how the underlying system works.
 2. Use as many existing tools as possible, as existing tools are more likely to be compatible with the existing system. 
-3. Don't be afraid to include hypothetical tools, which will be created for the tasks
-4. In your plan, you should avoid using filesystem tools to read any file. 
-5. In some rare cases, you can use LLMs to generate file content, including report writing, schema file creation, etc. 
-6. Break the tasks in to as small as possible subtasks, each subtask should be yield a single task file. 
-7. Make sure your plan reaches the final goal. 
-8. Data sniffing report is only for creating tasks, you should not use the data sniffing report to do the work. 
-9. If the data is already in csv file, you don't need to extract the data as it is already a tabular data. 
+3. Break the tasks in to as small as possible subtasks, the final outputs will be a set of task files. 
+4. Make sure your plan reaches the final goal. 
 
 Create task files with task_generation tool. (You need to create the task files instead of telling me plan in response)
 """
@@ -77,17 +81,12 @@ The report should be in the following format:
         - File name: <file_name>
         - File type: <file_type>
         - File size: <file_size>
-        - File content: <file_content sample>
-    - Documents:
-        - Document name: <document_name>
-        - Document type: <document_type>
-        - Document content: <document_content>
-
     - Summary of the data: <summary_of_the_data>
     - Purpose of the data: <purpose_of_the_data>
-    - Basic structure of the data: <basic_structure_of_the_data>
 
 Output the report file with the name "data_sniffing_report.md" in the folder provided, output in /sandbox/tasks/ {task_meta_name}/data_sniffing_report.md
+
+Use report_output tool to output the report file. 
 
 Also, you should register the resources you found in the data folder. Use resource_registration tool to register the resources. 
 

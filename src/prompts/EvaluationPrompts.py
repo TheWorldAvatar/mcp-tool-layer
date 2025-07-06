@@ -3,6 +3,7 @@ Your task is to select two best task plans from five candidates.
 Each candidate forms a task plan according to the following task goal: 
 
 Task Goal: {task_goal}
+
 Task Meta Name: {meta_task_name}
 
 You should consider the following aspects: 
@@ -35,7 +36,13 @@ Here is the whole workflow:
 
 {summarized_task_group}
 
-Use output_refined_task_group tool to output the revised task group. 
+
+
+Use output_refined_task_group tool to output the revised task group, please do not use any other tools to output this. 
+
+The iteration index of the task object is {iteration_index}. The meta task name is {meta_task_name}. These are required for figuring out the output dir. 
+
+
 """
 
 
@@ -48,7 +55,6 @@ This is the task object: {task_object}
 
 Your task is to refine the task object, mostly on whether this particular step uses the optimal tools. 
 
-The iteration index of the task object is {iteration_index}. The meta task name is {meta_task_name}.
 
 You should carefully consider the mcp tools available to you and the current task object in the following rules:
 
