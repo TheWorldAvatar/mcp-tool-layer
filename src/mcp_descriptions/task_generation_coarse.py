@@ -1,11 +1,15 @@
 TASK_GENERATION_COARSE_DESCRIPTION = """
-    Create a new tool task with reference to the AddTaskInput object.
+    Create a new task file with reference to the AddTaskInput object. (This create one of many task files that will be used to form a task plan.)
  
-    - task_id: Unique identifier for the task, which is a 8 character string.
+    - task_id: Unique identifier for the task, which is a 6 character string.
     - name: Human-readable name of the task.
-    - tools_required: List of tool names required for this task, each tool name is a string. Make sure you involve all the tools relevant to the task.
+    - tools_required: List of tools required for this task, each tool is a Tool object. 
     - task_dependencies: List of task IDs this task depends on, which are the task IDs of the tasks that must be completed before this task can be started.
     - iteration_number: The iteration number of the task, which is an integer, starting from 0.
+
+    Tool object:
+        - name: The name of the tool.
+        - is_hypothetical_tool: Whether the tool is hypothetical, i.e., not in the mcp tools available to you now.
 
     Args:
         task_meta_name: The name of the overall task group, which is a string with meaning, in one task decomposition plan, all tasks should share the same overall task name.

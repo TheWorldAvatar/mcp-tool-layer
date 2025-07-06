@@ -16,8 +16,6 @@ TASK_GROUP_REFINEMENT_DESCRIPTION = """
         Tool object: 
             - name: the name of the tool, which is a string. 
             - description: the description of the tool, which is a string. 
-            - is_llm: whether the tool is purely LLM generation of content, which is a boolean. 
-            - exists: whether the tool exists in the mcp tools, which is a boolean. For hypothetical tools, set this to False. 
 
     Here is the breakdown of the task object:
         Task object: 
@@ -48,8 +46,6 @@ TASK_REFINEMENT_DESCRIPTION = """
         Tool object: 
             - name: the name of the tool, which is a string. 
             - description: the description of the tool, which is a string. 
-            - is_llm: whether the tool is LLM generation of content, which is a boolean. 
-            - exists: whether the tool exists in the mcp tools, which is a boolean. For hypothetical tools, set this to False. 
 
     Args:
         new_task: the input for the task, which is a AddDetailedTaskInput object.
