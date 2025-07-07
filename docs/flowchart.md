@@ -1,45 +1,51 @@
-```mermaid
+```mermaid  
 flowchart TD
-    A2(["resources folder"]) --> B["Data 
-    Sniffing 
-    Agent"] & n1(["Code sandbox"])
-    A(["High level prompt:
-        defining the overall task"]) --> B & E["Task 
-    Decomposition 
-    Agent"] & I["Code 
-    Generartion 
-    Agent"] & H["Task 
-    Refinement 
-    Agent"]
-    B --> C["resources.json"] & D["data_sniffing_report.md"]
-    D --> E
-    E --> F1["task_001.json"] & F2["task_002.json"] & F3["task_003.json"]
-    F1 --> G["Task 
-     Evalaution 
-     Agent"]
-    F2 --> G
-    F3 --> G
-    G --> SF1["task_001.json"] & SF2["task_003.json"]
-    SF1 --> H
-    SF2 --> H
-    H --> RF1["refined_task_001.json"] & RF2["refined_task_003.json"]
-    RF1 --> I
-    RF2 --> I
-    I --> n2["extra code for task_001"] & n3["extra code for task_003"]
-    n2 --> n1
-    n3 --> n1
-    C --> I
-    B@{ shape: tri}
-    E@{ shape: tri}
-    I@{ shape: tri}
-    H@{ shape: tri}
-    G@{ shape: tri}
-     B:::Rose
-     A:::Pine
-     E:::Rose
-     I:::Rose
-     H:::Rose
-     G:::Rose
-    classDef Rose stroke-width:1px, stroke-dasharray:none, stroke:#FF5978, fill:#FFDFE5, color:#8E2236
-    classDef Pine stroke-width:1px, stroke-dasharray:none, stroke:#254336, fill:#27654A, color:#FFFFFF
-```
+    %% Entry Points
+    A1(["High-Level Task Prompt"]):::Input --> B1["Task Decomposition Agent"]:::Agent
+    A2(["Resources Folder"]):::Input --> B2["Data Sniffing Agent"]:::Agent
+
+    %% Data Sniffing Output
+    B2 --> C1["resources.json"]:::File
+    B2 --> C2["data_sniffing_report.md"]:::File
+
+    %% Task Decomposition Output
+    C2 --> B1
+    B1 --> D1["task_001.json"]:::Task
+    B1 --> D2["task_002.json"]:::Task
+    B1 --> D3["task_003.json"]:::Task
+
+    %% Task Evaluation
+    D1 --> E1["Task Evaluation Agent"]:::Agent
+    D2 --> E1
+    D3 --> E1
+
+    %% Evaluation Output
+    E1 --> F1["selected_task_001.json"]:::Task
+    E1 --> F2["selected_task_003.json"]:::Task
+
+    %% Task Refinement
+    F1 --> G1["Task Refinement Agent"]:::Agent
+    F2 --> G1
+    G1 --> H1["refined_task_001.json"]:::Task
+    G1 --> H2["refined_task_003.json"]:::Task
+
+    %% Code Generation
+    H1 --> I1["Code Generation Agent"]:::Agent
+    H2 --> I1
+    C1 --> I1
+
+    %% Code Output
+    I1 --> J1["code_task_001.py"]:::Code
+    I1 --> J2["code_task_003.py"]:::Code
+
+    %% Execution Sandbox
+    J1 --> K1["Code Sandbox"]:::Runtime
+    J2 --> K1
+
+    %% Styles
+    classDef Input fill:#27654A,stroke:#254336,color:#FFFFFF
+    classDef Agent fill:#FFDFE5,stroke:#FF5978,color:#8E2236
+    classDef Task fill:#E7EAF6,stroke:#A1A7C1,color:#2C3E50
+    classDef File fill:#E9FFE6,stroke:#3C9A5F,color:#2C5F3D
+    classDef Code fill:#FDF5DC,stroke:#D4A144,color:#6B4900
+    classDef Runtime fill:#D3ECF9,stroke:#3399CC,color:#1C3E57
