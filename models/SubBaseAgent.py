@@ -37,7 +37,7 @@ async def build_react_agent(
 
 
 async def main():
-    client, agent = await build_react_agent(mcp_keys=["filesystem", "docker", "generic_file_operations", "python_code_sandbox"])
+    client, agent = await build_react_agent(mcp_keys=["filesystem", "docker", "generic_file_operations", "python_code_sandbox", "resource_registration"])
     INSTRUCTION_PROMPT = """
     Say hello to the world.
     """

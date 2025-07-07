@@ -39,7 +39,13 @@ _ALL_MCP_CONFIGS: Dict[str, Dict] = {
         "command": "python",
         "args": [_p(MCP_SRC / "python_sandbox.py")],
         "transport": "stdio",
-    }   
+    },
+
+    "resource_registration": {
+        "command": "python",
+        "args": [_p(MCP_SRC / "resource_registration_server.py")],
+        "transport": "stdio",
+    }
 }
 
 def get_mcp_configs(names: List[str] | None = None) -> Dict[str, Dict]:
@@ -50,4 +56,4 @@ def create_client(names: List[str] | None = None) -> MultiServerMCPClient:
     return MultiServerMCPClient(get_mcp_configs(names))
 
 if __name__ == "__main__":
-    print(get_mcp_configs(["filesystem", "docker", "generic_file_operations", "python_code_sandbox"]))
+    print(get_mcp_configs(["filesystem", "docker", "generic_file_operations", "python_code_sandbox", "resource_registration"]))

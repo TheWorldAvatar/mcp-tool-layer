@@ -6,6 +6,8 @@ from models.locations import DATA_GENERIC_DIR, SANDBOX_TASK_DIR
 import os
 import json
 from src.mcp_descriptions.task_refinement import RESOURCE_REGISTRATION_DESCRIPTION
+from typing import Optional
+
 
 mcp = FastMCP("resource_registration")
 
@@ -14,6 +16,13 @@ class ResourceRegistrationInput(BaseModel):
     resource_type: str
     resource_description: str
     resource_location: str
+    # optional attribtus for script only 
+    # 1. the docker container name for execution 
+    # 2. the command to execute the script via docker 
+    # 3. extra libraries installed for that 
+    docker_container_name: Optional[str] = None
+    docker_command: Optional[str] = None
+    extra_libraries: Optional[List[str]] = None
 
 def convert_to_absolute_path(path: str) -> str:
     # Handle paths starting with /data/generic_data/
@@ -51,11 +60,23 @@ def output_resource_registration_report(meta_task_name: str, resource_registrati
         resource.resource_location = convert_to_absolute_path(resource.resource_location)
 
     # Convert the list of ResourceRegistrationInput objects to a list of dictionaries
-    resource_data = [resource.model_dump() for resource in resource_registration_input]
+    new_resource_data = [resource.model_dump() for resource in resource_registration_input]
+    
+    # Load existing resources if file exists, otherwise start with empty list
+    existing_resources = []
+    if os.path.exists(file_path):
+        try:
+            with open(file_path, "r") as f:
+                existing_resources = json.loads(f.read())
+        except (json.JSONDecodeError, FileNotFoundError):
+            existing_resources = []
+    
+    # Append new resources to existing ones
+    all_resources = existing_resources + new_resource_data
     
     # write the resource registration input to the file
     with open(file_path, "w") as f:
-        f.write(json.dumps(resource_data, indent=4))
+        f.write(json.dumps(all_resources, indent=4))
     return f"Resource registration report output to {file_path}"
 
 if __name__ == "__main__":  

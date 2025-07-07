@@ -39,9 +39,13 @@ async def code_generation_agent(task_node: str, task_meta_name: str, iteration_i
     Here are the resources available to you, make sure you use the correct file paths.  
 
     {resources}
+
+    After you generate the script, also use resource_registration tool to add the script as a resource. 
+
+    Remember the docker container name and the docker command for executing the script, you need to include them in the resource_registration tool. 
     """
 
-    client, agent = await build_react_agent(mcp_keys=["docker", "generic_file_operations", "python_code_sandbox"])
+    client, agent = await build_react_agent(mcp_keys=["docker", "generic_file_operations", "python_code_sandbox", "resource_registration"])
 
     result = await agent.ainvoke({"messages": prompt}, {"recursion_limit": 300})
     reply = result["messages"][-1].content
@@ -89,7 +93,7 @@ if __name__ == "__main__":
     resources = [
     {
         "resource_name": "ukbuildings_6009073.gpkg",
-        "resource_type": "GeoPackage",
+        "resource_type": "file",
         "resource_description": "GeoPackage file containing spatial data of buildings in the UK.",
         "resource_location": "/data/generic_data/jinfeng/ukbuildings_6009073.gpkg"
     }]
