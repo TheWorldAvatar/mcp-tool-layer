@@ -1,8 +1,4 @@
----
-config:
-  theme: redux
-  layout: dagre
----
+```mermaid
 flowchart TD
     A2(["resources folder"]) --> B["Data 
     Sniffing 
@@ -46,3 +42,4 @@ flowchart TD
      G:::Rose
     classDef Rose stroke-width:1px, stroke-dasharray:none, stroke:#FF5978, fill:#FFDFE5, color:#8E2236
     classDef Pine stroke-width:1px, stroke-dasharray:none, stroke:#254336, fill:#27654A, color:#FFFFFF
+```
