@@ -14,16 +14,7 @@ def _p(p: Path) -> str:
     return p.as_posix()
 
 _ALL_MCP_CONFIGS: Dict[str, Dict] = {
-    "filesystem": {
-        "command": "docker",
-        "args": [
-            "run", "-i", "--rm",
-            "--mount", f"type=bind,src={_p(DATA)},dst=/data",
-            "--mount", f"type=bind,src={_p(SANDBOX)},dst=/sandbox",
-            "mcp/filesystem", "/data", "/sandbox",
-        ],
-        "transport": "stdio",
-    },
+ 
     "docker": {
         "command": "python",
         "args": [_p(MCP_SRC / "docker_mcp.py")],
