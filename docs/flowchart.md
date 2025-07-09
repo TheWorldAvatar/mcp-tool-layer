@@ -15,6 +15,7 @@ flowchart TD
     B1 --> D3["task_003.json"]:::Task
 
     %% Task Evaluation
+    A1 --> E1
     D1 --> E1["Task Evaluation Agent"]:::Agent
     D2 --> E1
     D3 --> E1
@@ -24,6 +25,7 @@ flowchart TD
     E1 --> F2["selected_task_003.json"]:::Task
 
     %% Task Refinement
+    A1 --> G1
     F1 --> G1["Task Refinement Agent"]:::Agent
     F2 --> G1
     G1 --> H1["refined_task_001.json"]:::Task
