@@ -4,6 +4,7 @@ from typing import List
 class Tool(BaseModel):
     name: str
     is_hypothetical_tool: bool
+    is_llm_generation: bool
 
 
 class AddTaskInput(BaseModel):

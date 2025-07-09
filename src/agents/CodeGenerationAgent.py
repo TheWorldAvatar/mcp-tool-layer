@@ -13,7 +13,9 @@ async def code_generation_agent(task_node: str, task_meta_name: str, iteration_i
 
     Run the python script with run_sandbox_operation_python_file tool together with the docker tools in a sandbox container and check whether the code works. 
 
-    The task meta name is {task_meta_name} and the iteration index is {iteration_index}. 
+    Refine the code until the script works without any errors in the sandbox. 
+
+    The task meta name is {task_meta_name} and the iteration index is {iteration_index}, these two values let you know which directory you should output the code. 
 
     Focus on the subtask. 
 
