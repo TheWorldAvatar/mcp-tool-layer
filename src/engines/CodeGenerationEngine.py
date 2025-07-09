@@ -2,10 +2,10 @@ import os
 import asyncio
 import json
 from src.agents.CodeGenerationAgent import code_generation_agent
-from models.locations import SANDBOX_TASK_DIR
+from models.locations import SANDBOX_TASK_DIR, SANDBOX_CODE_DIR
 from src.engines.utils.task_tree import TaskTree, TaskNode
 from typing import List
-
+import shutil
 
 def identify_hypothetical_tools(task_tree: TaskTree) -> List[TaskNode]:
     all_task_nodes = task_tree.get_all_task_nodes()
@@ -18,6 +18,12 @@ def identify_hypothetical_tools(task_tree: TaskTree) -> List[TaskNode]:
     return hypothetical_task_nodes
 
 async def code_generation_engine(task_meta_name: str) -> str:
+    # remove sandbox/code/task_meta_name directory
+    code_dir = os.path.join(SANDBOX_CODE_DIR, task_meta_name)
+    if os.path.exists(code_dir):
+        shutil.rmtree(code_dir)
+
+
     # load the refined task group files
     task_dir = os.path.join(SANDBOX_TASK_DIR, task_meta_name)
     refined_task_group_files = [f for f in os.listdir(task_dir) if f.endswith("_refined_task_group.json")]
@@ -27,6 +33,9 @@ async def code_generation_engine(task_meta_name: str) -> str:
     refined_task_group_files_with_index = [str(f) for f in refined_task_group_files_with_index]
 
     # load the resources
+    resources_file_path = os.path.join(task_dir, "resources.json")
+    with open(resources_file_path, "r") as f:
+        resources = json.load(f)
 
     for index, refined_task_group_file in zip(refined_task_group_files_with_index, refined_task_group_files):
         print(f"Processing {index}th refined task group")

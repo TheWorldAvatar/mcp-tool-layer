@@ -32,11 +32,14 @@ Your task is to check a task group and add missing steps if necessary.
 The task goal is: {task_goal}
 Add extra step if you find, in the workflow, there are files missing between the steps. You can look at the resource to know what files are available to you in the first place, and review the workflow to see whether some files are missing. Don't be afraid to add extra steps. It is possible for creating new tools for the missing step. 
 Also look at the tools available to you, their descriptions tells you some important information about what are required to do the task. 
+
+You should also revise the two Tool object fields in the task object, is_llm_generation and is_hypothetical_tool.
+
+If the task is suitable for directly using an LLM to create the output, set is_llm_generation to True. This usually involves creating ontologies. 
+
 Here is the whole workflow: 
 
 {summarized_task_group}
-
-
 
 Use output_refined_task_group tool to output the revised task group, please do not use any other tools to output this. 
 

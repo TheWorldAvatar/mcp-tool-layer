@@ -16,6 +16,7 @@ from src.engines.TaskRevisionEngine import refine_task_plans
 from src.engines.TaskRevisionEngine import summarize_refined_task_files
 from src.engines.TaskRevisionEngine import workflow_examination_engine
 from src.engines.TaskRevisionEngine import single_node_refinement
+from src.engines.CodeGenerationEngine import code_generation_engine
 from src.engines.utils.task_files import delete_task_tracing_file
 from src.engines.utils.task_files import clear_task_dir
 import asyncio
@@ -76,6 +77,10 @@ async def semantic_stack_engine():
             if os.path.exists(task_dir):
                 refined_files_count = len([f for f in os.listdir(task_dir) if f.endswith("_refined_task_group.json")])
             time.sleep(1)
+
+        print("6. Code generation")
+        code_generation_result = await code_generation_engine(task_meta_name=name)
+        print(code_generation_result)
 
 if __name__ == "__main__":
     asyncio.run(semantic_stack_engine())
