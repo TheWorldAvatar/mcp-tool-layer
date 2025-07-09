@@ -14,7 +14,7 @@ CODE_OUTPUT_DESCRIPTION = """
     Args:
         code: The code to write to the file.
         task_meta_name: The name of the task.
-        iteration_index: The index of the iteration.
+        task_index: The index of the task
         script_name: The name of the script.
 
     Returns:

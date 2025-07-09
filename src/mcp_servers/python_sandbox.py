@@ -18,7 +18,7 @@ async def run_sandbox_python_code(code: str) -> str:
     """
     execute *code* inside a sandbox container, and return the program's stdout.
     """
-    client, agent = await build_react_agent(mcp_keys=["filesystem", "docker"])
+    client, agent = await build_react_agent(mcp_keys=["generic_file_operations", "docker"])
 
     # 4️⃣  Prompt instructing the inner agent what to do
     prompt = f"""
@@ -53,8 +53,17 @@ async def run_sandbox_operation_python_file(file_path: str) -> str:
     {file_path}
 
     Make sure you confirm the file path has the file, if not, search for the file in the /sandbox directory or /data directory and correct the file path.
+    
+    In your final response, please include the docker container id and the full "docker exec .." command you used to execute the script. 
+
+    With the following format:
+    ```
+    docker_container_id: <docker_container_id>
+    execution_command: <docker exec <docker_container_id> <execution_command>
+    docker_output: <docker_output>
+    ```
     """
-    client, agent = await build_react_agent(mcp_keys=["filesystem", "docker"])
+    client, agent = await build_react_agent(mcp_keys=["generic_file_operations", "docker"])
 
     result = await agent.ainvoke({"messages": prompt})
     reply = result["messages"][-1].content

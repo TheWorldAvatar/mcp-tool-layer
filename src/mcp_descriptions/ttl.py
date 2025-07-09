@@ -1,9 +1,11 @@
 TTL_VALIDATION_DESCRIPTION = """
-    Validate a created ttl file for syntax errors. 
+    Validate a created ontology ttl file for syntax errors. 
+    
+    For any ttl file created, you should always run this tool to validate the syntax. This is a mandatory step. 
 
     Mandatory Prerequisites:
 
-    1. The ttl file must be created in a previous task (ttl files are created by ttl instead of tools.). 
+    1. The ttl file must be created in a previous task (ttl files are created by LLMs instead of tools). 
     """
 
 TTL_VALIDATION_DESCRIPTION_EXECUTION = """

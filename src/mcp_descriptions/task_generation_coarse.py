@@ -10,6 +10,7 @@ TASK_GENERATION_COARSE_DESCRIPTION = """
     Tool object:
         - name: The name of the tool.
         - is_hypothetical_tool: Whether the tool is hypothetical, i.e., not in the mcp tools available to you now.
+        - is_llm_generation: Whether you think this task is suitable for directly using an LLM to create the output.
 
     Args:
         task_meta_name: The name of the overall task group, which is a string with meaning, in one task decomposition plan, all tasks should share the same overall task name.

@@ -22,14 +22,14 @@ def convert_to_absolute_path(file_path: str) -> str:
 
 
 @mcp.tool(name="code_output", description=CODE_OUTPUT_DESCRIPTION, tags=["generic_file_operations"])
-def code_output(code: str, task_meta_name: str, iteration_index: int, script_name: str) -> str:
+def code_output(code: str, task_meta_name: str, task_index: int, script_name: str) -> str:
     # check the basic syntax of the code
     try:
         ast.parse(code)
     except Exception as e:
         return f"Error: {str(e)}"	
 
-    output_dir = os.path.join(SANDBOX_CODE_DIR, task_meta_name, str(iteration_index))
+    output_dir = os.path.join(SANDBOX_CODE_DIR, task_meta_name, str(task_index))
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
     

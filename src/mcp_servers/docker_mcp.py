@@ -148,7 +148,7 @@ async def execute_command_in_container(container_id: str, command: str) -> str:
             check=True
         )
         logger.info(f"Command execution result: {result.stdout}")
-        return result.stdout
+        return f"Command executed: {' '.join(cmd)}\nOutput: {result.stdout}"
     except subprocess.CalledProcessError as e:
         logger.error(f"Error executing generalcommand: {e.stderr}")
         return f"Error executing general command: {e.stderr}"

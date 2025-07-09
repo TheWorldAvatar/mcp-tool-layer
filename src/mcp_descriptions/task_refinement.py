@@ -66,8 +66,8 @@ RESOURCE_REGISTRATION_DESCRIPTION = """
     - resource_location: The location of the resource.
 
     For script only:
-        - docker_container_name: The name of the docker container where the script is executed.
-        - docker_command: The command to execute the script via docker.
+        - docker_container_id: The id of the docker container where the script is executed.
+        - execution_command: The command to execute the script via docker. This usually include the full command starting with "docker exec" and the container id.
         - extra_libraries: The extra libraries installed for that.
 
     The output is a string indicating the file path where the resource registration report is output. 

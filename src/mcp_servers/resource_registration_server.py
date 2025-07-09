@@ -20,8 +20,8 @@ class ResourceRegistrationInput(BaseModel):
     # 1. the docker container name for execution 
     # 2. the command to execute the script via docker 
     # 3. extra libraries installed for that 
-    docker_container_name: Optional[str] = None
-    docker_command: Optional[str] = None
+    docker_container_id: Optional[str] = None
+    execution_command: Optional[str] = None
     extra_libraries: Optional[List[str]] = None
 
 def convert_to_absolute_path(path: str) -> str:

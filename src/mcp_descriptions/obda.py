@@ -1,6 +1,8 @@
 OBDA_VALIDATION_DESCRIPTION = """
     Validate an OBDA mapping file. The validation compares the OBDA file, the ttl ontology file, the data in the postgres database and check whether they are consistent with each other. 
 
+    For any obda file created, you should always run this tool to validate the consistency. This is a mandatory step. 
+
     Args:
         mapping_file (str): Path to the OBDA mapping file
         ontology_file (str): Path to the ontology file (.ttl/.owl)
