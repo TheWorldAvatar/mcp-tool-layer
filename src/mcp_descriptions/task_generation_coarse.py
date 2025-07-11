@@ -20,7 +20,11 @@ TASK_GENERATION_COARSE_DESCRIPTION = """
     """
 
 TASK_ID_GENERATION_DESCRIPTION = """
-    Generate a random id for each task, which is a 6 character string.
+
+    Generate a random id for each task, which is a 6 character string. 
+
+    Every time you generate a new task, you msut use this tool to generate a new id with no exception. 
+    
     - The id should be unique for each task.
 
     Returns:

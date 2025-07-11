@@ -72,4 +72,5 @@ RESOURCE_REGISTRATION_DESCRIPTION = """
 
     The output is a string indicating the file path where the resource registration report is output. 
 
+
     """
