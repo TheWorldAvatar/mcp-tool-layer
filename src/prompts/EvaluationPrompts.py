@@ -28,23 +28,44 @@ You should select the iteration number of the two best task plans ànd use the o
 
 WORKFLOW_EXAMINATION_PROMPT = """
 
-Your task is to check a task group and add missing steps if necessary. 
-The task goal is: {task_goal}
-Add extra step if you find, in the workflow, there are files missing between the steps. You can look at the resource to know what files are available to you in the first place, and review the workflow to see whether some files are missing. Don't be afraid to add extra steps. It is possible for creating new tools for the missing step. 
-Also look at the tools available to you, their descriptions tells you some important information about what are required to do the task. 
+Your job is to **audit and upgrade** the task-group below.  
+Do **NOT** execute any steps—only inspect, add, reorder, or clarify them.
 
-You should also revise the two Tool object fields in the task object, is_llm_generation and is_hypothetical_tool.
+────────────────────────────────────────────────────────
+**Task goal:** {task_goal}
 
-If the task is suitable for directly using an LLM to create the output, set is_llm_generation to True. This usually involves creating ontologies. 
-
-Here is the whole workflow: 
-
+**Current workflow:**  
 {summarized_task_group}
 
-Use output_refined_task_group tool to output the revised task group, please do not use any other tools to output this. 
+**Context values you will need**  
+• **iteration_index:** {iteration_index}  
+• **meta_task_name:** {meta_task_name}  
+────────────────────────────────────────────────────────
 
-The iteration index of the task object is {iteration_index}. The meta task name is {meta_task_name}. These are required for figuring out the output dir. 
+### What to do
 
+
+1. **Read every tool description carefully.**  
+   Use a tool *only* if you are certain it matches a step’s need.  
+   • If no existing tool fits, you may invent a **HypotheticalTool** (give it a clear name and one-sentence description) and mark the related task’s `is_hypothetical_tool = True`.
+
+2. **Find and fix gaps.**  
+   • Add, split, or reorder steps wherever intermediate information or files are missing.  
+   • Keep the workflow as short as possible **but no shorter** than needed to reach the goal.
+
+3. **Decide if the output can be produced directly by an LLM.**  
+   • If so, set that task’s `is_llm_generation = True`; otherwise leave it `False`.
+
+4. **Validate the final workflow.**  
+   • Ensure every input in later steps is produced by an earlier step or is already available in `resource`.  
+   • Confirm that each step references tools legitimately and that hypothetical tools are clearly flagged.
+
+5. **Output your revision** **once**—and only—by calling  
+   ** Make sure you use the `output_refined_task_group` tool to output the revised task group.** with the complete, updated task-group object.  
+   (Do not call any other tools for the final output.)
+
+
+> **Be bold but precise:** add missing pieces, invent tools when justified, and never misuse a tool.
 
 """
 
