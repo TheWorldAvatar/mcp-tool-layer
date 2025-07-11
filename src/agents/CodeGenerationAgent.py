@@ -13,6 +13,8 @@ async def code_generation_agent(task_node: str, task_meta_name: str, iteration_i
 
     Run the python script with run_sandbox_operation_python_file tool together with the docker tools in a sandbox container and check whether the code works. 
 
+    When you run the scripts, use relative paths. For example, input data is in data/generic_data/... output data should be in sandbox/data/...
+
     Refine the code until the script works without any errors in the sandbox. 
 
     The task meta name is {task_meta_name} and the iteration index is {iteration_index}, these two values let you know which directory you should output the code. 
@@ -22,9 +24,9 @@ async def code_generation_agent(task_node: str, task_meta_name: str, iteration_i
     Here are some general rules: 
 
     1. The dataflow in this system is usually file-based, so if your code were to produce any data, it should be saved to a file. 
-    It also applies to the input data, usually, data are passed to the code as file paths. 
+    It also applies to the input data, usually, data are passed to the code as file paths. Always return the file paths of the output files. 
 
-    2. Don't be afraid to use third party libraries to fulfill the user's request.
+    2. Don't be afraid to use third party libraries to fulfill the user's request. But remember to pip install the libraries in the sandbox container in advance before you run the script. 
 
     3. Make sure you use enough try-except blocks to handle errors, which gives you a chance to revise the code and try again.
 
@@ -98,7 +100,8 @@ if __name__ == "__main__":
         "resource_type": "file",
         "resource_description": "GeoPackage file containing spatial data of buildings in the UK.",
         "resource_location": "/data/generic_data/jinfeng/ukbuildings_6009073.gpkg"
-    }]
+    }
+    ]
 
 
     result = asyncio.run(code_generation_agent(task_node=test_task_node, task_meta_name="jinfeng", iteration_index=0, resources=resources))
