@@ -18,6 +18,8 @@ def identify_hypothetical_tools(task_tree: TaskTree) -> List[TaskNode]:
     return hypothetical_task_nodes
 
 async def code_generation_engine(task_meta_name: str) -> str:
+
+    collected_response = []
     # remove sandbox/code/task_meta_name directory
     code_dir = os.path.join(SANDBOX_CODE_DIR, task_meta_name)
     if os.path.exists(code_dir):
@@ -48,6 +50,9 @@ async def code_generation_engine(task_meta_name: str) -> str:
             # use this task node in json format as the instruction to the code generation agent
             code_generation_result = await code_generation_agent(hypothetical_task_node, task_meta_name, index, resources)
             print(code_generation_result)
+            collected_response.append(code_generation_result)
+
+    return "\n".join(collected_response)
 
 
 if __name__ == "__main__":
