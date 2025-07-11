@@ -1,24 +1,8 @@
-from fastmcp import FastMCP
 import subprocess
 import json
 import os
 import shutil
-import logging
-
-from models.locations import DATA_GENERIC_DIR, SANDBOX_DIR  
-from src.mcp_descriptions.docker import (
-    DOCKER_REMOVE_CONTAINER_DESCRIPTION,
-    DOCKER_LIST_RUNNING_CONTAINERS_DESCRIPTION,
-    DOCKER_EXECUTE_PYTHON_SCRIPT_IN_CONTAINER_DESCRIPTION,
-    DOCKER_CREATE_CONTAINER_DESCRIPTION,
-    DOCKER_EXECUTE_COMMAND_IN_CONTAINER_DESCRIPTION,
-    DOCKER_PYTHON_EXECUTION_IN_CONTAINER_DESCRIPTION
-)
-
-# -------------------- CONFIG --------------------
-mcp = FastMCP("docker")
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("docker_mcp")
+from models.locations import DATA_GENERIC_DIR, SANDBOX_DIR
 
 # -------------------- HELPERS --------------------
 
@@ -36,9 +20,8 @@ def docker_available():
         return False, "Docker command not found. Please install Docker and ensure it's in PATH."
     return True, "Docker command found."
 
-# -------------------- TOOLS --------------------
+# -------------------- FUNCTIONS --------------------
 
-@mcp.tool(name="remove_container", description=DOCKER_REMOVE_CONTAINER_DESCRIPTION, tags=["docker"])
 def remove_container(container_id: str) -> str:
     available, msg = docker_available()
     feedback = {"action": "remove_container", "container_id": container_id, "docker_available": available, "docker_check_msg": msg}
@@ -60,7 +43,6 @@ def remove_container(container_id: str) -> str:
         feedback["detail"] = f"Error removing container '{container_id}': {e.stderr}"
         return json.dumps(feedback)
 
-@mcp.tool(name="list_running_containers", description=DOCKER_LIST_RUNNING_CONTAINERS_DESCRIPTION, tags=["docker"])
 def list_running_containers() -> str:
     available, msg = docker_available()
     feedback = {"action": "list_running_containers", "docker_available": available, "docker_check_msg": msg}
@@ -87,7 +69,6 @@ def list_running_containers() -> str:
         feedback["detail"] = f"Error running 'docker ps': {e.stderr}"
         return json.dumps(feedback)
 
-@mcp.tool(name="execute_python_script_in_container", description=DOCKER_EXECUTE_PYTHON_SCRIPT_IN_CONTAINER_DESCRIPTION, tags=["docker"])
 def execute_python_script_in_container(container_id: str, script_path: str, args: list = None) -> str:
     available, msg = docker_available()
     feedback = {
@@ -106,7 +87,6 @@ def execute_python_script_in_container(container_id: str, script_path: str, args
         cmd = ["docker", "exec", container_id, "python", script_path]
         if args:
             cmd.extend(args)
-        logger.info(f"Executing script in container: {' '.join(cmd)}")
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
         feedback["result"] = "success"
         feedback["command"] = cmd
@@ -143,7 +123,6 @@ def _create_container_command(image: str, name: str, detach: bool = True) -> str
         existing_id = existing.stdout.strip()
         feedback["existing_container_id"] = existing_id
         if existing_id:
-            logger.info(f"Container with name '{name}' already exists (ID: {existing_id}). Removing it first.")
             remove_cmd = ["docker", "rm", "-f", name]
             remove_result = subprocess.run(remove_cmd, capture_output=True, text=True, check=True)
             feedback["remove_existing_stdout"] = remove_result.stdout
@@ -167,7 +146,6 @@ def _create_container_command(image: str, name: str, detach: bool = True) -> str
         cmd.append(image)
         cmd.extend(["tail", "-f", "/dev/null"])
 
-        logger.info(f"Creating container: {' '.join(cmd)}")
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
         container_id = result.stdout.strip()
         feedback["run_command"] = cmd
@@ -175,7 +153,6 @@ def _create_container_command(image: str, name: str, detach: bool = True) -> str
         feedback["run_stderr"] = result.stderr
 
         if not container_id:
-            logger.warning("Container ID not returned, attempting fallback using name...")
             fallback = subprocess.run(["docker", "ps", "-qf", f"name={name}"], capture_output=True, text=True, check=True)
             container_id = fallback.stdout.strip()
             feedback["fallback_container_id"] = container_id
@@ -198,11 +175,9 @@ def _create_container_command(image: str, name: str, detach: bool = True) -> str
         feedback["detail"] = f"Error creating container '{name}' with image '{image}': {e.stderr}"
         return json.dumps(feedback)
 
-@mcp.tool(name="create_container", description=DOCKER_CREATE_CONTAINER_DESCRIPTION, tags=["docker"])
 def create_container(image: str, name: str, detach: bool = True) -> str:
     return _create_container_command(image, name, detach)    
 
-@mcp.tool(name="execute_command_in_container", description=DOCKER_EXECUTE_COMMAND_IN_CONTAINER_DESCRIPTION, tags=["docker"])
 async def execute_command_in_container(container_id: str, command: str) -> str:
     available, msg = docker_available()
     feedback = {
@@ -219,7 +194,6 @@ async def execute_command_in_container(container_id: str, command: str) -> str:
     try:
         cmd_args = command.split()
         cmd = ["docker", "exec", container_id] + cmd_args
-        logger.info(f"Executing command in container: {' '.join(cmd)}")
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
         feedback["result"] = "success"
         feedback["exec_command"] = cmd
@@ -235,7 +209,6 @@ async def execute_command_in_container(container_id: str, command: str) -> str:
         feedback["detail"] = f"Failed to execute command '{command}' in container '{container_id}': {e.stderr}"
         return json.dumps(feedback)
 
-@mcp.tool(name="python_execution_in_container", description=DOCKER_PYTHON_EXECUTION_IN_CONTAINER_DESCRIPTION, tags=["docker"])
 def python_execution_in_container(container_id: str, code: str) -> str:
     available, msg = docker_available()
     feedback = {
@@ -250,7 +223,6 @@ def python_execution_in_container(container_id: str, code: str) -> str:
         feedback["detail"] = msg
         return json.dumps(feedback)
     try:
-        logger.info(f"Executing Python code in container '{container_id}'")
         cmd = ["docker", "exec", container_id, "python", "-c", code]
         result = subprocess.run(
             cmd,
@@ -270,12 +242,4 @@ def python_execution_in_container(container_id: str, code: str) -> str:
         feedback["stdout"] = e.stdout
         feedback["stderr"] = e.stderr
         feedback["detail"] = f"Failed to execute Python code in container '{container_id}': {e.stderr}"
-        return json.dumps(feedback)
-
-# -------------------- MAIN ENTRYPOINT --------------------
-if __name__ == "__main__":
-    mcp.run(transport="stdio")
-    # test_path = "/mnt/c/Users/xz378/Documents/GitHub/mcp-tool-layer/data/generic_data/jinfeng/extracted_data.csv"
-    # print(wsl_to_windows_path(test_path))
-
-   #  _create_container_command("python:3.11", "test_container", detach=True)
+        return json.dumps(feedback) 

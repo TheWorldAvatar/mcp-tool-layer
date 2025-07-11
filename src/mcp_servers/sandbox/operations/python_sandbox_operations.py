@@ -1,19 +1,14 @@
 """
-agent_server.py
-FastMCP server that offers a single tool: run_sandbox_operation(code:str) -> str
-The tool itself spins up two MCP helpers ("filesystem" and "docker") and lets
-a lightweight ReAct agent use them to execute code in a sandbox container.
+Python sandbox operations functions
+Functions for executing Python code in sandbox containers
 """
 from __future__ import annotations
 import asyncio
 import logging
-from fastmcp import FastMCP
 from models.SubBaseAgent import build_react_agent
-mcp = FastMCP("SandboxOuter")
- 
 
+log = logging.getLogger(__name__)
 
-@mcp.tool()
 async def run_sandbox_python_code(code: str) -> str:
     """
     execute *code* inside a sandbox container, and return the program's stdout.
@@ -37,7 +32,6 @@ async def run_sandbox_python_code(code: str) -> str:
     
     return reply
 
-@mcp.tool()
 async def run_sandbox_operation_python_file(file_path: str) -> str:
     """
     Run a Python file in the sandbox.
@@ -69,9 +63,4 @@ async def run_sandbox_operation_python_file(file_path: str) -> str:
 
     result = await agent.ainvoke({"messages": prompt})
     reply = result["messages"][-1].content
-    return reply
-
-
-if __name__ == "__main__":
-    mcp.run(transport="stdio")
-    # asyncio.run(run_sandbox_python_code("print('Hello, World!')"))
+    return reply 

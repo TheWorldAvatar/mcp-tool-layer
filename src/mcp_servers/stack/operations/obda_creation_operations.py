@@ -1,28 +1,7 @@
 #!/usr/bin/env python
 """
-obda_mcp_server.py
-==================
-Fast-MCP service that exposes **one** public tool – ``create_obda_file`` – to
-produce an Ontop-compatible OBDA 2.x mapping file.
-
-Improvements compared to the previous version
----------------------------------------------
-* **Paths are configurable** via environment variables (``LOCAL_DATA_ROOT`` and
-  ``MCP_DATA_ROOT``) instead of hard-coded constants.
-* **Logging** now writes both to the console *and* a rotating file, with
-  ISO-8601 timestamps.
-* **Safer IRI construction**: column names are converted to strict CamelCase
-  and optionally prefixed (default ``data``) to avoid clashes with existing
-  predicates.
-* **Prefix validation**: the required default prefix (``:``) is inserted when
-  missing so that the generated mapping is always syntactically complete.
-* **Better mapping-id generation** prevents clashes and makes identifiers
-  deterministic.
-* **Strict type-hints** and docstrings across the codebase.
-* **Early validation** of user inputs with helpful error messages.
-
-The public signature of ``create_obda_file`` remains **backwards compatible**
-so existing agents do not need to change.
+OBDA creation operations
+Functions for creating Ontop-compatible OBDA 2.x mapping files.
 """
 
 from __future__ import annotations
@@ -31,15 +10,7 @@ import os
 import re
 import logging
 from pathlib import Path
-from fastmcp import FastMCP
 from logging.handlers import RotatingFileHandler
-from src.mcp_descriptions.obda import OBDA_CREATION_DESCRIPTION
-
-###############################################################################
-# MCP initialisation
-###############################################################################
-
-mcp = FastMCP(name="OBDAFileGenerator")
 
 # Allow overriding via environment variables ----------------------------------
 LOCAL_DATA_ROOT = Path(os.environ.get("LOCAL_DATA_ROOT", "./data"))
@@ -88,11 +59,6 @@ def _mapping_id(table: str, column: str | None = None) -> str:
         base = f"{base}_{column}"
     return base
 
-###############################################################################
-# Public tool
-###############################################################################
-
-@mcp.tool(name="create_obda_file", description=OBDA_CREATION_DESCRIPTION, tags=["obda"])
 def create_obda_file(
     *,
     output_path: str,
@@ -124,7 +90,7 @@ def create_obda_file(
         lines.append(f"{label}\t{iri}")
 
     lines.append("")
-    lines.append("[MappingDeclaration] @collection [[")
+    lines.append("[MappingDeclaration] @collection [[[")
 
     # rdf:type mapping ---------------------------------------------------------
     if ontology_class:
@@ -161,11 +127,4 @@ def create_obda_file(
     # ---------------------------------------------------------------- write file
     dst.write_text("\n".join(lines), encoding="utf-8")
     logger.info("OBDA mapping written (%d bytes)", dst.stat().st_size)
-    return str(dst)
-
-###############################################################################
-# CLI entry-point
-###############################################################################
-
-if __name__ == "__main__":
-    mcp.run(transport="stdio")
+    return str(dst) 

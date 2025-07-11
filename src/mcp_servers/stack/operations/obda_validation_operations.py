@@ -2,13 +2,8 @@ import os
 import shutil
 import subprocess
 from pathlib import Path
-from fastmcp import FastMCP
 import logging
-from src.mcp_descriptions.obda import OBDA_VALIDATION_DESCRIPTION
 
-
-mcp = FastMCP("OntopOBDAValidator")
- 
 def find_ontop_executable() -> str | None:
     """Return the path of 'ontop' (Linux/macOS) or 'ontop.bat' (Windows) in PATH."""
     exe_name = "ontop" if os.name == "nt" else "ontop"
@@ -18,7 +13,6 @@ def to_uri(p: Path) -> str:
     """Return a file:// URI for any Path (works cross-platform)."""
     return p.resolve().as_uri()
 
-@mcp.tool(name="validate_ontop_obda", description=OBDA_VALIDATION_DESCRIPTION, tags=["obda"])
 def validate_ontop_obda(
     mapping_file: str,
     ontology_file: str,
@@ -30,7 +24,6 @@ def validate_ontop_obda(
         ontology_file = ontology_file.replace("/projects/data", "data")
         properties_file = properties_file.replace("/projects/data", "data")
 
-
         # Convert paths to Path objects
         mapping_path = Path(mapping_file)
         ontology_path = Path(ontology_file)
@@ -39,7 +32,6 @@ def validate_ontop_obda(
         # Check file existence
         missing = [p.name for p in (mapping_path, ontology_path, properties_path) if not p.is_file()]
         if missing:
-
             return {
                 "status": "error",
                 "message": f"Missing file(s): {', '.join(missing)}"
@@ -64,7 +56,6 @@ def validate_ontop_obda(
         # Run the validation
         result = subprocess.run(cmd, capture_output=True, text=True)
 
-
         if result.returncode == 0:
             return {
                 "status": "success",
@@ -80,7 +71,4 @@ def validate_ontop_obda(
         return {
             "status": "error",
             "message": str(e)
-        }
-
-if __name__ == "__main__":
-    mcp.run(transport="stdio")
+        } 

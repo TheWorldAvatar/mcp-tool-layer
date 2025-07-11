@@ -1,18 +1,12 @@
-# math_server.py
-from fastmcp import FastMCP
 import logging
 import pandas as pd
 import os
-from models.locations import ROOT_DIR, DATA_GENERIC_DIR, SANDBOX_CODE_DIR
+from models.locations import ROOT_DIR, DATA_GENERIC_DIR, SANDBOX_CODE_DIR, SANDBOX_TASK_DIR
 from docx import Document
-from src.mcp_descriptions.generic_file_operations import CSV_FILE_SUMMARY_DESCRIPTION, WORD_FILE_SUMMARY_DESCRIPTION, TEXT_FILE_TRUNCATE_DESCRIPTION, REPORT_OUTPUT_DESCRIPTION, LIST_FILES_IN_FOLDER_DESCRIPTION, CODE_OUTPUT_DESCRIPTION    
 import ast 
 from src.utils.file_management import handle_generic_data_file_path, remove_mnt_prefix, handle_sandbox_task_dir
 
-mcp = FastMCP("generic_file_operations")
 
-
-@mcp.tool(name="create_arbitary_file", description="Create a new file with arbitary extension.", tags=["generic_file_operations"])
 def create_new_file(file_path: str, content: str) -> str:
     # check if the file exists
     file_path = handle_sandbox_task_dir(file_path)
@@ -25,10 +19,8 @@ def create_new_file(file_path: str, content: str) -> str:
 
  
 # output sandbox/code/task_meta_name/task_index/script_name.py
-@mcp.tool(name="code_output", description=CODE_OUTPUT_DESCRIPTION, tags=["generic_file_operations"])
 def code_output(code: str, task_meta_name: str, task_index: int, script_name: str) -> str:
     # check the basic syntax of the code
-
 
     try:
         ast.parse(code)
@@ -55,11 +47,7 @@ def code_output(code: str, task_meta_name: str, task_index: int, script_name: st
         raise Exception(error_msg)
 
 
-
-@mcp.tool(name="csv_file_summary", description=CSV_FILE_SUMMARY_DESCRIPTION, tags=["generic_file_operations"])
 def csv_file_summary(file_path: str) -> str:
-
-
     if not file_path.endswith(".csv"):
         error_msg = f"File {file_path} is not a csv file."
         return error_msg
@@ -67,7 +55,6 @@ def csv_file_summary(file_path: str) -> str:
     if not os.path.exists(file_path):
         error_msg = f"File {file_path} does not exist."
         raise FileNotFoundError(error_msg)
-
 
     try:
         # read the csv file
@@ -86,9 +73,7 @@ def csv_file_summary(file_path: str) -> str:
         error_msg = f"Error reading CSV file {file_path}: {str(e)}"
         raise Exception(error_msg)
 
-@mcp.tool(name="word_file_summary", description=WORD_FILE_SUMMARY_DESCRIPTION, tags=["generic_file_operations"])
 def word_file_summary(file_path: str, max_length: int = 500) -> str:
-
     if not file_path.endswith(".docx"):
         error_msg = f"File {file_path} is not a word file."
         return error_msg
@@ -110,7 +95,6 @@ def word_file_summary(file_path: str, max_length: int = 500) -> str:
         raise Exception(error_msg)
 
 
-@mcp.tool(name="read_arbitrary_file", description="Suitable to read arbitary files other than csv, word, and text files.", tags=["generic_file_operations"])
 def read_arbitrary_file(file_path: str) -> str:
     # check if the file exists
     file_path = handle_generic_data_file_path(file_path)
@@ -136,9 +120,7 @@ def read_arbitrary_file(file_path: str) -> str:
         error_msg = f"Could not read file {file_path}: {str(e)}"
         raise Exception(error_msg)
 
-@mcp.tool(name="text_file_truncate", description=TEXT_FILE_TRUNCATE_DESCRIPTION, tags=["generic_file_operations"])
 def text_file_truncate(file_path: str) -> str:
-
     if not file_path.endswith(".txt"):
         error_msg = f"File {file_path} is not a txt file."
         return error_msg
@@ -146,7 +128,6 @@ def text_file_truncate(file_path: str) -> str:
     if not os.path.exists(file_path):
         error_msg = f"File {file_path} does not exist."
         raise FileNotFoundError(error_msg)
-
 
     try:
         file_path = handle_generic_data_file_path(file_path)
@@ -168,7 +149,6 @@ def text_file_truncate(file_path: str) -> str:
         error_msg = f"Error reading text file {file_path}: {str(e)}"
         raise Exception(error_msg)
 
-@mcp.tool(name="report_output", description=REPORT_OUTPUT_DESCRIPTION, tags=["generic_file_operations"])
 def report_output(file_path: str, file_content: str) -> str:
     try:
         # read the file
@@ -186,7 +166,6 @@ def report_output(file_path: str, file_content: str) -> str:
         raise Exception(error_msg)
 
 
-@mcp.tool(name="read_markdown_file", description="Get the content of a markdown file.", tags=["generic_file_operations"])
 def read_markdown_file(file_path: str) -> str:
     try:
         file_path = remove_mnt_prefix(file_path)
@@ -204,7 +183,6 @@ def read_markdown_file(file_path: str) -> str:
         return error_msg
 
 # relative path /data/generic_data to data/generic_data
-@mcp.tool(name="list_files_in_folder", description=LIST_FILES_IN_FOLDER_DESCRIPTION, tags=["generic_file_operations"])
 def list_files_in_folder(folder_path: str) -> str:
     try:
         # recursively list files in the folder with their sizes
@@ -240,8 +218,24 @@ def list_files_in_folder(folder_path: str) -> str:
         error_msg = f"Error listing files in folder {folder_path}: {str(e)}"
         raise Exception(error_msg)
 
-if __name__ == "__main__":
-    mcp.run(transport="stdio")
-    # test_path = "/data/generic_data/feroz/Coastal_flooding.docx"
-    # print(word_file_summary(test_path))
-    # test_path = "/data/generic_data/feroz/Coastal_flooding.docx"
+
+def convert_to_absolute_path(path: str) -> str:
+    # Handle paths starting with /data/generic_data/
+    if path.startswith("/data/generic_data/"):
+        return os.path.join(DATA_GENERIC_DIR, path.split("/data/generic_data/")[1])
+    
+    # Handle paths starting with /sandbox/
+    elif path.startswith("/sandbox/"):
+        return os.path.join(SANDBOX_TASK_DIR, path.split("/sandbox/")[1])
+    
+    # Handle paths starting with data/generic_data/ (without leading slash)
+    elif path.startswith("data/generic_data/"):
+        return os.path.join(DATA_GENERIC_DIR, path.split("data/generic_data/")[1])
+    
+    # Handle paths starting with sandbox/ (without leading slash)
+    elif path.startswith("sandbox/"):
+        return os.path.join(SANDBOX_TASK_DIR, path.split("sandbox/")[1])
+    
+    # Return path as-is if no patterns match
+    else:
+        return path 

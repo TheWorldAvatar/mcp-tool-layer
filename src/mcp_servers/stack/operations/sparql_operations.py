@@ -1,32 +1,19 @@
 #!/usr/bin/env python
 """
-ontop_sparql_agent.py · ONE exposed tool: query_sparql
-Relays SPARQL queries to an existing endpoint and returns the results.
-
-How to start (from repo root):
-    $ python -m ontop_sparql_agent         # STDIO mode
-or  $ python ontop_sparql_agent.py --port 3333   # FastAPI mode, optional
+SPARQL operations
+Functions for querying SPARQL endpoints and processing results.
 """
 
 import json
 from typing import Dict, List, Any, Literal, Optional
-
 import requests
-from fastmcp import FastMCP
 import logging
-from src.mcp_descriptions.sparql import SPARQL_QUERY_DESCRIPTION
 
 # Setup logger
 logger = logging.getLogger("ontop_sparql_agent")
-logging.basicConfig(level=logging.WARNING)
 
-mcp = FastMCP("OntopSPARQLEndpoint")
-
-################################################################################
-# Utility
-################################################################################
 def _post_sparql(endpoint: str, query: str) -> Dict[str, Any]:
-    """POST a SPARQL query, expect JSON bindings, raise for HTTP ≠ 200."""
+    """POST a SPARQL query, expect JSON bindings, raise for HTTP ≠ 200."""
     headers = {
         "Accept": "application/sparql-results+json",
         # YASGUI sends form-urlencoded; we do the same
@@ -46,10 +33,6 @@ def _simplify_bindings(raw: Dict[str, Any]) -> List[Dict[str, str]]:
         out.append({var: cell["value"] for var, cell in row.items()})
     return out
 
-################################################################################
-# MCP tool
-################################################################################
-@mcp.tool(name="query_sparql", description=SPARQL_QUERY_DESCRIPTION, tags=["sparql"])
 def query_sparql(
     *,
     endpoint_url: str = "http://localhost:3838/ontop/ui/sparql",
@@ -73,7 +56,4 @@ def query_sparql(
     if raw_json:
         return resp
 
-    return _simplify_bindings(resp)
-
-if __name__ == "__main__":
-    mcp.run(transport="stdio")  # uncomment to expose via stdio
+    return _simplify_bindings(resp) 

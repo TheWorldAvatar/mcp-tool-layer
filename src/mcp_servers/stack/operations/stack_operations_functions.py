@@ -2,18 +2,8 @@ import json
 import os
 import shutil
 from pathlib import Path
-from fastmcp import FastMCP
 import subprocess
 import time
-from src.mcp_descriptions.stack_operations import STACK_INITIALIZATION_DESCRIPTION, STACK_DATABASE_UPDATION_DESCRIPTION, STACK_DATA_REMOVAL_DESCRIPTION 
-
-mcp_with_instructions = FastMCP(
-    name="StackOperations",	
-    instructions="""
-       This server is critical for any data integration task to the existing stack/semantic database. 
-       You must always use this server as final steps if the task is about data integration. 
-    """
-)
 
 def create_ontocompchem_config():
     """Create the ontocompchem.json configuration file"""
@@ -113,21 +103,11 @@ def _remove_stack_data():
     print("Stack data removed")
     return result
 
-@mcp_with_instructions.tool(name="initialize_stack", description=STACK_INITIALIZATION_DESCRIPTION, tags=["stack"])
 def initialize_stack(stack_name: str):
     return _initialize_stack(stack_name)    
 
-@mcp_with_instructions.tool(name="update_stack_database", description=STACK_DATABASE_UPDATION_DESCRIPTION, tags=["stack"])
 def update_stack_database(stack_name: str):
     return _update_stack_database(stack_name)
 
-@mcp_with_instructions.tool(name="remove_stack_data", description=STACK_DATA_REMOVAL_DESCRIPTION, tags=["stack"])
 def remove_stack_data():
-    return _remove_stack_data()
- 
-if __name__ == "__main__":
-    mcp_with_instructions.run(transport="stdio")
-    # _remove_stack_data()
-    # _initialize_stack("ontocompchem")
-    # _update_stack_database("ontocompchem")
-        
+    return _remove_stack_data() 

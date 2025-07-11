@@ -1,10 +1,8 @@
-
 """
-This server is used to generate task files for the task decomposition agent. 
-
-To make sure the Task Decomposition Agent generates syntactically correct task files, this server is used to generate task files. 
+Task generation coarse operations
+Functions for generating task files for the task decomposition agent.
 """
-from fastmcp import FastMCP
+
 import subprocess
 import json
 import os
@@ -15,15 +13,10 @@ import uuid
 import shutil
 from models.locations import SANDBOX_TASK_DIR, SANDBOX_TASK_ARCHIVE_DIR, DATA_LOG_DIR, TRACE_FILE_PATH
 from datetime import datetime
-from src.mcp_descriptions.task_generation_coarse import TASK_GENERATION_COARSE_DESCRIPTION, TASK_ID_GENERATION_DESCRIPTION, TASK_INDEX_SELECTION_DESCRIPTION    
 from models.TaskObjects import AddTaskInput
 from filelock import FileLock
 import time  # optional: useful for debugging lock wait
 
-mcp = FastMCP("task_generation_coarse") 
- 
-
-@mcp.tool(name="create_new_tool_task", description=TASK_GENERATION_COARSE_DESCRIPTION, tags=["task_generation_coarse"])
 def create_new_tool_task(task_meta_name: str, new_task: AddTaskInput, iteration_number: int) -> str:
     task_file_dir = os.path.join(SANDBOX_TASK_DIR, task_meta_name, str(iteration_number))
     task_file_path = os.path.join(task_file_dir, f"{new_task.task_id}.json")
@@ -38,12 +31,9 @@ def create_new_tool_task(task_meta_name: str, new_task: AddTaskInput, iteration_
 
     return task_file_path
 
-@mcp.tool(name="generate_task_id", description=TASK_ID_GENERATION_DESCRIPTION, tags=["task_generation_coarse"])
 def generate_task_id() -> str:
     return str(uuid.uuid4())[:6]
 
-
-@mcp.tool(name="output_selected_task_index", description=TASK_INDEX_SELECTION_DESCRIPTION, tags=["task_generation_coarse"])
 def output_selected_task_index(meta_task_name: str, selected_task_index: List[int]) -> List[int]:
     # write the selected task index to a file
     _output_selected_task_index(meta_task_name, selected_task_index)
@@ -52,8 +42,4 @@ def output_selected_task_index(meta_task_name: str, selected_task_index: List[in
 def _output_selected_task_index(meta_task_name: str, selected_task_index: List[int]) -> List[int]:
     with open(os.path.join(SANDBOX_TASK_DIR, meta_task_name, "selected_task_index.json"), "w") as f:
         json.dump(selected_task_index, f, indent=4)
-    return selected_task_index
-
-if __name__ == "__main__":
-    mcp.run(transport="stdio")
-    # _output_selected_task_index(meta_task_name="jiying", selected_task_index=[0, 1])
+    return selected_task_index 

@@ -1,13 +1,7 @@
 import pandas as pd
 from sqlalchemy import create_engine, text
-from fastmcp import FastMCP
 import os
-from src.mcp_descriptions.postgres import POSTGRES_UPLOAD_DESCRIPTION
 
-
-mcp = FastMCP("PostgresUpload")
-
-@mcp.tool(name="upload_data_to_postgres", description=POSTGRES_UPLOAD_DESCRIPTION, tags=["postgres"])
 def upload_data_to_postgres(data_path: str, table_name: str) -> dict:
     # Database connection parameters
     USER = "postgres"
@@ -42,7 +36,4 @@ def upload_data_to_postgres(data_path: str, table_name: str) -> dict:
         return {
             'status': 'error',
             'message': str(e)
-        }
-
-if __name__ == "__main__":
-    mcp.run(transport="stdio")
+        } 
