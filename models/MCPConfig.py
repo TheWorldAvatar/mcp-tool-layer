@@ -35,9 +35,44 @@ class MCPConfig:
         return process.returncode == 0
 
     def get_config(self, mcp_name_list: list[str]):
+        import sys
+
+        def _convert_windows_path_to_linux(path):
+            # Only convert if running on Linux and path looks like a Windows path
+            if sys.platform.startswith("linux") and path and ":" in path:
+                # Example: "C:/Users/xz378/Documents/GitHub/mcp-tool-layer/src/mcp_servers/llm_generation_server.py"
+                drive, rest = path.split(":", 1)
+                drive = drive.lower()
+                # Remove leading slash if present
+                rest = rest.lstrip("\\/")  
+                # Compose Linux path
+                rest_fixed = rest.replace("\\", "/")
+                return f"/mnt/{drive}/{rest_fixed}"
+            return path
+
+        def _convert_config_paths(config):
+            # Recursively convert all string paths in config dict/list
+            if isinstance(config, dict):
+                for k, v in config.items():
+                    if isinstance(v, str):
+                        config[k] = _convert_windows_path_to_linux(v)
+                    elif isinstance(v, (dict, list)):
+                        config[k] = _convert_config_paths(v)
+            elif isinstance(config, list):
+                for i, v in enumerate(config):
+                    if isinstance(v, str):
+                        config[i] = _convert_windows_path_to_linux(v)
+                    elif isinstance(v, (dict, list)):
+                        config[i] = _convert_config_paths(v)
+            return config
+
         if len(mcp_name_list) == 1 and mcp_name_list[0] == "all":
-            return {k: v for k, v in self.mcp_configs.items()}
-        return {k: v for k, v in self.mcp_configs.items() if k in mcp_name_list}
+            configs = {k: v for k, v in self.mcp_configs.items()}
+        else:
+            configs = {k: v for k, v in self.mcp_configs.items() if k in mcp_name_list}
+        # Convert Windows paths to Linux if needed
+        configs = _convert_config_paths(configs)
+        return configs
 
 
     

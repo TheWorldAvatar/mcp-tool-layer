@@ -78,6 +78,7 @@ class BaseAgent:
         try:
             tools = await client.get_tools()           # spawn / connect servers
         except Exception as exc:
+            # print the name of the tool that is not loaded
             raise RuntimeError(f"Could not load MCP tools: {exc}") from exc
 
         if not tools:
