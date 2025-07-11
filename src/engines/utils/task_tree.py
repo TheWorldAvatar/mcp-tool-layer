@@ -29,12 +29,65 @@ class TaskNode:
         return parent_nodes
 
 
+    def to_dict(self):
+        """
+        Returns a JSON-serializable dictionary representation of the TaskNode.
+        Note: parent and children are represented by their task_ids to avoid recursion.
+        """
+        return {
+            'task_id': self.task_id,
+            'name': self.name,
+            'description': self.description,
+            'tools_required': self.tools_required,
+            'task_dependencies': self.dependencies,
+            'file_name': self.file_name,
+            'children': [child.task_id for child in self.children],
+            'parent': [parent.task_id for parent in self.parent]
+        }
+
+
+
+
 class TaskTree:
     def __init__(self, tasks_data: List[Dict]):
         self.tasks_data = tasks_data
         self.task_nodes: Dict[str, TaskNode] = {}
         self.roots: List[TaskNode] = []
         self.build_task_tree()
+
+    def get_dependency_ordered_task_nodes(self) -> List[TaskNode]:
+        """
+        Returns a list of task nodes ordered such that any node always appears before
+        any node that depends on it (topological order). Roots come first.
+        """
+        # Kahn's algorithm for topological sort
+        in_degree = {task_id: 0 for task_id in self.task_nodes}
+        for node in self.task_nodes.values():
+            for dep_id in node.dependencies:
+                if dep_id in in_degree:
+                    in_degree[node.task_id] += 1
+
+        # Start with nodes that have no dependencies (roots)
+        queue = [self.task_nodes[tid] for tid, deg in in_degree.items() if deg == 0]
+        ordered = []
+        visited = set()
+
+        while queue:
+            node = queue.pop(0)
+            if node.task_id in visited:
+                continue
+            ordered.append(node)
+            visited.add(node.task_id)
+            for child in node.children:
+                # Decrement in-degree for each child
+                in_degree[child.task_id] -= 1
+                if in_degree[child.task_id] == 0:
+                    queue.append(child)
+        # If there are cycles, add remaining nodes at the end (not strictly topological)
+        for node in self.task_nodes.values():
+            if node not in ordered:
+                ordered.append(node)
+        return ordered
 
     def get_all_task_nodes(self):
         # you should order the task nodes list by the order of from root to leaf
@@ -83,4 +136,9 @@ class TaskTree:
 
     def get_root_task_nodes(self):
         return self.roots
+
+    def to_dict(self):
+        return {
+            'task_nodes': {task_id: node.to_dict() for task_id, node in self.task_nodes.items()}
+        }
 
