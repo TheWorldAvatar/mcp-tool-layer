@@ -50,6 +50,7 @@ def convert_to_absolute_path(path: str) -> str:
 def output_resource_registration_report(meta_task_name: str, resource_registration_input: List[ResourceRegistrationInput]) -> str:
     # output the resource registration report to a file
     # the file should be in the sandbox/tasks/meta_task_name/resource_registration_report.md
+
     file_path = os.path.join(SANDBOX_TASK_DIR, meta_task_name, "resources.json")
     
     # Ensure the directory exists

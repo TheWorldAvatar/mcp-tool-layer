@@ -31,7 +31,7 @@ async def run_sandbox_python_code(code: str) -> str:
 
     log.info("Inner ReAct agent starting")
     
-    result = await agent.ainvoke({"messages": prompt})
+    result = await agent.ainvoke({"messages": prompt}, {"recursion_limit": 100})
     reply = result["messages"][-1].content
     log.info("Inner ReAct agent finished")
     
@@ -47,6 +47,8 @@ async def run_sandbox_operation_python_file(file_path: str) -> str:
     """
     prompt = f"""
     Create a Docker container with Python 3.11, mount the /sandbox directory to /sandbox. and mount the /data directory to /data. 
+
+    Give it a random name. 
 
     then run the following python file and return its output:
 

@@ -15,8 +15,6 @@ mcp_with_instructions = FastMCP(
     """
 )
 
-
-
 def create_ontocompchem_config():
     """Create the ontocompchem.json configuration file"""
     config_data = {
@@ -83,37 +81,53 @@ def setup_ontocompchem_stack():
             "error": str(e)
         }
 
-@mcp_with_instructions.tool(name="initialize_stack", description=STACK_INITIALIZATION_DESCRIPTION, tags=["stack"])
-def initialize_stack(stack_name: str):
+def _initialize_stack(stack_name: str):
     setup_ontocompchem_stack()
     import subprocess
     # Replace this path with the actual mounted WSL path to your stack dir
     wsl_stack_path = "/mnt/c/Users/xz378/Documents/GitHub/stack/stack-manager"
-    full_cmd = f'wsl bash -c "cd {wsl_stack_path} && ./stack.sh start {stack_name}"'
-    result = subprocess.run(full_cmd, capture_output=True, text=True)
+    full_cmd = f"cd {wsl_stack_path} && ./stack.sh start {stack_name}"
+    result = subprocess.run(full_cmd, capture_output=True, text=True, shell=True)
     time.sleep(60)
     print("STDOUT:", result.stdout)
     print("STDERR:", result.stderr)
     return result
 
-
-@mcp_with_instructions.tool(name="update_stack_database", description=STACK_DATABASE_UPDATION_DESCRIPTION, tags=["stack"])
-def update_stack_database(stack_command: str):
+def _update_stack_database(stack_name: str):
     # Replace this path with the actual mounted WSL path to your stack dir
     wsl_stack_path = "/mnt/c/Users/xz378/Documents/GitHub/stack/stack-data-uploader"
-    full_cmd = f'wsl bash -c "cd {wsl_stack_path} && {stack_command}"'
-    result = subprocess.run(full_cmd, capture_output=True, text=True)
-    time.sleep(60)  
+    full_cmd = f"cd {wsl_stack_path} && ./stack.sh start {stack_name}"
+    result = subprocess.run(full_cmd, capture_output=True, text=True, shell=True)
+    time.sleep(60)
+    print("STDOUT:", result.stdout)
+    print("STDERR:", result.stderr)
     return result
 
-@mcp_with_instructions.tool(name="remove_stack_data", description=STACK_DATA_REMOVAL_DESCRIPTION, tags=["stack"])
-# remove all existing stacks     
-def remove_stack_data():
+def _remove_stack_data():
     wsl_stack_path = "/mnt/c/Users/xz378/Documents/GitHub/stack/stack-manager"
-    full_cmd = f'wsl bash -c "cd {wsl_stack_path} && ./stack.sh remove all"'
-    result = subprocess.run(full_cmd, capture_output=True, text=True)
+    full_cmd = f"cd {wsl_stack_path} && ./stack.sh remove all"
+    result = subprocess.run(full_cmd, capture_output=True, text=True, shell=True)
+    print("STDOUT:", result.stdout)
+    print("STDERR:", result.stderr)
     time.sleep(60)
+    print("Stack data removed")
     return result
+
+@mcp_with_instructions.tool(name="initialize_stack", description=STACK_INITIALIZATION_DESCRIPTION, tags=["stack"])
+def initialize_stack(stack_name: str):
+    return _initialize_stack(stack_name)    
+
+@mcp_with_instructions.tool(name="update_stack_database", description=STACK_DATABASE_UPDATION_DESCRIPTION, tags=["stack"])
+def update_stack_database(stack_name: str):
+    return _update_stack_database(stack_name)
+
+@mcp_with_instructions.tool(name="remove_stack_data", description=STACK_DATA_REMOVAL_DESCRIPTION, tags=["stack"])
+def remove_stack_data():
+    return _remove_stack_data()
  
 if __name__ == "__main__":
     mcp_with_instructions.run(transport="stdio")
+    # _remove_stack_data()
+    # _initialize_stack("ontocompchem")
+    # _update_stack_database("ontocompchem")
+        

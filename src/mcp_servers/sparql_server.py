@@ -15,7 +15,10 @@ import requests
 from fastmcp import FastMCP
 import logging
 from src.mcp_descriptions.sparql import SPARQL_QUERY_DESCRIPTION
- 
+
+# Setup logger
+logger = logging.getLogger("ontop_sparql_agent")
+logging.basicConfig(level=logging.WARNING)
 
 mcp = FastMCP("OntopSPARQLEndpoint")
 
@@ -56,10 +59,14 @@ def query_sparql(
     try:
         resp = _post_sparql(endpoint_url, query)
     except Exception as exc:  # noqa: broad-except
-        # Surface HTTP / connection errors nicely to the LLM caller
-        raise RuntimeError(f"SPARQL request failed: {exc}") from exc
+        # Suppress error and return a soft-failure response
+        logger.warning("SPARQL request failed (suppressed): %s", exc)
+        return {
+            "status": "skipped",
+            "error": str(exc),
+            "note": "SPARQL query was skipped due to connection or runtime error."
+        }
 
-    # ASK queries have a boolean top-level key
     if "boolean" in resp:
         return resp["boolean"]
 
@@ -67,7 +74,6 @@ def query_sparql(
         return resp
 
     return _simplify_bindings(resp)
- 
+
 if __name__ == "__main__":
     mcp.run(transport="stdio")  # uncomment to expose via stdio
- 

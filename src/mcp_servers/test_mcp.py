@@ -11,13 +11,19 @@ logger.addHandler(logging.FileHandler("test.log"))
 def add(a: int, b: int) -> int:
     """Add two numbers"""
     logger.info(f"Adding {a} and {b}")
-    return a + b
+    return int(a) + int(b)
 
 @mcp.tool()
 def multiply(a: int, b: int) -> int:
     """Multiply two numbers"""
     logger.info(f"Multiplying {a} and {b}")
-    return a * b
+    return int(a) * int(b)
+
+@mcp.tool()
+def should_be_skipped(a: int, b: int) -> str:
+    """This tool should be skipped"""
+    logger.info(f"Skipping {a} and {b}")
+    return "This tool should be skipped"
 
 if __name__ == "__main__":
     mcp.run(transport="stdio")

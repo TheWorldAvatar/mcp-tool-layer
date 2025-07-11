@@ -7,8 +7,8 @@ from src.mcp_descriptions.postgres import POSTGRES_UPLOAD_DESCRIPTION
 
 mcp = FastMCP("PostgresUpload")
 
-@mcp.tool(name="upload_csv_to_postgres", description=POSTGRES_UPLOAD_DESCRIPTION, tags=["postgres"])
-def upload_csv_to_postgres(csv_path: str, table_name: str) -> dict:
+@mcp.tool(name="upload_data_to_postgres", description=POSTGRES_UPLOAD_DESCRIPTION, tags=["postgres"])
+def upload_data_to_postgres(data_path: str, table_name: str) -> dict:
     # Database connection parameters
     USER = "postgres"
     PASSWORD = "validation_pwd"
@@ -21,13 +21,13 @@ def upload_csv_to_postgres(csv_path: str, table_name: str) -> dict:
 
     # Create SQLAlchemy engine
     engine = create_engine(connection_string)
-    csv_path = csv_path.replace("/projects/data", "data")
+    data_path = data_path.replace("/projects/data", "data")
     try:
-        if not os.path.isfile(csv_path):
-            raise FileNotFoundError(f"File not found: {csv_path}")
+        if not os.path.isfile(data_path):
+            raise FileNotFoundError(f"File not found: {data_path}")
 
         # Read the CSV file
-        df = pd.read_csv(csv_path)
+        df = pd.read_csv(data_path)
         
         # Upload to PostgreSQL
         df.to_sql(table_name, engine, if_exists="replace", index=False)

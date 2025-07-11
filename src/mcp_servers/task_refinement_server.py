@@ -26,7 +26,7 @@ def output_refined_task_group(refined_task_group: List[AddDetailedTaskInput], me
     try:
         return _output_refined_task_group(refined_task_group, meta_task_name, iteration_index)
     except Exception as e:
-        return f"Error: {e}"
+        raise Exception(f"Error: {e}")
 
 def _output_refined_task_group(refined_task_group: List[AddDetailedTaskInput], meta_task_name: str, iteration_index: int) -> str:
         # create the output file path
