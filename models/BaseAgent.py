@@ -1,19 +1,15 @@
 """
 BaseAgent – a reusable ReAct-based agent that can load one or more MCP
-tools and keeps their sessions open for the entire conversation.
-
-Key changes
------------
-1. Uses **MultiServerMCPClient** so MCP sessions stay alive
-   while the agent is running.
-2. Closes all MCP sessions in a `finally` block.
-3. Supports an optional `recursion_limit` just like before.
+tools and keep their sessions alive for the whole run.
 """
 
-from typing import Any, List, Dict, Tuple, Union
-import asyncio
-import openai
+from __future__ import annotations
 
+import asyncio
+from typing import Any, Dict, List, Tuple
+
+from langchain_core.messages import HumanMessage
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langgraph.prebuilt import create_react_agent
 from langchain_mcp_adapters.client import MultiServerMCPClient
 
@@ -23,14 +19,14 @@ from models.ModelConfig import ModelConfig
 
 
 class BaseAgent:
-    # ───────────────────────────── init ──────────────────────────────
+    # ──────────────────────────── init ────────────────────────────
     def __init__(
         self,
         model_name: str = "gpt-4o-mini",
         remote_model: bool = True,
         model_config: ModelConfig | None = None,
         mcp_set_name: str | None = "mcp_configs.json",
-        mcp_tools: list[str] | None = None,
+        mcp_tools: List[str] | None = None,
         structured_output: bool = False,
         structured_output_schema: Any = None,
     ):
@@ -39,11 +35,7 @@ class BaseAgent:
         self.model_config = model_config or ModelConfig()
         self.mcp_config = MCPConfig(config_name=mcp_set_name)
         self.mcp_tools = mcp_tools or ["github", "filesystem"]
-        print("="*100)
-        print(f"mcp_tools: {	self.mcp_tools}" )
-        print("="*100)
 
-        # Create the LLM up front
         self.llm = LLMCreator(
             model=self.model_name,
             remote_model=self.remote_model,
@@ -52,43 +44,63 @@ class BaseAgent:
             structured_output_schema=structured_output_schema,
         ).setup_llm()
 
-    # ───────────────────────────── run ───────────────────────────────
+    # ──────────────────────────── run ────────────────────────────
     async def run(
         self,
         task_instruction: str,
         recursion_limit: int | None = None,
     ) -> Tuple[str, Dict[str, Any]]:
-        """
-        Execute *task_instruction* with a ReAct agent that can call MCP tools.
-
-        Returns
-        -------
-        tuple (reply, metadata)
-        """
-        # 1️⃣  Build server configs (your MCPConfig already knows how)
+        """Execute *task_instruction* through a ReAct agent wired to MCP tools."""
+        # 1️⃣  Build server configs
         server_cfg = self.mcp_config.get_config(self.mcp_tools)
 
-        # 2️⃣  Sanity-check Docker (for the docker MCP tool)
+        # 2️⃣  Ensure Docker (for docker-backed tools)
         if not await self.mcp_config.is_docker_running():
             raise RuntimeError("Docker is not running – MCP tools need it.")
 
-        # 3️⃣  Create a **single** MCP client that manages every session
+        # 3️⃣  Multi-server MCP client
         client = MultiServerMCPClient(server_cfg)
 
         try:
-            tools = await client.get_tools()           # spawn / connect servers
+            tools = await client.get_tools()
+
+            # gather optional `instruction` prompts
+            instruction_msgs = []
+            for server_name in self.mcp_tools:
+                try:
+                    msgs = await client.get_prompt(server_name, "instruction")
+                    instruction_msgs.extend(msgs)
+                except Exception as e:
+                    print(
+                        f"[⚠️ Warning] '{server_name}' lacks an "
+                        f"'instruction' prompt ({e})"
+                    )
+
         except Exception as exc:
-            # print the name of the tool that is not loaded
-            raise RuntimeError(f"Could not load MCP tools: {exc}") from exc
+            raise RuntimeError(
+                f"Could not load MCP tools or prompts: {exc}"
+            ) from exc
 
         if not tools:
             raise RuntimeError("No MCP tools were successfully loaded.")
 
         # 4️⃣  Build the ReAct agent
-        agent = create_react_agent(self.llm, tools)
+        if instruction_msgs:
+            system_text = "\n\n".join(m.content for m in instruction_msgs)
+            prompt = ChatPromptTemplate.from_messages(
+                [
+                    ("system", system_text),
+                    MessagesPlaceholder("messages"),
+                ]
+            )
+            agent = create_react_agent(self.llm, tools, prompt=prompt)
+        else:
+            agent = create_react_agent(self.llm, tools)
 
-        # 5️⃣  Invoke the agent
-        invoke_kwargs: Dict[str, Any] = {"messages": task_instruction}
+        # 5️⃣  Run the agent
+        invoke_kwargs: Dict[str, Any] = {
+            "messages": [HumanMessage(content=task_instruction)]
+        }
         if recursion_limit is not None:
             result = await agent.ainvoke(
                 invoke_kwargs, {"recursion_limit": recursion_limit}
@@ -96,7 +108,7 @@ class BaseAgent:
         else:
             result = await agent.ainvoke(invoke_kwargs)
 
-        # 6️⃣  Collect metadata from the last message
+        # 6️⃣  Gather metadata from the final AIMessage
         last_msg = result["messages"][-1]
         meta = last_msg.response_metadata
         token_use = meta.get("token_usage", {})
@@ -111,17 +123,20 @@ class BaseAgent:
 
         return last_msg.content, metadata
 
-        # 7️⃣  Always close MCP sessions
-        # finally:
-        #     await client.aclose()
 
-
-# ───────────────────────────── demo ────────────────────────────────
+# ─────────────────────────── demo ───────────────────────────
 if __name__ == "__main__":
+
     async def _demo() -> None:
-        agent = BaseAgent(mcp_tools=["agent"])
-        reply, meta = await agent.run("Create a txt file named 'hello-from-demo.txt' in the data directory. Also create a docker container named 'demo_container'")
+        agent = BaseAgent(mcp_tools=["generic", "stack", "task", "sandbox"])
+        reply, meta = await agent.run(
+            "Create a txt file named 'hello-from-demo.txt' in the data "
+            "directory. Also create a docker container named "
+            "'demo_container'."
+        )
+        print("\n--- AGENT REPLY ---")
         print(reply)
+        print("\n--- METADATA ---")
         print(meta)
 
     asyncio.run(_demo())
