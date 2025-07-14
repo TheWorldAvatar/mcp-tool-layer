@@ -61,7 +61,7 @@ In your final response, you should return the following:
 async def main(meta_instruction: str, meta_task_name: str, iteration_index: int, task_node: str, resources: str, full_task_tree: str):
 
     model_config = ModelConfig()
-    mcp_tools = ["all"]
+    mcp_tools = ["stack", "sandbox", "generic"]
     agent = BaseAgent(model_name="gpt-4o-mini", model_config=model_config, remote_model=True, mcp_tools=mcp_tools, mcp_set_name="tas_execution_mcp_configs.json")
     response, metadata = await agent.run(TASK_EXECUTION_PROMPT.format(task_node=task_node, resources=resources, full_task_tree=full_task_tree, meta_task_name=meta_task_name, meta_instruction=meta_instruction), recursion_limit=300)
     print(f"Response from task execution agent: {response}")

@@ -15,7 +15,7 @@ async def basic_sandbox_test():
     5. Then, install python library cclib and execute the python code sandbox/code/cclib_test.py
     """
     model_config = ModelConfig()
-    mcp_tools = ["filesystem", "docker"]
+    mcp_tools = ["filesystem", "sandbox"]
     agent = BaseAgent(model_name="gpt-4o-mini", model_config=model_config, remote_model=True, mcp_tools=mcp_tools)
     response, metadata = await agent.run(BASIC_SANDBOX_TEST_PROMPT)
     print(response)

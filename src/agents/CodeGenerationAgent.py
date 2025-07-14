@@ -49,7 +49,7 @@ async def code_generation_agent(task_node: str, task_meta_name: str, iteration_i
     Remember the docker container name and the docker command for executing the script, you need to include them in the resource_registration tool. 
     """
 
-    client, agent = await build_react_agent(mcp_keys=["docker", "generic_file_operations", "python_code_sandbox", "resource_registration"])
+    client, agent = await build_react_agent(mcp_keys=["sandbox", "generic"])
 
     result = await agent.ainvoke({"messages": prompt}, {"recursion_limit": 300})
     reply = result["messages"][-1].content
@@ -64,7 +64,7 @@ async def code_test_agent(code: str) -> str:
 
     """
 
-    client, agent = await build_react_agent(mcp_keys=["filesystem", "docker"])
+    client, agent = await build_react_agent(mcp_keys=["filesystem", "sandbox"])
 
     result = await agent.ainvoke({"messages": prompt}, {"recursion_limit": 300})
 

@@ -43,7 +43,7 @@ async def task_decomposition_agent(task_meta_name: str, meta_instruction: str, i
         data_sniffing_report = f.read()
 
     model_config = ModelConfig(temperature=0.4, top_p=0.02)
-    mcp_tools = ["all"]
+    mcp_tools = ["stack", "task"]
     for iteration in range(iteration_number):
         agent = BaseAgent(model_name="gpt-4o-mini", model_config=model_config, remote_model=True, mcp_tools=mcp_tools, mcp_set_name="task_decomposition_mcp_configs.json")
         # sleep for 10 seconds
@@ -74,7 +74,7 @@ async def data_sniffing_agent(folder_path: str, task_meta_name: str):
     """
     model_config = ModelConfig()    
     mcp_set_name = "pretask_mcp_configs.json"
-    mcp_tools = ["generic_file_operations", "resource_registration"]
+    mcp_tools = ["generic"]
     instruction = INSTRUCTION_DATA_SNIFFING_PROMPT.format(folder_path=folder_path, task_meta_name=task_meta_name)
     agent = BaseAgent(model_name="gpt-4o-mini", remote_model=True, mcp_set_name=mcp_set_name, mcp_tools=mcp_tools, model_config=model_config)
     response, metadata = await agent.run(instruction, recursion_limit=30)

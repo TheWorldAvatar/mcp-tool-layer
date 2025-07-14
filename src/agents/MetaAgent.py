@@ -40,7 +40,7 @@ Run print("Hello, world!") in the sandbox.
 async def main():
 
     model_config = ModelConfig()
-    mcp_tools = ["agent_standalone", "filesystem"]
+    mcp_tools = ["sandbox", "filesystem"]
     agent = BaseAgent(model_name="gpt-4o-mini", model_config=model_config, remote_model=True, mcp_tools=mcp_tools)
     response, metadata = await agent.run(INSTRUCTION_PROMPT_GOLD, recursion_limit=200)
     print(response)

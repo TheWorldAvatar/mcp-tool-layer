@@ -27,10 +27,10 @@ async def workflow_examination_agent(meta_task_name: str, iteration_index: int, 
     """
 
     model_config = ModelConfig()
-    mcp_tools = ["all"]
+    mcp_tools = ["stack", "task"]
     agent = BaseAgent(model_name="gpt-4o-mini", model_config=model_config, remote_model=True, mcp_tools=mcp_tools, mcp_set_name="task_refinement_mcp_configs.json")
     response, metadata = await agent.run(WORKFLOW_EXAMINATION_PROMPT.format(task_goal=task_goal, 
-    meta_task_name=meta_task_name, iteration_index=iteration_index, summarized_task_group=summarized_task_group), recursion_limit=300)
+    meta_task_name=meta_task_name, iteration_index=iteration_index, summarized_task_group=summarized_task_group), recursion_limit=100)
     print(f"Response from workflow examination agent: {response}")
     return response
 
@@ -50,7 +50,7 @@ async def single_task_refinemment_agent(meta_task_name: str, iteration_index: in
         Write the refined task object in json, with a suffix of _refined.json
     """
     model_config = ModelConfig()
-    mcp_tools = ["all"]
+    mcp_tools = ["stack", "task"]
     agent = BaseAgent(model_name="gpt-4o-mini", model_config=model_config, remote_model=True, mcp_tools=mcp_tools)
     response, metadata = await agent.run(SINGLE_TASK_REFINEMENT_PROMPT.format(task_object=task_object, 
     iteration_index=iteration_index, 
@@ -70,7 +70,7 @@ async def task_group_selection_agent(meta_task_name: str, meta_instruction: str,
         selected_task_indices.json in the /sandbox/tasks/{meta_task_name} folder
     """
     model_config = ModelConfig()
-    mcp_tools = ["task_generation_coarse"]
+    mcp_tools = ["task"]
     agent = BaseAgent(model_name="gpt-4o-mini", model_config=model_config, remote_model=True, mcp_tools=mcp_tools)
     response, metadata = await agent.run(TASK_GROUP_SELECTION_PROMPT.format(task_goal=meta_instruction, meta_task_name=meta_task_name, candidate_reports=candidate_reports), recursion_limit=300)
     return response
