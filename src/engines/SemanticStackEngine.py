@@ -26,8 +26,8 @@ import os
 import time
 
 META_INSTRUCTION = """
-You are provided a folder loaded with some data files, together with a data sniffing report (data_sniffing_report.md). 
-The report summarizes the data in the folder, and provides a basic structure of the data. This is an important reference for you to understand the data. 
+You are provided a folder loaded with some data files.
+
 I want you to integrate the data from the data folder into my system stack. Make sure the data is integrated into the stack. 
 """
  
@@ -68,7 +68,13 @@ async def semantic_stack_engine():
         # print("5. Workflow examination")
         # # run the workflow examination agent until two refined task group files are created
         # refined_files_count = 0
-        # while refined_files_count < 2:
+
+        # # load selected_task_index.json
+        # with open(os.path.join(SANDBOX_TASK_DIR, name, "selected_task_index.json"), "r") as f:
+        #     selected_task_index = json.load(f)
+
+
+        # while refined_files_count < len(selected_task_index):
         #     workflow_examination_result = await workflow_examination_engine(meta_task_name=name, meta_instruction=META_INSTRUCTION)
         #     print(workflow_examination_result)
         #     # count the number of files with "_refined_task_group.json" suffix

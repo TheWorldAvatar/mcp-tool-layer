@@ -2,7 +2,7 @@ import os
 import asyncio
 import json
 from src.agents.CodeGenerationAgent import code_generation_agent
-from models.locations import SANDBOX_TASK_DIR, SANDBOX_CODE_DIR
+from models.locations import SANDBOX_TASK_DIR, SANDBOX_CODE_DIR, SANDBOX_DATA_DIR
 from src.engines.utils.task_tree import TaskTree, TaskNode
 from typing import List
 import shutil
@@ -25,6 +25,10 @@ async def code_generation_engine(task_meta_name: str) -> str:
     if os.path.exists(code_dir):
         shutil.rmtree(code_dir)
 
+    # also remove everything in sandbox/data/task_meta_name directory
+    data_dir = os.path.join(SANDBOX_DATA_DIR, task_meta_name)
+    if os.path.exists(data_dir):
+        shutil.rmtree(data_dir)
 
     # load the refined task group files
     task_dir = os.path.join(SANDBOX_TASK_DIR, task_meta_name)
