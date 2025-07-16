@@ -1,9 +1,7 @@
 from fastmcp import FastMCP
 from src.mcp_descriptions.generic_file_operations import CSV_FILE_SUMMARY_DESCRIPTION, WORD_FILE_SUMMARY_DESCRIPTION, TEXT_FILE_TRUNCATE_DESCRIPTION, REPORT_OUTPUT_DESCRIPTION, LIST_FILES_IN_FOLDER_DESCRIPTION, CODE_OUTPUT_DESCRIPTION
-from src.mcp_descriptions.task_refinement import RESOURCE_REGISTRATION_DESCRIPTION
-from typing import List
-from pydantic import BaseModel
-from typing import Optional
+from src.utils.file_management import safe_handle_file_write, fuzzy_repo_file_search, read_file_content_from_uri
+from models.locations import SANDBOX_TASK_DIR
 
 # Import functions from separated files
 from src.mcp_servers.generic.operations.file_operations import (
@@ -15,13 +13,11 @@ from src.mcp_servers.generic.operations.file_operations import (
     text_file_truncate,
     report_output,
     read_markdown_file,
-    list_files_in_folder
+    list_files_in_folder,
+    output_data_sniffing_report
 )
 
-from src.mcp_servers.generic.operations.resource_registration import (
-    ResourceRegistrationInput,
-    output_resource_registration_report
-)
+ 
 
 mcp = FastMCP(name ="generic_operations", instructions="""This is a tool to perform generic file operations. It is used to create new files, read files, and write files. It is also used to register resources and create reports.
 """)
@@ -30,8 +26,12 @@ mcp = FastMCP(name ="generic_operations", instructions="""This is a tool to perf
 # File Operations Tools
 @mcp.tool(name="create_arbitary_file", description="Create a new file with arbitary extension.", tags=["generic_file_operations"])
 def create_arbitary_file(file_path: str, content: str) -> str:
+    # reject .py files
+    if file_path.endswith(".py"):
+        return "You are not allowed to create .py files with this tool, use code_output tool instead.   "   
     return create_new_file(file_path, content)
 
+# Code Output Tools
 @mcp.tool(name="code_output", description=CODE_OUTPUT_DESCRIPTION, tags=["generic_file_operations"])
 def code_output_tool(code: str, task_meta_name: str, task_index: int, script_name: str) -> str:
     return code_output(code, task_meta_name, task_index, script_name)
@@ -52,9 +52,20 @@ def read_arbitrary_file_tool(file_path: str) -> str:
 def text_file_truncate_tool(file_path: str) -> str:
     return text_file_truncate(file_path)
 
+# Report Output Tools
 @mcp.tool(name="report_output", description=REPORT_OUTPUT_DESCRIPTION, tags=["generic_file_operations"])
-def report_output_tool(file_path: str, file_content: str) -> str:
-    return report_output(file_path, file_content)
+def report_output_tool(file_uri: str, file_content: str) -> str:
+
+    # reject .py files
+    if file_uri.endswith(".py"):
+        return "You are not allowed to output .py files with this tool, use code_output tool instead.   "
+    
+    return report_output(file_uri, file_content)
+
+@mcp.tool(name="output_data_sniffing_report", description="Use this tool to output the data sniffing report, only provide the content and the meta_task_name", tags=["generic_file_operations"])
+def output_data_sniffing_report_tool(file_content: str, meta_task_name: str) -> str:
+    return output_data_sniffing_report(file_content, meta_task_name)
+
 
 @mcp.tool(name="read_markdown_file", description="Get the content of a markdown file.", tags=["generic_file_operations"])
 def read_markdown_file_tool(file_path: str) -> str:
@@ -63,13 +74,7 @@ def read_markdown_file_tool(file_path: str) -> str:
 @mcp.tool(name="list_files_in_folder", description=LIST_FILES_IN_FOLDER_DESCRIPTION, tags=["generic_file_operations"])
 def list_files_in_folder_tool(folder_path: str) -> str:
     return list_files_in_folder(folder_path)
-
-
-# Resource Registration Tools
-@mcp.tool(name="output_resource_registration_report", description=RESOURCE_REGISTRATION_DESCRIPTION, tags=["resource_registration"])
-def output_resource_registration_report_tool(meta_task_name: str, resource_registration_input: List[ResourceRegistrationInput]) -> str:
-    return output_resource_registration_report(meta_task_name, resource_registration_input)
-
+ 
 
 if __name__ == "__main__":
     mcp.run(transport="stdio") 

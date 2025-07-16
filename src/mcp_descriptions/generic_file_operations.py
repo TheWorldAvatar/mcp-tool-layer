@@ -22,10 +22,10 @@ CODE_OUTPUT_DESCRIPTION = """
     """
 
 REPORT_OUTPUT_DESCRIPTION = """
-    This function allows writing a file with the given file path and file content.
+    This function allows writing a file with the given file uri and file content.
 
     Args:
-        file_path: The path to the file.
+        file_uri: The uri to the file.
         file_content: The content to write to the file.
 
     Returns:
