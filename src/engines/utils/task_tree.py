@@ -14,8 +14,19 @@ class TaskNode:
         self.children: List['TaskNode'] = []
         self.parent: Set['TaskNode'] = set()
 
+        # 
+
     def __repr__(self):
-        return f"TaskNode({self.task_id}, name={self.name})"
+        return (
+            f"TaskNode("
+            f"task_id={self.task_id!r}, "
+            f"name={self.name!r}, "
+            f"description={self.description!r}, "
+            f"tools_required={self.tools_required!r}, "
+            f"dependencies={self.dependencies!r}, "
+            f"file_name={self.file_name!r}"
+            f")"
+        )
 
     def get_all_parent_nodes(self):
         parent_nodes = []
