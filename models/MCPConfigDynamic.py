@@ -15,26 +15,24 @@ def _p(p: Path) -> str:
 
 _ALL_MCP_CONFIGS: Dict[str, Dict] = {
  
-    "docker": {
+    "generic": {
         "command": "python",
-        "args": [_p(MCP_SRC / "docker_mcp.py")],
+        "args": [_p(MCP_SRC / "generic" / "main.py")],
         "transport": "stdio",
     },
-    "generic_file_operations": {
+    "sandbox": {
         "command": "python",
-        "args": [_p(MCP_SRC / "generic_file_operations.py")],
+        "args": [_p(MCP_SRC / "sandbox" / "main.py")],
         "transport": "stdio",
     },
-
-    "python_code_sandbox": {
+    "stack_operations": {
         "command": "python",
-        "args": [_p(MCP_SRC / "python_sandbox.py")],
+        "args": [_p(MCP_SRC / "stack" / "main.py")],
         "transport": "stdio",
     },
-
-    "resource_registration": {
+    "task_operations": {
         "command": "python",
-        "args": [_p(MCP_SRC / "resource_registration_server.py")],
+        "args": [_p(MCP_SRC / "task" / "main.py")],
         "transport": "stdio",
     }
 }
@@ -47,4 +45,4 @@ def create_client(names: List[str] | None = None) -> MultiServerMCPClient:
     return MultiServerMCPClient(get_mcp_configs(names))
 
 if __name__ == "__main__":
-    print(get_mcp_configs(["filesystem", "docker", "generic_file_operations", "python_code_sandbox", "resource_registration"]))
+    print(get_mcp_configs(["generic", "sandbox", "stack_operations", "task_operations"]))

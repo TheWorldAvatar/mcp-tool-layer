@@ -37,12 +37,16 @@ async def build_react_agent(
 
 
 async def main():
-    client, agent = await build_react_agent(mcp_keys=["filesystem", "docker", "generic_file_operations", "python_code_sandbox", "resource_registration"])
+    client, agent = await build_react_agent(mcp_keys=["generic", "sandbox", "stack_operations", "task_operations"])
     INSTRUCTION_PROMPT = """
-    Say hello to the world.
+    Say hello to the world. 
+    
+    Output a python script that prints "hello world", use output_code tool to output the code (This is the only tool you can use to output the code)
+
+    meta_task_name: hello_world. 
     """
     response = await agent.ainvoke({"messages": INSTRUCTION_PROMPT})
-    print(response)
+    print(response["messages"][-1].content)
 
 if __name__ == "__main__":
     asyncio.run(main())
