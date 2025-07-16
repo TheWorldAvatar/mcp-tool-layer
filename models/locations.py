@@ -18,7 +18,7 @@ PLAYGROUND_DATA_DIR = os.path.join(PLAYGROUND_DIR, "data")
 CONFIGS_DIR = os.path.join(ROOT_DIR, "configs")
 
 TRACE_FILE_PATH = os.path.join(SANDBOX_TASK_DIR, "task_tracing.json")
-
+RESOURCE_DB_PATH = os.path.join(CONFIGS_DIR, "resource_db.sqlite")
 
 def check_dir_exists(dir_path):
     if not os.path.exists(dir_path):
