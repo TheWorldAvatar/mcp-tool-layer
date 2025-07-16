@@ -21,6 +21,8 @@ something like this:
 
 You should select the iteration number of the two best task plans ànd use the output_selected_task_index tool to output the selected task index (This is very important). 
 
+Stop when the output file is successfully written. 
+
 ------------------------------
 {candidate_reports}
 """
@@ -30,6 +32,8 @@ WORKFLOW_EXAMINATION_PROMPT = """
 
 Your job is to **audit and upgrade** the task-group below.  
 Do **NOT** execute any steps—only inspect, add, reorder, or clarify them.
+
+output_refined_task_group is the only tool you are allowed to call. Other tools are provided only for your reference.
 
 ────────────────────────────────────────────────────────
 **Task goal:** {task_goal}

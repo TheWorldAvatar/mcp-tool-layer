@@ -17,7 +17,11 @@ from models.BaseAgent import BaseAgent
 from models.ModelConfig import ModelConfig
 from models.locations import DATA_TEST_DIR, DATA_GENERIC_DIR, SANDBOX_TASK_DIR
 from scripts.clean_task_dir import clean_task_dir
-from src.prompts.DecompositionPrompts import INSTRUCTION_GENERIC_PROMPT, INSTRUCTION_DATA_SNIFFING_PROMPT
+from src.prompts.DecompositionPrompts import INSTRUCTION_GENERIC_PROMPT
+from src.utils.file_management import safe_handle_file_write, fuzzy_repo_file_search, read_file_content_from_uri
+from src.utils.resource_db_operations import ResourceDBOperator
+
+resource_db_operator = ResourceDBOperator() 
 
  
 
@@ -35,13 +39,13 @@ async def task_decomposition_agent(task_meta_name: str, meta_instruction: str, i
         Write the task summary in markdown format to the /sandbox/tasks/{task_meta_name}/{iteration}/task_summary.md
     """
 
-    # clear the task directory before start
-    # clean_task_dir()
+    data_sniffing_report = read_file_content_from_uri(
+        fuzzy_repo_file_search(os.path.join(SANDBOX_TASK_DIR, task_meta_name, "data_sniffing_report.md")).uri
+    )
+ 
 
-        # load the data sniffing report
-    with open(os.path.join(SANDBOX_TASK_DIR, task_meta_name, "data_sniffing_report.md"), "r") as f:
-        data_sniffing_report = f.read()
 
+ 
     model_config = ModelConfig(temperature=0.4, top_p=0.02)
     mcp_tools = ["stack", "task"]
     for iteration in range(iteration_number):
@@ -54,37 +58,13 @@ async def task_decomposition_agent(task_meta_name: str, meta_instruction: str, i
         response, metadata = await agent.run(instruction, recursion_limit=500)     
         print(response)
 
-        output_dir = f"sandbox/tasks/{task_meta_name}/{str(iteration)}"
-        os.makedirs(output_dir, exist_ok=True)
-        with open(f"{output_dir}/task_summary.md", "w") as f:
-            f.write(response)
+        task_summary_path = f"file://{os.path.join(SANDBOX_TASK_DIR, task_meta_name, str(iteration), 'task_summary.md')}"
+        safe_handle_file_write(task_summary_path, response)
     
 
-async def data_sniffing_agent(folder_path: str, task_meta_name: str):
-    """
-    This agent sniff the data in the folder and generate a data sniffing report, summarizing the inital data provided. 
-
-    Args:
-        folder_path: the path to the data folder
-        task_meta_name: the name of the task
-
-    Returns:
-        Write the data sniffing report in markdown format to the /sandbox/tasks/{task_meta_name}/data_sniffing_report.md
-        Write a resources.json file in the /sandbox/tasks/{task_meta_name}/resources.json, which is a structured output. 
-    """
-    model_config = ModelConfig()    
-    mcp_set_name = "pretask_mcp_configs.json"
-    mcp_tools = ["generic"]
-    instruction = INSTRUCTION_DATA_SNIFFING_PROMPT.format(folder_path=folder_path, task_meta_name=task_meta_name)
-    agent = BaseAgent(model_name="gpt-4o-mini", remote_model=True, mcp_set_name=mcp_set_name, mcp_tools=mcp_tools, model_config=model_config)
-    response, metadata = await agent.run(instruction, recursion_limit=30)
-    print(response)
-
-
 if __name__ == "__main__":
-    response = asyncio.run(task_decomposition_agent(task_meta_name="patrick", data_folder_path="", meta_instruction="", iteration_number=1))
+    response = asyncio.run(task_decomposition_agent(task_meta_name="jiying", meta_instruction="", iteration_number=1))
     print(response)
-    # asyncio.run(data_sniffing_agent(folder_path="/data/generic_data/jiying", task_meta_name="jiying"))
  
 
 

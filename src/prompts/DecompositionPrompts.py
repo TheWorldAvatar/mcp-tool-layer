@@ -65,16 +65,16 @@ INSTRUCTION_DATA_SNIFFING_PROMPT = """
 
 You are provided a folder containing a set of data files, and maybe some documents to provide basic context. 
 
-The folder path is: {folder_path}
+The folder uri is: {folder_uri}
 
 You will also need a task_meta_name for creating task files, which is: {task_meta_name}
 
 Your task is to look at the data files, and the documents, and write a analysis report of the data for further processing. 
 
 Remember the following rules: 
-1. Never read a file with read_file, or read_multiple_files tool, instead, use the generic_file_operations tool to read just a sample of the file. 
-2. Never read a document with read_file, or read_multiple_files tool, instead, use the generic_file_operations tool to read just a sample of the document. 
-3. You are allowed to adjust the max_length parameter of the generic_file_operations tool to read a larger sample of the file or document if you think it is necessary. 
+1. Never read a file with read_file, or read_multiple_files tool, instead, use the generic_operations tool to read just a sample of the file. 
+2. Never read a document with read_file, or read_multiple_files tool, instead, use the generic_operations tool to read just a sample of the document. 
+3. You are allowed to adjust the max_length parameter of the generic_operations tool to read a larger sample of the file or document if you think it is necessary. 
 
 The report should be in the following format: 
 
@@ -83,7 +83,7 @@ The report should be in the following format:
 3. The report should be in markdown format, in the following format: 
 
 ```markdown
-    - Folder path: <folder_path>
+    - Folder uri: <folder_uri>
     - Files:
         - File name: <file_name>
         - File type: <file_type>
@@ -91,12 +91,8 @@ The report should be in the following format:
     - Summary of the data: <summary_of_the_data>
     - Purpose of the data: <purpose_of_the_data>
 
-Output the report file with the name "data_sniffing_report.md" in the folder provided, output in /sandbox/tasks/ {task_meta_name}/data_sniffing_report.md
-
-Use report_output tool to output the report file. 
-
-Also, you should register the resources you found in the data folder. Use resource_registration tool to register the resources. 
-
+Output the report file with the name "data_sniffing_report.md". Use output_data_sniffing_report tool to output the report file. 
+ 
 ```
  
 """
