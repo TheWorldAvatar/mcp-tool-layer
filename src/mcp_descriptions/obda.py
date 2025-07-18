@@ -56,9 +56,12 @@ OBDA_CREATION_DESCRIPTION = """
 
     The OBDA file maps tabular data in a postgres database to the ontology, allowing using SPARQL queries to query the data from relational databases. `
 
+    task_meta_name and iteration_index are not part of the obda file, just for composing the output file path. 
+
     Mandatory Prerequisites: 
      - One or more schema files for the tabular data, which provides the column names and their types, must be created in a previous task. 
      - One ontology (ttl file) file, which provides the ontology class names and their relationships, must be created in a previous task. 
      - The data in the validation postgres database is uploaded in a previous task. 
+ 
  
     """

@@ -33,4 +33,6 @@ TASK_ID_GENERATION_DESCRIPTION = """
 
 TASK_INDEX_SELECTION_DESCRIPTION = """
 This tool is used to output two selected task index (0-4) from a list of five task index. Will return the file path of the selected task files. 
+
+Make sure you put two task index in the list, and the two task index should be different.
 """
