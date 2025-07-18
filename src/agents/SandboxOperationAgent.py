@@ -18,7 +18,6 @@ async def basic_sandbox_test():
     mcp_tools = ["filesystem", "sandbox"]
     agent = BaseAgent(model_name="gpt-4o-mini", model_config=model_config, remote_model=True, mcp_tools=mcp_tools)
     response, metadata = await agent.run(BASIC_SANDBOX_TEST_PROMPT)
-    print(response)
  
 async def python_script_creation_agent(script_name: str, sandbox_name: str, meta_instruction: str):
     """

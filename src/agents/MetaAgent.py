@@ -1,5 +1,6 @@
 from models.BaseAgent import BaseAgent
 from models.ModelConfig import ModelConfig
+from src.utils.global_logger import get_logger
 import asyncio
 
 INSTRUCTION_PROMPT_GOLD = """
@@ -38,12 +39,19 @@ Run print("Hello, world!") in the sandbox.
 """
 
 async def main():
+    from src.utils.global_logger import initialize_logging
+    initialize_logging()
+    
+    logger = get_logger("agent", "MetaAgent")
+    logger.info("Starting MetaAgent execution")
 
     model_config = ModelConfig()
     mcp_tools = ["sandbox", "filesystem"]
     agent = BaseAgent(model_name="gpt-4o-mini", model_config=model_config, remote_model=True, mcp_tools=mcp_tools)
+    
+    logger.info("Created BaseAgent with tools: %s", mcp_tools)
     response, metadata = await agent.run(INSTRUCTION_PROMPT_GOLD, recursion_limit=200)
-    print(response)
+    logger.info("MetaAgent execution completed")
  
 
 if __name__ == "__main__":
