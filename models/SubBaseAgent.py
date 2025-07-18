@@ -13,7 +13,6 @@ import asyncio
 load_dotenv(override=True)
  
 def setup_logging(name: str = __name__, log_file: str = "agent.log") -> logging.Logger:
-    logger = logging.getLogger(name)
     logger.setLevel(logging.INFO)
     if not logger.handlers:
         logger.addHandler(logging.StreamHandler(sys.stderr))
@@ -37,16 +36,20 @@ async def build_react_agent(
 
 
 async def main():
-    client, agent = await build_react_agent(mcp_keys=["generic", "sandbox", "stack_operations", "task_operations"])
+    client, agent = await build_react_agent(mcp_keys=["docker"])
     INSTRUCTION_PROMPT = """
-    Say hello to the world. 
-    
-    Output a python script that prints "hello world", use output_code tool to output the code (This is the only tool you can use to output the code)
+    Tell me are there any existing docker container in the current machine suitable for running a python script (python 3.11)?  
 
-    meta_task_name: hello_world. 
+    You should use list_registered_docker_containers_for_task and register_docker_container tools to find or register the suitable docker container.
+
+    Stick to one container for the whole task.
+
+    Then execute some command to show me the system version.
+
+    Your meta_task_name is "sub_base_agent_2".
+ 
     """
     response = await agent.ainvoke({"messages": INSTRUCTION_PROMPT})
-    print(response["messages"][-1].content)
 
 if __name__ == "__main__":
     asyncio.run(main())

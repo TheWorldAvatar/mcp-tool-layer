@@ -33,7 +33,6 @@ class LLMCreator():
     def load_api_key_from_env(self, key_name):
         # use dot env to load the api key from the environment variables
         key_value = os.environ.get(key_name, None)
-        print(f"Loaded {key_name} from environment variables: {key_value}")
         return key_value
 
     def setup_llm(self):
@@ -75,10 +74,8 @@ class LLMCreator():
 
 if __name__ == "__main__":
     load_dotenv(override=True)
-    print(os.environ.get("REMOTE_BASE_URL"))
     from models.ModelConfig import ModelConfig
     llm_creator = LLMCreator(model="gpt-4o-mini", remote_model=True, model_config=ModelConfig(), structured_output=False, structured_output_schema=None)
     llm = llm_creator.setup_llm()
     prompt = "What is the capital of France?"
     response = llm.invoke(prompt)
-    print(response)
