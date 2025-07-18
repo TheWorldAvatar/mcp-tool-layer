@@ -1,16 +1,15 @@
-import logging
 import re
 from pathlib import Path
-from typing import Dict, List, Literal, Optional, Union
+from typing import Dict, List, Literal, Optional, Union, Tuple
 
 from fastmcp import FastMCP
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, HttpUrl, field_validator
 
 try:
     from rdflib import (
         BNode,
         Graph,
-        Literal as RDFLiteral,  # avoid clash with typing.Literal
+        Literal as RDFLiteral,
         Namespace,
         OWL,
         RDF,
@@ -22,8 +21,6 @@ except ImportError as exc:
     raise ImportError("rdflib is required.  pip install rdflib") from exc
 
 # ── logging ------------------------------------------------------------------
-log = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
 
 # ── prefix helper ------------------------------------------------------------
 
@@ -33,7 +30,6 @@ NCNAME_BAD = re.compile(r"[^A-Za-z0-9_-]+")
 def slug(text: str) -> str:
     """RDFlib-safe prefix: replace bad chars with '_' (never empty)."""
     return (NCNAME_BAD.sub("_", text).strip("_") or "base").lower()
-
 
 # ── Pydantic models ----------------------------------------------------------
 
@@ -55,7 +51,6 @@ class PropertyInput(BaseModel):
     domain: Optional[str] = None
     range: Optional[str] = None
     inverse_of: Optional[str] = None
-
     functional: bool = False
     symmetric: bool = False
     transitive: bool = False
@@ -83,7 +78,7 @@ class OntologyInput(BaseModel):
     base_uri: str = "http://example.org/ontology"
     version: Optional[str] = None
     prefixes: Dict[str, str] = Field(default_factory=dict)
-    imports: List[str] = Field(default_factory=list)
+    imports: List[HttpUrl] = Field(default_factory=list)
 
     classes: List[ClassInput] = Field(default_factory=list)
     properties: List[PropertyInput] = Field(default_factory=list)
@@ -99,34 +94,43 @@ class OntologyBuilder:
         self.ns_base = Namespace(f"{spec.base_uri.rstrip('#/')}#")
         self.main_prefix = slug(spec.name)
 
-        g = self.g = Graph()
-        g.bind("rdf", RDF)
-        g.bind("rdfs", RDFS)
-        g.bind("owl", OWL)
-        g.bind("xsd", XSD)
-        g.bind(self.main_prefix, self.ns_base)
+        self.g = Graph()
+        self.g.bind("rdf", RDF)
+        self.g.bind("rdfs", RDFS)
+        self.g.bind("owl", OWL)
+        self.g.bind("xsd", XSD)
+        self.g.bind(self.main_prefix, self.ns_base)
 
-        # user prefixes (auto-slugify if illegal)
         for raw, iri in spec.prefixes.items():
-            g.bind(slug(raw), Namespace(iri))
-
-    # ── helpers --------------------------------------------------------------
+            self.g.bind(slug(raw), Namespace(iri))
 
     def _uri(self, local: str) -> URIRef:
         if ":" in local:
             if local.startswith(("http://", "https://")):
                 return URIRef(local)
-            return URIRef(local)  # assume CURIE already valid
+            return URIRef(local)
         return URIRef(f"{self.ns_base}{local}")
 
-    # ── build graph ---------------------------------------------------------
+    def build(self) -> Tuple[bool, Union[str, Graph]]:
+        # Validate imports first
+        for imp in self.spec.imports:
+            imp_str = str(imp)
+            if imp_str.endswith("#"):
+                return False, (
+                    f"[Invalid owl:imports IRI] '{imp_str}' ends with '#'. "
+                    f"This is likely a namespace, not an ontology document.\n"
+                    f"👉 Replace with: '{imp_str.rstrip('#')}'\n"
+                    f"(e.g., 'http://www.w3.org/2002/07/owl' not '...#')"
+                )
 
-    def build(self) -> Graph:
-        self._header()
-        self._classes()
-        self._properties()
-        self._cardinalities()
-        return self.g
+        try:
+            self._header()
+            self._classes()
+            self._properties()
+            self._cardinalities()
+            return True, self.g
+        except Exception as e:
+            return False, f"Error during ontology build: {e}"
 
     def _header(self):
         onto = self._uri("")
@@ -136,7 +140,7 @@ class OntologyBuilder:
             self.g.add((onto, OWL.versionInfo, RDFLiteral(self.spec.version)))
             self.g.add((onto, OWL.versionIRI, URIRef(f"{self.ns_base}{self.spec.version}")))
         for imp in self.spec.imports:
-            self.g.add((onto, OWL.imports, URIRef(imp)))
+            self.g.add((onto, OWL.imports, URIRef(str(imp))))
 
     def _classes(self):
         for c in self.spec.classes:
@@ -192,5 +196,29 @@ class OntologyBuilder:
                 if c.max is not None:
                     self.g.add((b, OWL.maxCardinality, RDFLiteral(c.max, datatype=XSD.nonNegativeInteger)))
             self.g.add((cls_uri, RDFS.subClassOf, b))
+
+
+# ── Test run -----------------------------------------------------------------
+
+if __name__ == "__main__":
+    ontology = OntologyInput(
+        name="Building",
+        description="Building ontology",
+        base_uri="http://example.org/ontology",
+        version="1.0",
+        prefixes={
+            "ex": "http://example.org/ontology#",
+            "foaf": "http://xmlns.com/foaf/0.1/"
+        },
+        imports=["http://www.w3.org/2002/07/owl"]  # ← Try replacing with .../owl to see the difference
+    )
+
+    builder = OntologyBuilder(ontology)
+    ok, result = builder.build()
+
+    if ok:
+        print(result.serialize(format="turtle"))
+    else:
+        print(result)
 
 
