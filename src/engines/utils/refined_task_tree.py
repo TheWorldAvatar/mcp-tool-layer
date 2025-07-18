@@ -60,7 +60,7 @@ class RefinedTaskNode:
 
     def has_hypothetical_tools(self) -> bool:
         """Check if this task has any hypothetical tools."""
-        return any(tool.get('is_hypothetical_tool', False) for tool in self.tools_required)
+        return any(tool.get('is_hypothetical_tool', True) for tool in self.tools_required)
 
     def has_llm_generation_tools(self) -> bool:
         """Check if this task has any LLM generation tools."""
@@ -106,8 +106,8 @@ class RefinedTaskTree:
         in_degree = {task_id: 0 for task_id in self.task_nodes}
         for node in self.task_nodes.values():
             for dep_id in node.dependencies:
-                if dep_id in in_degree:
-                    in_degree[dep_id] += 1
+                if node.task_id in in_degree:
+                    in_degree[node.task_id] += 1
 
         # Start with nodes that have no dependencies (roots)
         queue = [self.task_nodes[tid] for tid, deg in in_degree.items() if deg == 0]
@@ -199,7 +199,6 @@ class RefinedTaskTree:
             if visited is None:
                 visited = set()
             if node.task_id in visited:
-                print("    " * depth + f"- {node.name} ({node.task_id}) [cycle detected]")
                 return
             visited.add(node.task_id)
 
@@ -210,17 +209,16 @@ class RefinedTaskTree:
             if node.has_llm_generation_tools():
                 tool_info += " [LLM]"
             
-            print("    " * depth + f"- {node.name} ({node.task_id}) {tool_info}")
             if node.output_files:
-                print("    " * (depth + 1) + f"Outputs: {', '.join(node.output_files)}")
+                print(f"{'  ' * depth}Output files: {node.output_files}")
             if node.required_input_files:
-                print("    " * (depth + 1) + f"Inputs: {', '.join(node.required_input_files)}")
+                print(f"{'  ' * depth}Required input files: {node.required_input_files}")
             
             for child in sorted(node.children, key=lambda n: n.task_id):
                 dfs(child, depth + 1, visited.copy())
 
         if not self.roots:
-            print("No root tasks found.")
+            print("No roots found")
         else:
             for root in sorted(self.roots, key=lambda n: n.task_id):
                 dfs(root)
