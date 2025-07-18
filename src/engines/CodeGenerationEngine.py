@@ -1,68 +1,37 @@
 import os
 import asyncio
-import json
 from src.agents.CodeGenerationAgent import code_generation_agent
-from models.locations import SANDBOX_TASK_DIR, SANDBOX_CODE_DIR, SANDBOX_DATA_DIR
-from src.engines.utils.task_tree import TaskTree, TaskNode
-from typing import List
-import shutil
+from src.utils.resource_db_operations import ResourceDBOperator
+from models.locations import SANDBOX_DATA_DIR
+from models.Resource import Resource
 
-def identify_hypothetical_tools(task_tree: TaskTree) -> List[TaskNode]:
-    all_task_nodes = task_tree.get_all_task_nodes()
-    hypothetical_task_nodes = []
-    for task_node in all_task_nodes:
-        for tool in task_node.tools_required:
-            if tool.get('is_hypothetical_tool', False):
-                hypothetical_task_nodes.append(task_node)
-                break
-    return hypothetical_task_nodes
+resource_db_operator = ResourceDBOperator()
 
-async def code_generation_engine(task_meta_name: str) -> str:
+async def code_generation_engine(
+    task_meta_name: str,
+    iteration_index: int,
+    task_node: str,
+    resources: str
+) -> str:
+    """
+    Execute code generation for a single RefinedTaskNode.
 
-    collected_response = []
-    # remove sandbox/code/task_meta_name directory
-    code_dir = os.path.join(SANDBOX_CODE_DIR, task_meta_name)
-    if os.path.exists(code_dir):
-        shutil.rmtree(code_dir)
+    Args:
+        task_meta_name (str): The meta task name.
+        iteration_index (int): The iteration index for the task group.
+        task_node (str): The node to generate code for.
 
-    # also remove everything in sandbox/data/task_meta_name directory
-    data_dir = os.path.join(SANDBOX_DATA_DIR, task_meta_name)
-    if os.path.exists(data_dir):
-        shutil.rmtree(data_dir)
+    Returns:
+        str: The code generation agent's response.
+    """
 
-    # load the refined task group files
-    task_dir = os.path.join(SANDBOX_TASK_DIR, task_meta_name)
-    refined_task_group_files = [f for f in os.listdir(task_dir) if f.endswith("_refined_task_group.json")]
-    refined_task_group_files_with_index = [f.split("_")[0] for f in refined_task_group_files]
-    refined_task_group_files_with_index = [int(f) for f in refined_task_group_files_with_index]
-    refined_task_group_files_with_index.sort()
-    refined_task_group_files_with_index = [str(f) for f in refined_task_group_files_with_index]
+    output_folder = os.path.join(SANDBOX_DATA_DIR, task_meta_name, str(iteration_index))
+    os.makedirs(output_folder, exist_ok=True)
 
-    # load the resources
-    resources_file_path = os.path.join(task_dir, "resources.json")
-    with open(resources_file_path, "r") as f:
-        resources = json.load(f)
+    # Run the code generation agent for this node
+    code_generation_result = await code_generation_agent(
+        str(task_node), task_meta_name, iteration_index, resources
+    )
+    return code_generation_result
 
-    for index, refined_task_group_file in zip(refined_task_group_files_with_index, refined_task_group_files):
-        print(f"Processing {index}th refined task group")
-        refined_task_group_file_path = os.path.join(task_dir, refined_task_group_file)
-        with open(refined_task_group_file_path, "r") as f:
-            refined_task_group = json.load(f)
-        task_tree = TaskTree(refined_task_group)
-        hypothetical_task_nodes = identify_hypothetical_tools(task_tree)
-        for hypothetical_task_node in hypothetical_task_nodes:
-            # use this task node in json format as the instruction to the code generation agent
-            code_generation_result = await code_generation_agent(hypothetical_task_node, task_meta_name, index, resources)
-            print(code_generation_result)
-            collected_response.append(code_generation_result)
-
-    return "\n".join(collected_response)
-
-
-if __name__ == "__main__":
-    asyncio.run(code_generation_engine("jinfeng"))
-
-
-
-
-
+ 

@@ -1,108 +1,65 @@
 from __future__ import annotations
 import asyncio
-import logging
 from fastmcp import FastMCP
 from models.SubBaseAgent import build_react_agent
+from models.locations import DATA_LOG_DIR
 
 
-async def code_generation_agent(task_node: str, task_meta_name: str, iteration_index: int, resources: list) -> str:
+async def code_generation_agent(task_node: str, task_meta_name: str, task_index: int, resources: str) -> str:
     prompt = f"""
-    You are a code generation agent that generates python scripts according to a subtask,.
+    You are a code‑generation agent that writes Python scripts for each sub‑task.
 
-    You are to generate the code and output it with the code_output tool, which will also check the basic syntax of the code and give you feedbacks. 
+    Write the script and check its syntax with the code_output tool (This is the only tool you can use to output the code).
 
-    Run the python script with run_sandbox_operation_python_file tool together with the docker tools in a sandbox container and check whether the code works. 
+    Run the script in docker containers with the docker tools, make sure the script path is relative path (e.g. "sandbox/code/<meta_task_name>/<task_index>/<script_name>.py").
 
-    When you run the scripts, use relative paths. For example, input data is in data/generic_data/... output data should be in sandbox/data/...
+    Use existing docker containers if possible, otherwise create a new one. (We should use python 3.11). 
 
-    Refine the code until the script works without any errors in the sandbox. 
+    If the docker container you used works fine, remember to register it with the register_docker_container tool. You should also use list_registered_docker_containers_for_task tool to check if the container is already registered.  
 
-    The task meta name is {task_meta_name} and the iteration index is {iteration_index}, these two values let you know which directory you should output the code. 
+    ** Important:** You should stick to the same container for the whole task.
 
-    Focus on the subtask. 
+    Refine the script until it executes without errors. 
 
-    Here are some general rules: 
+    ** Important:** The code you generated is not for demonstration, it should be the full function.    
 
-    1. The dataflow in this system is usually file-based, so if your code were to produce any data, it should be saved to a file. 
-    It also applies to the input data, usually, data are passed to the code as file paths. Always return the file paths of the output files. 
+    Key rules
+    • Use Python 3.11.
+    • All input and output should be file‑based.
+    • Always use relative paths to read and write files, without "/" in front of the path. 
 
-    2. Don't be afraid to use third party libraries to fulfill the user's request. But remember to pip install the libraries in the sandbox container in advance before you run the script. 
+    input paths are usually provided in the resources.
+    output paths always start with sandbox/data/{task_meta_name}/{task_index}, with no exception.
 
-    3. Make sure you use enough try-except blocks to handle errors, which gives you a chance to revise the code and try again.
 
-    4. Keep in mind that we are generally using python 3.11. 
+    • Feel free to pip install third‑party libraries inside the sandbox before running.
+    • Add try–except blocks to handle errors gracefully.
+    
+    Focus on the sub‑task, iterate until the script works, and always indicate the paths of the output files.
 
-    5. Make sure the output dir of the script you created is sandbox/data
+    Args: 
 
-    6. Make sure the script you created indicates the paths of the output files. 
+    task_meta_name: {task_meta_name} 
+    
+    task_index: {task_index}
 
-    This is the task description, you should generate the code to fulfill the task: 
+    Note that the task_index is the index of the task in the task group, not the iteration index. 
 
-    {task_node}  
+    The following are the current task node and all the resources available to you. In many cases, resources gives you some idea about the input files. 
 
-    Here are the resources available to you, make sure you use the correct file paths.  
+    task_node: {task_node}
 
-    {resources}
+    resources: {resources}
 
-    After you generate the script, also use resource_registration tool to add the script as a resource. 
 
-    Remember the docker container name and the docker command for executing the script, you need to include them in the resource_registration tool. 
     """
+ 
+    client, agent = await build_react_agent(mcp_keys=["generic", "docker"])
 
-    client, agent = await build_react_agent(mcp_keys=["sandbox", "generic"])
-
-    result = await agent.ainvoke({"messages": prompt}, {"recursion_limit": 300})
+    result = await agent.ainvoke({"messages": prompt}, {"recursion_limit": 100})
     reply = result["messages"][-1].content
     return reply
-
-
-async def code_test_agent(code: str) -> str:
-    prompt = f"""
-    You are a code test agent that tests the code to see if it fulfills the user's request.
-
-    Here are some general rules: 
-
-    """
-
-    client, agent = await build_react_agent(mcp_keys=["filesystem", "sandbox"])
-
-    result = await agent.ainvoke({"messages": prompt}, {"recursion_limit": 300})
-
+ 
 
 if __name__ == "__main__":
-
-    test_task_node = """
-
-        {
-        "task_id": "5447d6",
-        "name": "Extract Data from GeoPackage",
-        "description": "Extract spatial data from the GeoPackage file 'ukbuildings_6009073.gpkg' to a suitable format for integration into the stack.",
-        "tools_required": [
-            {
-                "name": "extract_geopackage_data",
-                "is_hypothetical_tool": true
-            }
-        ],
-        "task_dependencies": [],
-        "output_files": [
-            "ukbuildings_data.json"
-        ],
-        "required_input_files": [
-            "ukbuildings_6009073.gpkg"
-        ]
-    }
-
-    """
-
-    resources = [
-    {
-        "resource_name": "ukbuildings_6009073.gpkg",
-        "resource_type": "file",
-        "resource_description": "GeoPackage file containing spatial data of buildings in the UK.",
-        "resource_location": "/data/generic_data/jinfeng/ukbuildings_6009073.gpkg"
-    }
-    ]
-
-
-    result = asyncio.run(code_generation_agent(task_node=test_task_node, task_meta_name="jinfeng", iteration_index=0, resources=resources))
-    print(result)
+    result = asyncio.run(code_generation_agent(task_node = "", task_meta_name="jiying", task_index=0, resources=""))
