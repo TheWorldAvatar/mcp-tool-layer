@@ -144,7 +144,6 @@ class MCPToolAnalyzer:
                 "functions": functions
             }
         except Exception as e:
-            print(f"Error analyzing {file_path}: {e}")
             return {
                 "module": module_name,
                 "file_path": str(file_path),
@@ -181,25 +180,16 @@ class MCPToolAnalyzer:
 
     def print_tools_summary(self):
         tools_dict = self.generate_tools_dictionary()
-        print(f"Found {len(tools_dict)} MCP tools across all files:\n")
         for tool_key, tool_info in tools_dict.items():
-            print(f"Tool: {tool_key}")
-            print(f"  Function: {tool_info['function_name']}")
-            print(f"  Module: {tool_info['module_name']}")
-            print(f"  Return Type: {tool_info['return_type']}")
-            print("  Arguments:")
             for arg in tool_info['args']:
                 default_str = f" = {arg['default']}" if arg['default'] is not None else ""
                 type_str = f": {arg['type']}" if arg['type'] is not None else ""
-                print(f"    {arg['name']}{type_str}{default_str}")
-            print()
 
     def write_tools_json(self, output_path: str = os.path.join(CONFIGS_DIR, "mcp_tools.json")):
         tools_dict = self.generate_tools_dictionary()
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
         with open(output_path, "w", encoding="utf-8") as f:
             json.dump(tools_dict, f, indent=2)
-        print(f"Tools dictionary written to {output_path}")
 
 def main():
     analyzer = MCPToolAnalyzer(mcp_servers_dir="src/mcp_servers")

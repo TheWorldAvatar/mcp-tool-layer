@@ -33,14 +33,20 @@ def identify_hypothetical_tools(meta_task_name: str):
             refined_task_group = json.load(f)
             updated = False
             for task_object in refined_task_group:
-                for tool in task_object["tools_required"]:
-                    if not lookup_tool_in_mcp_tools(clean_tool_name(tool["name"]), mcp_tools):
-                        # this means this tool is not in the mcp_tools, so it is a hypothetical tool, you need to update 
-                        # the refined_task_group file with the tool name
-                        tool["is_hypothetical_tool"] = True
-                        updated = True
-                    else:
-                        tool["is_hypothetical_tool"] = False
+                # if tools_required is empty, create a list of hypothetical tools
+                if not task_object["tools_required"]:
+                    task_object["tools_required"] = [{"name": "functions.hypothetical_tool", "is_hypothetical_tool": True, "is_llm_generation": False}]
+                    updated = True
+                else:
+                    # if tools_required is not empty, iterate through the tools
+                    for tool in task_object["tools_required"]:
+                        if not lookup_tool_in_mcp_tools(clean_tool_name(tool["name"]), mcp_tools):
+                            # this means this tool is not in the mcp_tools, so it is a hypothetical tool, you need to update 
+                            # the refined_task_group file with the tool name
+                            tool["is_hypothetical_tool"] = True
+                            updated = True
+                        else:
+                            tool["is_hypothetical_tool"] = False
             if updated:
                 with open(file_path, "w") as f_out:
                     json.dump(refined_task_group, f_out, indent=2)
