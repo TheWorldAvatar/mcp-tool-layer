@@ -11,6 +11,15 @@ import re
 db_operator = ResourceDBOperator()
 
 
+
+
+def file_path_handling(file_path: str) -> str:
+    # if the file path is a file://, then return the file path
+    if file_path.startswith("file://"):
+        return file_path.replace("file://", "")
+    return f"file://{file_path}"
+
+
 def fuzzy_repo_file_search(query: str) -> Resource:
     # Use fuzzywuzzy Levenshtein distance to search for the best-matching resource.
     # - Iterates through all resources registered in the database.
@@ -21,6 +30,11 @@ def fuzzy_repo_file_search(query: str) -> Resource:
     # - If no resource meets the threshold, returns None.
     # - If multiple resources are above the threshold, returns the one with the highest similarity.
 
+    def is_data_log_or_temp(path):
+        # Normalize path separators and check for data/log or data/temp anywhere in the path
+        norm = path.replace("\\", "/")
+        return "data/log" in norm or "data/temp" in norm
+
     best_match = None
     best_similarity = 0
     threshold = 0.8
@@ -30,6 +44,10 @@ def fuzzy_repo_file_search(query: str) -> Resource:
     query_no_path_sep = query.replace(os.path.sep, "").replace("/", "")
 
     for resource in resources:
+        # Ignore anything with data/log or data/temp in their paths
+        if is_data_log_or_temp(resource.relative_path) or is_data_log_or_temp(resource.absolute_path):
+            continue
+
         # Remove path separators from both relative and absolute paths
         rel_no_path_sep = resource.relative_path.replace(os.path.sep, "").replace("/", "")
         abs_no_path_sep = resource.absolute_path.replace(os.path.sep, "").replace("/", "")
@@ -172,18 +190,22 @@ def extract_meta_task_name(rel_path):
 def scan_base_folders_recursively():
     BASE_FOLDERS = [DATA_DIR, SANDBOX_DIR]
     resources = []
+    
+    # Import logging for debugging
+    from src.utils.global_logger import get_logger
+    logger = get_logger("file_management", "scan_base_folders")
 
     import re
 
-    def is_data_log_folder(rel_path):
+    def is_data_log_or_temp_folder(rel_path):
         """
-        Returns True if rel_path is under data/log/ (but not the data/log folder itself).
-        E.g. "data/log/jiying/0", "data/log/jiying/0/foo.py", etc.
+        Returns True if rel_path is under data/log/ or data/temp/ (but not the data/log or data/temp folder itself).
+        E.g. "data/log/jiying/0", "data/temp/foo/bar.txt", etc.
         """
-        # Normalize path separators
         rel_path_norm = rel_path.replace("\\", "/")
-        # Match data/log/ at the start or anywhere in the path, but not exactly 'data/log'
-        return bool(re.search(r"(^|/)data/log(/|$)", rel_path_norm)) and rel_path_norm != "data/log"
+        if "data/log" in rel_path_norm or "data/temp" in rel_path_norm:
+            return True
+        return False
 
     def is_archive_folder(rel_path):
         """
@@ -207,77 +229,95 @@ def scan_base_folders_recursively():
     for BASE_FOLDER in BASE_FOLDERS:
         abs_base = os.path.abspath(BASE_FOLDER)
         rel_base = os.path.relpath(abs_base, ROOT_DIR)
-        # Exclude BASE_FOLDER if it is or is under 'archive' or 'data/log'
-        if is_archive_folder(rel_base) or is_data_log_folder(rel_base):
+        logger.info(f"Scanning base folder: {abs_base}")
+        
+        # Exclude BASE_FOLDER if it is or is under 'archive', 'data/log', or 'data/temp'
+        if is_archive_folder(rel_base) or is_data_log_or_temp_folder(rel_base):
+            logger.info(f"Skipping excluded folder: {rel_base}")
             continue
 
-        # Register the BASE_FOLDER itself
-        uri = f"file://{abs_base}"
-        meta_task_name = extract_meta_task_name(rel_base)
-        resources.append(Resource(
-            type="folder",
-            relative_path=rel_base,
-            absolute_path=abs_base,
-            uri=uri,
-            meta_task_name=meta_task_name,
-            iteration=-1
-        ))
+        # Register the BASE_FOLDER itself (only if it exists)
+        if os.path.exists(abs_base) and os.path.isdir(abs_base):
+            uri = f"file://{abs_base}"
+            meta_task_name = extract_meta_task_name(rel_base)
+            resources.append(Resource(
+                type="folder",
+                relative_path=rel_base,
+                absolute_path=abs_base,
+                uri=uri,
+                meta_task_name=meta_task_name,
+                iteration=-1
+            ))
+            logger.info(f"Registered base folder: {rel_base}")
+        else:
+            logger.warning(f"Base folder does not exist: {abs_base}")
 
         for root, dirs, files in os.walk(BASE_FOLDER):
             # Compute rel_root for filtering
             abs_root = os.path.abspath(root)
             rel_root = os.path.relpath(abs_root, ROOT_DIR)
-            # Filter out dirs containing 'archive' or 'data/log' in their path
+            # Filter out dirs containing 'archive', 'data/log', or 'data/temp' in their path
             dirs[:] = [
                 d for d in dirs
                 if not is_archive_folder(os.path.join(rel_root, d))
-                and not is_data_log_folder(os.path.join(rel_root, d))
+                and not is_data_log_or_temp_folder(os.path.join(rel_root, d))
             ]
             # Register each directory
             for dir_name in dirs:
                 dir_path = os.path.join(root, dir_name)
                 abs_path = os.path.abspath(dir_path)
                 rel_path = os.path.relpath(abs_path, ROOT_DIR)
-                # Skip if matches archive, data/log, or sandbox/tasks/<anything>/<something>
+                # Skip if matches archive, data/log, data/temp, or sandbox/tasks/<anything>/<something>
                 if (
                     is_archive_folder(rel_path)
-                    or is_data_log_folder(rel_path)
+                    or is_data_log_or_temp_folder(rel_path)
                     or is_sandbox_task_subdir(rel_path)
                 ):
                     continue
-                uri = f"file://{abs_path}"
-                meta_task_name = extract_meta_task_name(rel_path)
-                resources.append(Resource(
-                    type="folder",
-                    relative_path=rel_path,
-                    absolute_path=abs_path,
-                    uri=uri,
-                    meta_task_name=meta_task_name,
-                    iteration=-1
-                ))
+                # Check if directory actually exists
+                if os.path.exists(dir_path) and os.path.isdir(dir_path):
+                    uri = f"file://{abs_path}"
+                    meta_task_name = extract_meta_task_name(rel_path)
+                    resources.append(Resource(
+                        type="folder",
+                        relative_path=rel_path,
+                        absolute_path=abs_path,
+                        uri=uri,
+                        meta_task_name=meta_task_name,
+                        iteration=-1
+                    ))
+                    logger.debug(f"Registered directory: {rel_path}")
+                else:
+                    logger.warning(f"Directory does not exist: {dir_path}")
             # Register each file
             for file in files:
                 file_path = os.path.join(root, file)
                 abs_path = os.path.abspath(file_path)
                 rel_path = os.path.relpath(abs_path, ROOT_DIR)
-                # Skip if matches archive, data/log, or sandbox/tasks/<anything>/<something>
+                # Skip if matches archive, data/log, data/temp, or sandbox/tasks/<anything>/<something>
                 if (
                     is_archive_folder(rel_path)
-                    or is_data_log_folder(rel_path)
+                    or is_data_log_or_temp_folder(rel_path)
                     or is_sandbox_task_subdir(rel_path)
                 ):
                     continue
-                uri = f"file://{abs_path}"
-                meta_task_name = extract_meta_task_name(rel_path)
-                resources.append(Resource(
-                    type="file",
-                    relative_path=rel_path,
-                    absolute_path=abs_path,
-                    uri=uri,
-                    meta_task_name=meta_task_name,
-                    iteration=-1
-                ))
+                # Check if file actually exists
+                if os.path.exists(file_path) and os.path.isfile(file_path):
+                    uri = f"file://{abs_path}"
+                    meta_task_name = extract_meta_task_name(rel_path)
+                    resources.append(Resource(
+                        type="file",
+                        relative_path=rel_path,
+                        absolute_path=abs_path,
+                        uri=uri,
+                        meta_task_name=meta_task_name,
+                        iteration=-1
+                    ))
+                    logger.debug(f"Registered file: {rel_path}")
+                else:
+                    logger.warning(f"File does not exist: {file_path}")
 
+    logger.info(f"Scan completed. Found {len(resources)} resources")
     return resources
 
 
@@ -287,8 +327,8 @@ if __name__ == "__main__":
     # print(fuzzy_repo_file_search("data/jiying/data_sniffing_report.md", resources))
     # print(fuzzy_repo_file_search("/data/generic/jiying", resources))
 
-    print(safe_handle_file_write("file:///mnt/c/Users/xz378/Documents/GitHub/mcp-tool-layer/sandbox/tasks/jiying/data_sniffing_report.md", "test"))
     # print(read_file_content_from_uri("file:///mnt/c/Users/xz378/Documents/GitHub/mcp-tool-layer/data/generic_data/xiaochi/data_sniffing_report.md"))
 
     # print(extract_meta_task_name("data/generic_data/patrick/MetalOrganicPolyhedron_91b0d0ca-c8b1-4dcc-8a4e-954899070a60_log.txt"))
     # print(extract_meta_task_name("sandbox/tasks/jiying/data_sniffing_report.md"))
+    pass 
