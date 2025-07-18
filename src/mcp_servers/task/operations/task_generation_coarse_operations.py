@@ -6,7 +6,6 @@ Functions for generating task files for the task decomposition agent.
 import subprocess
 import json
 import os
-import logging
 from pydantic import BaseModel
 from typing import List
 import uuid
@@ -30,4 +29,3 @@ def generate_task_id() -> str:
 
 if __name__ == "__main__":
     from models.TaskObjects import Tool
-    print(create_new_tool_task("test", AddTaskInput(task_id="123", name="test", description="test", tools_required=[Tool(name="tool1", is_hypothetical_tool=False, is_llm_generation=False)], task_dependencies=[]), 0))
