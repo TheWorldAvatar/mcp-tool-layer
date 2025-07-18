@@ -1,15 +1,16 @@
-import logging
 import pandas as pd
 import os
 from models.locations import ROOT_DIR, DATA_GENERIC_DIR, SANDBOX_CODE_DIR, SANDBOX_TASK_DIR
 from docx import Document
 import ast 
-from src.utils.file_management import safe_handle_file_write, check_if_folder_or_file_exists
+from src.utils.file_management import safe_handle_file_write, check_if_folder_or_file_exists, file_path_handling
 from src.utils.resource_db_operations import ResourceDBOperator
 from models.Resource import Resource
 import fsspec
-
+import json 
+from typing import List
 resource_db_operator = ResourceDBOperator()
+ 
 
 
 def create_new_file(file_uri: str, content: str, task_meta_name: str = "", iteration: int = -1) -> str:
@@ -18,6 +19,9 @@ def create_new_file(file_uri: str, content: str, task_meta_name: str = "", itera
     # reject attempt to write to the sandbox/data or sandbox/code
     if "sandbox/data" in file_uri or "sandbox/code" in file_uri:
         return "Attempt to write to the sandbox/data or sandbox/code is not allowed. For code generation, you should only use code_output. Direct writing to sandbox/data or sandbox/code is not allowed in all cases.  "
+
+    if "data_sniffing_report.md" in file_uri:
+        return "Attempt to write to the data_sniffing_report.md is not allowed. For data sniffing, you should only use report_output tool instead.  "
 
     file_uri = safe_handle_file_write(file_uri, content)
     # register the file to the resource db
@@ -54,11 +58,7 @@ def csv_file_summary(file_uri: str) -> str:
         error_msg = f"File {file_uri} is not a csv file."
         return error_msg
     # check if the file exists and is a csv file
-    resource = resource_db_operator.get_resource_by_uri(file_uri)
-    if resource is None:
-        error_msg = f"File {file_uri} does not exist."
-        return error_msg
-    
+ 
     fs, path = fsspec.core.url_to_fs(file_uri)
     # Step 1: Get file size (in bytes → MB)
     file_size_bytes = fs.size(path)
@@ -104,7 +104,7 @@ def output_data_sniffing_report(file_content: str, meta_task_name: str) -> str:
 
 
     # register the file to the resource db
-    resource_db_operator.register_resource(Resource(type="report", relative_path=file_uri, absolute_path=file_uri, uri=file_uri, meta_task_name=meta_task_name, iteration=-1))
+    resource_db_operator.register_resource(Resource(type="report", relative_path=file_uri, absolute_path=file_uri, uri=file_uri, meta_task_name=meta_task_name, iteration=-1, description=f"data sniffing report for task {meta_task_name}"))
     return report_output(file_uri=file_uri, file_content=file_content)
 
 def read_arbitrary_file(file_uri: str) -> str:
@@ -212,25 +212,27 @@ def list_files_in_folder(relative_path: str) -> str:
     Recursively list files in the folder specified by relative_path, with their sizes.
     """
     # check if the folder exists
-    if not os.path.exists(relative_path):
-        error_msg = f"Folder {relative_path} does not exist."
+    relative_path_with_out_protocol = file_path_handling(relative_path)
+    print(f"relative_path_with_out_protocol: {relative_path_with_out_protocol}")
+ 
+    if not os.path.exists(relative_path_with_out_protocol):
+        error_msg = f"Folder {relative_path_with_out_protocol} does not exist."
         return error_msg
     
     # list the files in the folder
-    files = os.listdir(relative_path)
-    return "\n".join(files)
+    files = os.listdir(relative_path_with_out_protocol)
+
+    # add file:// to the files if they don't have it
+    # give the file paths with the relative path
+    files_with_relative_path = [os.path.join(relative_path_with_out_protocol, file) for file in files]
+    files_with_relative_path = [f"file://{file}" for file in files_with_relative_path if not file.startswith("file://")]
+    print(f"files_with_relative_path: {files_with_relative_path}")
+
+    return f"Listing of the files successfully completed. The files are: {files_with_relative_path}"
+
 
 if __name__ == "__main__":
-    # print(create_new_file("file:///mnt/c/Users/xz378/Documents/GitHub/mcp-tool-layer/data/generic_data/xiaochi/data_sniffing_report.md", "test2"))
-#     print(csv_file_summary("file:///mnt/c/Users/xz378/Documents/GitHub/mcp-tool-layer/data/generic_data/jiying/Non-Domestic EPC.csv"))
-#     print(word_file_summary("file:///mnt/c/Users/xz378/Documents/GitHub/mcp-tool-layer/data/generic_data/feroz/Coastal_flooding.docx"))
-#     print(read_arbitrary_file("file:///mnt/c/Users/xz378/Documents/GitHub/mcp-tool-layer/data/generic_data/jinfeng/ukbuildings_6009073.gpkg"))
-#     print(text_file_truncate("file:///mnt/c/Users/xz378/Documents/GitHub/mcp-tool-layer/data/generic_data/xiaochi/test.txt"))
-#     print(report_output("file:///mnt/c/Users/xz378/Documents/GitHub/mcp-tool-layer/san/generic_data/xiaochi/test.txt", "test"))
-#     print(read_markdown_file("file:///mnt/c/Users/xz378/Documents/GitHub/mcp-tool-layer/data/generic_data/xiaochi/test.txt"))
-#    #  print(list_files_in_folder("file:///mnt/c/Users/xz378/Documents/GitHub/mcp-tool-layer/data/generic_data/xiaochi/"))
-    # print(report_output("file:///mnt/c/Users/xz378/Documents/GitHub/mcp-tool-layer/sandbox/tasks/test/data_sniffing_report.md", "test"))
-    # print(report_output("/sandbox/tasks/test/data_sniffing_report.md", "test"))
-
-    # print(output_data_sniffing_report("test", "test"))
-    pass 
+    print(list_files_in_folder("file:///mnt/c/Users/xz378/Documents/GitHub/mcp-tool-layer/data/generic_data/jiying"))
+    print("="*100)
+    summary = csv_file_summary("file:////mnt/c/Users/xz378/Documents/GitHub/mcp-tool-layer/data/generic_data/jiying/Non-Domestic EPC.csv")
+    print(summary)

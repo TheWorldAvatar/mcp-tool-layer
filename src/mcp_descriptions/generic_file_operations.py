@@ -22,7 +22,7 @@ CODE_OUTPUT_DESCRIPTION = """
     """
 
 REPORT_OUTPUT_DESCRIPTION = """
-    This function allows writing a file with the given file uri and file content.
+    This function is the only tool for outputting data_sniffing_report.md.
 
     Args:
         file_uri: The uri to the file.
