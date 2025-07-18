@@ -1,7 +1,25 @@
 import os
 import json
-from models.locations import DATA_LOG_DIR, SANDBOX_TASK_DIR
+from models.locations import DATA_LOG_DIR, SANDBOX_TASK_DIR, CONFIGS_DIR, SANDBOX_DATA_DIR, SANDBOX_CODE_DIR
 import shutil
+
+
+def remove_db_files():
+    # .db files are in configs
+    for file in os.listdir(CONFIGS_DIR):
+        if file.endswith(".sqlite"):
+            os.remove(os.path.join(CONFIGS_DIR, file))
+    
+def clear_sandbox_data_dir():
+    # remove ever folder in the task data dir but keep the file in the SANDBOX_DATA_DIR root folder
+    for folder in os.listdir(SANDBOX_DATA_DIR):
+        if os.path.isdir(os.path.join(SANDBOX_DATA_DIR, folder)):
+            shutil.rmtree(os.path.join(SANDBOX_DATA_DIR, folder))
+
+def clear_sandbox_code_dir():
+    # empty the sandbox code dir recursively    
+    for folder in os.listdir(SANDBOX_CODE_DIR):
+        shutil.rmtree(os.path.join(SANDBOX_CODE_DIR, folder))
 
 def clear_task_dir():
     """
@@ -82,7 +100,6 @@ def load_task_files(selected_task_index: int, meta_task_name: str):
      
     # Check if directory exists
     if not os.path.exists(task_files_path):
-        print(f"Task directory not found: {task_files_path}")
         return []
     
     # Load all the task files in the task dir
@@ -125,4 +142,7 @@ def load_all_task_files_from_indices(selected_indices: list, meta_task_name: str
 
 
 if __name__ == "__main__":
-    summarize_refined_task_files(meta_task_name="patrick")
+    clear_sandbox_code_dir()
+    clear_sandbox_data_dir()
+    clear_task_dir()
+    remove_db_files()

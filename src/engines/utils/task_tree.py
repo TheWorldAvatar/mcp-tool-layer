@@ -128,16 +128,13 @@ class TaskTree:
             if visited is None:
                 visited = set()
             if node.task_id in visited:
-                print("    " * depth + f"- {node.name} ({node.task_id}) [cycle detected]")
                 return
             visited.add(node.task_id)
 
-            print("    " * depth + f"- {node.name} ({node.task_id})")
             for child in sorted(node.children, key=lambda n: n.task_id):
                 dfs(child, depth + 1, visited.copy())
 
         if not self.roots:
-            print("No root tasks found.")
         else:
             for root in sorted(self.roots, key=lambda n: n.task_id):
                 dfs(root)
