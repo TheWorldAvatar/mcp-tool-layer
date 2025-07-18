@@ -2,32 +2,29 @@ import os
 import shutil
 import subprocess
 from pathlib import Path
-import logging
+from models.locations import ROOT_DIR
 
 def find_ontop_executable() -> str | None:
     """Return the path of 'ontop' (Linux/macOS) or 'ontop.bat' (Windows) in PATH."""
     exe_name = "ontop" if os.name == "nt" else "ontop"
     return shutil.which(exe_name)
 
-def to_uri(p: Path) -> str:
+def to_uri(p: str) -> str:  
     """Return a file:// URI for any Path (works cross-platform)."""
-    return p.resolve().as_uri()
+    # given a path, convert it to a file:// uri
+    return f"file://{os.path.join(ROOT_DIR, p)}"
 
+ 
 def validate_ontop_obda(
-    mapping_file: str,
-    ontology_file: str,
-    properties_file: str
+    mapping_file_relative_path: str,
+    ontology_file_relative_path: str,
+    properties_file_relative_path: str
 ) -> dict:
     try:
-        # convert file path to local path from mcp paths 
-        mapping_file = mapping_file.replace("/projects/data", "data")
-        ontology_file = ontology_file.replace("/projects/data", "data")
-        properties_file = properties_file.replace("/projects/data", "data")
-
         # Convert paths to Path objects
-        mapping_path = Path(mapping_file)
-        ontology_path = Path(ontology_file)
-        properties_path = Path(properties_file)
+        mapping_path = Path(mapping_file_relative_path)
+        ontology_path = Path(ontology_file_relative_path)
+        properties_path = Path(properties_file_relative_path)
 
         # Check file existence
         missing = [p.name for p in (mapping_path, ontology_path, properties_path) if not p.is_file()]
@@ -52,7 +49,6 @@ def validate_ontop_obda(
             "-t", str(ontology_path),
             "-p", to_uri(properties_path),
         ]
-        
         # Run the validation
         result = subprocess.run(cmd, capture_output=True, text=True)
 
@@ -72,3 +68,12 @@ def validate_ontop_obda(
             "status": "error",
             "message": str(e)
         } 
+
+if __name__ == "__main__":
+    result = validate_ontop_obda(
+        mapping_file_relative_path="data/test/ontocompchem.obda",
+        ontology_file_relative_path="data/test/ontocompchem.ttl",
+        properties_file_relative_path="data/test/db.properties"
+    )
+
+

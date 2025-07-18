@@ -8,27 +8,17 @@ from __future__ import annotations
 
 import os
 import re
-import logging
-from pathlib import Path
-from logging.handlers import RotatingFileHandler
-
-# Allow overriding via environment variables ----------------------------------
-LOCAL_DATA_ROOT = Path(os.environ.get("LOCAL_DATA_ROOT", "./data"))
-MCP_DATA_ROOT = Path(os.environ.get("MCP_DATA_ROOT", "/projects/data"))
-
+from models.locations import ROOT_DIR
+from src.utils.resource_db_operations import ResourceDBOperator
+from models.Resource import Resource
+ 
 ###############################################################################
 # Helper utilities
 ###############################################################################
 
 _CAMEL_RE = re.compile(r"[^0-9a-zA-Z]")
 
-def _to_local(path: str | Path) -> Path:
-    """Replace the MCP data root with the local path when running outside MCP."""
-    p = Path(path)
-    try:
-        return Path(str(p).replace(str(MCP_DATA_ROOT), str(LOCAL_DATA_ROOT), 1))
-    except Exception as exc:
-        raise ValueError(f"Cannot convert path '{p}' to local representation") from exc
+resource_db_operator = ResourceDBOperator()
 
 def _camel_case(text: str) -> str:
     """Convert snake_case or arbitrary text to CamelCase, stripping symbols."""
@@ -61,14 +51,15 @@ def _mapping_id(table: str, column: str | None = None) -> str:
 
 def create_obda_file(
     *,
-    output_path: str,
     table_name: str,
-    columns: list[str],  # ✅ Updated: use native typing
+    columns: list[str],
     prefixes: dict[str, str],
     id_column: str = "uuid",
     ontology_class: str | None = None,
     iri_template: str = "entity_{uuid}",
     use_xsd_typing: bool = False,
+    meta_task_name: str,
+    iteration_index: int
 ) -> str:
 
     # ------------------------------------------------------------------ validations
@@ -78,10 +69,10 @@ def create_obda_file(
     prefixes = _ensure_prefixes(prefixes)
 
     # Destination path ---------------------------------------------------------
-    dst = _to_local(output_path)
-    dst.parent.mkdir(parents=True, exist_ok=True)
+    # Only accept relative paths, output to sandbox/data/{meta_task_name}/{iteration_index}/{meta_task_name}_{iteration_index}.obda
+    dst = os.path.join(ROOT_DIR, f"sandbox/data/{meta_task_name}/{iteration_index}/{meta_task_name}_{iteration_index}.obda")
+    os.makedirs(os.path.dirname(dst), exist_ok=True)
 
-    logger.info("Generating OBDA mapping → %s", dst)
 
     # ---------------------------------------------------------------- template build
     lines: list[str] = ["[PrefixDeclaration]"]
@@ -120,11 +111,48 @@ def create_obda_file(
             ]
         )
 
-        logger.debug("Mapped column '%s' → :%s", col, predicate)
 
     lines.append("]]")
 
     # ---------------------------------------------------------------- write file
-    dst.write_text("\n".join(lines), encoding="utf-8")
-    logger.info("OBDA mapping written (%d bytes)", dst.stat().st_size)
-    return str(dst) 
+    with open(dst, "w") as f:
+        f.write("\n".join(lines))
+
+    relative_output_path = f"sandbox/data/{meta_task_name}/{iteration_index}/{meta_task_name}_{iteration_index}.obda"
+
+    obda_resource = Resource(
+        type="obda",
+        relative_path=relative_output_path,
+        absolute_path=os.path.join(ROOT_DIR, relative_output_path),
+        uri=f"file://{os.path.join(ROOT_DIR, relative_output_path)}",
+        meta_task_name=meta_task_name,
+        iteration=iteration_index,
+        description=f"OBDA mapping file for {table_name} with {len(columns)} columns",
+    )
+    resource_db_operator.register_resource(obda_resource)
+    return f"The OBDA mapping file has been created and registered in the resource database. The relative path is {relative_output_path} and the absolute path is {os.path.join(ROOT_DIR, relative_output_path)}"
+
+if __name__ == "__main__":
+    result = create_obda_file(
+        table_name="ontocompchem",
+        columns=["uuid", "name", "description"],
+        prefixes={
+            "": "http://www.ontocompchem.com/",
+            "rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
+            "rdfs": "http://www.w3.org/2000/01/rdf-schema#",
+            "xsd": "http://www.w3.org/2001/XMLSchema#",
+            "owl": "http://www.w3.org/2002/07/owl#",
+        },
+        id_column="uuid",
+        ontology_class="OntologyClass",
+        iri_template="entity_{uuid}",
+        meta_task_name="ontocompchem",
+        iteration_index=1
+    )
+
+    # db_operator = ResourceDBOperator()
+    resources = resource_db_operator.get_resources_by_meta_task_name_and_iteration(meta_task_name="ontocompchem4", iteration=2)
+    for resource in resources:
+        print(resource)
+
+ 

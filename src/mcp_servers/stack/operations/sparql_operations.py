@@ -7,10 +7,8 @@ Functions for querying SPARQL endpoints and processing results.
 import json
 from typing import Dict, List, Any, Literal, Optional
 import requests
-import logging
 
 # Setup logger
-logger = logging.getLogger("ontop_sparql_agent")
 
 def _post_sparql(endpoint: str, query: str) -> Dict[str, Any]:
     """POST a SPARQL query, expect JSON bindings, raise for HTTP ≠ 200."""
@@ -43,7 +41,6 @@ def query_sparql(
         resp = _post_sparql(endpoint_url, query)
     except Exception as exc:  # noqa: broad-except
         # Suppress error and return a soft-failure response
-        logger.warning("SPARQL request failed (suppressed): %s", exc)
         return {
             "status": "skipped",
             "error": str(exc),
