@@ -30,7 +30,10 @@ async def build_react_agent(
         raise RuntimeError("Missing REMOTE_BASE_URL or REMOTE_API_KEY in .env or environment")
     client = create_client(mcp_keys)
     tools = await client.get_tools()
-    llm = ChatOpenAI(model_name=model_name, temperature=0, base_url=base_url, api_key=api_key)
+    if model_name in ["o4-mini", "o1-mini"]:
+        llm = ChatOpenAI(model_name=model_name, base_url=base_url, api_key=api_key)
+    else:
+        llm = ChatOpenAI(model_name=model_name, temperature=0, base_url=base_url, api_key=api_key)
     agent = create_react_agent(llm, tools)
     return client, agent
 
