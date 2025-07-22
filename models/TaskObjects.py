@@ -12,13 +12,6 @@ class AddTaskInput(BaseModel):
     name: str
     description: str
     tools_required: List[Tool]
-    task_dependencies: List[str]
+    dependencies: List[str]
 
-class AddDetailedTaskInput(BaseModel):
-    task_id: str
-    name: str
-    description: str
-    tools_required: List[Tool]
-    task_dependencies: List[str]
-    output_files: List[str]
-    required_input_files: List[str]
+ 

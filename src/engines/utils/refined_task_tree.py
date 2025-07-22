@@ -13,9 +13,7 @@ class RefinedTaskNode:
         self.name = task_data.get('name', '')
         self.description = task_data.get('description', '')
         self.tools_required = task_data.get('tools_required', [])
-        self.dependencies = task_data.get('task_dependencies', [])
-        self.output_files = task_data.get('output_files', [])
-        self.required_input_files = task_data.get('required_input_files', [])
+        self.dependencies = task_data.get('dependencies', [])
         self.file_name = task_data.get('file_name', '')
         self.children: List['RefinedTaskNode'] = []
         self.parent: Set['RefinedTaskNode'] = set()
@@ -28,8 +26,6 @@ class RefinedTaskNode:
             f"description={self.description!r}, "
             f"tools_required={self.tools_required!r}, "
             f"dependencies={self.dependencies!r}, "
-            f"output_files={self.output_files!r}, "
-            f"required_input_files={self.required_input_files!r}, "
             f"file_name={self.file_name!r}"
             f")"
         )
@@ -76,9 +72,7 @@ class RefinedTaskNode:
             'name': self.name,
             'description': self.description,
             'tools_required': self.tools_required,
-            'task_dependencies': self.dependencies,
-            'output_files': self.output_files,
-            'required_input_files': self.required_input_files,
+            'dependencies': self.dependencies,
             'file_name': self.file_name,
             'children': [child.task_id for child in self.children],
             'parent': [parent.task_id for parent in self.parent]
@@ -145,36 +139,7 @@ class RefinedTaskTree:
         """Get all tasks that have LLM generation tools."""
         return [node for node in self.task_nodes.values() if node.has_llm_generation_tools()]
 
-    def get_tasks_by_output_file(self, output_file: str) -> List[RefinedTaskNode]:
-        """Get all tasks that produce a specific output file."""
-        return [node for node in self.task_nodes.values() if output_file in node.output_files]
-
-    def get_tasks_by_input_file(self, input_file: str) -> List[RefinedTaskNode]:
-        """Get all tasks that require a specific input file."""
-        return [node for node in self.task_nodes.values() if input_file in node.required_input_files]
-
-    def get_file_dependencies(self) -> Dict[str, List[str]]:
-        """
-        Get a mapping of files to the tasks that produce them.
-        Returns: {file_name: [task_ids]}
-        """
-        file_dependencies = defaultdict(list)
-        for node in self.task_nodes.values():
-            for output_file in node.output_files:
-                file_dependencies[output_file].append(node.task_id)
-        return dict(file_dependencies)
-
-    def get_file_requirements(self) -> Dict[str, List[str]]:
-        """
-        Get a mapping of files to the tasks that require them.
-        Returns: {file_name: [task_ids]}
-        """
-        file_requirements = defaultdict(list)
-        for node in self.task_nodes.values():
-            for input_file in node.required_input_files:
-                file_requirements[input_file].append(node.task_id)
-        return dict(file_requirements)
-
+ 
     def build_task_tree(self):
         """Build the task tree structure with parent-child relationships."""
         # Step 1: Create all task nodes
@@ -209,11 +174,7 @@ class RefinedTaskTree:
             if node.has_llm_generation_tools():
                 tool_info += " [LLM]"
             
-            if node.output_files:
-                print(f"{'  ' * depth}Output files: {node.output_files}")
-            if node.required_input_files:
-                print(f"{'  ' * depth}Required input files: {node.required_input_files}")
-            
+ 
             for child in sorted(node.children, key=lambda n: n.task_id):
                 dfs(child, depth + 1, visited.copy())
 

@@ -4,7 +4,7 @@ TASK_GENERATION_COARSE_DESCRIPTION = """
     - task_id: Unique identifier for the task, which is a 6 character string.
     - name: Human-readable name of the task.
     - tools_required: List of tools required for this task, each tool is a Tool object. 
-    - task_dependencies: List of task IDs this task depends on, which are the task IDs of the tasks that must be completed before this task can be started.
+    - dependencies: List of task IDs this task depends on, which are the task IDs of the tasks that must be completed before this task can be started.
     - iteration_number: The iteration number of the task, which is an integer, starting from 0.
 
     Tool object:

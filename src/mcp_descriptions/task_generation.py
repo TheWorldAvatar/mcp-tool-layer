@@ -7,8 +7,7 @@ TASK_GENERATION_DESCRIPTION = """
     - name: Human-readable name of the task.
     - description: Short description of what the task goal. 
     - tools: List of tools required for this task, each tool is a Tool object. (direct_generation is True if the task is a LLM generation task, including report writing, ttl file creation, etc.)
-    - task_dependencies: List of task IDs this task depends on, which are the task IDs of the tasks that must be completed before this task can be started.
-    - output_files: List of files that are expected to be created by this task, you should in advance define the file names with relative path. 
+    - dependencies: List of task IDs this task depends on, which are the task IDs of the tasks that must be completed before this task can be started.
 
     Args:
         overall_task_name: The name of the overall task group. Will be given in the prompt.
