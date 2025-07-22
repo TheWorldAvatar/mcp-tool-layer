@@ -151,6 +151,35 @@ def create_container(image: str, name: str, detach: bool = True) -> str:
     return _create_container_command(image, name, detach)    
 
 async def execute_command_in_container(container_id: str, command: str) -> str:
+
+    import re
+
+    # Check if the command is a python execution that should use execute_python_script_in_container
+    python_cmd_pattern = re.compile(
+        r"""^
+            python(?:\d+(?:\.\d+)*)?      # python, python3, python3.11, etc.
+            \s+
+            (
+                (?:[^\s]+\.py)            # script.py
+                |
+                -c\s+.+                   # -c "code"
+                |
+                -m\s+[^\s]+               # -m module
+            )
+        """,
+        re.IGNORECASE | re.VERBOSE
+    )
+    if python_cmd_pattern.match(command.strip()):
+        return json.dumps({
+            "result": "error",
+            "detail": (
+                "Direct python execution commands (e.g., 'python script.py', 'python -c', 'python -m') "
+                "are not allowed here. Please use the 'execute_python_script_in_container' tool for running Python code or scripts."
+            )
+        })
+
+    
+ 
     available, msg = docker_available()
     if not available:
         return json.dumps({"result": "error", "detail": msg})
@@ -159,7 +188,7 @@ async def execute_command_in_container(container_id: str, command: str) -> str:
         cmd = ["docker", "exec", container_id] + cmd_args
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
         return json.dumps({
-            "result": "success",
+            "result": "command executed",
             "exec_command": cmd,
             "stdout": result.stdout,
             "stderr": result.stderr,
@@ -222,7 +251,7 @@ def list_registered_docker_containers_for_task(meta_task_name: str) -> str:
 
 
 if __name__ == "__main__":
-    docker_db_operator = DockerDBOperator()
-    register_docker_container("1234", "test", "test - this is a test docker registration", status="created", meta_task_name="example_task")
-    register_docker_container("2345", "test2", "test - this is a test docker registration", status="created", meta_task_name="example_task")
-    register_docker_container("3456", "test3", "test - this is a test docker registration", status="running", meta_task_name="example_task")
+    import asyncio
+    rst = asyncio.run(execute_command_in_container("32226bb199176361b9c64e415c4d4de7d530e96b6ecc478ca7f3d665353705c0", "pip install cclib"))
+    import pprint
+    pprint.pprint(rst)
