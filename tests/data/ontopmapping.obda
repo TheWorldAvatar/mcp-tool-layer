@@ -1,0 +1,46 @@
+[PrefixDeclaration]
+weather: http://www.theworldavatar.com/kg/Weather/
+meteorologicalEvent:  http://www.theworldavatar.com/kg/MeteorologicalEvent/
+disaster:  http://www.theworldavatar.com/kg/disaster/
+people:  http://example.org/people/
+ex:     http://example.org/
+owl:    http://www.w3.org/2002/07/owl#
+rdf:    http://www.w3.org/1999/02/22-rdf-syntax-ns#
+xml:    http://www.w3.org/XML/1998/namespace
+xsd:    http://www.w3.org/2001/XMLSchema#
+foaf:   http://xmlns.com/foaf/0.1/
+obda:   https://w3id.org/obda/vocabulary#
+rdfs:   http://www.w3.org/2000/01/rdf-schema#
+geo:    http://www.opengis.net/ont/geosparql#
+
+[MappingDeclaration] @collection [[
+mappingId	turkey-ordu-no-of-disaster-data
+target		disaster:District/{district} a disaster:District ;# IRI of a disaster prone district
+                disaster:hasName {district}^^xsd:string ; # Name of the disaster prone district
+                disaster:numberOfAvalanches {avalanche}^^xsd:int ;
+                disaster:numberOfFloods {flooding}^^xsd:int ;
+                disaster:numberOfLandslides {landslide}^^xsd:int ;
+                disaster:numberOfRockfalls {rockfall}^^xsd:int ;
+                disaster:numberOfDisasterProneAreas {disasterproneareas}^^xsd:int .
+source      SELECT district, avalanche, disasterproneareas, flooding, landslide, rockfall
+            FROM "turkeyFLOODdata"
+
+mappingId	turkey-ordu-no-of-meteorological-event-data
+target		meteorologicalEvent:MeteorologicalEvent/{event} a meteorologicalEvent:MeteorologicalEvent ;# IRI of a meteorological event
+                meteorologicalEvent:hasName {event}^^xsd:string ; # Name of the meteorological event
+                meteorologicalEvent:hasOccurences {occurences}^^xsd:int ;
+                meteorologicalEvent:year {year}^^xsd:int .
+source      SELECT event, occurences, year
+            FROM "turkiye_ordu_meteorological_meteorological_events_2010_2020"
+
+mappingId	turkey-ordu-disaster-distribution-data
+target		disaster:Disaster/{disaster} a disaster:Disaster ;# IRI of a disaster
+                disaster:hasName {disaster}^^xsd:string ; # Name of the disaster
+                disaster:hasDistribution {distribution}^^xsd:string ;
+                disaster:hasStartYear {startyear}^^xsd:int ;
+                disaster:hasEndYear {endyear}^^xsd:int .
+source      SELECT disaster, distribution, "start_year" AS startyear, "end_year" AS endyear
+            FROM "turkiye_ordu_diaster_distribution_disaster_1940_2020"
+]]
+# use turkeyFLOODdata
+# use turkeyFLOODdata123
