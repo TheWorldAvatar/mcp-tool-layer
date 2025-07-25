@@ -65,6 +65,8 @@ INSTRUCTION_DATA_SNIFFING_PROMPT = """
 
 You are provided a folder containing a set of data files, and maybe some documents to provide basic context. 
 
+User feedback for improvement: {user_feedback} (If there is no feedback, just ignore it)
+
 The folder uri is: {folder_uri}
 
 You will also need a task_meta_name for creating task files, which is: {task_meta_name}

@@ -15,20 +15,22 @@ from src.utils.file_management import fuzzy_repo_file_search
 from src.utils.global_logger import get_logger
 
 
-async def data_sniffing_agent(folder_path: str, task_meta_name: str):
+async def data_sniffing_agent(folder_path: str, task_meta_name: str, user_feedback: str = ""):
     """
     This agent sniff the data in the folder and generate a data sniffing report, summarizing the inital data provided. 
 
     Args:
         folder_path: the path to the data folder
         task_meta_name: the name of the task
-
+        user_feedback: the feedback from the user for the data sniffing agent to improve the report and rerun the agent.
     Returns:
         Write the data sniffing report in markdown format to the /sandbox/tasks/{task_meta_name}/data_sniffing_report.md
         Write a resources.json file in the /sandbox/tasks/{task_meta_name}/resources.json, which is a structured output. 
     """
     logger = get_logger("agent", "DataSniffingAgent")
     logger.info(f"Starting data sniffing for folder: {folder_path}, task: {task_meta_name}")
+    if user_feedback:
+        logger.info(f"User feedback for improvement: {user_feedback}")
 
     # fuzzy search the folder_path in the resource db
     resource = fuzzy_repo_file_search(folder_path)
@@ -43,7 +45,7 @@ async def data_sniffing_agent(folder_path: str, task_meta_name: str):
     model_config = ModelConfig()    
     mcp_set_name = "pretask_mcp_configs.json"
     mcp_tools = ["generic"]
-    instruction = INSTRUCTION_DATA_SNIFFING_PROMPT.format(folder_uri=folder_uri, task_meta_name=task_meta_name)
+    instruction = INSTRUCTION_DATA_SNIFFING_PROMPT.format(folder_uri=folder_uri, task_meta_name=task_meta_name, user_feedback=user_feedback)
     agent = BaseAgent(model_name="gpt-4o-mini", remote_model=True, mcp_set_name=mcp_set_name, mcp_tools=mcp_tools, model_config=model_config)
     logger.info(f"Created BaseAgent with tools: {mcp_tools}")
     
