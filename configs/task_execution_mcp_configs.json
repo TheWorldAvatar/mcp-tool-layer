@@ -1,0 +1,18 @@
+{  
+    "stack": {
+        "command": "python",
+        "args": [
+            "C:/Users/xz378/Documents/GitHub/mcp-tool-layer/src/mcp_servers/stack/main.py"
+        ],
+        "transport": "stdio"
+    },
+ 
+    "execution_utils": {
+        "command": "python",
+        "args": [
+            "C:/Users/xz378/Documents/GitHub/mcp-tool-layer/src/mcp_servers/execution/main.py"
+        ],
+        "transport": "stdio"
+    }
+ 
+}

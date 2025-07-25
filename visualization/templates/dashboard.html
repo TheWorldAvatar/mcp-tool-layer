@@ -1,0 +1,763 @@
+{% extends "base.html" %}
+
+{% block title %}Pipeline Dashboard - SemanticStackEngine{% endblock %}
+
+{% block head %}
+<!-- Add Marked.js for markdown rendering -->
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script>
+// Configure marked for better rendering immediately when loaded
+document.addEventListener('DOMContentLoaded', function() {
+    if (typeof marked !== 'undefined') {
+        marked.setOptions({
+            breaks: true,
+            gfm: true,
+            sanitize: false,
+            smartLists: true,
+            smartypants: false,
+            headerIds: false,
+            mangle: false
+        });
+        console.log('Marked.js configured successfully');
+    } else {
+        console.error('Marked.js not loaded properly');
+    }
+});
+</script>
+{% endblock %}
+
+{% block content %}
+<div class="main-content">
+    <!-- Main Conversation Interface -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="conversation-panel">
+                <div class="conversation-header">
+                    <div class="agent-info">
+                        <h5><i class="fas fa-robot"></i> Data Sniffing Agent</h5>
+                        <div class="agent-status-display">
+                            <span class="status-indicator" id="agent-status">🟡 Initializing</span>
+                            <span id="current-agent-section" style="display: none;">
+                                Current: <span id="current-agent-name"></span>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                <div class="conversation-messages" id="conversation-container">
+                    <!-- Initial meta instruction as user message -->
+                    <div class="message user-message">
+                        <div class="message-content">
+                            <div class="message-avatar">
+                                <i class="fas fa-user"></i>
+                            </div>
+                            <div class="message-bubble">
+                                <div class="message-text">
+                                    You are provided a folder loaded with some data files. I want you to integrate the data from the data folder into my system stack. Make sure the data is integrated into the stack. Consider all the data provided, all the information need to be integrated into the stack.
+                                </div>
+                                <div class="message-time">Initial instruction</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- System response with Pipeline Control -->
+                    <div class="message system-message">
+                        <div class="message-content">
+                            <div class="message-avatar">
+                                <i class="fas fa-robot"></i>
+                            </div>
+                            <div class="message-bubble">
+                                <div class="message-text">
+                                    <div>Hello! I'm the Data Sniffing Agent. I understand your request to integrate data from the provided folder into your system stack. I'm ready to analyze the data and provide insights.</div>
+                                    
+                                    <div class="pipeline-control-embedded">
+                                        <h6><i class="fas fa-play-circle"></i> Pipeline Control</h6>
+                                        <div class="control-row">
+                                            <div class="control-input">
+                                                <label for="task-name">Task Name:</label>
+                                                <input type="text" class="form-control form-control-sm" id="task-name" value="gaussian" placeholder="Task name">
+                                            </div>
+                                            <div class="control-buttons">
+                                                <button id="start-pipeline" class="btn btn-success btn-sm">
+                                                    <i class="fas fa-play"></i> Start Analysis
+                                                </button>
+                                                <button id="stop-pipeline" class="btn btn-danger btn-sm" disabled>
+                                                    <i class="fas fa-stop"></i> Stop
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="message-time">Just now</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Feedback Input -->
+                <div class="conversation-input-container" id="feedback-input-section" style="display: none;">
+                    <div class="conversation-input-wrapper">
+                        <textarea class="conversation-input" id="user-feedback-input" rows="3" placeholder="Provide feedback or additional instructions for the Data Sniffing Agent..."></textarea>
+                        <div class="conversation-actions">
+                            <button id="approve-report" class="btn btn-success btn-sm">
+                                <i class="fas fa-check"></i> Approve
+                            </button>
+                            <button id="rerun-with-feedback" class="btn btn-cambridge btn-sm">
+                                <i class="fas fa-redo"></i> Rerun with Feedback
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Compact Status Row -->
+    <div class="row">
+        <!-- Pipeline Steps -->
+        <div class="col-md-4">
+            <div class="status-card">
+                <div class="status-header">
+                    <h6><i class="fas fa-list-ol"></i> Pipeline Steps</h6>
+                </div>
+                <div class="status-body">
+                    {% for step in pipeline_steps %}
+                    <div class="step-item" data-step-id="{{ step.id }}">
+                        <div class="step-info">
+                            <span class="step-number">{{ loop.index }}</span>
+                            <span class="step-name">{{ step.name }}</span>
+                        </div>
+                        <span class="step-status status-pending" id="status-{{ step.id }}">Pending</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Live Logs -->
+        <div class="col-md-4">
+            <div class="status-card">
+                <div class="status-header">
+                    <h6><i class="fas fa-terminal"></i> Live Logs</h6>
+                </div>
+                <div class="status-body">
+                    <div id="logs-container" class="logs-display">
+                        <div class="text-muted text-center">
+                            <i class="fas fa-info-circle"></i>
+                            <p>Waiting for logs...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Available Files -->
+        <div class="col-md-4">
+            <div class="status-card">
+                <div class="status-header">
+                    <h6><i class="fas fa-folder"></i> Available Files</h6>
+                </div>
+                <div class="status-body">
+                    <div id="resources-list" class="files-display">
+                        <div class="text-muted text-center">
+                            <i class="fas fa-info-circle"></i>
+                            <p>No files available yet</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Initialize Socket.IO connection
+    const socket = io();
+    let startTime = null;
+    let elapsedTime = 0;
+    let timerInterval = null;
+    let isPaused = false;
+    let pollingInterval = null;
+    let lastConversationLength = 0; // Track conversation length to avoid unnecessary updates
+
+    // Connection status
+    socket.on('connect', function() {
+        $('#connection-status').html('<i class="fas fa-wifi"></i> Connected').removeClass('bg-danger').addClass('bg-success');
+    });
+
+    socket.on('disconnect', function() {
+        $('#connection-status').html('<i class="fas fa-wifi-slash"></i> Disconnected').removeClass('bg-success').addClass('bg-danger');
+    });
+
+    // Agent status updates from background thread
+    socket.on('agent_status_update', function(data) {
+        console.log('Agent status update:', data);
+        
+        if (data.status === 'running') {
+            updateAgentStatus('🟡 Analyzing Data', 'text-warning');
+            $('#current-agent-name').text(data.agent);
+            $('#current-agent-section').show();
+            // Update pipeline step to running
+            updatePipelineStep('data_sniffing', 'running');
+            // Show running indicator
+            showAgentRunning();
+        } else if (data.status === 'completed') {
+            updateAgentStatus('🟢 Analysis Complete', 'text-success');
+            $('#current-agent-name').text(data.agent);
+            $('#current-agent-section').show();
+            // Update pipeline step to completed
+            updatePipelineStep('data_sniffing', 'completed');
+            // Hide running indicator
+            hideAgentRunning();
+        } else if (data.status === 'error') {
+            updateAgentStatus('🔴 Error Occurred', 'text-danger');
+            $('#current-agent-name').text(data.agent);
+            $('#current-agent-section').show();
+            // Update pipeline step to error
+            updatePipelineStep('data_sniffing', 'error');
+            // Hide running indicator
+            hideAgentRunning();
+            if (data.error) {
+                addConversationMessage(`Error: ${data.error}`, 'system', new Date().toLocaleString());
+            }
+        }
+    });
+
+    // Conversation updates
+    socket.on('conversation_update', function(data) {
+        console.log('Conversation update received:', data);
+        if (data.conversation) {
+            console.log('Full conversation update with', data.conversation.length, 'messages');
+            updateConversation(data.conversation);
+        } else {
+            console.log('Single message update:', data.message, 'from:', data.sender);
+            addConversationMessage(data.message, data.sender, data.timestamp);
+        }
+    });
+
+    // Data sniffing report updates
+    socket.on('data_sniffing_report', function(data) {
+        console.log('Data sniffing report:', data);
+        displayDataSniffingReport(data.report);
+        // showFeedbackInput(); // Moved inside displayDataSniffingReport
+    });
+
+    // Timer functionality with pause support
+    function startTimer() {
+        if (!startTime) {
+            startTime = new Date();
+        } else if (isPaused) {
+            // Resume from pause - adjust start time to account for elapsed time
+            startTime = new Date(new Date().getTime() - elapsedTime);
+        }
+        
+        isPaused = false;
+        
+        timerInterval = setInterval(function() {
+            if (!isPaused) {
+                const now = new Date();
+                elapsedTime = now.getTime() - startTime.getTime();
+                const totalSeconds = Math.floor(elapsedTime / 1000);
+                const hours = Math.floor(totalSeconds / 3600);
+                const minutes = Math.floor((totalSeconds % 3600) / 60);
+                const seconds = totalSeconds % 60;
+                
+                const timeString = 
+                    String(hours).padStart(2, '0') + ':' + 
+                    String(minutes).padStart(2, '0') + ':' + 
+                    String(seconds).padStart(2, '0');
+                
+                $('#elapsed-time').text(timeString);
+            }
+        }, 1000);
+    }
+
+    function pauseTimer() {
+        isPaused = true;
+        console.log('Timer paused - waiting for user input');
+        $('#elapsed-time').css('color', '#f39c12'); // Orange color when paused
+    }
+
+    function resumeTimer() {
+        if (isPaused) {
+            isPaused = false;
+            console.log('Timer resumed - user input received');
+            $('#elapsed-time').css('color', 'var(--cambridge-blue)'); // Back to normal color
+        }
+    }
+
+    function stopTimer() {
+        if (timerInterval) {
+            clearInterval(timerInterval);
+            timerInterval = null;
+        }
+        isPaused = false;
+        $('#elapsed-time').css('color', 'var(--cambridge-blue)');
+    }
+
+    // Polling functions for live updates
+    function startPolling() {
+        pollingInterval = setInterval(function() {
+            // Poll for logs
+            $.get('/api/logs', function(data) {
+                if (data.logs) {
+                    updateLogs(data.logs.split('\n').filter(line => line.trim() !== ''));
+                }
+            }).fail(function() {
+                console.log('Failed to fetch logs');
+            });
+            
+            // Poll for agent status and conversation
+            $.get('/api/agent_status', function(data) {
+                console.log('Polling agent status:', data.status);
+                
+                if (data.status === 'completed') {
+                    // Update agent status display
+                    updateAgentStatus('🟢 Analysis Complete', 'text-success');
+                    updatePipelineStep('data_sniffing', 'completed');
+                    
+                    // Show report if available and not already displayed
+                    if (data.report && !$('.report-message').length) {
+                        displayDataSniffingReport(data.report);
+                        // showFeedbackInput(); // Moved inside displayDataSniffingReport
+                    }
+                    
+                    // Stop polling since agent is complete
+                    console.log('Agent completed, stopping polling');
+                    stopPolling();
+                    
+                } else if (data.status === 'running') {
+                    // Update agent status display to running
+                    updateAgentStatus('🟡 Analyzing Data', 'text-warning');
+                    updatePipelineStep('data_sniffing', 'running');
+                    
+                } else if (data.status === 'error') {
+                    // Update agent status display to error
+                    updateAgentStatus('🔴 Error Occurred', 'text-danger');
+                    updatePipelineStep('data_sniffing', 'error');
+                    
+                    // Stop polling on error
+                    console.log('Agent error, stopping polling');
+                    stopPolling();
+                    
+                } else if (data.status === 'idle') {
+                    // Agent is idle
+                    updateAgentStatus('🟡 Initializing', 'text-warning');
+                    updatePipelineStep('data_sniffing', 'pending');
+                }
+                
+            }).fail(function() {
+                console.log('Failed to fetch agent status');
+            });
+            
+            // Poll for conversation updates (only when there are changes)
+            $.get('/api/get_conversation', function(data) {
+                if (data.conversation && data.conversation.length > 0) {
+                    // Only update if conversation length has changed
+                    if (data.conversation.length !== lastConversationLength) {
+                        console.log('Conversation changed, updating from', lastConversationLength, 'to', data.conversation.length, 'messages');
+                        lastConversationLength = data.conversation.length;
+                        updateConversation(data.conversation);
+                    }
+                }
+            }).fail(function() {
+                console.log('Failed to fetch conversation');
+            });
+            
+            // Poll for resources
+            $.get('/api/resources', function(data) {
+                if (data.resources) {
+                    updateResources(data.resources);
+                }
+            }).fail(function() {
+                console.log('Failed to fetch resources');
+            });
+            
+        }, 2000); // Poll every 2 seconds
+    }
+
+    function stopPolling() {
+        if (pollingInterval) {
+            clearInterval(pollingInterval);
+            pollingInterval = null;
+        }
+    }
+
+    // Update pipeline step status
+    function updatePipelineStep(stepId, status) {
+        const stepElement = $('#status-' + stepId);
+        if (stepElement.length) {
+            stepElement.removeClass('status-pending status-running status-completed status-error');
+            stepElement.addClass('status-' + status);
+            stepElement.text(status.charAt(0).toUpperCase() + status.slice(1));
+        }
+    }
+
+    // Update pipeline state
+    function updatePipelineState(state) {
+        if (state.current_agent) {
+            $('#current-agent-section').show();
+            $('#current-agent-name').text(state.current_agent);
+            
+            // Update agent status in chat
+            if (state.current_agent === 'DataSniffingAgent') {
+                updateAgentStatus('🟡 Analyzing Data', 'text-warning');
+                updatePipelineStep('data_sniffing', 'running');
+            } else {
+                updateAgentStatus('🟢 Ready', 'text-success');
+            }
+        } else {
+            $('#current-agent-section').hide();
+            updateAgentStatus('🟡 Initializing', 'text-warning');
+        }
+    }
+
+    // Update resources
+    function updateResources(resources) {
+        const container = $('#resources-list');
+        if (resources.length === 0) {
+            container.html(`
+                <div class="text-muted text-center">
+                    <i class="fas fa-info-circle"></i>
+                    <p>No files available yet</p>
+                </div>
+            `);
+            return;
+        }
+
+        let html = '';
+        resources.forEach(resource => {
+            const icon = getFileIcon(resource.type);
+            html += `
+                <div class="file-item">
+                    <div>
+                        <i class="fas ${icon} file-icon"></i>
+                        <span>${resource.relative_path}</span>
+                    </div>
+                    <small class="text-muted">${resource.type}</small>
+                </div>
+            `;
+        });
+        container.html(html);
+    }
+
+    // Get file icon based on type
+    function getFileIcon(type) {
+        const icons = {
+            'file': 'fa-file',
+            'report': 'fa-file-alt',
+            'obda': 'fa-database',
+            'docker_container': 'fa-cube'
+        };
+        return icons[type] || 'fa-file';
+    }
+
+    // Update logs
+    function updateLogs(logs) {
+        const container = $('#logs-container');
+        if (logs.length === 0) {
+            container.html(`
+                <div class="text-muted text-center">
+                    <i class="fas fa-info-circle"></i>
+                    <p>Waiting for logs...</p>
+                </div>
+            `);
+            return;
+        }
+
+        let html = '';
+        logs.forEach(log => {
+            const logClass = log.includes('ERROR') ? 'log-error' : 
+                           log.includes('WARNING') ? 'log-warning' : 'log-info';
+            html += `<div class="log-entry ${logClass}">${log}</div>`;
+        });
+        container.html(html);
+        container.scrollTop(container[0].scrollHeight);
+    }
+
+    // Add conversation message with debugging and markdown rendering
+    function addConversationMessage(message, sender, timestamp) {
+        console.log('Adding conversation message:', {message, sender, timestamp});
+        
+        // Filter out unwanted messages
+        if (message && message.includes('ected to visualization')) {
+            console.warn('Filtered out unwanted connection message:', message);
+            return;
+        }
+        
+        const container = $('#conversation-container');
+        const messageClass = sender === 'user' ? 'user-message' : 'system-message';
+        const avatarIcon = sender === 'user' ? 'fas fa-user' : 'fas fa-robot';
+        
+        // Render markdown content properly
+        let renderedMessage = message;
+        if (message && typeof marked !== 'undefined') {
+            try {
+                console.log('Rendering markdown:', message.substring(0, 100) + '...');
+                renderedMessage = marked.parse(message);
+                console.log('Markdown rendered successfully');
+            } catch (e) {
+                console.warn('Failed to parse markdown:', e);
+                renderedMessage = `<div style="white-space: pre-wrap;">${escapeHtml(message)}</div>`;
+            }
+        } else {
+            console.log('Using plain text (marked not available)');
+            renderedMessage = `<div style="white-space: pre-wrap;">${escapeHtml(message)}</div>`;
+        }
+        
+        const html = `
+            <div class="message ${messageClass}">
+                <div class="message-content">
+                    <div class="message-avatar">
+                        <i class="${avatarIcon}"></i>
+                    </div>
+                    <div class="message-bubble">
+                        <div class="message-text">
+                            ${renderedMessage}
+                        </div>
+                        <div class="message-time">${timestamp}</div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Remove initial placeholder messages if this is the first actual message
+        if (container.find('.message').length <= 2 && sender === 'system' && message.includes('started')) {
+            // Don't remove initial messages, just append
+        }
+        
+        container.append(html);
+        container.scrollTop(container[0].scrollHeight);
+    }
+
+    // Display data sniffing report with proper markdown rendering
+    function displayDataSniffingReport(report) {
+        const container = $('#conversation-container');
+        const timestamp = new Date().toLocaleString();
+        
+        console.log('Displaying report:', report.substring(0, 200) + '...');
+        
+        // Render markdown content properly
+        let renderedReport = report;
+        if (report && typeof marked !== 'undefined') {
+            try {
+                console.log('Parsing report markdown...');
+                renderedReport = marked.parse(report);
+                console.log('Report markdown parsed successfully');
+            } catch (e) {
+                console.warn('Failed to parse report markdown:', e);
+                renderedReport = `<div style="white-space: pre-wrap; font-family: monospace; background: #f8f9fa; padding: 10px; border-radius: 5px;">${escapeHtml(report)}</div>`;
+            }
+        } else {
+            console.log('Marked not available, using preformatted text');
+            renderedReport = `<div style="white-space: pre-wrap; font-family: monospace; background: #f8f9fa; padding: 10px; border-radius: 5px;">${escapeHtml(report)}</div>`;
+        }
+        
+        const html = `
+            <div class="message report-message agent-running">
+                <div class="message-content">
+                    <div class="message-avatar">
+                        <i class="fas fa-robot"></i>
+                    </div>
+                    <div class="message-bubble">
+                        <div class="message-text">
+                            <h6 style="color: var(--cambridge-blue-dark); margin-bottom: 15px;">📊 Data Sniffing Report</h6>
+                            <div class="report-content">${renderedReport}</div>
+                        </div>
+                        <div class="message-time">${timestamp}</div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        container.append(html);
+        container.scrollTop(container[0].scrollHeight);
+        
+        // Show feedback input after report is displayed
+        showFeedbackInput();
+    }
+
+    // Show/hide feedback input functions
+    function showFeedbackInput() {
+        $('#feedback-input-section').show();
+        pauseTimer(); // Pause timer when waiting for user input
+    }
+
+    function hideFeedbackInput() {
+        $('#feedback-input-section').hide();
+        resumeTimer(); // Resume timer when user input is received
+    }
+
+    // Update agent status
+    function updateAgentStatus(status, color) {
+        const statusElement = $('#agent-status');
+        statusElement.text(status);
+        statusElement.removeClass().addClass(`status-indicator ${color}`);
+    }
+
+    // Update conversation from server data
+    function updateConversation(conversation) {
+        const container = $('#conversation-container');
+        
+        // Clear existing messages
+        container.empty();
+        
+        // Add all messages with markdown rendering
+        conversation.forEach(function(msg) {
+            addConversationMessage(msg.message, msg.sender, msg.timestamp);
+        });
+        
+        // Update the conversation length tracker
+        lastConversationLength = conversation.length;
+        
+        // If no messages, add initial message
+        if (conversation.length === 0) {
+            const html = `
+                <div class="message system-message">
+                    <div class="message-content">
+                        <div class="message-avatar">
+                            <i class="fas fa-robot"></i>
+                        </div>
+                        <div class="message-bubble">
+                            <div class="message-text">
+                                <div>Hello! I'm the Data Sniffing Agent. I'm ready to analyze your data and provide insights.</div>
+                            </div>
+                            <div class="message-time">Just now</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            container.append(html);
+            lastConversationLength = 0;
+        }
+    }
+
+    // Helper function to escape HTML
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    // Show running indicator for agent
+    function showAgentRunning() {
+        // Add running class to the last agent message
+        $('#conversation-container .system-message:last').addClass('agent-running');
+    }
+
+    // Hide running indicator
+    function hideAgentRunning() {
+        $('#conversation-container .agent-running').removeClass('agent-running');
+    }
+
+    // Event handlers
+    $('#start-pipeline').click(function() {
+        const taskName = $('#task-name').val();
+        const metaInstruction = "You are provided a folder loaded with some data files. I want you to integrate the data from the data folder into my system stack. Make sure the data is integrated into the stack. Consider all the data provided, all the information need to be integrated into the stack.";
+        
+        // Start timer immediately when pipeline starts
+        startTimer();
+        startPolling(); // Start polling for live updates
+        
+        $.ajax({
+            url: '/api/start_pipeline',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({ 
+                task_name: taskName,
+                meta_instruction: metaInstruction
+            }),
+            success: function(response) {
+                $(this).prop('disabled', true);
+                $('#stop-pipeline').prop('disabled', false);
+            }
+        });
+    });
+
+    $('#stop-pipeline').click(function() {
+        stopPolling(); // Stop polling on pipeline stop
+        $.ajax({
+            url: '/api/stop_pipeline',
+            method: 'POST',
+            success: function(response) {
+                stopTimer();
+                $(this).prop('disabled', true);
+                $('#start-pipeline').prop('disabled', false);
+                // Reset pipeline step status
+                updatePipelineStep('data_sniffing', 'pending');
+                updateAgentStatus('🟡 Initializing', 'text-warning');
+                $('#current-agent-section').hide();
+                // Reset conversation tracker
+                lastConversationLength = 0;
+            }
+        });
+    });
+
+    // Approve report button
+    $('#approve-report').click(function() {
+        resumeTimer(); // Resume timer when user approves
+        hideFeedbackInput();
+        
+        $.ajax({
+            url: '/api/approve_data_sniffing',
+            method: 'POST',
+            success: function(response) {
+                addConversationMessage("✅ Report approved! Analysis complete.", 'user', new Date().toLocaleString());
+                updatePipelineStep('data_sniffing', 'completed');
+                updateAgentStatus('🟢 Analysis Complete', 'text-success');
+                stopPolling();
+                stopTimer();
+            }
+        });
+    });
+
+    // Rerun with feedback button
+    $('#rerun-with-feedback').click(function() {
+        const feedback = $('#user-feedback-input').val();
+        if (!feedback.trim()) {
+            alert('Please provide feedback before rerunning.');
+            return;
+        }
+        
+        resumeTimer(); // Resume timer when user provides feedback
+        hideFeedbackInput();
+        
+        // Add user feedback to conversation
+        addConversationMessage(feedback, 'user', new Date().toLocaleString());
+        
+        $.ajax({
+            url: '/api/rerun_data_sniffing',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({ feedback: feedback }),
+            success: function(response) {
+                $('#user-feedback-input').val(''); // Clear input
+                updatePipelineStep('data_sniffing', 'running');
+                updateAgentStatus('🟡 Analyzing Data', 'text-warning');
+                startPolling(); // Restart polling for the rerun
+            }
+        });
+    });
+
+    // Initial state
+    $(document).ready(function() {
+        $('#stop-pipeline').prop('disabled', true);
+        
+        // Load initial state
+        $.get('/api/pipeline_state', function(data) {
+            updatePipelineState(data);
+        });
+        
+        // Load resources
+        $.get('/api/resources', function(data) {
+            updateResources(data.resources);
+        });
+        
+        // Load logs
+        $.get('/api/logs', function(data) {
+            updateLogs(data.logs.split('\n'));
+        });
+    });
+</script>
+{% endblock %} 

@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}SemanticStackEngine Pipeline Visualization{% endblock %}</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <!-- Custom CSS -->
+    <style>
+        :root {
+            --cambridge-blue: #85B09A;
+            --cambridge-blue-light: #a8c7b5;
+            --cambridge-blue-dark: #6b9580;
+            --background-light: #f8f9fa;
+            --text-dark: #2c3e50;
+            --border-light: #e9ecef;
+        }
+
+        body {
+            background: linear-gradient(135deg, var(--background-light) 0%, #ffffff 100%);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            color: var(--text-dark);
+            margin: 0;
+            padding: 0;
+        }
+
+        /* Logo styling with white background */
+        .logo-container {
+            background: white;
+            border-radius: 8px;
+            padding: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 60px;
+            width: auto;
+            min-width: 80px;
+        }
+
+        .logo-img {
+            height: 40px;
+            width: auto;
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+
+        /* Header content */
+        .header-content {
+            padding: 10px 0;
+        }
+
+        .main-title {
+            color: var(--cambridge-blue-dark);
+            font-size: 1.8rem;
+            font-weight: 700;
+            margin-bottom: 0.2rem;
+        }
+
+        .subtitle {
+            color: var(--cambridge-blue);
+            font-size: 1.2rem;
+            font-weight: 500;
+            margin-bottom: 0.3rem;
+        }
+
+        .description {
+            color: #6c757d;
+            font-size: 0.9rem;
+            margin-bottom: 0;
+        }
+
+        /* Pipeline Control Panel */
+        .header-status {
+            background: white;
+            border-radius: 12px;
+            padding: 15px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            border: 1px solid var(--border-light);
+        }
+
+        .status-display {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .connection-status, .timer-display {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--cambridge-blue);
+            font-weight: 600;
+            font-size: 1rem;
+        }
+
+        .connection-status {
+            color: #28a745;
+        }
+
+        /* Button styling */
+        .btn-cambridge {
+            background-color: var(--cambridge-blue);
+            border-color: var(--cambridge-blue);
+            color: white;
+        }
+
+        .btn-cambridge:hover {
+            background-color: var(--cambridge-blue-dark);
+            border-color: var(--cambridge-blue-dark);
+            color: white;
+        }
+
+        /* Main content */
+        .main-content {
+            padding: 20px;
+        }
+
+        /* Conversation Panel - Main Component */
+        .conversation-panel {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+            overflow: hidden;
+            min-height: 500px;
+        }
+
+        .conversation-header {
+            background: linear-gradient(135deg, var(--cambridge-blue) 0%, var(--cambridge-blue-light) 100%);
+            color: white;
+            padding: 20px;
+        }
+
+        .agent-info h5 {
+            margin: 0;
+            font-size: 1.3rem;
+            font-weight: 600;
+        }
+
+        .agent-status-display {
+            margin-top: 8px;
+            font-size: 0.9rem;
+        }
+
+        .status-indicator {
+            background: rgba(255,255,255,0.2);
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+        }
+
+        .conversation-messages {
+            max-height: 600px;
+            overflow-y: auto;
+            padding: 25px;
+            background: #fafbfc;
+        }
+
+        /* Message styling */
+        .message {
+            margin-bottom: 25px;
+            animation: slideIn 0.4s ease-out;
+        }
+
+        @keyframes slideIn {
+            from { 
+                opacity: 0; 
+                transform: translateY(15px); 
+            }
+            to { 
+                opacity: 1; 
+                transform: translateY(0); 
+            }
+        }
+
+        .message-content {
+            display: flex;
+            align-items: flex-start;
+            gap: 15px;
+        }
+
+        /* User messages aligned right */
+        .user-message .message-content {
+            flex-direction: row-reverse;
+            text-align: right;
+        }
+
+        .message-avatar {
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.3rem;
+            flex-shrink: 0;
+        }
+
+        .system-message .message-avatar {
+            background: linear-gradient(135deg, var(--cambridge-blue) 0%, var(--cambridge-blue-light) 100%);
+            color: white;
+        }
+
+        .user-message .message-avatar {
+            background: linear-gradient(135deg, #4a90e2 0%, #357abd 100%);
+            color: white;
+        }
+
+        /* Running indicator for agent */
+        .agent-running .message-avatar {
+            background: linear-gradient(135deg, var(--cambridge-blue) 0%, var(--cambridge-blue-light) 100%);
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(133, 176, 154, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(133, 176, 154, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(133, 176, 154, 0); }
+        }
+
+        .message-bubble {
+            background: white;
+            border-radius: 18px;
+            padding: 15px 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            max-width: 80%;
+            position: relative;
+        }
+
+        .user-message .message-bubble {
+            background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+        }
+
+        .message-text {
+            line-height: 1.6;
+            font-size: 0.95rem;
+        }
+
+        .message-time {
+            font-size: 0.75rem;
+            color: #6c757d;
+            margin-top: 8px;
+        }
+
+        /* Input styling */
+        .conversation-input-container {
+            padding: 20px;
+            background: white;
+            border-top: 1px solid var(--border-light);
+        }
+
+        .conversation-input-wrapper {
+            max-width: 100%;
+            margin: 0 auto;
+        }
+
+        .conversation-input {
+            width: 100%;
+            border: 2px solid var(--border-light);
+            border-radius: 12px;
+            padding: 15px;
+            font-size: 0.95rem;
+            resize: vertical;
+            min-height: 80px;
+            transition: border-color 0.3s ease;
+            box-sizing: border-box;
+        }
+
+        .conversation-input:focus {
+            border-color: var(--cambridge-blue);
+            box-shadow: 0 0 0 3px rgba(133, 176, 154, 0.1);
+        }
+
+        .conversation-actions {
+            margin-top: 15px;
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        /* Status cards */
+        .status-card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            overflow: hidden;
+            height: 300px;
+        }
+
+        .status-header {
+            background: var(--cambridge-blue);
+            color: white;
+            padding: 15px;
+        }
+
+        .status-header h6 {
+            margin: 0;
+            font-weight: 600;
+        }
+
+        .status-body {
+            padding: 15px;
+            height: calc(100% - 60px);
+            overflow-y: auto;
+        }
+
+        /* Step items */
+        .step-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid var(--border-light);
+        }
+
+        .step-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .step-number {
+            background: var(--cambridge-blue);
+            color: white;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .step-name {
+            font-weight: 500;
+            font-size: 0.9rem;
+        }
+
+        .step-status {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .status-pending { background: #ffeaa7; color: #d63031; }
+        .status-running { background: #74b9ff; color: white; }
+        .status-completed { background: #00b894; color: white; }
+        .status-error { background: #e17055; color: white; }
+
+        /* Logs and files display */
+        .logs-display, .files-display {
+            max-height: 240px;
+            overflow-y: auto;
+            background: var(--background-light);
+            border-radius: 8px;
+            padding: 10px;
+        }
+
+        .log-entry {
+            font-family: 'Courier New', monospace;
+            font-size: 0.8rem;
+            margin-bottom: 2px;
+            padding: 2px 0;
+        }
+
+        .log-error { color: #e74c3c; }
+        .log-warning { color: #f39c12; }
+        .log-info { color: #2c3e50; }
+
+        .file-item {
+            padding: 6px 0;
+            border-bottom: 1px solid var(--border-light);
+            font-size: 0.85rem;
+        }
+
+        /* Markdown content styling */
+        .message-text h1, .message-text h2, .message-text h3, 
+        .message-text h4, .message-text h5, .message-text h6 {
+            margin-top: 0;
+            margin-bottom: 0.5rem;
+            color: var(--cambridge-blue-dark);
+        }
+
+        .message-text h1 { font-size: 1.4rem; }
+        .message-text h2 { font-size: 1.3rem; }
+        .message-text h3 { font-size: 1.2rem; }
+        .message-text h4 { font-size: 1.1rem; }
+        .message-text h5 { font-size: 1.0rem; }
+        .message-text h6 { font-size: 0.9rem; }
+
+        .message-text p {
+            margin-bottom: 0.8rem;
+            line-height: 1.5;
+        }
+
+        .message-text ul, .message-text ol {
+            margin: 0.5rem 0;
+            padding-left: 1.5rem;
+        }
+
+        .message-text li {
+            margin-bottom: 0.3rem;
+            line-height: 1.4;
+        }
+
+        .message-text code {
+            background: #f1f3f4;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+
+        .message-text pre {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+            margin: 0.5rem 0;
+        }
+
+        .message-text blockquote {
+            border-left: 4px solid var(--cambridge-blue);
+            margin: 0.5rem 0;
+            padding-left: 1rem;
+            color: #6c757d;
+        }
+
+        .message-text table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 0.5rem 0;
+        }
+
+        .message-text th, .message-text td {
+            border: 1px solid #dee2e6;
+            padding: 8px 12px;
+            text-align: left;
+        }
+
+        .message-text th {
+            background-color: var(--background-light);
+            font-weight: 600;
+        }
+
+        .report-content {
+            max-width: 100%;
+            overflow-wrap: break-word;
+        }
+
+        /* Embedded Pipeline Control in Conversation */
+        .pipeline-control-embedded {
+            background: var(--background-light);
+            border: 1px solid var(--border-light);
+            border-radius: 10px;
+            padding: 15px;
+            margin-top: 15px;
+        }
+
+        .pipeline-control-embedded h6 {
+            color: var(--cambridge-blue-dark);
+            margin-bottom: 12px;
+            font-size: 1rem;
+            font-weight: 600;
+        }
+
+        .control-row {
+            display: flex;
+            gap: 15px;
+            align-items: end;
+            flex-wrap: wrap;
+        }
+
+        .control-input {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .control-input label {
+            display: block;
+            font-size: 0.85rem;
+            color: var(--text-dark);
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+
+        .control-buttons {
+            display: flex;
+            gap: 8px;
+        }
+
+        .control-buttons .btn {
+            white-space: nowrap;
+        }
+
+        /* Responsive design */
+        @media (max-width: 768px) {
+            .main-content {
+                padding: 10px;
+            }
+            
+            .conversation-messages {
+                max-height: 400px;
+                padding: 15px;
+            }
+            
+            .status-card {
+                margin-bottom: 15px;
+                height: auto;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row py-3">
+                <!-- SVG Logos with white background -->
+                <div class="col-md-1">
+                    <div class="logo-container">
+                        <img src="{{ url_for('static', filename='assets/MultiScaleModellingCoMo.svg') }}" alt="TheWorldAvatar Logo" class="logo-img">
+                    </div>
+                </div>
+                <div class="col-md-1">
+                    <div class="logo-container">
+                        <img src="{{ url_for('static', filename='assets/cares_short_logo_processed.1f847d86.svg') }}" alt="CARES Logo" class="logo-img">
+                    </div>
+                </div>
+                <div class="col-md-1">
+                    <div class="logo-container">
+                        <img src="{{ url_for('static', filename='assets/como_logo_processed.83fbfcf8.svg') }}" alt="CoMo Logo" class="logo-img">
+                    </div>
+                </div>
+                <div class="col-md-1">
+                    <div class="logo-container">
+                        <img src="{{ url_for('static', filename='assets/University_of_Cambridge-Logo.wine.png') }}" alt="Cambridge University Logo" class="logo-img">
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="header-content">
+                        <h1 class="main-title">TheWorldAvatar Agent</h1>
+                        <h3 class="subtitle">Semantic Stack Engine Pipeline</h3>
+                        <p class="description">Real-time monitoring and visualization of the semantic stack processing pipeline</p>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <!-- Connection Status and Timer -->
+                    <div class="header-status">
+                        <div class="status-display">
+                            <div class="connection-status">
+                                <i class="fas fa-wifi"></i>
+                                <span>Connected</span>
+                            </div>
+                            <div class="timer-display">
+                                <i class="fas fa-clock"></i>
+                                <span id="elapsed-time">00:00:00</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+            {% block content %}{% endblock %}
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Socket.IO -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+    <!-- jQuery -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    
+    {% block scripts %}{% endblock %}
+</body>
+</html> 
