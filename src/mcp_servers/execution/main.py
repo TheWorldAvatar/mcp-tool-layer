@@ -5,6 +5,14 @@ from src.utils.global_logger import get_logger, mcp_tool_logger
 mcp = FastMCP(name ="execution_utils", instructions="""This provides some utilities for task execution, including full file access""")
 logger = get_logger("mcp_server", "execution_utils")
 
+
+def output_length_control(output: str) -> str:
+    # max output to be 2000 chars
+    if len(output) > 2000:
+        return output[:2000]
+    return output
+
+
 @mcp.prompt(name="instruction", description="This prompt provides detailed instructions for executing the task")
 def instruction_prompt():
     return """
@@ -17,7 +25,7 @@ def full_file_access_tool(file_path: str) -> str:
     logger.info(f"Full file access tool called with file path: {file_path}")
     content = full_file_access(file_path)
     logger.info(f"Full file access tool returned content (first 50 chars): {content[:min(50, len(content))]}")
-    return content
+    return f"Only first 2000 chars of the file content is allowed to be returned: {output_length_control(content)}"
 
 if __name__ == "__main__":
     mcp.run(transport="stdio")

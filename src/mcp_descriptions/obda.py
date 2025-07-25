@@ -6,7 +6,8 @@ OBDA_VALIDATION_DESCRIPTION = """
     Args:
         mapping_file (str): Path to the OBDA mapping file
         ontology_file (str): Path to the ontology file (.ttl/.owl)
-        properties_file (str): Path to the DB properties file
+        meta_task_name (str): Name of the meta-task
+        iteration_index (int): Index of the iteration
 
     Mandatory Prerequisites: 
 

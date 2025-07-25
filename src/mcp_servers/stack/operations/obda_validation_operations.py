@@ -2,7 +2,7 @@ import os
 import shutil
 import subprocess
 from pathlib import Path
-from models.locations import ROOT_DIR
+from models.locations import ROOT_DIR, SANDBOX_DATA_DIR
 
 def find_ontop_executable() -> str | None:
     """Return the path of 'ontop' (Linux/macOS) or 'ontop.bat' (Windows) in PATH."""
@@ -14,13 +14,31 @@ def to_uri(p: str) -> str:
     # given a path, convert it to a file:// uri
     return f"file://{os.path.join(ROOT_DIR, p)}"
 
+
+def create_db_properties_file(meta_task_name: str, iteration: int) -> str:
+    db_properties_content = f"""
+    jdbc.driver = org.postgresql.Driver
+    jdbc.url    = jdbc:postgresql://host.docker.internal:4321/postgres
+    jdbc.user   = postgres
+    jdbc.password = validation_pwd
+
+    """
+    properties_file_relative_path = f"{SANDBOX_DATA_DIR}/{meta_task_name}/{iteration}/db.properties"
+    with open(properties_file_relative_path, "w") as f:
+        f.write(db_properties_content)
+
+    return f"db.properties file created at {properties_file_relative_path}"
  
 def validate_ontop_obda(
     mapping_file_relative_path: str,
     ontology_file_relative_path: str,
-    properties_file_relative_path: str
+    meta_task_name: str,
+    iteration_index: int
 ) -> dict:
     try:
+
+        create_db_properties_file(meta_task_name, iteration_index)    
+
         # Convert paths to Path objects
         mapping_path = Path(mapping_file_relative_path)
         ontology_path = Path(ontology_file_relative_path)

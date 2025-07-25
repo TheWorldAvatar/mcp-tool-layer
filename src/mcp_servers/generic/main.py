@@ -14,7 +14,8 @@ from src.mcp_servers.generic.operations.file_operations import (
     report_output,
     read_markdown_file,
     list_files_in_folder,
-    output_data_sniffing_report
+    output_data_sniffing_report,
+    extract_tar_gz
 )
 
  
@@ -88,6 +89,11 @@ def read_markdown_file_tool(file_path: str) -> str:
 def list_files_in_folder_tool(folder_path: str) -> str:
     return list_files_in_folder(folder_path)
  
+
+@mcp.tool(name="extract_tar_gz", description="Extract a .tar.gz (or .tgz) archive to the current directory.", tags=["generic_file_operations"])
+@mcp_tool_logger
+def extract_tar_gz_tool(archive_path: str) -> None:
+    return extract_tar_gz(archive_path)
 
 if __name__ == "__main__":
     mcp.run(transport="stdio") 

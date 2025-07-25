@@ -1,19 +1,22 @@
 # obda_creation_operations_fixed.py
 """
-Further‑fixed version of `obda_creation_operations.py`.
+Self‑checking OBDA generator.
 
-**What changed in this revision**
----------------------------------
-1. **Always overwrite temporary OBDA files** – `_write_file_safely()`
-   now accepts an `overwrite` flag (default `True`).  In overwrite‑mode it
-   *ignores* any existing file and writes a clean mapping from scratch,
-   guaranteeing that mapping‑ids cannot accumulate across runs.
-2. **Guard against stale tmp‑files** – we proactively `unlink()` the tmp
-   path before writing.
-3. **Minor: docstrings + type hints refreshed.**
+Changes compared with the previous revision
+===========================================
+1. **Automatic OBDA ⇄ TTL consistency check**
+   * Every mapping line is analysed **before** Ontop is called.
+   * The script aborts with a clear message if a predicate is
+     • used both as a DatatypeProperty *and* an ObjectProperty, or
+     • used in a role that contradicts its declaration in the freshly
+       created Turtle ontology for the same task/iteration.
+2. **No hard‑coded catalogue** – roles are discovered on‑the‑fly by
+   reading the TTL (`rdflib`) and parsing the mapping rules.
+3. **All previous improvements (overwrite tmp‑file, id uniqueness, etc.)
+   are preserved.**
 
-These tweaks eliminate the *“Duplicate mapping IDs”* error you saw when the
-same tmp‑file was appended to multiple times.
+If you prefer the script to *auto‑fix* the TTL instead of aborting, flip
+`AUTOFIX_TTL = False` to `True` near the top of the file.
 """
 
 from __future__ import annotations
@@ -28,12 +31,19 @@ import tempfile
 import textwrap
 from typing import Dict, List
 
+from rdflib import Graph, RDF, OWL
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 # ── project‑specific helpers ────────────────────────────────────────────────
 from models.locations import ROOT_DIR, DATA_TEMP_DIR
 from models.Resource import Resource
 from src.utils.resource_db_operations import ResourceDBOperator
+
+###############################################################################
+# ─────────────── File‑level switches ────────────────────────────────────────
+###############################################################################
+
+AUTOFIX_TTL = False          # ← set to True to rewrite the TTL on clash
 
 ###############################################################################
 # ─────────────── Data‑models (unchanged) ────────────────────────────────────
@@ -88,6 +98,96 @@ class OBDAInput(BaseModel):
         return v
 
 ###############################################################################
+# ─────────────────── Consistency‑check helper block ────────────────────────
+###############################################################################
+
+# Regex to pull predicate + object token from a single OBDA target line
+_TARGET_RE = re.compile(r"^target\s+\S+\s+:(\w+)\s+(\S.+?)\s*\.\s*$")
+
+def _role_of_object(obj_text: str) -> str:
+    """Return 'Data' if *obj_text* denotes a literal template, else 'Object'."""
+    return "Data" if obj_text.lstrip().startswith("{") else "Object"
+
+
+def _collect_roles_from_obda(obda_lines: List[str]) -> Dict[str, set[str]]:
+    roles: Dict[str, set[str]] = {}
+    for line in obda_lines:
+        m = _TARGET_RE.match(line)
+        if not m:
+            continue
+        predicate = m.group(1)            # the part after ":" (prefixed name)
+        obj       = m.group(2)
+        roles.setdefault(predicate, set()).add(_role_of_object(obj))
+    return roles
+
+
+def _collect_roles_from_ttl(ttl_path: str) -> Dict[str, str]:
+    """Return {predicate → 'Object'|'Data'} for every declaration in the TTL."""
+    graph = Graph().parse(ttl_path, format="turtle")
+    declared: Dict[str, str] = {}
+    for predicate, _, obj_type in graph.triples((None, RDF.type, None)):
+        if obj_type == OWL.ObjectProperty:
+            declared[str(predicate.split("#")[-1])] = "Object"
+        elif obj_type == OWL.DatatypeProperty:
+            declared[str(predicate.split("#")[-1])] = "Data"
+    return declared
+
+
+def assert_mapping_consistent(
+    obda_lines: List[str],
+    ttl_path: str,
+) -> None:
+    """
+    Abort with *ValueError* if
+      • any predicate is used in both roles inside OBDA
+      • or its OBDA role contradicts the TTL declaration.
+
+    If AUTOFIX_TTL is True and only the TTL is wrong, the TTL is rewritten to
+    satisfy the OBDA usage and the script continues.
+    """
+    used   = _collect_roles_from_obda(obda_lines)
+    known  = _collect_roles_from_ttl(ttl_path)
+    errors = []
+
+    # A) dual role inside OBDA
+    for pred, rset in used.items():
+        if len(rset) > 1:
+            errors.append(f"{pred} is used both as Object and Data property in OBDA")
+
+    # B) clash with TTL declaration
+    for pred, rset in used.items():
+        role = next(iter(rset))
+        if pred in known and known[pred] != role:
+            msg = (f"{pred} declared as {known[pred]}Property in TTL "
+                   f"but used as {role}Property in OBDA")
+            if AUTOFIX_TTL:
+                # rewrite the conflicting declaration in the TTL
+                graph = Graph().parse(ttl_path, format="turtle")
+                pred_uri = None
+                for s in graph.subjects(RDF.type, None):
+                    if s.split("#")[-1] == pred:
+                        pred_uri = s
+                        break
+                if pred_uri:
+                    graph.remove((pred_uri, RDF.type, None))
+                    graph.add((
+                        pred_uri,
+                        RDF.type,
+                        OWL.ObjectProperty if role == "Object" else OWL.DatatypeProperty,
+                    ))
+                    graph.serialize(ttl_path, format="turtle")
+                    msg += " → fixed in TTL"
+                else:
+                    msg += " → cannot autofix (IRI not found)"
+            else:
+                errors.append(msg)
+
+    if errors:
+        raise ValueError(
+            "OBDA/TTL consistency check failed:\n  - " + "\n  - ".join(errors)
+        )
+
+###############################################################################
 # ────────────────────────── Helper utilities ───────────────────────────────
 ###############################################################################
 
@@ -118,18 +218,16 @@ def _write_file_safely(
 ) -> None:
     """Write an OBDA file, optionally appending to an existing one.
 
-    When *overwrite* is *True* (the default) **the file is rewritten from
-    scratch**, erasing any previous content.  This guarantees that mapping‑ids
-    do not pile up across repeated generations.
+    When *overwrite* is *True* the file is rewritten from scratch, erasing any
+    previous content.
     """
-    payload = header + new_lines + ["", "]]" ]  # one blank line before marker
+    payload = header + new_lines + ["", "]]"]
 
-    # ensure parent dir exists
     os.makedirs(os.path.dirname(abs_path), exist_ok=True)
 
     mode = "w" if overwrite or not os.path.isfile(abs_path) else "r+"
     with open(abs_path, mode, encoding="utf-8") as fh:
-        if mode == "r+":  # append‑mode: trim trailing blanks + old marker first
+        if mode == "r+":
             lines = fh.read().splitlines()
             while lines and lines[-1].strip() == "":
                 lines.pop()
@@ -138,9 +236,9 @@ def _write_file_safely(
             fh.seek(0)
             fh.truncate()
             lines.extend(new_lines)
-            lines.extend(["", "]]" ])
+            lines.extend(["", "]]"])
             fh.write("\n".join(lines))
-        else:  # fresh write
+        else:
             fh.write("\n".join(payload))
 
 ###############################################################################
@@ -203,7 +301,7 @@ def create_obda_file(
     meta_task_name: str,
     iteration_index: int,
 ) -> str:
-    """Generate → validate → register an OBDA mapping file."""
+    """Generate → consistency‑check → Ontop‑validate → register an OBDA file."""
 
     # ---- paths -----------------------------------------------------------
     rel_dir   = f"sandbox/data/{meta_task_name}/{iteration_index}"
@@ -261,10 +359,23 @@ def create_obda_file(
                     "",
                 ]
 
-    # ---- write tmp, validate, move‑to‑sandbox ---------------------------
+    # ---- write tmp file -------------------------------------------------
     _write_file_safely(tmp_abs, header, rules, overwrite=True)
 
-    print(f"Verifying OBDA file: {tmp_abs}")
+    # ---- OBDA ⇄ TTL consistency check -----------------------------------
+    ttl_path = os.path.join(
+        ROOT_DIR,
+        f"sandbox/data/{meta_task_name}/{iteration_index}/{meta_task_name}_{iteration_index}.ttl",
+    )
+    print("Running OBDA ⇄ TTL consistency check …")
+    try:
+        assert_mapping_consistent(header + rules, ttl_path)
+    except ValueError as exc:
+        os.unlink(tmp_abs)  # remove tmp file to avoid half‑baked artefacts
+        raise
+
+    # ---- Ontop verification & finalise ----------------------------------
+    print(f"Verifying OBDA file with Ontop: {tmp_abs}")
     verify_obda_file(tmp_abs)
 
     os.makedirs(os.path.dirname(final_abs), exist_ok=True)
@@ -283,8 +394,6 @@ def create_obda_file(
             )
         )
 
-    return f"✔ OBDA written & verified → {final_rel}"
+    return f"✔ OBDA written, consistency‑checked & Ontop‑verified → {final_rel}"
 
-###############################################################################
-# ──────────────────── Demo usage (optional) ───────────────────────────────
-###############################################################################
+

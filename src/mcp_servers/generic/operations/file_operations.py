@@ -9,8 +9,10 @@ from models.Resource import Resource
 import fsspec
 import json 
 from typing import List
+import tarfile
+from pathlib import Path
 resource_db_operator = ResourceDBOperator()
- 
+
 
 
 def create_new_file(file_uri: str, content: str, task_meta_name: str = "", iteration: int = -1) -> str:
@@ -55,23 +57,18 @@ def code_output(code: str, task_meta_name: str, task_index: int, script_name: st
 
 def csv_file_summary(file_uri: str) -> str:
     if not file_uri.endswith(".csv"):
-        error_msg = f"File {file_uri} is not a csv file."
-        return error_msg
-    # check if the file exists and is a csv file
- 
+        return f"File {file_uri} is not a csv file."
+    
     fs, path = fsspec.core.url_to_fs(file_uri)
-    # Step 1: Get file size (in bytes → MB)
-    file_size_bytes = fs.size(path)
-    file_size_mb = file_size_bytes / (1024 * 1024)
+    file_size_mb = fs.size(path) / (1024 * 1024)
 
-    # Step 2: Open the file and load a DataFrame
     with fs.open(path, "r", encoding_errors="ignore") as f:
         df = pd.read_csv(f)
 
-    # Step 3: Return summary
     summary = f"File size: {file_size_mb:.2f} MB\n\n"
     summary += df.head(5).to_string(index=False)
-    return summary
+
+    return summary[:2000]
 
 def word_file_summary(file_uri: str, max_length: int = 500) -> str:
     if not file_uri.endswith(".docx"):
@@ -231,8 +228,29 @@ def list_files_in_folder(relative_path: str) -> str:
     return f"Listing of the files successfully completed. The files are: {files_with_relative_path}"
 
 
+def extract_tar_gz(archive_path: str) -> None:
+    import shutil
+    """Extract a .tar.gz (or .tgz) archive to the same path as the archive"""
+    relative_path_with_out_protocol = file_path_handling(archive_path)
+
+    # check if the archive path is a file
+    if not os.path.isfile(relative_path_with_out_protocol):
+        error_msg = f"Archive {archive_path} is not a file."
+        raise FileNotFoundError(error_msg)
+
+
+
+    dest = os.path.dirname(relative_path_with_out_protocol)
+    shutil.unpack_archive(relative_path_with_out_protocol, dest)
+    # remove the archive file
+    os.remove(relative_path_with_out_protocol)
+    return f"Archive {archive_path} has been extracted to {dest} and the archive file has been removed."
+
+
 if __name__ == "__main__":
-    print(list_files_in_folder("file:///mnt/c/Users/xz378/Documents/GitHub/mcp-tool-layer/data/generic_data/jiying"))
-    print("="*100)
-    summary = csv_file_summary("file:////mnt/c/Users/xz378/Documents/GitHub/mcp-tool-layer/data/generic_data/jiying/Non-Domestic EPC.csv")
-    print(summary)
+    # print(list_files_in_folder("file:///mnt/c/Users/xz378/Documents/GitHub/mcp-tool-layer/data/generic_data/jiying"))
+    # print("="*100)
+    # summary = csv_file_summary("file:////mnt/c/Users/xz378/Documents/GitHub/mcp-tool-layer/data/generic_data/jiying/Non-Domestic EPC.csv")
+    # print(summary)
+
+    extract_tar_gz("file:///mnt/c/Users/xz378/Documents/GitHub/mcp-tool-layer/data/test/id52112.tar")

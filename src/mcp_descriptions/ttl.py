@@ -18,3 +18,11 @@ TTL_VALIDATION_DESCRIPTION_EXECUTION = """
 
     You must create the ttl file first, and then validate it. (ttl files are usually not provided in the resource, you need to create them first.)
     """
+
+TTL_ONTOLOGY_CREATION_DESCRIPTION = """
+    Create a turtle ontology file (ttl file) from rich input.
+
+    A proper ontology should define domain-specific concepts and relationships in accordance with the domain knowledge and the data. 
+
+    It is important that the ontology covers all the concepts and relationships in the data. 
+    """
