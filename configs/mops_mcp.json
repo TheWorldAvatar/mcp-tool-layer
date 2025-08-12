@@ -14,5 +14,29 @@
             "/mnt/c/Users/xz378/Documents/GitHub/mcp-tool-layer/src/mcp_servers/mops_cbu/main.py"
         ],
         "transport": "stdio"
+    },
+
+    "mops_characterisation_output": {
+        "command": "python",
+        "args": [
+            "/mnt/c/Users/xz378/Documents/GitHub/mcp-tool-layer/src/mcp_servers/mops_characterisation/main.py"
+        ],
+        "transport": "stdio"
+    },
+
+    "mops_step_output": {
+        "command": "python",
+        "args": [
+            "/mnt/c/Users/xz378/Documents/GitHub/mcp-tool-layer/src/mcp_servers/mops_step/main.py"
+        ],
+        "transport": "stdio"
+    },
+
+    "document": {
+        "command": "python",
+        "args": [
+            "/mnt/c/Users/xz378/Documents/GitHub/mcp-tool-layer/src/mcp_servers/document/main.py"
+        ],
+        "transport": "stdio"
     }
 }
