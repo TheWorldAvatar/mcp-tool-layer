@@ -11,7 +11,7 @@ import asyncio
 import argparse
 
 INSTRUCTION_CBU_PROMPT = """
-Your task is to extract and output structured CBU (Chemical Building Unit) information from the given paper content.
+Objective: Extract and match Chemical Building Units (CBUs) with corresponding lab species based on synthesis data.
 
 Task name is always {task_name}
 
@@ -20,6 +20,29 @@ Each MOP (Metal-Organic Polyhedra) has exactly two CBUs. You need to identify:
 2. The two chemical building units that make up each MOP
 3. CCDC numbers if available
 4. Chemical formulas and names for each CBU
+
+The CBU formulas are just abstractions of the CBU and your task is to find the respecting equivalent(s) from the lab species list. Write the result to a JSON file adhering to the specified schema.
+
+Category Specifications:
+- "mopCCDCNumber": The CCDC number identifier for the MOP
+- "cbu1" and "cbu2": The two chemical building units that make up the MOP
+- "labSpecies": The actual chemical species from the lab that correspond to each CBU
+- "chemicalFormula": Chemical formula for each CBU
+- "names": Names of the chemical species that represent each CBU
+
+Data Entry Guidelines:
+- For chemical names make sure to write each name as separate string. Wrong: ["C4H9NO, DMA, N,N'-dimethylacetamide"], Correct: ["C4H9NO", "DMA", "N,N'-dimethylacetamide"]
+- If any information is missing or uncertain, fill the cell with N/A for strings or 0 for numeric types
+- Make sure to extract the CBU information for all MOPs mentioned in the text
+- Each MOP must have exactly two CBUs
+- Map each CBU to the corresponding lab species that are actually used in the synthesis
+
+Mapping Instructions:
+- Look for the synthesis procedures in the text
+- Identify the input chemicals and reagents used
+- Match these to the abstract CBU formulas
+- Consider the chemical context and synthesis pathway
+- Ensure the lab species actually participate in the MOP formation
 
 Output the information in a structured format that can be used to populate the CBU class structure, use the mops_cbu_output tool for output.
 
@@ -39,18 +62,18 @@ async def cbu_agent(task_meta_name: str, test_mode: bool = False):
     logger = get_logger("agent", "CBUAgent")
     logger.info(f"Starting CBU agent for task: {task_meta_name}")
     
-    # Read the markdown file
-    md_file_path = os.path.join(PLAYGROUND_DATA_DIR, f"{task_meta_name}.md")
+    # Read the complete markdown file from sandbox tasks
+    md_file_path = os.path.join(SANDBOX_TASK_DIR, task_meta_name, f"{task_meta_name}_complete.md")
     
     try:
         with open(md_file_path, 'r', encoding='utf-8') as f:
             paper_content = f.read()
-        logger.info(f"Successfully read markdown file: {md_file_path}")
+        logger.info(f"Successfully read complete markdown file: {md_file_path}")
     except FileNotFoundError:
-        logger.error(f"Markdown file not found: {md_file_path}")
-        paper_content = "Error: Markdown file not found"
+        logger.error(f"Complete markdown file not found: {md_file_path}")
+        paper_content = "Error: Complete markdown file not found"
     except Exception as e:
-        logger.error(f"Error reading markdown file: {e}")
+        logger.error(f"Error reading complete markdown file: {e}")
         paper_content = f"Error reading file: {str(e)}"
     
     model_config = ModelConfig(temperature=0.2, top_p=0.02)

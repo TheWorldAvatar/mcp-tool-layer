@@ -112,7 +112,7 @@ def instruction_prompt():
     CBU EXTRACTION INSTRUCTIONS
 
     This server helps you extract and structure CBU (Chemical Building Unit) information from scientific papers.
-    Each MOP has exactly two CBUs.
+    Each MOP has exactly two CBUs, one organic and one inorganic.
 
     WORKFLOW:
     1) init_cbu_object(task_name)
