@@ -143,7 +143,10 @@ def instruction_prompt():
 
     This server helps you extract and structure chemical synthesis procedures from scientific papers.
 
-    ** Important **: Both solvents and reagents are input chemicals. 
+    ** Important **: 
+    
+    1. Both solvents and reagents are input chemicals. 
+    2. Strictly separate different MOPs, do not mix them up. 
 
     WORKFLOW:
     1) init_chemical_object(task_name)
@@ -158,6 +161,7 @@ def instruction_prompt():
     - Procedure title matching is case/whitespace/dash-insensitive.
     - Step indices may be 0- or 1-based; the API accepts both.
     - All persistence is atomic and file-locked to avoid lost updates.
+    - CCDC number is the index for MOPs in the CCDC database, usually is a 6-7 digits number.
     """
 
 # ----------------------------
@@ -350,17 +354,9 @@ def get_chemical_summary_tool(task_name: str) -> str:
 def mops_chemical_output_tool(task_name: str) -> str:
     try:
         chem = load_existing_chemical(task_name)
-        output_path = os.path.join(SANDBOX_TASK_DIR, f"{task_name}.json")
+        output_path = os.path.join(SANDBOX_TASK_DIR, f"{task_name}_chemical.json")
         atomic_write_json(output_path, chem.to_dict())
-        
-        # Clean up the temporary _chemical.json file after final output
-        temp_file_path = get_chemical_file_path(task_name)
-        try:
-            if os.path.exists(temp_file_path):
-                os.remove(temp_file_path)
-                log.info(f"Cleaned up temporary file: {temp_file_path}")
-        except Exception as e:
-            log.warning(f"Could not clean up temporary file {temp_file_path}: {e}")
+ 
         
         return f"Final chemical structure output to {output_path}"
     except Exception as e:
