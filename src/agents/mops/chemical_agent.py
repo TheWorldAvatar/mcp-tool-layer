@@ -46,7 +46,11 @@ Data Entry Guidelines:
 
 Output the information in a structured format that can be used to populate the Chemical class structure, use the mops_chemical_output tool for output.
 
+If you need to search for information in the paper, use the mops_misc tool. I recommend you to use the in_context_search tool
+to find more concentrated information about chemical names and formulas.
+
 Paper Content:
+
 {paper_content}
 
 """
@@ -63,7 +67,7 @@ async def chemical_agent(task_meta_name: str, paper_content: str, test_mode: boo
     logger.info(f"Starting chemical agent for task: {task_meta_name}")
     
     model_config = ModelConfig(temperature=0.2, top_p=0.02)
-    mcp_tools = ["mops_chemical_output"]
+    mcp_tools = ["mops_chemical_output", "mops_misc"]
     agent = BaseAgent(model_name="gpt-4o", model_config=model_config, remote_model=True, mcp_tools=mcp_tools, mcp_set_name="mops_mcp.json")   
     
     if test_mode:

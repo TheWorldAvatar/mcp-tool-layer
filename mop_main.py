@@ -16,6 +16,7 @@ Usage:
 import os
 import sys
 import asyncio
+import time
 import argparse
 import logging
 from pathlib import Path
@@ -58,6 +59,8 @@ class MOPWorkflowOrchestrator:
         self.test_mode = test_mode
         self.test_article = "10.1021_acs.inorgchem.4c02394"
         self.workflow_steps = []
+        self.timing_records = []
+        self.workflow_t0 = time.perf_counter()
         
         # Get all markdown files if not in test mode
         if not self.test_mode:
@@ -84,19 +87,21 @@ class MOPWorkflowOrchestrator:
             "timestamp": asyncio.get_event_loop().time() if asyncio.get_event_loop().is_running() else 0
         }
         self.workflow_steps.append(step_info)
-        
-        if status == "SUCCESS":
-            logger.info(f"✅ {step_name}: {details}")
-        elif status == "FAILED":
-            logger.error(f"❌ {step_name}: {details}")
-        elif status == "SKIPPED":
-            logger.warning(f"⚠️  {step_name}: {details}")
-        else:
-            logger.info(f"🔄 {step_name}: {details}")
+    def record_timing(self, name: str, start_s: float, end_s: float, article: str = None):
+        duration_s = max(0.0, end_s - start_s)
+        self.timing_records.append({
+            "name": name,
+            "article": article or getattr(self, "current_article", None),
+            "start_s": start_s,
+            "end_s": end_s,
+            "duration_s": duration_s,
+        })
+
     
     async def step_1_extract_and_classify(self) -> bool:
         """Step 1: Extract and classify sections from markdown files."""
         try:
+            t0 = time.perf_counter()
             logger.info("🔄 Starting Step 1: Section extraction and classification...")
             
             # Check if input files exist
@@ -124,9 +129,11 @@ class MOPWorkflowOrchestrator:
                     
                     if complete_md_file and os.path.exists(complete_md_file):
                         self.log_step("Section Stitching", "SUCCESS", f"Created complete markdown: {complete_md_file}")
+                        self.record_timing("Step 1: Section extraction & stitching", t0, time.perf_counter(), self.current_article)
                         return True
                     else:
                         self.log_step("Section Stitching", "FAILED", f"Failed to create complete markdown")
+                        self.record_timing("Step 1: Section extraction & stitching", t0, time.perf_counter(), self.current_article)
                         return False
                         
                 except Exception as e:
@@ -135,16 +142,19 @@ class MOPWorkflowOrchestrator:
                     return False
             else:
                 self.log_step("Section Extraction", "FAILED", f"Failed to process {self.current_article}")
+                self.record_timing("Step 1: Section extraction & stitching", t0, time.perf_counter(), self.current_article)
                 return False
                 
         except Exception as e:
             self.log_step("Section Extraction", "FAILED", f"Error: {str(e)}")
             logger.exception("Error in section extraction")
+            self.record_timing("Step 1: Section extraction & stitching", t0, time.perf_counter(), self.current_article)
             return False
     
     async def step_2_extract_chemical_data(self) -> bool:
         """Step 2: Extract chemical synthesis, CBU, characterisation, and step data."""
         try:
+            t0 = time.perf_counter()
             logger.info("🔄 Starting Step 2: Chemical, CBU, characterisation, and step data extraction...")
             
             # Check if sections.json exists
@@ -167,33 +177,63 @@ class MOPWorkflowOrchestrator:
                 self.log_step("Data Extraction", "FAILED", f"Error reading complete markdown: {str(e)}")
                 return False
             
-            # Run chemical agent (requires paper_content)
-            chemical_result = await chemical_agent(self.current_article, paper_content, test_mode=False)
-            
-            # Run CBU agent (reads file internally)
-            cbu_result = await cbu_agent(self.current_article, test_mode=False)
-            
-            # Run characterisation agent (reads file internally)
-            characterisation_result = await characterisation_agent(self.current_article, test_mode=False)
-            
-            # Run step agent (reads file internally)
-            step_result = await step_agent(self.current_article, test_mode=False)
-            
-            if chemical_result and cbu_result and characterisation_result and step_result:
+            # Parallelize the four agents with a small concurrency cap to avoid rate limits
+            concurrency_limit = int(os.getenv("LLM_CONCURRENCY", "2"))
+            sema = asyncio.Semaphore(concurrency_limit)
+
+            async def run_with_limit(coro):
+                async with sema:
+                    return await coro
+
+            async def timed_agent(name: str, coro):
+                a0 = time.perf_counter()
+                try:
+                    return await run_with_limit(coro)
+                finally:
+                    self.record_timing(f"Step 2: {name} agent", a0, time.perf_counter(), self.current_article)
+
+            tasks = [
+                timed_agent("Chemical", chemical_agent(self.current_article, paper_content, test_mode=False)),
+                timed_agent("CBU", cbu_agent(self.current_article, test_mode=False)),
+                timed_agent("Characterisation", characterisation_agent(self.current_article, test_mode=False)),
+                timed_agent("Step", step_agent(self.current_article, test_mode=False)),
+            ]
+
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+
+            chemical_result, cbu_result, characterisation_result, step_result = results
+
+            # Log any exceptions and normalize to False
+            def _ok(name, value):
+                if isinstance(value, Exception):
+                    logger.exception(f"{name} agent failed", exc_info=value)
+                    return False
+                return bool(value)
+
+            ok_chemical = _ok("Chemical", chemical_result)
+            ok_cbu = _ok("CBU", cbu_result)
+            ok_characterisation = _ok("Characterisation", characterisation_result)
+            ok_step = _ok("Step", step_result)
+
+            if ok_chemical and ok_cbu and ok_characterisation and ok_step:
                 self.log_step("Data Extraction", "SUCCESS", f"Extracted chemical, CBU, characterisation, and step data for {self.current_article}")
+                self.record_timing("Step 2: Data extraction (all)", t0, time.perf_counter(), self.current_article)
                 return True
             else:
                 self.log_step("Data Extraction", "FAILED", f"Failed to extract data for {self.current_article}")
+                self.record_timing("Step 2: Data extraction (all)", t0, time.perf_counter(), self.current_article)
                 return False
                 
         except Exception as e:
             self.log_step("Data Extraction", "FAILED", f"Error: {str(e)}")
             logger.exception("Error in data extraction")
+            self.record_timing("Step 2: Data extraction (all)", t0, time.perf_counter(), self.current_article)
             return False
     
     async def step_3_prepare_evaluation(self) -> bool:
         """Step 3: Prepare files for evaluation."""
         try:
+            t0 = time.perf_counter()
             logger.info("🔄 Starting Step 3: Evaluation preparation...")
             
             # Create triple comparison structure
@@ -203,16 +243,19 @@ class MOPWorkflowOrchestrator:
             copy_and_rename_files()
             
             self.log_step("Evaluation Preparation", "SUCCESS", f"Prepared evaluation files for all articles")
+            self.record_timing("Step 3: Evaluation preparation", t0, time.perf_counter())
             return True
             
         except Exception as e:
             self.log_step("Evaluation Preparation", "FAILED", f"Error: {str(e)}")
             logger.exception("Error in evaluation preparation")
+            self.record_timing("Step 3: Evaluation preparation", t0, time.perf_counter())
             return False
     
     async def step_4_revision_analysis(self) -> bool:
         """Step 4: Run revision analysis using GPT-4o to compare predictions."""
         try:
+            t0 = time.perf_counter()
             logger.info("🔄 Starting Step 4: Revision analysis...")
             
             # Initialize the revision agent
@@ -229,19 +272,23 @@ class MOPWorkflowOrchestrator:
             if success:
                 self.log_step("Revision Analysis", "SUCCESS", f"Completed revision analysis for all triples")
                 logger.info(f"📁 Revision reports generated in: {reviewer.reports_dir}")
+                self.record_timing("Step 4: Revision analysis", t0, time.perf_counter())
                 return True
             else:
                 self.log_step("Revision Analysis", "FAILED", "Revision analysis failed")
+                self.record_timing("Step 4: Revision analysis", t0, time.perf_counter())
                 return False
                 
         except Exception as e:
             self.log_step("Revision Analysis", "FAILED", f"Error: {str(e)}")
             logger.exception("Error in revision analysis")
+            self.record_timing("Step 4: Revision analysis", t0, time.perf_counter())
             return False
     
     async def step_5_performance_metrics(self) -> bool:
         """Step 5: Calculate performance metrics (precision, recall, F1) for all data types."""
         try:
+            t0 = time.perf_counter()
             logger.info("🔄 Starting Step 5: Performance metrics calculation...")
             
             # Import the performance metrics script
@@ -256,16 +303,19 @@ class MOPWorkflowOrchestrator:
             try:
                 calc_performance_metrics()
                 self.log_step("Performance Metrics", "SUCCESS", "Completed performance metrics calculation for all data types")
+                self.record_timing("Step 5: Performance metrics", t0, time.perf_counter())
                 logger.info("📊 Performance metrics reports generated in playground/data/reports")
                 return True
             except Exception as e:
                 self.log_step("Performance Metrics", "FAILED", f"Error running performance metrics: {str(e)}")
                 logger.exception("Error in performance metrics calculation")
+                self.record_timing("Step 5: Performance metrics", t0, time.perf_counter())
                 return False
                 
         except Exception as e:
             self.log_step("Performance Metrics", "FAILED", f"Error: {str(e)}")
             logger.exception("Error in performance metrics step")
+            self.record_timing("Step 5: Performance metrics", t0, time.perf_counter())
             return False
     
     async def run_workflow(self) -> bool:
@@ -360,6 +410,33 @@ class MOPWorkflowOrchestrator:
             logger.info("🎯 All critical steps completed successfully!")
         else:
             logger.warning(f"⚠️  {failures} step(s) failed - check logs for details")
+
+        # Timing summary
+        total_duration_s = max(0.0, time.perf_counter() - self.workflow_t0)
+        logger.info("-" * 60)
+        logger.info(f"⏱️  Total workflow time: {total_duration_s:.2f}s")
+        # Summarize by step name
+        step_totals = {}
+        for rec in self.timing_records:
+            step_totals.setdefault(rec["name"], 0.0)
+            step_totals[rec["name"]] += rec["duration_s"]
+        for name, secs in step_totals.items():
+            logger.info(f"  {name}: {secs:.2f}s total")
+
+        # Persist timing report
+        try:
+            report = {
+                "total_duration_s": total_duration_s,
+                "records": self.timing_records,
+            }
+            reports_dir = os.path.join(PLAYGROUND_DATA_DIR, "reports")
+            os.makedirs(reports_dir, exist_ok=True)
+            out_path = os.path.join(reports_dir, "timing_summary.json")
+            with open(out_path, "w", encoding="utf-8") as f:
+                json.dump(report, f, indent=2)
+            logger.info(f"📝 Timing summary saved to: {out_path}")
+        except Exception as e:
+            logger.warning(f"Could not write timing summary: {e}")
 
 def main():
     """Main entry point for the MOP workflow."""
