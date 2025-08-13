@@ -1,6 +1,10 @@
 """
-The step agent reads the md file produced and outputs the synthesis step information involved.
-It uses the prompts from llm_prompts.py to guide the extraction process.
+Step agent for extracting synthesis step information.
+
+Modes:
+- --test: run a single file with a simple actual prompt
+- --mock: generate a fictional step object via MCP tools
+- default: iterate sandbox tasks and run with the actual prompt
 """
 
 from models.BaseAgent import BaseAgent
@@ -11,158 +15,25 @@ import os
 import asyncio  
 import argparse
 
-# Import the prompts from llm_prompts.py
-import sys
-project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-sys.path.insert(0, project_root)
+SIMPLE_ACTUAL_PROMPT = """
+Task: Build a structured Synthesis Step document for task '{task_name}' using the available MCP tools from the step server.
 
-try:
-    from playground.llm_prompts import step_types_prompt, step_prompt
-except ImportError:
-    # Fallback prompts if import fails
-    step_types_prompt = lambda: "Extract synthesis step types from the paper content."
-    step_prompt = lambda doi, dynamic_prompt: f"Extract synthesis steps for {doi} with dynamic prompt: {dynamic_prompt}"
+Instructions:
+- Follow the step server's built-in instruction prompt for exact fields and step types.
+- Use tools in this typical order: init_step_object, add_product_synthesis, add_step_* (as needed), get_step_summary, mops_step_output.
 
-INSTRUCTION_STEP_PROMPT = """
-Objective:
-Extract synthesis step information from scientific papers using a two-phase approach:
-
-Phase 1: Identify which synthesis step types are present in the paper
-Phase 2: Extract detailed information for each identified step type
-
-This agent works with the synthesis step server to create structured, step-by-step synthesis procedures.
-
-Task name is always {task_name}
-
-EXTRACTION APPROACH:
-
-1. First, identify all synthesis step types present in the paper:
-   - Add, HeatChill, Filter, Stir, Sonicate, Crystallization, Dry, Evaporate, Dissolve, Separate, Transfer
-   - Use the adaptive schema to determine which steps are present
-
-2. For each identified step type, extract detailed information:
-   - Vessel information (name and type from the 7 standard vessel types)
-   - Chemical names and amounts (as arrays of strings)
-   - Step numbers (sequential and unique)
-   - Atmospheric conditions (N2, Ar, Air, N/A)
-   - Duration, temperature, pressure as applicable
-   - Equipment and conditions specific to each step type
-
-STEP TYPE SPECIFICATIONS:
-
-Add Steps:
-- Identify all chemical additions
-- Note vessel information and stirring during addition
-- Record any pH changes, layering, or special conditions
-- Include duration and atmospheric conditions
-
-HeatChill Steps:
-- Extract heating/cooling devices and target temperatures
-- Note heating rates, vacuum conditions, vessel sealing
-- Record stirring during heating and atmospheric conditions
-
-Filter Steps:
-- Identify washing solvents and amounts
-- Note vacuum filtration and number of filtrations
-- Record vessel information and atmospheric conditions
-
-Stir Steps:
-- Extract stirring duration and conditions
-- Note temperature and whether it's a waiting period
-- Record vessel information and atmospheric conditions
-
-Crystallization Steps:
-- Extract target temperatures and duration
-- Note vessel information and atmospheric conditions
-- Include any special crystallization conditions
-
-Dry Steps:
-- Extract drying conditions (pressure, temperature, duration)
-- Note drying agents used
-- Record vessel information and atmospheric conditions
-
-Evaporate Steps:
-- Extract evaporation conditions (pressure, temperature, duration)
-- Note rotary evaporator usage
-- Record removed species and target volumes
-
-Dissolve Steps:
-- Extract solvent information and amounts
-- Note duration and atmospheric conditions
-- Record vessel information
-
-Separate Steps:
-- Extract separation type (extraction, washing, column, centrifuge)
-- Note solvent information and amounts
-- Record duration and atmospheric conditions
-
-Transfer Steps:
-- Extract source and target vessel information
-- Note layering and transferred amounts
-- Record duration and atmospheric conditions
-
-Sonicate Steps:
-- Extract sonication duration
-- Note vessel information and atmospheric conditions
-
-VESSEL TYPES (use exactly as listed):
-- Teflon-lined stainless-steel vessel
-- glass vial
-- quartz tube
-- round bottom flask
-- glass scintillation vial
-- pyrex tube
-- schlenk flask
-
-ATMOSPHERE OPTIONS (use exactly as listed):
-- N2
-- Ar
-- Air
-- N/A
-
-SEPARATION TYPES (use exactly as listed):
-- extraction
-- washing
-- column
-- centrifuge
-
-DATA ENTRY GUIDELINES:
-- Chemical names should be arrays of strings, not comma-separated strings
-- Use "N/A" for missing string data, 0 for numeric data
-- Ensure step numbers are sequential and unique within each product
-- Each synthesis product should have its own set of steps
-- Include CCDC numbers when available for product identification
-
-WORKFLOW:
-1) init_synthesis_object(task_name)
-2) For each synthesis product mentioned in the paper:
-   - add_synthesis_product(task_name, product_names, product_ccdc_number)
-   - For each synthesis step:
-     - Use the appropriate add_*_step tool based on step type
-     - Include all required fields for each step type
-     - Ensure proper step numbering and vessel tracking
-3) get_synthesis_summary(task_name) to inspect
-4) mops_step_output(task_name) to write final JSON
-
-Paper Content:
+Paper content:
 {paper_content}
-
 """
 
-INSTRUCTION_TEST_PROMPT = """
-Simply make up a synthesis step object with one product and a few steps, then output it.
+MOCK_PROMPT = """
+Create a fictional Synthesis Step document for task '{task_name}':
+- 2 products with made-up names and CCDC numbers
+- 5-8 varied steps across different types (Add, HeatChill, Filter, Stir, etc.)
+- Use the step MCP tools to construct and then output via mops_step_output(task_name)
 """
 
-INSTRUCTION_MOCK_PROMPT = """
-Generate a completely random, fictional synthesis step object with:
-- 2-3 synthesis products with made-up names and CCDC numbers
-- 5-8 random synthesis steps of various types (Add, HeatChill, Filter, Stir, etc.)
-- Use random vessel types, chemicals, and conditions
-- Make it look realistic but completely fictional
-- Output it using the mops_step_output tool
-"""
-
-async def step_agent(task_meta_name: str, test_mode: bool = False):
+async def step_agent(task_meta_name: str, test_mode: bool = False, mock_mode: bool = False):
     """
     This agent reads the md file produced and outputs the synthesis step information involved.
     It uses a two-phase approach: first identifying step types, then extracting detailed information.
@@ -186,29 +57,15 @@ async def step_agent(task_meta_name: str, test_mode: bool = False):
     
     model_config = ModelConfig(temperature=0.2, top_p=0.02)
     mcp_tools = ["mops_step_output"]
-    agent = BaseAgent(model_name="gpt-4o", model_config=model_config, remote_model=True, mcp_tools=mcp_tools, mcp_set_name="mops_mcp.json")   
-    
-    if test_mode and task_meta_name == "mock_synthesis":
-        # Mock mode: use mock prompt to generate random fictional data
-        instruction = INSTRUCTION_MOCK_PROMPT
-        response, metadata = await agent.run(instruction, recursion_limit=100)
-        return response
-    elif test_mode:
-        # Test mode: run a single file with the actual prompt
-        instruction = INSTRUCTION_STEP_PROMPT.format(
-            task_name=task_meta_name, 
-            paper_content=paper_content
-        )
-        response, metadata = await agent.run(instruction, recursion_limit=100)
-        return response
+    agent = BaseAgent(model_name="gpt-4o", model_config=model_config, remote_model=True, mcp_tools=mcp_tools, mcp_set_name="mops_mcp.json")
+
+    if mock_mode:
+        instruction = MOCK_PROMPT.format(task_name=task_meta_name)
     else:
-        # Normal mode: use actual prompt with paper content
-        instruction = INSTRUCTION_STEP_PROMPT.format(
-            task_name=task_meta_name, 
-            paper_content=paper_content
-        )
-        response, metadata = await agent.run(instruction, recursion_limit=100)
-        return response
+        instruction = SIMPLE_ACTUAL_PROMPT.format(task_name=task_meta_name, paper_content=paper_content)
+
+    response, metadata = await agent.run(instruction, recursion_limit=500)
+    return response
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Step Agent for MOPs')
@@ -220,13 +77,11 @@ if __name__ == "__main__":
         log_file.write('')
 
     if args.mock:
-        # Mock mode: run with mock prompt to generate random fictional data
         print("Running in mock mode to generate random fictional synthesis data")
-        asyncio.run(step_agent("mock_synthesis", test_mode=True))
+        asyncio.run(step_agent("mock_synthesis", test_mode=False, mock_mode=True))
     elif args.test:
-        # Test mode: run a single file with the actual prompt
         print("Running in test mode with actual prompt")
-        asyncio.run(step_agent("10.1021_acs.inorgchem.4c02394", test_mode=False))
+        asyncio.run(step_agent("10.1021_acs.inorgchem.4c02394", test_mode=True, mock_mode=False))
     else:
         # Iterate through SANDBOX_TASK_DIR, process folders with sections.json
         for folder in os.listdir(SANDBOX_TASK_DIR):
