@@ -1,0 +1,10 @@
+{
+    "query_agent": {
+        "command": "python",
+        "args": [
+            "-m",
+            "src.mcp_servers.sparql_agent.main"
+        ],
+        "transport": "stdio"
+    }
+}

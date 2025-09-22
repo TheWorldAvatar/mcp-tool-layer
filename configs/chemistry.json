@@ -1,0 +1,27 @@
+{
+  "chemistry": {
+    "command": "python",
+    "args": [
+      "src/mcp_servers/chemistry/main.py"
+    ],
+    "transport": "stdio"
+  },
+
+  "pubchem": {
+    "command": "python",
+    "args": [
+      "data/third_party_repos/PubChem-MCP-Server/pubchem_server.py"
+    ],
+    "transport": "stdio"
+  },
+
+
+    "enhanced_websearch": {
+        "command": "python",
+        "args": [
+            "-m",
+            "src.mcp_servers.enhanced_websearch.main"
+        ],
+        "transport": "stdio"
+    }
+}
