@@ -18,7 +18,7 @@ from tqdm import tqdm
 import random
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
-from src.agents.cbu_derivation_prompts import INSTRUCTION_PROMPT, PAPER_CONCENTRATION_PROMPT   
+from src.agents.cbu_derivation_prompts import INSTRUCTION_PROMPT_ENHANCED_1, INSTRUCTION_PROMPT_ENHANCED_2, INSTRUCTION_PROMPT_ENHANCED_3, CONCENTRATION_PROMPT_2   
 
 def iterate_over_cbu_ground_truth_json():
     """
@@ -101,7 +101,7 @@ def load_paper_content(doi: str):
 
 class CBUDerivationAgent:
     def __init__(self, doi: str, concentrate: bool = False, cbu_model: str = "gpt-5"):
-        self.model_config = ModelConfig(temperature=0.0, top_p=0.0)
+        self.model_config = ModelConfig(temperature=0.0, top_p=0.02)
         self.logger = get_logger("agent", "CBUDerivationAgent")
         self.llm_creator_gpt_5 = LLMCreator(model=cbu_model, remote_model=True, model_config=self.model_config, structured_output=False, structured_output_schema=None)
         self.llm_creator_gpt_4_1 = LLMCreator(model="gpt-4.1", remote_model=True, model_config=self.model_config, structured_output=False, structured_output_schema=None)
@@ -110,12 +110,12 @@ class CBUDerivationAgent:
 
         self.raw_paper_content = load_paper_content(doi)
         self.concentrate = concentrate
-        CONCENTRATION_PROMPT = PAPER_CONCENTRATION_PROMPT.format(paper_content=self.raw_paper_content)
+        PAPER_CONCENTRATION_PROMPT = CONCENTRATION_PROMPT_2.format(paper_content=self.raw_paper_content)
         # CONCENTRATION_PROMPT = f"""
         # Goal: Condense the PAPER TEXT to ONLY what is needed to derive metal CBUs. Proritize inclusion than briefness.
 
         # PAPER TEXT:
-        # {CONCENTRATION_PROMPT}
+        # {self.raw_paper_content}
         # """
         if self.concentrate:
             # check if the concentrated paper content file exists
@@ -126,7 +126,7 @@ class CBUDerivationAgent:
             else:   
                 print(f"concentrating paper content")
                 TIME_START = time.time()
-                self.concentrated_paper_content = self.llm_gpt_4_1.invoke(CONCENTRATION_PROMPT).content    
+                self.concentrated_paper_content = self.llm_gpt_4_1.invoke(PAPER_CONCENTRATION_PROMPT).content    
                 TIME_END = time.time()
                 print(f"Time taken to concentrate paper content: {TIME_END - TIME_START} seconds")
                 with open(concentrated_md_path, "w") as f:
@@ -149,7 +149,7 @@ class CBUDerivationAgent:
 
 
 
-        return self.llm_gpt_5.invoke(INSTRUCTION_PROMPT.format(res_content=res_content, mol2_content=mol2_content, paper_content=paper_content)).content
+        return self.llm_gpt_5.invoke(INSTRUCTION_PROMPT_ENHANCED_3.format(res_content=res_content, mol2_content=mol2_content, paper_content=paper_content)).content
 
 def process_single_ccdc(doi: str, mop_ccdc_number: str, cbu_model: str, output_lock: threading.Lock):
     """
@@ -223,8 +223,8 @@ if __name__ == "__main__":
     # include_list = ["10.1002_anie.201811027"]
     include_list = []
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    cbu_model = "gpt-5-mini"
-    output_file = f"cbu_derivation_output_cif_{timestamp}_{cbu_model.replace('/', '_')}.txt"
+    cbu_model = "gpt-5"
+    output_file = f"cbu_derivation_output_cif_{timestamp}_{cbu_model.replace('/', '_')}_enhanced_3.txt"
     # Redirect stdout to both console and file
     class Tee:
         def __init__(self, *files):

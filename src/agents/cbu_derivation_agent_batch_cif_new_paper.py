@@ -18,7 +18,7 @@ from tqdm import tqdm
 import random
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
-from src.agents.cbu_derivation_prompts import INSTRUCTION_PROMPT   
+from src.agents.cbu_derivation_prompts import INSTRUCTION_PROMPT_ENHANCED_1, INSTRUCTION_PROMPT_ENHANCED_2, INSTRUCTION_PROMPT_ENHANCED_3, CONCENTRATION_PROMPT_2       
 
 def get_hardcoded_doi_ccdc_mapping():
     """
@@ -348,7 +348,7 @@ class CBUDerivationAgent:
  
 
 
-        return self.llm_gpt_5.invoke(INSTRUCTION_PROMPT.format(res_content=res_content, mol2_content=mol2_content, paper_content=paper_content)).content
+        return self.llm_gpt_5.invoke(INSTRUCTION_PROMPT_ENHANCED_3.format(res_content=res_content, mol2_content=mol2_content, paper_content=paper_content)).content
 
 def process_single_ccdc(doi: str, mop_ccdc_number: str, cbu_model: str, output_lock: threading.Lock):
     """
@@ -410,7 +410,7 @@ if __name__ == "__main__":
     
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     cbu_model = "gpt-5"
-    output_file = os.path.join(output_dir, f"cbu_derivation_output_cif_new_paper_{timestamp}_{cbu_model}.txt")
+    output_file = os.path.join(output_dir, f"cbu_derivation_output_cif_new_paper_{timestamp}_{cbu_model}_enhanced_3.txt")
     # Redirect stdout to both console and file
     class Tee:
         def __init__(self, *files):
