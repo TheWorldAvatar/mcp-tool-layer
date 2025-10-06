@@ -745,7 +745,7 @@ This is the paper content:
 """
 CONCENTRATION_PROMPT_2 = """
 You are extracting only the information from the paper that is necessary for a separate agent to later derive the **Metal CBU (Cluster Building Unit)**. 
-**Do not perform any derivation, reduction, or interpretation beyond faithfully reporting the paper’s facts.**
+**Do not perform any derivation, reduction, or interpretation beyond faithfully reporting the paper's facts.**
 
 GOAL
 - Produce a clean, neutral **markdown** document that captures all paper facts relevant to identifying the smallest chemically complete, symmetry-distinct metal cluster used as a building unit.
@@ -757,9 +757,9 @@ STRICT NON-DERIVATION
 - Do **not** reconcile inconsistencies; instead, flag them.
 
 WHAT TO INCLUDE (from the paper only)
-- Metal cluster identity and composition as **reported by the authors** (use the paper’s own wording for names/formulas; if shorthand is used, provide a normalized chemical formula name alongside it when possible, but do not invent counts).
-- Ligand types directly coordinated to the metal (names and formulas as given), their stated roles (e.g., “cap,” “bridging,” “terminal,” “linker-connecting”), and coordination descriptors if reported.
-- Statements about the cluster’s **role in assembly** (node/vertex/edge/face), the number of clusters per assembly object, and any connectivity descriptions to organic linkers or other clusters.
+- Metal cluster identity and composition as **reported by the authors** (use the paper's own wording for names/formulas; if shorthand is used, provide a normalized chemical formula name alongside it when possible, but do not invent counts).
+- Ligand types directly coordinated to the metal (names and formulas as given), their stated roles (e.g., "cap," "bridging," "terminal," "linker-connecting"), and coordination descriptors if reported.
+- Statements about the cluster's **role in assembly** (node/vertex/edge/face), the number of clusters per assembly object, and any connectivity descriptions to organic linkers or other clusters.
 - Symmetry and duplication cues: mentions of equivalent positions, repeated ligands around a core, multiplicities tied to symmetry, and any per-unit-cell contents vs per-cluster contents.
 - Occupancy/disorder notes: partial occupancy, alternative positions, weakly bound donors, coordinated solvent mentions.
 - Any author-reported formulas, stoichiometries, or counts relevant to the cluster, linkers, or assembled objects.
@@ -802,5 +802,150 @@ STYLE
 - Do not add content from outside the provided paper.
 
 Full paper content:
+{paper_content}
+"""
+
+
+
+
+INSTRUCTION_PROMPT_ENHANCED_3_WITH_CBU = """
+Guidance for Deriving a Minimal Metal Building Unit (CBU)
+
+Objective:
+Derive the smallest chemically complete and symmetry-distinct metal-based building unit (CBU) from the provided molecular structure files and supporting literature description. This CBU should represent the essential metal-containing cluster that serves as a structural unit in the larger assembly.
+
+OUTPUT REQUIREMENT:
+Return strictly and only the Metal CBU formula in normalized empirical format — no commentary, no additional notes, no alternative names, no structural labels.
+
+Sources of Truth:
+- Use all three inputs:
+  - RES file: definitive crystallographic bonding and occupancy
+  - MOL2 file: chemical group identities and connectivity
+  - Concentrated paper content: semantic and functional role assignments
+
+Information Hierarchy:
+1. Use **RES** file to determine atomic positions, occupancy, coordination environment, and symmetry.
+2. Use **MOL2** file to identify molecular fragments, ligand identity, and bonding patterns.
+3. Use **Concentrated Paper** only to interpret structural roles (e.g., node, core, linker) and symmetry grouping — not to extract formulae directly.
+
+=== EXISTING METAL CBU DATABASE ===
+
+**CRITICAL GUIDANCE ON REUSING EXISTING CBUs:**
+
+You are provided with a database of known **INORGANIC/METAL CBUs ONLY** below. **It is VERY COMMON and HIGHLY LIKELY that the metal CBU you are deriving already exists in this database.** The vast majority of metal-organic frameworks and coordination polymers reuse well-established metal cluster building units.
+
+**Your workflow should be:**
+1. First, derive the metal CBU using the standard rules below.
+2. Then, **carefully compare** your derived CBU with the existing CBU database.
+3. If you find a matching or very similar CBU in the database:
+   - **PREFER the existing CBU formula** from the database.
+   - Use the exact formula notation from the database.
+   - Only deviate if you are ABSOLUTELY CERTAIN the cluster is chemically distinct.
+4. **ONLY propose a new CBU** (not in the database) if you are **VERY, VERY CONFIDENT** that:
+   - The metal composition is genuinely novel, or
+   - The ligand coordination pattern is substantially different from all existing CBUs, or
+   - The stoichiometry cannot be reasonably matched to any existing entry.
+   - You are *absolutely sure* that every group, especially organic linkers/groups, is a must keep group in the CBU. (This is very important as it is a very common mistake the derived CBU contains some groups that should not be in the CBU.)
+   - **Critical**: In some cases, a part of the group is to be dropped where some atoms are preserved. e.g., a H2O group should be 
+   dropped but the O atom should be preserved, adding an extra O atom to some other group in the CBU, changing the element count in the CBUs. 
+   Therefore, some CBU in the database may not be directly comparable to the one you derived, but you can still use the database to check whether the CBU you derived is very similar to one in the database.
+   - Then you should carefully reflect on whether the CBU you derived should drop some groups or part of the group.
+   - **Critical**: Another common mistake is the that the CBU reduction is not done correctly, if the derived CBU is a multiple of an existing CBU in the database, you should use the one in the database.
+
+**Critical**: A common mistake is to derive a CBU with extra groups that are not part of the core cluster.
+Therefore, the existing CBU database is very useful to check whether the CBU you derived made that particular mistake. 
+
+**Think of existing CBUs as your "vocabulary" — most structures use words from this vocabulary. Creating a new word should be rare and well-justified.**
+
+In most of the cases, the metal CBU you are deriving already exists in the database. As a result, 
+I would suggest you derive the metal CBU first, then rescan through the database to see whether a very similar CBU already exist.
+
+If there is a direct match (ignore different order of groups), you can just return the CBU from the database.
+
+If there is no direct match but something very similar, it is highly likely that you derivation is slightly wrong and 
+I suggest you use the one in the database.
+
+In very rare cases, there is a genuinely new metal CBU that is not in the database. In this case, you can propose a new CBU.
+
+{existing_cbu_database}
+
+=== COMPONENT INCLUSION RULES ===
+
+Include:
+- All metal atoms that participate in a bonded cluster.
+- Atoms or groups that:
+  - Bridge multiple metal atoms.
+  - Are terminal ligands repeated across symmetry-equivalent sites.
+  - Are required to complete a chemically meaningful core structure.
+
+Exclude:
+- Any group that:
+  - Binds to only one metal atom without recurrence.
+  - Appears to serve as a connection point to external linkers.
+  - Is structurally peripheral, asymmetrically bound, or not conserved across equivalent sites.
+  - Is part of solvent, counterion, or external decorations based on occupancy or symmetry absence.
+
+=== FILTERING ORGANIC AND AMBIGUOUS GROUPS ===
+
+Classification Logic:
+- Use chemical bonding and topology, not naming conventions or appearances, to classify atoms and ligands.
+- When identifying potential organic groups:
+  - Assess whether the group extends into large π-systems, rigid aromatic linkers, or covalent scaffolds.
+  - If the group contributes to external framework connectivity (via carboxylate, phosphonate, or related groups), exclude it from metal CBU.
+  - If the group is covalently attached but primarily decorative, exclude it unless it is repeated at all equivalent metal centers.
+
+Disambiguation Rule:
+- If a ligand is ambiguous (could be either a terminal group or an external connector), defer to:
+  - Repetition and symmetry from RES file.
+  - Grouping and identity from MOL2 file.
+  - Functional role as described in the paper.
+
+Do not classify groups by name or identifier — always rely on chemical context.
+
+=== REDUCTION TO MINIMAL CBU ===
+
+Step-by-step Reduction:
+1. Count all atoms and molecular groups satisfying inclusion rules.
+2. Normalize the structure by removing duplicated symmetry-equivalent parts.
+3. Reduce counts by greatest common divisor (GCD) if all components are in fixed ratios.
+4. Ensure the resulting formula represents a standalone chemically complete unit.
+
+Do NOT:
+- Report per-unit cell formulas.
+- Include full symmetric aggregates when a smaller unit exists.
+
+=== GROUPING AND REPRESENTATION RULES ===
+
+- Express ligands as molecular groups, not as isolated atoms.
+- Maintain intact functional groups (e.g., methoxy, hydroxo, phosphonato, etc.).
+- Do not abbreviate (e.g., no short names like Py, Cp, Ph).
+- Represent all ligand and substituent groups by their full molecular formula.
+
+=== OUTPUT FORMAT RULES ===
+
+1. Structure:
+   - Use square brackets for the entire formula.
+   - Begin with metals, followed by core oxo/hydroxo ligands, then additional groups.
+   - Use alphabetical order within categories when possible.
+   - Subscripts must be integers. Omit subscript 1.
+
+2. Syntax:
+   - No charges, oxidation states, μ-labels, or structural descriptors.
+   - No commentary or extra explanation.
+   - No non-ASCII formatting (e.g., subscripts, superscripts, unicode).
+
+3. Return format:
+Metal CBU:   [EmpiricalFormulaInBracketedForm]
+
+Example output format only (not to be used verbatim):
+Metal CBU:   [MxLy(Gz)n]
+
+The RES file is below:
+{res_content}
+
+The MOL2 file is below:
+{mol2_content}
+
+The concentrated paper content is below:
 {paper_content}
 """
