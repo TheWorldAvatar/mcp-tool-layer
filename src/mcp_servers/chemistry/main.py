@@ -2,122 +2,213 @@ from fastmcp import FastMCP
 from src.utils.global_logger import get_logger, mcp_tool_logger
 
 # Import chemistry operations
-from src.mcp_servers.chemistry.operations.cbu_operations import (
-    convert_smiles_to_cbu,
-    batch_convert_smiles_to_cbu,
-    get_cbu_help
+from src.mcp_servers.chemistry.operations.canonical_search import (
+    fuzzy_search_canonical_smiles
 )
+from src.mcp_servers.chemistry.operations.cas_to_smiles import (
+    cas_to_smiles
+)
+import json
+import sys
+import os
+
+# Import enhanced SMILES processing
+scripts_dir = os.path.join(os.path.dirname(__file__), '../../../scripts/cbu_alignment')
+sys.path.append(scripts_dir)
+
+try:
+    from enhanced_smiles_based_cbu_processing import _to_storage_canonical
+    _HAS_ENHANCED_SMILES = True
+except ImportError as e:
+    print(f"Warning: Could not import enhanced_smiles_based_cbu_processing: {e}")
+    _HAS_ENHANCED_SMILES = False
 
 mcp = FastMCP(name="chemistry")
 
 logger = get_logger("mcp_server", "chemistry_main")
 
-@mcp.prompt(name="instruction")
-def instruction_prompt():
+def convert_smiles_to_canonical_enhanced(smiles: str):
+    """
+    Convert SMILES to canonical forms using enhanced processing functions.
+    
+    Uses the single-format enhanced processing that guarantees one canonical output:
+    RDKit canonical SMILES of the deprotonated form with all carboxylic acids as COO-.
+    
+    Args:
+        smiles: Input SMILES string
+        
+    Returns:
+        Tuple of (canonical_smiles, inchikey, source_kind)
+    """
+    if not _HAS_ENHANCED_SMILES:
+        raise ImportError("Enhanced SMILES processing functions not available")
+    
+    try:
+        # Use single-format enhanced processing
+        canonical_smiles, inchikey, source_kind = _to_storage_canonical(smiles)
+        return canonical_smiles, inchikey, source_kind
+    except Exception as e:
+        raise ValueError(f"Failed to canonicalize SMILES '{smiles}': {e}")
+
+@mcp.prompt(name="chemistry_instructions")
+def chemistry_instructions_prompt():
     return """
-# Chemistry MCP Server - CBU Conversion Tools
+# Chemistry MCP Server Instructions
 
-## Overview
-This MCP server provides tools for converting SMILES strings to CBU (Chemical Building Unit) formula convention. It normalizes neutral linker SMILES to deprotonated linker states and provides MULTIPLE MOF/MOP core formula labeling formats for maximum flexibility.
+This MCP server provides enhanced SMILES canonicalization and fuzzy CBU search capabilities for chemical structure processing.
 
-## Available Tools
+## Available Tools:
 
-### 1. convert_smiles_to_cbu
-Convert a single SMILES string to CBU formula convention with multiple label formats. This is the primary tool for individual conversions.
+1. **canonicalize_smiles**: Convert SMILES to single canonical format using enhanced processing
+2. **fuzzy_smiles_search**: Find similar SMILES in CBU database (top 20 matches)
+3. **cas_to_smiles**: Convert CAS registry numbers to SMILES strings via PubChem
 
-**When to use:** Converting single chemical linker SMILES to CBU format.
-**Next steps:** Choose the appropriate core label format from the provided variants for your specific use case.
+## Key Features:
 
-### 2. batch_convert_smiles_to_cbu  
-Convert multiple SMILES strings to CBU formula convention in batch processing with all label variants.
+- **Single-Format Enhanced Processing**: Guarantees exactly ONE chemical format output
+- **Enforced Carboxylate Deprotonation**: All carboxylic acids forced to COO- (no neutral COOH)
+- **No Alternate Renderings**: Eliminates dual format confusion, only canonical SMILES output
+- **Deterministic Results**: Same input always produces same canonical output
+- **Source Kind Detection**: Identifies input as kg-placeholder, neutral, anion, or unknown
+- **InChI Key Generation**: Generates molecular identifiers for verification
+- **Fuzzy SMILES Search**: Find similar canonical SMILES in CBU database using string similarity
+- **CAS to SMILES Conversion**: Query PubChem databases to convert CAS numbers to SMILES
+- **Robust Error Handling**: Enhanced processing with clear error messages
 
-**When to use:** Processing multiple chemical linkers efficiently.
-**Next steps:** Analyze batch results and select consistent labeling formats across your dataset.
+## Processing Guarantees:
 
-### 3. get_cbu_help
-Get comprehensive help information about CBU conversion functionality, multiple output formats, and usage examples.
+- **Input Handling**: Supports KG placeholders [O], neutral COOH, and deprotonated COO- forms
+- **Output Format**: RDKit canonical SMILES with enforced COO- carboxylate sites
+- **Consistency**: Stereochemistry ignored for canonicalization (isomericSmiles=False)
+- **Standardization**: Full RDKit cleanup, fragmentation, normalization, and reionization
 
-**When to use:** When you need detailed information about the conversion process, available label formats, or output structure.
+## Usage:
 
-## Workflow Recommendations
-
-1. **Start with help**: Call `get_cbu_help` to understand all available label formats
-2. **Single conversions**: Use `convert_smiles_to_cbu` for individual SMILES strings
-3. **Choose format**: Select from core_labels object (merged, unmerged_mult, unmerged_underscore, unmerged_concat)
-4. **Batch processing**: Use `batch_convert_smiles_to_cbu` for multiple SMILES strings
-5. **Standardize**: Pick consistent labeling format across your workflow
-
-## Supported Acid Sites
-- Carboxylic acids (–C(=O)OH)
-- Sulfonic acids (–SO2OH)
-- Phosphonic acids (–P(=O)OH)
-
-## Output Information
-Each conversion provides:
-- Deprotonated SMILES
-- Standard InChI and InChI key
-- Molecular formula with charge
-- Exact molecular weight
-- Primary CBU core label (chosen by label_mode)
-- ALL available core label formats in core_labels object
+1. Use `canonicalize_smiles(smiles)` to get the single canonical format
+2. Use `fuzzy_smiles_search(smiles)` to find similar CBU entries using canonical form
+3. Use `cas_to_smiles(cas_number)` to convert CAS registry numbers to SMILES via PubChem
+4. All processing automatically enforces COO- deprotonation for consistency
 """
 
-@mcp.tool(
-    name="convert_smiles_to_cbu",
-    description="""Convert a single SMILES string to CBU (Chemical Building Unit) formula convention with multiple label formats. 
-    This tool normalizes neutral linker SMILES to deprotonated linker states and provides ALL available MOF/MOP core formula labeling formats.
-    
-    Parameters:
-    - smiles: Neutral linker SMILES string (required)
-    - remove_k: Number of acidic H to remove (optional, default: remove all acidic H)
-    - label_mode: Labeling mode - 'auto', 'aggregated', or 'ring' (default: 'auto')
-    
-    Output includes both a primary 'core_label' and a 'core_labels' object with all format variants:
-    merged, unmerged_mult, unmerged_underscore, unmerged_concat.
-    Use this tool for individual SMILES conversions. For multiple SMILES strings, consider using batch_convert_smiles_to_cbu instead."""
-)
-@mcp_tool_logger
-def convert_smiles_to_cbu_tool(smiles: str, remove_k: int = None, label_mode: str = "auto") -> str:
-    """Convert single SMILES to CBU format."""
-    return convert_smiles_to_cbu(smiles, remove_k, label_mode)
 
-@mcp.tool(
-    name="batch_convert_smiles_to_cbu",
-    description="""Convert multiple SMILES strings to CBU formula convention in batch with all label format variants.
-    This tool efficiently processes multiple neutral linker SMILES strings at once, providing all labeling formats for each.
+@mcp.tool()
+def canonicalize_smiles(smiles: str) -> str:
+    """
+    Convert SMILES to canonical form using enhanced CBU processing functions.
     
-    Parameters:
-    - smiles_list: List of neutral linker SMILES strings (required)
-    - remove_k: Number of acidic H to remove (optional, default: remove all acidic H) 
-    - label_mode: Labeling mode - 'auto', 'aggregated', or 'ring' (default: 'auto')
+    Uses single-format enhanced processing that guarantees one canonical output:
+    RDKit canonical SMILES of the deprotonated form with all carboxylic acids as COO-.
+    No alternate renderings or UI-only strings.
     
-    Each result includes both primary 'core_label' and 'core_labels' object with all format variants.
-    Use this tool when you have multiple SMILES strings to convert. The output includes batch statistics and individual results.
-    After batch conversion, select consistent labeling formats across your dataset."""
-)
-@mcp_tool_logger  
-def batch_convert_smiles_to_cbu_tool(smiles_list: list, remove_k: int = None, label_mode: str = "auto") -> str:
-    """Convert multiple SMILES to CBU format in batch."""
-    return batch_convert_smiles_to_cbu(smiles_list, remove_k, label_mode)
+    Args:
+        smiles: Input SMILES string
+    
+    Returns:
+        JSON string containing canonical SMILES, InChI key, and source kind
+    """
+    logger.info(f"Canonicalizing SMILES: {smiles}")
+    try:
+        canonical_smiles, inchikey, source_kind = convert_smiles_to_canonical_enhanced(smiles)
+        result = {
+            "input_smiles": smiles,
+            "canonical_smiles": canonical_smiles,
+            "inchikey": inchikey or "",
+            "source_kind": source_kind,
+            "processing_method": "enhanced_single_format",
+            "description": "Single canonical format: COO- enforced, no alternate renderings",
+            "success": True
+        }
+        logger.info(f"Enhanced SMILES canonicalization completed")
+        return json.dumps(result, ensure_ascii=False, indent=2)
+    except Exception as e:
+        logger.error(f"Error in enhanced SMILES canonicalization: {e}")
+        error_result = {
+            "input_smiles": smiles,
+            "processing_method": "enhanced_single_format",
+            "success": False,
+            "error": str(e)
+        }
+        return json.dumps(error_result, ensure_ascii=False, indent=2)
 
-@mcp.tool(
-    name="get_cbu_help",
-    description="""Get comprehensive help information about CBU (Chemical Building Unit) conversion functionality and multiple label formats.
-    This tool provides detailed documentation about the conversion process, all available label format variants, parameters, and output structure.
+@mcp.tool()
+def fuzzy_smiles_search(canonical_smiles: str) -> str:
+    """
+    Find similar canonical SMILES in the CBU database using fuzzy string matching.
+     
+    Args:
+        canonical_smiles: Input SMILES string, which is already canonicalized
     
-    Use this tool when you need to understand:
-    - How CBU conversion works
-    - All available core label formats (merged, unmerged variants)
-    - What parameters are available
-    - Complete output format with examples
-    - Which label format to choose for your use case
+    Returns:
+        JSON string containing top 20 similar CBU entries with similarity scores
+    """
+    logger.info(f"Fuzzy search for SMILES: {canonical_smiles}")
     
-    Call this tool first if you're unfamiliar with CBU conversion processes or need to understand the new multiple format output."""
-)
-@mcp_tool_logger
-def get_cbu_help_tool() -> str:
-    """Get help information about CBU conversion."""
-    return get_cbu_help()
+    try:
+        # Use the canonical_search module for fuzzy matching
+        search_result = fuzzy_search_canonical_smiles(canonical_smiles, top_n=20)
+        
+        # Parse the result to add additional information
+        result_data = json.loads(search_result)
+        if result_data.get("search_successful", False):
+            result_data["canonical_smiles_used"] = canonical_smiles
+            result_data["processing_method"] = "enhanced_single_format"
+        
+        logger.info(f"Enhanced fuzzy search completed via canonical_search module")
+        return json.dumps(result_data, ensure_ascii=False, indent=2)
+        
+    except Exception as e:
+        logger.error(f"Error in enhanced fuzzy SMILES search: {e}")
+        error_result = {
+            "input_original_smiles": canonical_smiles,
+            "processing_method": "enhanced_single_format",
+            "search_successful": False,
+            "error": str(e)
+        }
+        return json.dumps(error_result, ensure_ascii=False, indent=2)
+
+@mcp.tool()
+def cas_to_smiles_convert(cas_number: str) -> str:
+    """
+    Convert CAS registry number to SMILES strings using PubChem API.
+    
+    This function queries PubChem's compound and substance databases to find
+    chemical structures matching the given CAS number and returns their SMILES
+    representations along with other chemical properties.
+    
+    Args:
+        cas_number: CAS registry number (e.g., "50446-44-1")
+    
+    Returns:
+        JSON string containing SMILES strings, compound IDs, and chemical properties
+    """
+    logger.info(f"Converting CAS number to SMILES: {cas_number}")
+    
+    try:
+        # Use the cas_to_smiles operation
+        result = cas_to_smiles(cas_number)
+        
+        # Add metadata for MCP response
+        result["processing_method"] = "pubchem_api"
+        result["description"] = "CAS to SMILES conversion via PubChem compound and substance databases"
+        
+        if result["success"]:
+            logger.info(f"CAS conversion successful: found {len(result.get('smiles_list', []))} SMILES")
+        else:
+            logger.warning(f"CAS conversion failed: no matches found for {cas_number}")
+            
+        return json.dumps(result, ensure_ascii=False, indent=2)
+        
+    except Exception as e:
+        logger.error(f"Error in CAS to SMILES conversion: {e}")
+        error_result = {
+            "cas": cas_number,
+            "processing_method": "pubchem_api",
+            "success": False,
+            "error": str(e),
+            "description": "CAS to SMILES conversion failed"
+        }
+        return json.dumps(error_result, ensure_ascii=False, indent=2)
+
 
 if __name__ == "__main__":
     mcp.run(transport="stdio")

@@ -1,81 +1,126 @@
 """
-CBU (Chemical Building Unit) operations for converting SMILES to CBU formula convention.
+CBU (Chemical Building Unit) operations for canonical SMILES lookup and grounding.
 """
 
 import sys
 import os
 import json
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Tuple
 
-# Add the scripts directory to Python path to import the updated cbu_processing
-scripts_dir = os.path.join(os.path.dirname(__file__), '../../../../scripts')
+# Import canonical SMILES processing
+scripts_dir = os.path.join(os.path.dirname(__file__), '../../../../scripts/cbu_alignment')
 sys.path.append(scripts_dir)
 
 try:
-    from cbu_processing import normalize_linker_from_smiles
+    from smiles_based_cbu_processing import to_kg_canonical_from_neutral, to_kg_canonical_from_kg
 except ImportError as e:
-    print(f"Warning: Could not import cbu_processing from {scripts_dir}: {e}")
-    normalize_linker_from_smiles = None
+    print(f"Warning: Could not import smiles_based_cbu_processing from {scripts_dir}: {e}")
+    to_kg_canonical_from_neutral = None
+    to_kg_canonical_from_kg = None
 
-def convert_smiles_to_cbu(smiles: str, remove_k: Optional[int] = None, label_mode: str = "auto") -> str:
+# Load all_smiles.json for CBU lookup
+def load_smiles_database():
+    """Load the all_smiles.json database for CBU lookup."""
+    try:
+        smiles_db_path = os.path.join(scripts_dir, "all_smiles.json")
+        if os.path.exists(smiles_db_path):
+            with open(smiles_db_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        else:
+            print(f"Warning: all_smiles.json not found at {smiles_db_path}")
+            return {}
+    except Exception as e:
+        print(f"Error loading all_smiles.json: {e}")
+        return {}
+
+# Global database - loaded once
+_SMILES_DATABASE = load_smiles_database()
+
+def convert_smiles_to_canonical(smiles: str) -> Tuple[str, str, str]:
     """
-    Convert SMILES string to CBU (Chemical Building Unit) formula convention.
+    Convert SMILES to canonical forms using the CBU processing functions.
     
     Args:
-        smiles: Neutral linker SMILES string
-        remove_k: Number of acidic H to remove; if None, removes all acidic H
-        label_mode: Labeling mode - 'auto', 'aggregated', or 'ring'
-    
+        smiles: Input SMILES string
+        
     Returns:
-        JSON string containing the CBU conversion results
+        Tuple of (rdkit_canonical, kg_canonical, inchikey)
     """
-    if normalize_linker_from_smiles is None:
-        return json.dumps({
-            "error": "CBU processing module not available",
-            "message": "Could not import cbu_processing module"
-        }, indent=2)
+    if not to_kg_canonical_from_neutral or not to_kg_canonical_from_kg:
+        raise ImportError("SMILES canonicalization functions not available")
     
     try:
-        # Validate inputs
+        # Try treating as neutral first
+        rdkit_can, kg_can, ik = to_kg_canonical_from_neutral(smiles)
+        return rdkit_can, kg_can, ik
+    except Exception as e1:
+        try:
+            # Try treating as KG-style if neutral fails
+            rdkit_can, kg_can, ik = to_kg_canonical_from_kg(smiles)
+            return rdkit_can, kg_can, ik
+        except Exception as e2:
+            raise ValueError(f"Failed to canonicalize SMILES '{smiles}': {e1}, {e2}")
+
+def lookup_smiles_in_database(smiles: str) -> str:
+    """
+    Look up SMILES in the all_smiles.json database for CBU information.
+    
+    Args:
+        smiles: Input SMILES string
+    
+    Returns:
+        JSON string containing the CBU lookup results
+    """
+    try:
+        # Validate input
         if not smiles or not isinstance(smiles, str):
             raise ValueError("SMILES string is required and must be a valid string")
         
-        if label_mode not in ["auto", "aggregated", "ring"]:
-            raise ValueError("label_mode must be 'auto', 'aggregated', or 'ring'")
+        # Convert to canonical forms
+        rdkit_canonical, kg_canonical, inchikey = convert_smiles_to_canonical(smiles)
         
-        if remove_k is not None and (not isinstance(remove_k, int) or remove_k < 0):
-            raise ValueError("remove_k must be a non-negative integer or None")
-        
-        # Perform the conversion
-        result = normalize_linker_from_smiles(smiles, remove_k=remove_k, label_mode=label_mode)
-        
-        # Add metadata
-        result["input_smiles"] = smiles
-        result["input_remove_k"] = remove_k
-        result["input_label_mode"] = label_mode
+        # Look up KG canonical SMILES in database
+        if kg_canonical in _SMILES_DATABASE:
+            cbu_data = _SMILES_DATABASE[kg_canonical]
+            result = {
+                "found": True,
+                "input_smiles": smiles,
+                "rdkit_canonical": rdkit_canonical,
+                "kg_canonical": kg_canonical,
+                "inchikey": inchikey,
+                "cbu_data": cbu_data
+            }
+        else:
+            result = {
+                "found": False,
+                "input_smiles": smiles,
+                "rdkit_canonical": rdkit_canonical,
+                "kg_canonical": kg_canonical,
+                "inchikey": inchikey,
+                "message": "No CBU data found for this canonical SMILES",
+                "total_database_entries": len(_SMILES_DATABASE)
+            }
         
         return json.dumps(result, ensure_ascii=False, indent=2)
         
     except Exception as e:
         error_result = {
+            "found": False,
             "error": str(e),
             "input_smiles": smiles,
-            "input_remove_k": remove_k,
-            "input_label_mode": label_mode
+            "total_database_entries": len(_SMILES_DATABASE)
         }
         return json.dumps(error_result, ensure_ascii=False, indent=2)
 
-def batch_convert_smiles_to_cbu(smiles_list: list, remove_k: Optional[int] = None, label_mode: str = "auto") -> str:
+def batch_lookup_smiles(smiles_list: list) -> str:
     """
-    Convert multiple SMILES strings to CBU formula convention in batch.
+    Look up multiple SMILES strings in the CBU database in batch.
     
     Args:
-        smiles_list: List of neutral linker SMILES strings
-        remove_k: Number of acidic H to remove; if None, removes all acidic H
-        label_mode: Labeling mode - 'auto', 'aggregated', or 'ring'
+        smiles_list: List of SMILES strings
     
     Returns:
-        JSON string containing batch conversion results
+        JSON string containing batch lookup results
     """
     if not isinstance(smiles_list, list):
         return json.dumps({
@@ -84,126 +129,258 @@ def batch_convert_smiles_to_cbu(smiles_list: list, remove_k: Optional[int] = Non
         }, indent=2)
     
     results = []
+    found_count = 0
+    
     for i, smiles in enumerate(smiles_list):
         try:
-            # Convert individual SMILES
-            result_json = convert_smiles_to_cbu(smiles, remove_k, label_mode)
+            # Lookup individual SMILES
+            result_json = lookup_smiles_in_database(smiles)
             result = json.loads(result_json)
             result["batch_index"] = i
+            
+            if result.get("found", False):
+                found_count += 1
+            
             results.append(result)
         except Exception as e:
             error_result = {
                 "batch_index": i,
+                "found": False,
                 "error": str(e),
-                "input_smiles": smiles,
-                "input_remove_k": remove_k,
-                "input_label_mode": label_mode
+                "input_smiles": smiles
             }
             results.append(error_result)
     
     batch_result = {
         "batch_size": len(smiles_list),
-        "successful_conversions": len([r for r in results if "error" not in r]),
-        "failed_conversions": len([r for r in results if "error" in r]),
+        "found_count": found_count,
+        "not_found_count": len(smiles_list) - found_count,
+        "success_rate": f"{(found_count / len(smiles_list) * 100):.1f}%" if smiles_list else "0%",
+        "total_database_entries": len(_SMILES_DATABASE),
         "results": results
     }
     
     return json.dumps(batch_result, ensure_ascii=False, indent=2)
 
-def get_cbu_help() -> str:
+def search_database_by_formula(formula: str) -> str:
     """
-    Get help information about CBU (Chemical Building Unit) conversion.
+    Search the CBU database by original formula.
+    
+    Args:
+        formula: CBU formula to search for (e.g., "[(C6H4)(CO2)2]")
     
     Returns:
-        Help text explaining CBU conversion functionality
+        JSON string containing search results
     """
-    help_text = """
-# CBU (Chemical Building Unit) Conversion Help
+    try:
+        if not formula or not isinstance(formula, str):
+            raise ValueError("Formula string is required and must be a valid string")
+        
+        matches = []
+        for kg_canonical, cbu_data in _SMILES_DATABASE.items():
+            if cbu_data.get("original_formula") == formula:
+                match = {
+                    "kg_canonical_smiles": kg_canonical,
+                    "cbu_data": cbu_data
+                }
+                matches.append(match)
+        
+        result = {
+            "search_formula": formula,
+            "matches_found": len(matches),
+            "matches": matches,
+            "total_database_entries": len(_SMILES_DATABASE)
+        }
+        
+        return json.dumps(result, ensure_ascii=False, indent=2)
+        
+    except Exception as e:
+        error_result = {
+            "error": str(e),
+            "search_formula": formula,
+            "total_database_entries": len(_SMILES_DATABASE)
+        }
+        return json.dumps(error_result, ensure_ascii=False, indent=2)
+
+def get_database_stats() -> str:
+    """
+    Get statistics about the CBU database.
+    
+    Returns:
+        JSON string containing database statistics
+    """
+    try:
+        if not _SMILES_DATABASE:
+            return json.dumps({
+                "total_entries": 0,
+                "message": "CBU database not loaded or empty"
+            }, indent=2)
+        
+        # Count unique formulas
+        formulas = set()
+        iri_entries = 0
+        
+        for cbu_data in _SMILES_DATABASE.values():
+            formula = cbu_data.get("original_formula")
+            if formula:
+                formulas.add(formula)
+            
+            iri_data = cbu_data.get("iri_data")
+            if isinstance(iri_data, list):
+                iri_entries += len(iri_data)
+            elif iri_data:
+                iri_entries += 1
+        
+        # Sample entries
+        sample_entries = []
+        for i, (kg_canonical, cbu_data) in enumerate(_SMILES_DATABASE.items()):
+            if i < 3:  # First 3 entries as samples
+                sample_entries.append({
+                    "kg_canonical_smiles": kg_canonical,
+                    "original_formula": cbu_data.get("original_formula"),
+                    "inchikey": cbu_data.get("inchikey")
+                })
+        
+        stats = {
+            "total_entries": len(_SMILES_DATABASE),
+            "unique_formulas": len(formulas),
+            "total_iri_entries": iri_entries,
+            "database_loaded": True,
+            "sample_entries": sample_entries
+        }
+        
+        return json.dumps(stats, ensure_ascii=False, indent=2)
+        
+    except Exception as e:
+        error_result = {
+            "error": str(e),
+            "database_loaded": bool(_SMILES_DATABASE)
+        }
+        return json.dumps(error_result, ensure_ascii=False, indent=2)
+
+def get_cbu_help() -> str:
+    """
+    Get help information about CBU (Chemical Building Unit) lookup functionality.
+    
+    Returns:
+        Help text explaining CBU lookup functionality
+    """
+    help_text = f"""
+# CBU (Chemical Building Unit) Lookup Help
 
 ## Overview
-This tool converts neutral linker SMILES strings to deprotonated linker anions and emits identifiers + MOF/MOP core labels. 
-The updated cbu_processing.py script now provides MULTIPLE core label formats for maximum flexibility.
+This tool provides canonical SMILES-based lookup of Chemical Building Unit (CBU) information from a curated database. 
+It converts input SMILES to canonical forms and performs exact matches against the CBU database.
+
+## Database Status
+- Total entries: {len(_SMILES_DATABASE)}
+- Database loaded: {'Yes' if _SMILES_DATABASE else 'No'}
 
 ## Functions Available
 
-### 1. convert_smiles_to_cbu
-Convert a single SMILES string to CBU formula convention using normalize_linker_from_smiles().
+### 1. lookup_smiles_in_database
+Look up a single SMILES string in the CBU database using canonical SMILES matching.
 
 **Parameters:**
-- `smiles`: Neutral linker SMILES string (required)
-- `remove_k`: Number of acidic H to remove (optional, default: remove all acidic H)
-- `label_mode`: Labeling mode - 'auto', 'aggregated', or 'ring' (default: 'auto')
+- `smiles`: Input SMILES string (any format - neutral, charged, etc.)
+
+**Process:**
+1. Converts input SMILES to canonical forms (RDKit canonical and KG canonical)
+2. Searches database using KG canonical SMILES as the key
+3. Returns exact match results only
 
 **Example:**
-- Input: "C1=CC(=C(C=C1C(=O)O)N=NC2=CC(=CC(=C2)C(=O)O)C(=O)O)C(=O)O"
-- Output: Deprotonated form with multiple CBU core label formats
+- Input: "c1(ccc(cc1)C(=O)O)C(=O)O"
+- Canonicalized: "[O]C(=O)c1cccc(C([O])=O)c1"
+- Result: CBU data if found, including formula, IRI data, etc.
 
-### 2. batch_convert_smiles_to_cbu
-Convert multiple SMILES strings in batch processing.
+### 2. batch_lookup_smiles
+Look up multiple SMILES strings in batch processing.
 
 **Parameters:**
-- `smiles_list`: List of neutral linker SMILES strings (required)
-- `remove_k`: Number of acidic H to remove (optional, default: remove all acidic H)
-- `label_mode`: Labeling mode - 'auto', 'aggregated', or 'ring' (default: 'auto')
+- `smiles_list`: List of SMILES strings
 
-### 3. get_cbu_help
-Display this help information.
+**Returns:**
+- Batch statistics (success rate, found/not found counts)
+- Individual results for each SMILES
 
-## Label Modes
-- **auto**: Prefer ring-factored only when it carries extra carbon info (b>0); else aggregated
-- **aggregated**: [(C{…}H{…}{hetero…})(CO2){m}] format
-- **ring**: Ring-factored format (defaults to underscore style)
+### 3. search_database_by_formula
+Search the database by CBU formula string.
 
-## Multiple Core Label Formats
-The output now includes ALL available formats:
-- **merged**: [(C{C'}H{H'}{hetero…})(CO2){m}] - aggregated format
-- **unmerged_mult**: [({unit}){r}(hetero)(CO2){m}] - e.g., [(C6H4C)2(CO2)2]
-- **unmerged_underscore**: [({unit})_{r}(hetero)(CO2){m}] - e.g., [(C6H4C)_2(CO2)2]
-- **unmerged_concat**: [({unit}{unit}...)(hetero)(CO2){m}] - e.g., [(C6H6C6)(CO2)4]
+**Parameters:**
+- `formula`: CBU formula (e.g., "[(C6H4)(CO2)2]")
 
-## Supported Acid Sites
-- Carboxylic: –C(=O)OH
-- Sulfonic: –SO2OH  
-- Phosphonic: –P(=O)OH
+**Returns:**
+- All canonical SMILES entries matching the formula
+- Associated CBU data for each match
+
+### 4. get_database_stats
+Get comprehensive statistics about the loaded CBU database.
+
+**Returns:**
+- Total entries, unique formulas, IRI counts
+- Sample entries for verification
+
+## Canonical SMILES Conversion
+The tool uses two canonicalization approaches:
+1. **Neutral processing**: Treats input as neutral molecule, converts to deprotonated canonical form
+2. **KG-style processing**: Treats input as already in KG format, canonicalizes directly
+
+**Key formats:**
+- **RDKit canonical**: Standard RDKit canonicalization with charges
+- **KG canonical**: Modified format using [O] instead of [O-] for consistency
+
+## Database Structure
+Each entry contains:
+- `original_formula`: CBU formula (e.g., "[(C6H4)(CO2)2]")
+- `original_smiles`: Original SMILES from source
+- `rdkit_canonical`: RDKit canonical form
+- `kg_canonical`: KG canonical form (used as database key)
+- `inchikey`: InChI key for chemical identification
+- `iri_data`: Ontology IRI information (subject, subjectType, formulaType)
 
 ## Output Format
-JSON object containing:
-- `removed_H`: Number of hydrogen atoms removed during deprotonation
-- `smiles`: Canonical SMILES of deprotonated form
-- `std_inchi`: Standard InChI identifier
-- `inchikey`: InChI key for database lookup
-- `formula`: Molecular formula with formal charge
-- `exact_mw`: Exact molecular weight
-- `core_label`: Primary CBU core label (chosen by label_mode)
-- `core_labels`: Object with ALL available label formats
-
-## Example Usage & Output
+**Successful lookup:**
 ```json
-{
-  "input_smiles": "C1=CC(=C(C=C1C(=O)O)N=NC2=CC(=CC(=C2)C(=O)O)C(=O)O)C(=O)O",
-  "input_remove_k": null,
-  "input_label_mode": "auto",
-  "removed_H": 4,
-  "smiles": "...",
-  "std_inchi": "...", 
-  "inchikey": "...",
-  "formula": "C16H6N2O8-4",
-  "exact_mw": 366.0062,
-  "core_label": "[(C6H2N)_2(N2)(CO2)4]",
-  "core_labels": {
-    "merged": "[(C10H6N2)(CO2)4]",
-    "unmerged_underscore": "[(C6H2N)_2(N2)(CO2)4]", 
-    "unmerged_mult": "[(C6H2N)2(N2)(CO2)4]",
-    "unmerged_concat": "[(C6H2NC6H2N)(N2)(CO2)4]"
-  }
-}
+{{
+  "found": true,
+  "input_smiles": "input_string",
+  "rdkit_canonical": "canonical_form_with_charges",
+  "kg_canonical": "kg_form_database_key",
+  "inchikey": "INCHIKEY-STRING",
+  "cbu_data": {{
+    "original_formula": "[(C6H4)(CO2)2]",
+    "original_smiles": "source_smiles",
+    "rdkit_canonical": "rdkit_form",
+    "kg_canonical": "kg_form",
+    "inchikey": "INCHIKEY",
+    "iri_data": [{{ ... }}]
+  }}
+}}
 ```
 
-## Technical Notes
-- Uses RDKit for molecular processing
-- Ring factoring attempts multiple ring counts (2,3,1,4) preferring larger b values
-- Handles hetero elements (N/S/P) in core labels
-- All ring-factored variants are generated when applicable
-- Choose the format that best suits your database or analysis needs
+**Not found:**
+```json
+{{
+  "found": false,
+  "input_smiles": "input_string",
+  "rdkit_canonical": "canonical_form",
+  "kg_canonical": "kg_form",
+  "inchikey": "INCHIKEY",
+  "message": "No CBU data found for this canonical SMILES"
+}}
+```
+
+## Usage Strategy
+1. **Single lookup**: Use `lookup_smiles_in_database` for individual SMILES
+2. **Batch processing**: Use `batch_lookup_smiles` for multiple SMILES
+3. **Formula search**: Use `search_database_by_formula` to find all SMILES for a formula
+4. **Database info**: Use `get_database_stats` to verify database status
+
+## Important Notes
+- **Exact match only**: No fuzzy matching or similarity search
+- **Canonical forms**: Input SMILES are canonicalized before lookup
+- **Database scope**: Only includes ChemicalBuildingUnit entries from ontology
+- **Performance**: Database loaded once at startup for fast lookups
 """
     return help_text
