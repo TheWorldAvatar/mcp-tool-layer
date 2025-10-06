@@ -33,6 +33,8 @@ WORKFLOW_EXAMINATION_PROMPT = """
 Your job is to **audit and upgrade** the task-group below.  
 Do **NOT** execute any steps—only inspect, add, reorder, or clarify them.
 
+Don't actually call stack and other tools, just use the information provided to you to refine the task group. 
+
 output_refined_task_group is the only tool you are allowed to call. Other tools are provided only for your reference.
 
 ────────────────────────────────────────────────────────
