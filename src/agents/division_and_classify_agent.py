@@ -122,7 +122,7 @@ async def classify_sections_agent(task_name: str, md_file_path: str = None):
     model_config = ModelConfig(temperature=0.2, top_p=0.02)
     mcp_tools = ["document"]
     agent = BaseAgent(
-        model_name="gpt-4o", 
+        model_name="gpt-4.1", 
         model_config=model_config, 
         remote_model=True, 
         mcp_tools=mcp_tools, 
@@ -191,7 +191,7 @@ if __name__ == "__main__":
     
     if args.test:
         # Test mode: process a single test file
-        test_task = "10.1021_acs.inorgchem.4c02394"
+        test_task = "10.1021.acs.chemmater.0c01965"
         print(f"Running in test mode with: {test_task}")
         asyncio.run(classify_sections_agent(test_task))
     else:
