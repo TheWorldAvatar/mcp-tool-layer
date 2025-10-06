@@ -68,6 +68,8 @@ class MCPConfig:
 
         if len(mcp_name_list) == 1 and mcp_name_list[0] == "all":
             configs = {k: v for k, v in self.mcp_configs.items()}
+        elif len(mcp_name_list) == 0:
+            configs = {}
         else:
             configs = {k: v for k, v in self.mcp_configs.items() if k in mcp_name_list}
         # Convert Windows paths to Linux if needed

@@ -5,8 +5,12 @@ DATA_DIR = os.path.join(ROOT_DIR, "data")
 DATA_TEMP_DIR = os.path.join(DATA_DIR, "temp")
 DATA_LOG_DIR = os.path.join(DATA_DIR, "log")
 
+ONTOLOGY_REPO_DIR = os.path.join(DATA_DIR, "ontologies", "ontology_repo")
+SPARQL_EXAMPLE_REPO_DIR = os.path.join(DATA_DIR, "sparql_warehouse")
 
 DATA_GENERIC_DIR = os.path.join(DATA_DIR, "generic_data")
+DATA_CCDC_DIR = os.path.join(DATA_DIR, "ccdc")
+
 SANDBOX_DIR = os.path.join(ROOT_DIR, "sandbox")
 SANDBOX_CONFIGS_DIR = os.path.join(SANDBOX_DIR, "configs")
 SANDBOX_CODE_DIR = os.path.join(SANDBOX_DIR, "code")
@@ -49,3 +53,4 @@ check_dir_exists(SANDBOX_TASK_ARCHIVE_DIR)
 check_dir_exists(PLAYGROUND_DIR)
 check_dir_exists(PLAYGROUND_DATA_DIR)
 check_dir_exists(CONFIGS_DIR)
+check_dir_exists(DATA_CCDC_DIR)

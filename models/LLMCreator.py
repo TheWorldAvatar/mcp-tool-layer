@@ -75,7 +75,47 @@ class LLMCreator():
 if __name__ == "__main__":
     load_dotenv(override=True)
     from models.ModelConfig import ModelConfig
-    llm_creator = LLMCreator(model="gpt-4o-mini", remote_model=True, model_config=ModelConfig(), structured_output=False, structured_output_schema=None)
+    llm_creator = LLMCreator(model="gpt-4o-search-preview", remote_model=True, model_config=ModelConfig(), structured_output=False, structured_output_schema=None)
     llm = llm_creator.setup_llm()
-    prompt = "What is the capital of France?"
-    response = llm.invoke(prompt)
+
+    prompt = """
+    Convert given linker names (e.g. H2EDB, H2NDBDC) into their linker fragment formula for use in MOF/MOP core formulas.
+
+    ================================
+
+    Input: H2EDB, H2NDBDC, H2edb, 4,4'-(ethyne-1,2-diyl)dibenzoic acid, H2DCPP (4,4′-(porphyrin-5,15-diyl)dibenzoic acid), H3TATB(1,3,5-triamino-2,4,6-trinitrobenzene)
+
+    ================================
+
+    e.g., (C10H6)(C6H4)2(CO2)2
+ 
+    Give very brief outputs. Don't use subscripts or superscripts.
+    """
+
+    # Expected output: [(C12H6)(CO2)4]
+    # Input: H4BPTC
+
+    prompt_with_rule = """
+    Rule: MOF/MOP core formulas
+
+    Convert given linker names (e.g. H2EDB, H2NDBDC) into their linker fragment formula for use in MOF/MOP core formulas. 
+
+    Also, if the linker has name like H<Number of Hydrogen atoms>XXXX, you should get the formula from the given name first and remove <Number of Hydrogen atoms> x H from the formula。 
+
+    Linker name is: H4BPTC 
+ 
+ """
+
+    prompt_for_smiles_and_inchi = """
+    Given the chemical species name, search for its other representation. Search the web for the information, don't come it up yourself. Search the websites, not databases.
+
+    If there are multiple candidates, provide all of them.
+
+    The chemical species name is: H2edb
+
+    Be patient and try hard. 
+    """
+    response = llm.invoke(prompt_for_smiles_and_inchi)
+    print(response)
+    print(response.content)
+    print(f"Token usage: {response.response_metadata['token_usage']['total_tokens']}")

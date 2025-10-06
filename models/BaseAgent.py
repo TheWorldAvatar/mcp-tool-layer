@@ -6,8 +6,7 @@ tools and keep their sessions alive for the whole run.
 from __future__ import annotations
 
 import asyncio
-from typing import Any, Dict, List, Tuple
-
+from typing import Any, Dict, List, Tuple, Optional, Callable
 from langchain_core.messages import HumanMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langgraph.prebuilt import create_react_agent
@@ -16,8 +15,8 @@ from langchain_mcp_adapters.client import MultiServerMCPClient
 from models.LLMCreator import LLMCreator
 from models.MCPConfig import MCPConfig
 from models.ModelConfig import ModelConfig
+from models.TokenCalculator import TokenCounter
 from src.utils.global_logger import get_logger
-
 
 class BaseAgent:
     # ──────────────────────────── init ────────────────────────────
@@ -55,16 +54,16 @@ class BaseAgent:
         """Execute *task_instruction* through a ReAct agent wired to MCP tools."""
         self.logger.info(f"Starting BaseAgent run with task: {task_instruction}")
         
-        # 1️⃣  Build server configs
+        # 1️⃣ MCP configs
         server_cfg = self.mcp_config.get_config(self.mcp_tools)
         self.logger.info(f"Loaded MCP tools: {self.mcp_tools}")
 
-        # 2️⃣  Ensure Docker (for docker-backed tools)
+        # 2️⃣ Docker check (non-fatal)
         if not await self.mcp_config.is_docker_running():
             self.logger.error("Docker is not running – MCP tools need it.")
-            raise RuntimeError("Docker is not running – MCP tools need it.")
+            # raise RuntimeError("Docker is not running – MCP tools need it.")
 
-        # 3️⃣  Multi-server MCP client
+        # 3️⃣ Multi-server MCP client
         client = MultiServerMCPClient(server_cfg)
         self.logger.info("Created MultiServerMCPClient")
 
@@ -72,7 +71,7 @@ class BaseAgent:
             tools = await client.get_tools()
             self.logger.info(f"Loaded {len(tools)} MCP tools")
 
-            # gather optional `instruction` prompts
+            # optional instruction prompts
             instruction_msgs = []
             for server_name in self.mcp_tools:
                 try:
@@ -92,7 +91,7 @@ class BaseAgent:
             self.logger.error("No MCP tools were successfully loaded.")
             raise RuntimeError("No MCP tools were successfully loaded.")
 
-        # 4️⃣  Build the ReAct agent
+        # 4️⃣ ReAct agent
         if instruction_msgs:
             system_text = "\n\n".join(m.content for m in instruction_msgs)
             prompt = ChatPromptTemplate.from_messages(
@@ -107,35 +106,46 @@ class BaseAgent:
             agent = create_react_agent(self.llm, tools)
             self.logger.info("Created ReAct agent with default prompt")
 
-        # 5️⃣  Run the agent
+        # 5️⃣ Run with per-call + aggregated accounting
         invoke_kwargs: Dict[str, Any] = {
             "messages": [HumanMessage(content=task_instruction)]
         }
         self.logger.info("Starting agent execution")
-        
+
+        counter = TokenCounter(log_fn=self.logger.info)
+        config: Dict[str, Any] = {"callbacks": [counter]}
         if recursion_limit is not None:
-            result = await agent.ainvoke(
-                invoke_kwargs, {"recursion_limit": recursion_limit}
-            )
-            self.logger.info(f"Agent execution completed with recursion limit: {recursion_limit}")
-        else:
-            result = await agent.ainvoke(invoke_kwargs)
-            self.logger.info("Agent execution completed")
+            config["recursion_limit"] = recursion_limit
 
-        # 6️⃣  Gather metadata from the final AIMessage
+        result = await agent.ainvoke(invoke_kwargs, config)
+        self.logger.info("Agent execution completed")
+
+        # 6️⃣ Final message + final-call meta (optional)
         last_msg = result["messages"][-1]
-        meta = last_msg.response_metadata
-        token_use = meta.get("token_usage", {})
+        meta = getattr(last_msg, "response_metadata", {}) or {}
+        final_call_token_usage = meta.get("token_usage", {})  # may be empty depending on provider
 
-        metadata = {
-            "model_name": meta.get("model_name", ""),
-            "token_usage": token_use,
-            "completion_tokens": token_use.get("completion_tokens", 0),
-            "prompt_tokens": token_use.get("prompt_tokens", 0),
-            "total_tokens": token_use.get("total_tokens", 0),
+        # Aggregated totals
+        aggregated = {
+            "prompt_tokens": counter.prompt_tokens,
+            "completion_tokens": counter.completion_tokens,
+            "total_tokens": counter.total_tokens,
+            "calls": counter.calls,
+            "total_cost_usd": round(counter.input_cost_usd + counter.output_cost_usd, 6),
         }
 
-        self.logger.info(f"Agent execution completed. Tokens used: {metadata['total_tokens']}")
+        # Full metadata payload with both views
+        metadata = {
+            "model_name": meta.get("model_name", ""),
+            "final_call_token_usage": final_call_token_usage,  # last LLM call only
+            "aggregated_usage": aggregated,                    # run-level totals
+            "per_call_usage": counter.calls_detail,            # list of per-call dicts
+        }
+
+        self.logger.info(
+            f"Agent tokens (run-level): {aggregated['total_tokens']} "
+            f"over {aggregated['calls']} calls"
+        )
         return last_msg.content, metadata
 
 
@@ -143,11 +153,13 @@ class BaseAgent:
 if __name__ == "__main__":
 
     async def _demo() -> None:
-        agent = BaseAgent(mcp_tools=["generic", "stack", "task", "sandbox"])
+        agent = BaseAgent(mcp_tools=["pubchem", "enhanced_websearch"], mcp_set_name="chemistry.json")
         reply, meta = await agent.run(
-            "Create a txt file named 'hello-from-demo.txt' in the data "
-            "directory. Also create a docker container named "
-            "'demo_container'."
+            """
+            Try to find all representations of the chemical species name: H2edb
+            """
         )
 
+        print(reply)
+        print(meta["aggregated_usage"])
     asyncio.run(_demo())
