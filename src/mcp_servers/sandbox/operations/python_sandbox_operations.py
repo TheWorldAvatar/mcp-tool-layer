@@ -62,10 +62,10 @@ async def run_sandbox_operation_python_file(script_path: str) -> str:
     ```
     """
     client, agent = await build_react_agent(mcp_keys=["generic", "sandbox"])
-
     result = await agent.ainvoke({"messages": prompt})
     reply = result["messages"][-1].content
     return reply 
 
 if __name__ == "__main__":
-    result = asyncio.run(run_sandbox_operation_python_file("sandbox/code/jiying/1/extract_data_and_convert_to_csv.py"))
+    result = asyncio.run(run_sandbox_operation_python_file("sandbox/code/mcp_creation/0/mcp_creation.py"))
+    print(result)

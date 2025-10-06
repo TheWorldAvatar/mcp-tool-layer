@@ -2,7 +2,7 @@ from fastmcp import FastMCP
 from src.mcp_descriptions.task_refinement import TASK_GROUP_REFINEMENT_DESCRIPTION
 from src.mcp_descriptions.task_generation_coarse import TASK_INDEX_SELECTION_DESCRIPTION
 from typing import List
-from models.TaskObjects import AddDetailedTaskInput
+from models.TaskObjects import AddTaskInput
 
 # Import functions from separated files
 from src.mcp_servers.refine_and_examination.operations.task_refinement_operations import (
@@ -22,7 +22,7 @@ logger = get_logger("mcp_server", "refine_and_examination_main")
 
 @mcp.tool(name="output_refined_task_group", description=TASK_GROUP_REFINEMENT_DESCRIPTION, tags=["task_refinement"])
 @mcp_tool_logger
-def output_refined_task_group_tool(refined_task_group: List[AddDetailedTaskInput], meta_task_name: str, iteration_index: int) -> str:
+def output_refined_task_group_tool(refined_task_group: List[AddTaskInput], meta_task_name: str, iteration_index: int) -> str:
     return output_refined_task_group(refined_task_group, meta_task_name, iteration_index)
 
 # -------------------- TASK GENERATION COARSE TOOLS --------------------

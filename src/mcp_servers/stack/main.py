@@ -1,11 +1,12 @@
 from fastmcp import FastMCP
 from typing import Any
-from src.mcp_descriptions.ttl import TTL_VALIDATION_DESCRIPTION
+from src.mcp_descriptions.ttl import TTL_VALIDATION_DESCRIPTION, TTL_ONTOLOGY_CREATION_DESCRIPTION
 from src.mcp_descriptions.postgres import POSTGRES_UPLOAD_DESCRIPTION
 from src.mcp_descriptions.stack_operations import STACK_INITIALIZATION_DESCRIPTION, STACK_DATABASE_UPDATION_DESCRIPTION, STACK_DATA_REMOVAL_DESCRIPTION
 from src.mcp_descriptions.sparql import SPARQL_QUERY_DESCRIPTION
 from src.mcp_descriptions.obda import OBDA_CREATION_DESCRIPTION, OBDA_VALIDATION_DESCRIPTION, OBDA_CREATION_DESCRIPTION_EXECUTION
 from models.Ontology import OntologyInput
+from src.mcp_servers.stack.operations.obda_creation_operations import OBDAInput
 # Import functions from separated files
 from src.mcp_servers.stack.operations.ttl_validation_operations import (
     validate_ttl_file,
@@ -47,9 +48,12 @@ def instruction_prompt():
     This server provide **mandatory** steps to integrate data into the existing stack/semantic database. 
     The working process of integrating data into the existing stack/semantic database is as follows:
     1. Extract the data from the data source and convert it into csv format (may be multiple csv files to show different aspects of the data). It is always csv, the system doesn't accpet any other data format. 
-    However, if the data is already in csv format, you can skip this step.
+    However, if the data is already in csv format, you can skipa this step. **Important**: it is always preferred to use specific libararies to convert the data into csv format. e.g., cclib, geopandas, etc.
+    1.1. In some cases, for example, gaussian log files, one single csv file can not represent the data (as the the complexity of the data structure). 
+    In this case, put an extra step to parse the data into a json file, and then convert the json file into multiple csv files. 
+
     2. While converting the data into csv format, you should also create a data schema file. This data schema file is used to create the ontology as the context for the ontology creation. 
-    So if the data is already in csv format, you still need to create a data schema file.
+    So if the data is already in csv format, you still need to create a data schema file. The schema file should inform what fields, columns, and their types are in the data. 
     3. Create an ontology based on the data schema file using the `create_ontology` tool. 
     4. Integrate the data into the existing stack/semantic database using the `upload_data_to_postgres` tool
     5. According to the data schema and the ontology created, you should create a mapping file using the `create_obda_file` tool. 
@@ -64,7 +68,7 @@ def instruction_prompt():
 def validate_ttl_file_tool(ttl_path: str) -> str:
     return validate_ttl_file(ttl_path)
 
-@mcp.tool(name="create_ontology", description="Generate an turtle ontology from rich input")
+@mcp.tool(name="create_ontology", description=TTL_ONTOLOGY_CREATION_DESCRIPTION)
 @mcp_tool_logger
 def create_ontology_tool(ontology: OntologyInput, meta_task_name: str, iteration_index: int) -> str:
     """Build, serialise, and persist an ontology based on *ontology* input."""
@@ -111,25 +115,12 @@ def query_sparql_tool(
 @mcp.tool(name="create_obda_file", description=OBDA_CREATION_DESCRIPTION_EXECUTION, tags=["obda"])
 @mcp_tool_logger
 def create_obda_file_tool(
-    *,
-    table_name: str,
-    columns: list[str],
-    prefixes: dict[str, str],
-    id_column: str = "uuid",
-    ontology_class: str | None = None,
-    iri_template: str = "entity_{uuid}",
-    use_xsd_typing: bool = False,
+    obda_input: OBDAInput,
     meta_task_name: str,
     iteration_index: int
 ) -> str:
     return create_obda_file(
-        table_name=table_name,
-        columns=columns,
-        prefixes=prefixes,
-        id_column=id_column,
-        ontology_class=ontology_class,
-        iri_template=iri_template,
-        use_xsd_typing=use_xsd_typing,
+        obda_input=obda_input,
         meta_task_name=meta_task_name,
         iteration_index=iteration_index
     )
@@ -139,9 +130,10 @@ def create_obda_file_tool(
 def validate_ontop_obda_tool(
     mapping_file: str,
     ontology_file: str,
-    properties_file: str
+    meta_task_name: str,
+    iteration_index: int
 ) -> dict:
-    return validate_ontop_obda(mapping_file, ontology_file, properties_file)
+    return validate_ontop_obda(mapping_file, ontology_file, meta_task_name, iteration_index)
 
 # -------------------- MAIN ENTRYPOINT --------------------
 if __name__ == "__main__":

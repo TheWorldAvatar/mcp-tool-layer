@@ -135,34 +135,84 @@ def resolve_step_index(requested_index: int, steps_len: int) -> Optional[int]:
 
 # ----------------------------
 # MCP prompt
-# ----------------------------
-@mcp.prompt(name="instruction", description="This prompt provides detailed instructions for the chemical output server")
+# ----------------------------@mcp.prompt(name="instruction", description="This prompt provides detailed instructions for the chemical output server")
 def instruction_prompt():
     return """
-    CHEMICAL EXTRACTION INSTRUCTIONS
+    CHEMICAL EXTRACTION INSTRUCTIONS (MOPs)
 
-    This server helps you extract and structure chemical synthesis procedures from scientific papers.
+    PURPOSE
+    Extract and structure synthesis procedures into a stable JSON schema via the tools in this server.
 
-    ** Important **: 
-    
-    1. Both solvents and reagents are input chemicals. 
-    2. Strictly separate different MOPs, do not mix them up. 
+    GOLDEN RULES
+    1) Treat both solvents and reagents as input chemicals.
+    2) One MOP per procedure: never mix different MOPs in the same procedure.
+    3) Prefer full IUPAC (or author-given) names over abbreviations. Put abbreviations as extra names.
+    4) Preserve exact chemical formula syntax (brackets, parentheses, dots) where required—but follow the PRODUCT FORMULA rule below.
 
-    WORKFLOW:
+    FIELD CONVENTIONS
+    • Input chemical:
+      - chemicalFormula: molecular formula if given (e.g., C30H18O4). If only a name appears, leave formula blank and ensure the name list is correct.
+      - chemicalName (list): first = full name (e.g., 4,4'-(anthracene-9,10-diyl)dibenzoic acid), then synonyms/abbreviations (e.g., H2ADBDC).
+      - chemicalAmount: copy the paper’s formatting exactly, e.g., "0.019 g (0.045 mmol)". Use parentheses around molar amount.
+      - supplierName / purity: record verbatim if present; otherwise empty.
+
+    • Output chemical:
+      - chemicalFormula (PRODUCT FORMULA rule):
+        Record the DESOLVATED, COUNTERION-FREE cage/core formula used by the paper to describe the structure unit (e.g., "[V6O6(OCH3)9(SO4)]4[(C14H8)(C6H4)2(CO2)2]6").
+        Do NOT include charge-balancing cations (e.g., TMA) or lattice solvents (e.g., CH3OH, DMF) in chemicalFormula unless the ground truth explicitly requires them.
+        If the paper’s title/formula includes cations/solvates, put those in the output names list (see next line).
+      - names (list): first = the paper’s official product name for that procedure; additional entries may include the fully solvated composition (e.g., "(TMA)8{...} · 16CH3OH · 12DMF") and common aliases.
+      - yield_amount: copy formatting exactly (e.g., "38%").
+      - CCDCNumber: the 6–7 digit code if provided; leave empty if not stated.
+
+    INDEXING & MATCHING
+    • Procedure title matching is case/whitespace/dash insensitive.
+    • Step index can be 0-based or 1-based. Prefer passing 1-based; the API accepts both.
+    • All writes are atomic and file-locked; multiple calls are safe.
+
+    RECOMMENDED WORKFLOW
     1) init_chemical_object(task_name)
     2) For each synthesis procedure:
        - upsert_synthesis_procedure(task_name, "Procedure Name")
-       - add_synthesis_step(task_name, "Procedure Name")  # repeat as needed
-       - add_input_chemical(...) / add_output_chemical(...) against a step index (0- or 1-based)
-    3) get_chemical_summary(task_name) to inspect
+       - add_synthesis_step(task_name, "Procedure Name")  # repeat per step
+       - add_input_chemical(...) and add_output_chemical(...) with the correct step index
+    3) get_chemical_summary(task_name) to inspect progress
     4) mops_chemical_output(task_name) to write final JSON
 
-    Notes:
-    - Procedure title matching is case/whitespace/dash-insensitive.
-    - Step indices may be 0- or 1-based; the API accepts both.
-    - All persistence is atomic and file-locked to avoid lost updates.
-    - CCDC number is the index for MOPs in the CCDC database, usually is a 6-7 digits number.
+    QUICK VALIDATION PROTOCOL (avoid common errors)
+    A. Names:
+       - Ensure the first name is the full expanded name; put abbreviations later (e.g., ["4,4'-(anthracene-9,10-diyl)dibenzoic acid", "H2ADBDC"]).
+    B. Amounts:
+       - Use parentheses for molar amounts: "mass (mmol)"; do not replace parentheses with commas.
+       - 0.019 g (0.045 mmol) is the standard format.
+
+    C. Product formula:
+       - Use the desolvated, counterion-free structural formula for chemicalFormula.
+       - If you see cations/solvents (e.g., TMA, DMF, MeOH), move them to names, not chemicalFormula—unless the ground truth specifies otherwise.
+    D. CCDC:
+       - Record the numeric code only if clearly stated in the text/tables.
+    E. Cross-check:
+       - If available, use your text-search tool (e.g., an in-context search over the paper’s .md) to locate the exact sentences for each recorded field before finalizing.
+
+    EXAMPLES (illustrative)
+    • Input chemical (OK):
+      chemicalFormula="C30H18O4"
+      chemicalName=["4,4'-(anthracene-9,10-diyl)dibenzoic acid", "H2ADBDC"]
+      chemicalAmount="0.019 g (0.045 mmol)"
+
+    • Output chemical (OK):
+      chemicalFormula="[V6O6(OCH3)9(SO4)]4[(C14H8)(C6H4)2(CO2)2]6"
+      names=["TMA-VMOT-3"]
+      yield_amount="38%"
+      CCDCNumber="2359341"
+
+
+** IMPORTANT **: 
+
+1. Strictly only put one output chemical per step.
+2. 
     """
+
 
 # ----------------------------
 # MCP tools
@@ -178,31 +228,36 @@ def init_chemical_object_tool(task_name: str) -> str:
         log.exception("init_chemical_object failed")
         return f"Error initializing chemical object: {str(e)}"
 
+def _upsert_synthesis_procedure(task_name: str, procedure_name: str) -> str:
+    """Pure helper used by both tool wrappers; avoids calling tool objects directly."""
+    path = get_chemical_file_path(task_name)
+    with locked_file(path, "r+") as f:
+        try:
+            data = json.load(f)
+            chem = Chemical.from_dict(data)
+        except Exception:
+            chem = _empty_chemical()
+
+        existing = find_procedure(chem, procedure_name)
+        if existing:
+            msg = f"Procedure '{procedure_name}' already exists in task: {task_name}"
+        else:
+            new_proc = SynthesisProcedure(procedureName=procedure_name, steps=[])
+            chem.synthesisProcedures.append(new_proc)
+            msg = f"Added synthesis procedure '{procedure_name}' to task: {task_name}"
+
+        # atomic save after lock
+        f.seek(0); f.truncate()
+        json.dump(chem.to_dict(), f, indent=2, ensure_ascii=False)
+        f.flush()  # ensure write before unlock
+    return msg
+
+
 @mcp.tool(name="upsert_synthesis_procedure", description="Create the procedure if missing; otherwise no-op.", tags=["chemical_add"])
 @mcp_tool_logger
 def upsert_synthesis_procedure_tool(task_name: str, procedure_name: str) -> str:
     try:
-        path = get_chemical_file_path(task_name)
-        with locked_file(path, "r+") as f:
-            try:
-                data = json.load(f)
-                chem = Chemical.from_dict(data)
-            except Exception:
-                chem = _empty_chemical()
-
-            existing = find_procedure(chem, procedure_name)
-            if existing:
-                msg = f"Procedure '{procedure_name}' already exists in task: {task_name}"
-            else:
-                new_proc = SynthesisProcedure(procedureName=procedure_name, steps=[])
-                chem.synthesisProcedures.append(new_proc)
-                msg = f"Added synthesis procedure '{procedure_name}' to task: {task_name}"
-
-            # atomic save after lock
-            f.seek(0); f.truncate()
-            json.dump(chem.to_dict(), f, indent=2, ensure_ascii=False)
-            f.flush()  # ensure write before unlock
-        return msg
+        return _upsert_synthesis_procedure(task_name, procedure_name)
     except Exception as e:
         log.exception("upsert_synthesis_procedure failed")
         return f"Error upserting synthesis procedure: {str(e)}"
@@ -211,7 +266,11 @@ def upsert_synthesis_procedure_tool(task_name: str, procedure_name: str) -> str:
 @mcp.tool(name="add_synthesis_procedure", description="Add a new synthesis procedure to the chemical object.", tags=["chemical_add"])
 @mcp_tool_logger
 def add_synthesis_procedure_tool(task_name: str, procedure_name: str) -> str:
-    return upsert_synthesis_procedure_tool(task_name, procedure_name)
+    try:
+        return _upsert_synthesis_procedure(task_name, procedure_name)
+    except Exception as e:
+        log.exception("add_synthesis_procedure failed")
+        return f"Error adding synthesis procedure: {str(e)}"
 
 @mcp.tool(name="add_synthesis_step", description="Add a synthesis step to a specific procedure.", tags=["chemical_add"])
 @mcp_tool_logger
@@ -288,7 +347,29 @@ def add_input_chemical_tool(
         log.exception("add_input_chemical failed")
         return f"Error adding input chemical: {str(e)}"
 
-@mcp.tool(name="add_output_chemical", description="Add an output chemical to a specific step.", tags=["chemical_add"])
+
+
+ADD_OUTPUT_CHEMICAL_PROMPT = """
+
+Add an output chemical to a specific step.
+
+Write chemical_formula as the MOP core formula, using a fixed format:
+
+Remove all guest species and solvents (e.g. [NH2Et2]4, (H2O), ·DMF).
+
+Node: merge to standard core (e.g. V6O6(OCH3)9(VO3) → V7O10(OCH3)9), keep alkoxide count, count after bracket: [node]n.
+
+Linker: aromatic core + (CO2)2, keep substituents (e.g. BDC-NH2 → (C6H3NH2)(CO2)2), count after bracket.
+
+Format: [node]n[linker]m (node first), no spaces/dots/curly braces.
+
+Keep original OR groups exactly.
+
+Example: [NH2Et2]4{[V6O6(OCH3)9(VO3)(H2O)]4(BDC-NH2)6} → [V7O10(OCH3)9]4[(C6H3NH2)(CO2)2]6."
+
+"""
+
+@mcp.tool(name="add_output_chemical", description=ADD_OUTPUT_CHEMICAL_PROMPT, tags=["chemical_add"])
 @mcp_tool_logger
 def add_output_chemical_tool(
     task_name: str, procedure_name: str, step_index: int,
