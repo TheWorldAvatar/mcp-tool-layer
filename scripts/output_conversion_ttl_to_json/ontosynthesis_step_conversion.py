@@ -500,11 +500,11 @@ def main():
     json_data = build_json_structure(graph, namespaces, syntheses)
     
     # Save to file
-    with open("converted_output.json", "w", encoding="utf-8") as f:
+    with open("converted_steps.json", "w", encoding="utf-8") as f:
         json.dump(json_data, f, indent=4, ensure_ascii=False)
     
     print(f"\nComplete JSON structure built with {len(syntheses)} synthesis procedures")
-    print("Output saved to converted_output.json")
+    print("Output saved to converted_steps.json")
 
 
 if __name__ == "__main__":
