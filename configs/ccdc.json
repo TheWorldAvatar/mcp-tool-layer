@@ -1,0 +1,10 @@
+{
+    "placeholder": {
+    "command": "python",
+    "args": [
+        "-m",
+        "src.mcp_servers.placeholder.main"
+    ],
+    "transport": "stdio"
+    }
+}

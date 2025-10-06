@@ -1,0 +1,20 @@
+{
+
+    "generic_operations": {
+        "command": "python",
+        "args": [
+            "-m",
+            "src.mcp_servers.generic.main"
+        ],
+        "transport": "stdio"
+    },
+
+    "sandbox": {
+        "command": "python",
+        "args": [
+            "-m",
+            "src.mcp_servers.simple_sandbox.main"
+        ],
+        "transport": "stdio"
+    }
+}

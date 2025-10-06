@@ -1,0 +1,23 @@
+{
+    "paper_search_server": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        "data/third_party_repos/paper-search-mcp",
+        "-m",
+        "paper_search_mcp.server"
+      ],
+      "env": {
+        "SEMANTIC_SCHOLAR_API_KEY": "" 
+      },
+      "transport": "stdio"
+    }, 
+
+    "paper_output_server": {
+        "command": "python",
+        "args": ["/mnt/c/Users/xz378/Documents/GitHub/mcp-tool-layer/src/mcp_servers/paper/main.py"],
+        "transport": "stdio"
+    }
+ 
+}

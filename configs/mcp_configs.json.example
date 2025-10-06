@@ -41,57 +41,32 @@
         ],
         "transport": "stdio"
     },
-    "postgres": {
-        "command": "python",
-        "args": [
-            "<path_to_mcp_servers>/postgres_server.py"
-        ],
-        "transport": "stdio"
-    },
 
-    "file_path_mapping": {
-        "command": "python",
-        "args": [
-            "<path_to_mcp_servers>/file_path_mapping_server.py"
-        ],
-        "transport": "stdio"
-    },
-
-    "obda_validataion": {
-        "command": "python",
-        "args": [
-            "<path_to_mcp_servers>/obda_validataion_server.py"
-        ],
-        "transport": "stdio"
-    },
-
-    "obda_creation": {
-        "command": "python",
-        "args": [
-            "<path_to_mcp_servers>/obda_creation_server.py"
-        ],
-        "transport": "stdio"
-    },
-
-    "sparql": {
-        "command": "python",
-        "args": [
-            "<path_to_mcp_servers>/sparql_server.py"
-        ],
-        "transport": "stdio"
-    },
-
-    "ttl_validation": {
-        "command": "python",
-        "args": [
-            "<path_to_mcp_servers>/ttl_validation_server.py"
-        ],
-        "transport": "stdio"
-    },
     "stack_operations": {
         "command": "python",
         "args": [
-            "<path_to_mcp_servers>/stack_operations.py"
+            "<path_to_mcp_servers>/stack/main.py"
+        ],
+        "transport": "stdio"
+    },
+    "generic_operations": {
+        "command": "python",
+        "args": [
+            "<path_to_mcp_servers>/generic/main.py"
+        ],
+        "transport": "stdio"
+    },
+    "sandbox": {
+        "command": "python",
+        "args": [
+            "<path_to_mcp_servers>/sandbox/main.py"
+        ],
+        "transport": "stdio"
+    },
+    "task_operations": {
+        "command": "python",
+        "args": [
+            "<path_to_mcp_servers>/task/main.py"
         ],
         "transport": "stdio"
     }

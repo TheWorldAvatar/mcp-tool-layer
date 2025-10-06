@@ -1,0 +1,19 @@
+{
+
+    "mops_extension": {
+        "command": "python",
+        "args": [
+            "-m",
+            "src.ontomops_extension.main"
+        ],
+        "transport": "stdio"
+    },
+    "ontospecies_extension": {
+        "command": "python",
+        "args": [
+            "-m",
+            "src.ontospecies_extension.main"
+        ],
+        "transport": "stdio"
+    }
+}

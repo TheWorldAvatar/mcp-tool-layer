@@ -1,0 +1,482 @@
+{
+  "mcp_servers.docker.main.register_docker_container": {
+    "function_name": "register_docker_container",
+    "module_name": "mcp_servers.docker.main",
+    "args": [
+      {
+        "name": "container_id",
+        "type": "str",
+        "default": null
+      },
+      {
+        "name": "container_name",
+        "type": "str",
+        "default": null
+      },
+      {
+        "name": "description",
+        "type": "str",
+        "default": null
+      },
+      {
+        "name": "status",
+        "type": "Literal[(running, stopped, created)]",
+        "default": null
+      },
+      {
+        "name": "meta_task_name",
+        "type": "str",
+        "default": null
+      }
+    ],
+    "return_type": "str",
+    "file_path": "src/mcp_servers/docker/main.py"
+  },
+  "mcp_servers.docker.main.list_registered_docker_containers_for_task": {
+    "function_name": "list_registered_docker_containers_for_task",
+    "module_name": "mcp_servers.docker.main",
+    "args": [
+      {
+        "name": "meta_task_name",
+        "type": "str",
+        "default": null
+      }
+    ],
+    "return_type": "str",
+    "file_path": "src/mcp_servers/docker/main.py"
+  },
+  "mcp_servers.docker.main.remove_container": {
+    "function_name": "remove_container",
+    "module_name": "mcp_servers.docker.main",
+    "args": [
+      {
+        "name": "container_id",
+        "type": "str",
+        "default": null
+      }
+    ],
+    "return_type": "str",
+    "file_path": "src/mcp_servers/docker/main.py"
+  },
+  "mcp_servers.docker.main.list_running_containers": {
+    "function_name": "list_running_containers",
+    "module_name": "mcp_servers.docker.main",
+    "args": [],
+    "return_type": "str",
+    "file_path": "src/mcp_servers/docker/main.py"
+  },
+  "mcp_servers.docker.main.execute_python_script_in_container": {
+    "function_name": "execute_python_script_in_container",
+    "module_name": "mcp_servers.docker.main",
+    "args": [
+      {
+        "name": "container_id",
+        "type": "str",
+        "default": null
+      },
+      {
+        "name": "script_path",
+        "type": "str",
+        "default": null
+      },
+      {
+        "name": "args",
+        "type": "list",
+        "default": "None"
+      }
+    ],
+    "return_type": "str",
+    "file_path": "src/mcp_servers/docker/main.py"
+  },
+  "mcp_servers.docker.main.create_container": {
+    "function_name": "create_container",
+    "module_name": "mcp_servers.docker.main",
+    "args": [
+      {
+        "name": "image",
+        "type": "str",
+        "default": null
+      },
+      {
+        "name": "name",
+        "type": "str",
+        "default": null
+      },
+      {
+        "name": "detach",
+        "type": "bool",
+        "default": "True"
+      }
+    ],
+    "return_type": "str",
+    "file_path": "src/mcp_servers/docker/main.py"
+  },
+  "mcp_servers.docker.main.python_execution_in_container": {
+    "function_name": "python_execution_in_container",
+    "module_name": "mcp_servers.docker.main",
+    "args": [
+      {
+        "name": "container_id",
+        "type": "str",
+        "default": null
+      },
+      {
+        "name": "code",
+        "type": "str",
+        "default": null
+      }
+    ],
+    "return_type": "str",
+    "file_path": "src/mcp_servers/docker/main.py"
+  },
+  "mcp_servers.generic.main.create_arbitary_file": {
+    "function_name": "create_arbitary_file",
+    "module_name": "mcp_servers.generic.main",
+    "args": [
+      {
+        "name": "file_path",
+        "type": "str",
+        "default": null
+      },
+      {
+        "name": "content",
+        "type": "str",
+        "default": null
+      }
+    ],
+    "return_type": "str",
+    "file_path": "src/mcp_servers/generic/main.py"
+  },
+  "mcp_servers.generic.main.code_output": {
+    "function_name": "code_output",
+    "module_name": "mcp_servers.generic.main",
+    "args": [
+      {
+        "name": "code",
+        "type": "str",
+        "default": null
+      },
+      {
+        "name": "task_meta_name",
+        "type": "str",
+        "default": null
+      },
+      {
+        "name": "task_index",
+        "type": "int",
+        "default": null
+      },
+      {
+        "name": "script_name",
+        "type": "str",
+        "default": null
+      }
+    ],
+    "return_type": "str",
+    "file_path": "src/mcp_servers/generic/main.py"
+  },
+  "mcp_servers.generic.main.csv_file_summary": {
+    "function_name": "csv_file_summary",
+    "module_name": "mcp_servers.generic.main",
+    "args": [
+      {
+        "name": "file_path",
+        "type": "str",
+        "default": null
+      }
+    ],
+    "return_type": "str",
+    "file_path": "src/mcp_servers/generic/main.py"
+  },
+  "mcp_servers.generic.main.word_file_summary": {
+    "function_name": "word_file_summary",
+    "module_name": "mcp_servers.generic.main",
+    "args": [
+      {
+        "name": "file_path",
+        "type": "str",
+        "default": null
+      },
+      {
+        "name": "max_length",
+        "type": "int",
+        "default": "500"
+      }
+    ],
+    "return_type": "str",
+    "file_path": "src/mcp_servers/generic/main.py"
+  },
+  "mcp_servers.generic.main.read_arbitrary_file": {
+    "function_name": "read_arbitrary_file",
+    "module_name": "mcp_servers.generic.main",
+    "args": [
+      {
+        "name": "file_path",
+        "type": "str",
+        "default": null
+      }
+    ],
+    "return_type": "str",
+    "file_path": "src/mcp_servers/generic/main.py"
+  },
+  "mcp_servers.generic.main.text_file_truncate": {
+    "function_name": "text_file_truncate",
+    "module_name": "mcp_servers.generic.main",
+    "args": [
+      {
+        "name": "file_path",
+        "type": "str",
+        "default": null
+      }
+    ],
+    "return_type": "str",
+    "file_path": "src/mcp_servers/generic/main.py"
+  },
+  "mcp_servers.generic.main.report_output": {
+    "function_name": "report_output",
+    "module_name": "mcp_servers.generic.main",
+    "args": [
+      {
+        "name": "file_uri",
+        "type": "str",
+        "default": null
+      },
+      {
+        "name": "file_content",
+        "type": "str",
+        "default": null
+      }
+    ],
+    "return_type": "str",
+    "file_path": "src/mcp_servers/generic/main.py"
+  },
+  "mcp_servers.generic.main.output_data_sniffing_report": {
+    "function_name": "output_data_sniffing_report",
+    "module_name": "mcp_servers.generic.main",
+    "args": [
+      {
+        "name": "file_content",
+        "type": "str",
+        "default": null
+      },
+      {
+        "name": "meta_task_name",
+        "type": "str",
+        "default": null
+      }
+    ],
+    "return_type": "str",
+    "file_path": "src/mcp_servers/generic/main.py"
+  },
+  "mcp_servers.generic.main.read_markdown_file": {
+    "function_name": "read_markdown_file",
+    "module_name": "mcp_servers.generic.main",
+    "args": [
+      {
+        "name": "file_path",
+        "type": "str",
+        "default": null
+      }
+    ],
+    "return_type": "str",
+    "file_path": "src/mcp_servers/generic/main.py"
+  },
+  "mcp_servers.generic.main.list_files_in_folder": {
+    "function_name": "list_files_in_folder",
+    "module_name": "mcp_servers.generic.main",
+    "args": [
+      {
+        "name": "folder_path",
+        "type": "str",
+        "default": null
+      }
+    ],
+    "return_type": "str",
+    "file_path": "src/mcp_servers/generic/main.py"
+  },
+  "mcp_servers.refine_and_examination.main.output_refined_task_group": {
+    "function_name": "output_refined_task_group",
+    "module_name": "mcp_servers.refine_and_examination.main",
+    "args": [
+      {
+        "name": "refined_task_group",
+        "type": "List[AddDetailedTaskInput]",
+        "default": null
+      },
+      {
+        "name": "meta_task_name",
+        "type": "str",
+        "default": null
+      },
+      {
+        "name": "iteration_index",
+        "type": "int",
+        "default": null
+      }
+    ],
+    "return_type": "str",
+    "file_path": "src/mcp_servers/refine_and_examination/main.py"
+  },
+  "mcp_servers.refine_and_examination.main.output_selected_task_index": {
+    "function_name": "output_selected_task_index",
+    "module_name": "mcp_servers.refine_and_examination.main",
+    "args": [
+      {
+        "name": "meta_task_name",
+        "type": "str",
+        "default": null
+      },
+      {
+        "name": "selected_task_index",
+        "type": "List[int]",
+        "default": null
+      }
+    ],
+    "return_type": "str",
+    "file_path": "src/mcp_servers/refine_and_examination/main.py"
+  },
+  "mcp_servers.stack.main.validate_ttl_file": {
+    "function_name": "validate_ttl_file",
+    "module_name": "mcp_servers.stack.main",
+    "args": [
+      {
+        "name": "ttl_path",
+        "type": "str",
+        "default": null
+      }
+    ],
+    "return_type": "str",
+    "file_path": "src/mcp_servers/stack/main.py"
+  },
+  "mcp_servers.stack.main.create_ontology": {
+    "function_name": "create_ontology",
+    "module_name": "mcp_servers.stack.main",
+    "args": [
+      {
+        "name": "ontology",
+        "type": null,
+        "default": null
+      }
+    ],
+    "return_type": "str",
+    "file_path": "src/mcp_servers/stack/main.py"
+  },
+  "mcp_servers.stack.main.upload_data_to_postgres": {
+    "function_name": "upload_data_to_postgres",
+    "module_name": "mcp_servers.stack.main",
+    "args": [
+      {
+        "name": "data_path",
+        "type": "str",
+        "default": null
+      },
+      {
+        "name": "table_name",
+        "type": "str",
+        "default": null
+      }
+    ],
+    "return_type": "dict",
+    "file_path": "src/mcp_servers/stack/main.py"
+  },
+  "mcp_servers.stack.main.initialize_stack": {
+    "function_name": "initialize_stack",
+    "module_name": "mcp_servers.stack.main",
+    "args": [
+      {
+        "name": "stack_name",
+        "type": "str",
+        "default": null
+      }
+    ],
+    "return_type": null,
+    "file_path": "src/mcp_servers/stack/main.py"
+  },
+  "mcp_servers.stack.main.update_stack_database": {
+    "function_name": "update_stack_database",
+    "module_name": "mcp_servers.stack.main",
+    "args": [
+      {
+        "name": "stack_name",
+        "type": "str",
+        "default": null
+      }
+    ],
+    "return_type": null,
+    "file_path": "src/mcp_servers/stack/main.py"
+  },
+  "mcp_servers.stack.main.remove_stack_data": {
+    "function_name": "remove_stack_data",
+    "module_name": "mcp_servers.stack.main",
+    "args": [],
+    "return_type": null,
+    "file_path": "src/mcp_servers/stack/main.py"
+  },
+  "mcp_servers.stack.main.query_sparql": {
+    "function_name": "query_sparql",
+    "module_name": "mcp_servers.stack.main",
+    "args": [],
+    "return_type": "Any",
+    "file_path": "src/mcp_servers/stack/main.py"
+  },
+  "mcp_servers.stack.main.create_obda_file": {
+    "function_name": "create_obda_file",
+    "module_name": "mcp_servers.stack.main",
+    "args": [],
+    "return_type": "str",
+    "file_path": "src/mcp_servers/stack/main.py"
+  },
+  "mcp_servers.stack.main.validate_ontop_obda": {
+    "function_name": "validate_ontop_obda",
+    "module_name": "mcp_servers.stack.main",
+    "args": [
+      {
+        "name": "mapping_file",
+        "type": "str",
+        "default": null
+      },
+      {
+        "name": "ontology_file",
+        "type": "str",
+        "default": null
+      },
+      {
+        "name": "properties_file",
+        "type": "str",
+        "default": null
+      }
+    ],
+    "return_type": "dict",
+    "file_path": "src/mcp_servers/stack/main.py"
+  },
+  "mcp_servers.task.main.create_new_tool_task": {
+    "function_name": "create_new_tool_task",
+    "module_name": "mcp_servers.task.main",
+    "args": [
+      {
+        "name": "task_meta_name",
+        "type": "str",
+        "default": null
+      },
+      {
+        "name": "new_task",
+        "type": "AddTaskInput",
+        "default": null
+      },
+      {
+        "name": "iteration_number",
+        "type": "int",
+        "default": null
+      }
+    ],
+    "return_type": "str",
+    "file_path": "src/mcp_servers/task/main.py"
+  },
+  "mcp_servers.task.main.generate_task_id": {
+    "function_name": "generate_task_id",
+    "module_name": "mcp_servers.task.main",
+    "args": [],
+    "return_type": "str",
+    "file_path": "src/mcp_servers/task/main.py"
+  }
+}

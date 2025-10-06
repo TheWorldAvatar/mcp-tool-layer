@@ -14,21 +14,25 @@
         ],
         "transport": "stdio"
     },
-    "generic_file_operations": {
+    "generic_operations": {
         "command": "python",
-        "args": ["<absolute path>/src/mcp_servers/generic_file_operations.py"],
+        "args": ["<absolute path>/src/mcp_servers/generic/main.py"],
         "transport": "stdio"
     },
-    "resource_registration": {
+    "sandbox": {
         "command": "python",
-        "args": ["<absolute path>/src/mcp_servers/resource_registration_server.py"],
+        "args": ["<absolute path>/src/mcp_servers/sandbox/main.py"],
         "transport": "stdio"
     },
-
-    "task_refinement": {
+    "stack_operations": {
+        "command": "python",
+        "args": ["<absolute path>/src/mcp_servers/stack/main.py"],
+        "transport": "stdio"
+    },
+    "task_operations": {
         "command": "python",
         "args": [
-            "<absolute path>/src/mcp_servers/task_refinement_server.py"
+            "<absolute path>/src/mcp_servers/task/main.py"
         ],
         "transport": "stdio"
     }

@@ -1,0 +1,18 @@
+{
+    "query_sparql": {
+        "command": "python",
+        "args": [
+            "src/mcp_servers/sparql/main.py"
+        ],
+        "transport": "stdio"
+    },
+
+    "websearch": {
+        "command": "python",
+        "args": [
+            "-m",
+            "src.mcp_servers.websearch.main"
+        ],
+        "transport": "stdio"
+    }
+}
