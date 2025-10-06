@@ -61,8 +61,11 @@ def create_container_tool(image: str, name: str, detach: bool = True) -> str:
 @mcp_tool_logger
 async def execute_command_in_container_tool(container_id: str, command: str) -> str:
     # return await execute_command_in_container(container_id, command)
-    return await execute_command_in_container(container_id, command)
+    result = await execute_command_in_container(container_id, command)
+    return result 
 
+
+    
 @mcp.tool(name="python_execution_in_container", description=DOCKER_PYTHON_EXECUTION_IN_CONTAINER_DESCRIPTION, tags=["docker"])
 @mcp_tool_logger
 def python_execution_in_container_tool(container_id: str, code: str) -> str:

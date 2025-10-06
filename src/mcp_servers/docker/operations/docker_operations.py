@@ -81,7 +81,7 @@ def execute_python_script_in_container(container_id: str, script_path: str, args
         return json.dumps({
             "result": "success",
             "command": cmd,
-            "stdout": result.stdout,
+            "stdout": result.stdout[:min(len(result.stdout), 50)],
             "stderr": result.stderr,
             "detail": f"Script '{script_path}' executed in container '{container_id}'"
         })
