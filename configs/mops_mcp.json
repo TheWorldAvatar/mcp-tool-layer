@@ -3,7 +3,8 @@
     "mops_chemical_output": {
         "command": "python",
         "args": [
-            "/mnt/c/Users/xz378/Documents/GitHub/mcp-tool-layer/src/mcp_servers/mops_chemical/main.py"
+            "-m",
+            "src.mcp_servers.mops_chemical.main"
         ],
         "transport": "stdio"
     },
@@ -11,7 +12,8 @@
     "mops_cbu_output": {
         "command": "python",
         "args": [
-            "/mnt/c/Users/xz378/Documents/GitHub/mcp-tool-layer/src/mcp_servers/mops_cbu/main.py"
+            "-m",
+            "src.mcp_servers.mops_cbu.main"
         ],
         "transport": "stdio"
     },
@@ -19,7 +21,8 @@
     "mops_characterisation_output": {
         "command": "python",
         "args": [
-            "/mnt/c/Users/xz378/Documents/GitHub/mcp-tool-layer/src/mcp_servers/mops_characterisation/main.py"
+            "-m",
+            "src.mcp_servers.mops_characterisation.main"
         ],
         "transport": "stdio"
     },
@@ -27,7 +30,8 @@
     "mops_step_output": {
         "command": "python",
         "args": [
-            "/mnt/c/Users/xz378/Documents/GitHub/mcp-tool-layer/src/mcp_servers/mops_step/main.py"
+            "-m",
+            "src.mcp_servers.mops_step.main"
         ],
         "transport": "stdio"
     },
@@ -44,7 +48,8 @@
     "mops_misc": {
         "command": "python",
         "args": [
-            "/mnt/c/Users/xz378/Documents/GitHub/mcp-tool-layer/src/mcp_servers/mops_misc/main.py"
+            "-m",
+            "src.mcp_servers.mops_misc.main"
         ],
         "transport": "stdio"
     }
