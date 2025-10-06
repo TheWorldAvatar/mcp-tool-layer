@@ -220,18 +220,39 @@ def clear_previous_data():
     os.makedirs(memory_dir, exist_ok=True)
     print("Previous data cleared and directories recreated")
 
+def load_output_ttl_content(output_file="output.ttl"):
+    """Load the content from output.ttl file."""
+    if not os.path.exists(output_file):
+        print(f"Warning: {output_file} not found, using test data")
+        return TEST_ONTOSYNTHESIS_A_BOX
+    
+    try:
+        with open(output_file, 'r', encoding='utf-8') as f:
+            content = f.read()
+        print(f"Successfully loaded {output_file} content")
+        return content
+    except Exception as e:
+        print(f"Error loading {output_file}: {e}, using test data")
+        return TEST_ONTOSYNTHESIS_A_BOX
+
 async def mop_extension_agent():
     model_config = ModelConfig()
     mcp_tools = ["mops_extension"]
     agent = BaseAgent(model_name="gpt-4o", model_config=model_config, remote_model=True, mcp_tools=mcp_tools, mcp_set_name="extension.json")
-    response, metadata = await agent.run(PROMPT.format(ontosynthesis_a_box=TEST_ONTOSYNTHESIS_A_BOX), recursion_limit=200)
+    
+    # Load actual output.ttl content
+    ontosynthesis_a_box = load_output_ttl_content()
+    response, metadata = await agent.run(PROMPT.format(ontosynthesis_a_box=ontosynthesis_a_box), recursion_limit=200)
     return response
 
 async def mop_extension_agent_with_content(paper_content):
     model_config = ModelConfig()
     mcp_tools = ["mops_extension"]
     agent = BaseAgent(model_name="gpt-4o", model_config=model_config, remote_model=True, mcp_tools=mcp_tools, mcp_set_name="extension.json")
-    response, metadata = await agent.run(PROMPT.format(ontosynthesis_a_box=TEST_ONTOSYNTHESIS_A_BOX, paper_content=paper_content), recursion_limit=200)
+    
+    # Load actual output.ttl content
+    ontosynthesis_a_box = load_output_ttl_content()
+    response, metadata = await agent.run(PROMPT.format(ontosynthesis_a_box=ontosynthesis_a_box, paper_content=paper_content), recursion_limit=200)
     return response
 
 if __name__ == "__main__":
@@ -265,7 +286,7 @@ if __name__ == "__main__":
                 with open(test_file, 'r', encoding='utf-8') as f:
                     paper_content = f.read()
                 
-                # Use the PROMPT with the loaded paper content
+                # Use the PROMPT with the loaded paper content and output.ttl
                 response = asyncio.run(mop_extension_agent_with_content(paper_content))
                 print(response)
             else:
@@ -276,6 +297,6 @@ if __name__ == "__main__":
         else:
             print("Data folder not found: sandbox/tasks")
     else:
-        # Normal mode
+        # Normal mode - will load output.ttl dynamically
         response = asyncio.run(mop_extension_agent())
         print(response)
