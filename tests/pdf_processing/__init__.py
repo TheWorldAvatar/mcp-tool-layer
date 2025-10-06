@@ -1,0 +1,3 @@
+"""
+PDF processing tests package.
+"""
