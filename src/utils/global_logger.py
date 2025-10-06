@@ -54,16 +54,16 @@ class GlobalLogger:
             file_handler.setFormatter(formatter)
             init_logger.addHandler(file_handler)
             
-            # Console handler
-            console_handler = logging.StreamHandler(sys.stdout)
-            console_handler.setLevel(logging.INFO)
-            console_handler.setFormatter(formatter)
-            init_logger.addHandler(console_handler)
+        # Console handler - only show WARNING and above
+        console_handler = logging.StreamHandler(sys.stdout)
+        console_handler.setLevel(logging.WARNING)
+        console_handler.setFormatter(formatter)
+        init_logger.addHandler(console_handler)
             
-            init_logger.info(f"Logging system initialized. Log file: {self.log_path}")
+            # init_logger.info(f"Logging system initialized. Log file: {self.log_path}")
             
             # Store the init logger
-            self.loggers["system_init"] = init_logger
+        self.loggers["system_init"] = init_logger
     
     def get_logger(self, component_name: str, script_name: Optional[str] = None) -> logging.Logger:
         """
@@ -106,9 +106,9 @@ class GlobalLogger:
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
         
-        # Console handler (optional, for development)
+        # Console handler - only show WARNING and above
         console_handler = logging.StreamHandler(sys.stdout)
-        console_handler.setLevel(logging.INFO)
+        console_handler.setLevel(logging.WARNING)
         console_handler.setFormatter(formatter)
         logger.addHandler(console_handler)
         
@@ -128,6 +128,13 @@ class GlobalLogger:
             error: Exception if any occurred
         """
         logger = self.get_logger("mcp_tool", tool_name)
+
+        # limit the single entity length of inputs["kwargs"], ["args"] for logging
+        # but preserve full SPARQL queries for debugging
+        if "kwargs" in inputs:
+            inputs["kwargs"] = {k: v if (isinstance(v, str) and k == "query") else (v[:min(len(v), 1000)] if isinstance(v, str) else v) for k, v in inputs["kwargs"].items()}
+        if "args" in inputs:
+            inputs["args"] = [v[:min(len(v), 1000)] if isinstance(v, str) else v for v in inputs["args"]]
         
         log_data = {
             "tool_name": tool_name,
