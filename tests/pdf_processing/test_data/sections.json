@@ -1,0 +1,13 @@
+{
+
+    "Section 0": {
+        "title": "Introduction",
+        "content": "This is the introduction to the paper. You should keep this section.",
+        "source": "main"
+    },
+    "Section 1": {
+        "title": "Results",
+        "content": "This is the results section of the paper. You should discard this section.",
+        "source": "main"
+    }
+}

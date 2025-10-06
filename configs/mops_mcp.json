@@ -35,7 +35,8 @@
     "document": {
         "command": "python",
         "args": [
-            "/mnt/c/Users/xz378/Documents/GitHub/mcp-tool-layer/src/mcp_servers/document/main.py"
+            "-m",
+            "src.mcp_servers.document.main"
         ],
         "transport": "stdio"
     },
