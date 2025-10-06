@@ -9,7 +9,7 @@ import json
 import asyncio
 from models.BaseAgent import BaseAgent
 from models.ModelConfig import ModelConfig
-from models.locations import SANDBOX_TASK_DIR, PLAYGROUND_DATA_DIR
+from models.locations import DATA_DIR
 from src.utils.global_logger import get_logger
 from src.utils.stitch_md import stitch_sections_to_markdown
 
@@ -66,20 +66,18 @@ def divide_md_by_subsection(md_file_path: str, si_file_path: str = None):
     
     return sections_dict
 
-def save_sections_json(sections_dict: dict, task_name: str, output_dir: str = None):
+def save_sections_json(sections_dict: dict, doi: str, filename: str = "sections.json", output_dir: str = None):
     """
     Save the sections dictionary to a JSON file in the specified output directory.
-    Creates subfolder named after the task_name if output_dir is provided.
     """
     if output_dir is None:
-        output_dir = SANDBOX_TASK_DIR
+        output_dir = os.path.join(DATA_DIR, doi)
     
-    # Create subfolder for this task
-    task_output_dir = os.path.join(output_dir, task_name)
-    os.makedirs(task_output_dir, exist_ok=True)
+    # Ensure the output directory exists
+    os.makedirs(output_dir, exist_ok=True)
     
-    # Save the sections JSON file
-    output_file = os.path.join(task_output_dir, "sections.json")
+    # Save the sections JSON file directly in the output directory
+    output_file = os.path.join(output_dir, filename)
     with open(output_file, 'w', encoding='utf-8') as f:
         json.dump(sections_dict, f, indent=2, ensure_ascii=False)
     
@@ -88,7 +86,7 @@ def save_sections_json(sections_dict: dict, task_name: str, output_dir: str = No
 
 
 
-async def classify_sections_agent(task_name: str, md_file_path: str = None):
+async def classify_sections_agent(doi: str, md_file_path: str = None):
     """
     Main agent function that:
     1. Divides markdown into sections and saves JSON
@@ -96,27 +94,33 @@ async def classify_sections_agent(task_name: str, md_file_path: str = None):
     3. Uses MCP tool to update the JSON file
     4. Stitches sections back together into complete markdown
     """
-    logger.info(f"Starting section classification for task: {task_name}")
+    logger.info(f"Starting section classification for task: {doi}")
     
     # If no md_file_path provided, construct it from task_name
     if md_file_path is None:
-        md_file_path = os.path.join(PLAYGROUND_DATA_DIR, f"{task_name}.md")
+        md_file_path = os.path.join(DATA_DIR, doi, f"{doi}.md")
     
     # Construct SI file path
-    si_file_path = os.path.join(PLAYGROUND_DATA_DIR, f"{task_name}_si.md")
+    si_file_path = os.path.join(DATA_DIR, doi, f"{doi}_si.md")
     
     # Check if markdown file exists
     if not os.path.exists(md_file_path):
         logger.error(f"Markdown file not found: {md_file_path}")
         return None
     
-    # Step 1: Divide markdown into sections and save JSON
-    logger.info("Step 1: Dividing markdown into sections...")
-    sections_dict = divide_md_by_subsection(md_file_path, si_file_path)
-    logger.info(f"Found {len(sections_dict)} sections (main + SI)")
-    
-    # Save the initial sections JSON
-    output_file = save_sections_json(sections_dict, task_name)
+    sections_json_path = os.path.join(DATA_DIR, doi, "sections.json")
+    if os.path.exists(sections_json_path):
+        logger.info(f"Sections JSON file already exists: {sections_json_path}")
+        return "Section JSON file already exists, skipping division and classification"
+    else:
+        # Step 1: Divide markdown into sections and save sections JSON
+        logger.info("Step 1: Dividing markdown into sections...")
+        sections_dict = divide_md_by_subsection(md_file_path, si_file_path)
+        logger.info(f"Found {len(sections_dict)} sections (main + SI)")
+
+        # Save the sections dictionary to a JSON file
+        save_sections_json(sections_dict, doi)
+        logger.info(f"Saved sections JSON to: {sections_json_path}")
     
     # Step 2: Initialize the agent with MCP tools
     model_config = ModelConfig(temperature=0.2, top_p=0.02)
@@ -133,6 +137,11 @@ async def classify_sections_agent(task_name: str, md_file_path: str = None):
     logger.info("Step 3: Classifying sections...")
     for section_key, section_data in sections_dict.items():
         section_index = section_key.split()[-1]  # Extract number from "Section X"
+        
+        # Check if section is already classified
+        if 'keep_or_discard' in section_data:
+            logger.info(f"SKIP {section_key} already classified as: {section_data['keep_or_discard']}")
+            continue
         
         # Create prompt for this section
         section_prompt = f"""
@@ -151,10 +160,9 @@ async def classify_sections_agent(task_name: str, md_file_path: str = None):
         Use the keep_or_discard_section tool to mark this section as either "keep" or "discard".
         
         IMPORTANT: When calling the tool, use these exact parameters:
-        - file_path: "sections.json"
         - section_index: {section_index}
         - option: either "keep" or "discard"
-        - task_name: "{task_name}"
+        - doi: "{doi}"
         
         Make your decision and call the tool immediately.
         """
@@ -170,15 +178,23 @@ async def classify_sections_agent(task_name: str, md_file_path: str = None):
             logger.error(f"Error classifying {section_key}: {e}")
             continue
 
+    # Step 4: Load sections for stitching
+    logger.info("Step 4: Loading sections for stitching...")
+    try:
+        # Load the sections for stitching
+        with open(sections_json_path, 'r', encoding='utf-8') as f:
+            sections_for_stitching = json.load(f)
+        logger.info(f"Loaded {len(sections_for_stitching)} sections for stitching")
+        
+        # Stitch sections back together into complete markdown
+        logger.info("Step 5: Stitching sections back together...")
+        stitched_file = stitch_sections_to_markdown(sections_for_stitching, doi)
+        logger.info(f"Successfully created stitched markdown: {stitched_file}")
+        
+    except Exception as e:
+        logger.error(f"Error stitching sections: {e}")
+
     return sections_dict    
-    
-    # # Step 4: Stitch sections back together into complete markdown
-    # logger.info("Step 4: Stitching sections into complete markdown...")
-    # complete_md_file = stitch_sections_to_markdown(sections_dict, task_name)
-    
-    # logger.info(f"Section classification completed for task: {task_name}")
-    # logger.info(f"Output files: {output_file} and {complete_md_file}")
-    # return output_file
 
 if __name__ == "__main__":
     # Only keep --test argument, which runs through single file
@@ -195,11 +211,23 @@ if __name__ == "__main__":
         print(f"Running in test mode with: {test_task}")
         asyncio.run(classify_sections_agent(test_task))
     else:
-        # Go through all the files in PLAYGROUND_DATA_DIR and process each one
-        for file in os.listdir(PLAYGROUND_DATA_DIR):
-            file_path = os.path.join(PLAYGROUND_DATA_DIR, file)
-            if file.endswith('.md') and "_si" not in file:
-                print(f"Processing PDF file: {file}")
-                asyncio.run(classify_sections_agent(file.replace('.md', '')))
+        # Go through all the DOI folders in DATA_DIR and process each one
+        # Skip log directory and other non-DOI directories
+        excluded_dirs = {'log', '__pycache__', '.git', '.vscode', 'node_modules'}
+        
+        for doi_folder in os.listdir(DATA_DIR):
+            # Skip excluded directories
+            if doi_folder in excluded_dirs:
+                continue
+                
+            doi_path = os.path.join(DATA_DIR, doi_folder)
+            if os.path.isdir(doi_path):
+                main_md = os.path.join(doi_path, f"{doi_folder}.md")
+                if os.path.exists(main_md):
+                    print(f"Processing DOI: {doi_folder}")
+                    asyncio.run(classify_sections_agent(doi_folder))
+                else:
+                    print(f"Skipping {doi_folder}: No main markdown file found")
 
+ 
  

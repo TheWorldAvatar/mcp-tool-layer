@@ -1,6 +1,6 @@
 import os
 import json
-from models.locations import SANDBOX_TASK_DIR
+from models.locations import DATA_DIR
 from src.utils.global_logger import get_logger
 
 logger = get_logger("utils", "stitch_md")   
@@ -12,11 +12,10 @@ def stitch_sections_to_markdown(sections_dict: dict, task_name: str, output_dir:
     Only includes sections marked as "keep".
     """
     if output_dir is None:
-        output_dir = SANDBOX_TASK_DIR
+        output_dir = os.path.join(DATA_DIR, task_name)
     
-    # Create subfolder for this task
-    task_output_dir = os.path.join(output_dir, task_name)
-    os.makedirs(task_output_dir, exist_ok=True)
+    # Ensure the output directory exists
+    os.makedirs(output_dir, exist_ok=True)
     
     # Create the complete markdown content
     markdown_content = []
@@ -45,14 +44,12 @@ def stitch_sections_to_markdown(sections_dict: dict, task_name: str, output_dir:
             logger.info(f"  - ❌ Discarded {section_key}")
     
     # Save the complete markdown file
-    output_file = os.path.join(task_output_dir, f"{task_name}_complete.md")
+    output_file = os.path.join(output_dir, f"{task_name}_stitched.md")
     with open(output_file, 'w', encoding='utf-8') as f:
         f.write('\n'.join(markdown_content))
     
-    logger.info(f"Saved complete markdown to: {output_file}")
+    logger.info(f"Saved stitched markdown to: {output_file}")
     
     return output_file
 
-if __name__ == "__main__":
-    sections_dict = json.load(open("sandbox/tasks/10.1021_acs.inorgchem.4c02394/sections.json", "r"))
-    stitch_sections_to_markdown(sections_dict, "10.1021_acs.inorgchem.4c02394")
+ 
