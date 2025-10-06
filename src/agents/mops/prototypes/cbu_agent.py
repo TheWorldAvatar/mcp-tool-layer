@@ -32,6 +32,7 @@ Category Specifications:
 
 Data Entry Guidelines:
 - For chemical names make sure to write each name as separate string. Wrong: ["C4H9NO, DMA, N,N'-dimethylacetamide"], Correct: ["C4H9NO", "DMA", "N,N'-dimethylacetamide"]
+- Make sure you include all the alias and other names of the chemical specie in the names field.
 - If any information is missing or uncertain, fill the cell with N/A for strings or 0 for numeric types
 - Make sure to extract the CBU information for all MOPs mentioned in the text
 - Each MOP must have exactly two CBUs
@@ -45,6 +46,10 @@ Mapping Instructions:
 - Ensure the lab species actually participate in the MOP formation
 
 Output the information in a structured format that can be used to populate the CBU class structure, use the mops_cbu_output tool for output.
+
+If you need to search for information in the paper, use the mops_misc tool. I recommend you to use the in_context_search tool
+to find more concentrated information about chemical names and formulas.
+
 
 Paper Content:
 {paper_content}
@@ -77,7 +82,7 @@ async def cbu_agent(task_meta_name: str, test_mode: bool = False):
         paper_content = f"Error reading file: {str(e)}"
     
     model_config = ModelConfig(temperature=0.2, top_p=0.02)
-    mcp_tools = ["mops_cbu_output"]
+    mcp_tools = ["mops_cbu_output", "mops_misc"]
     agent = BaseAgent(model_name="gpt-4o", model_config=model_config, remote_model=True, mcp_tools=mcp_tools, mcp_set_name="mops_mcp.json")   
     
     if test_mode:
