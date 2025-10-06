@@ -138,7 +138,6 @@ class MCPToolAnalyzer:
             }
             
         except Exception as e:
-            print(f"Error analyzing {file_path}: {e}")
             return {
                 "module": module_name,
                 "file_path": str(file_path),
@@ -183,19 +182,11 @@ class MCPToolAnalyzer:
         """Print a summary of all discovered tools."""
         tools_dict = self.generate_tools_dictionary()
         
-        print(f"Found {len(tools_dict)} MCP tools across all files:\n")
         
         for tool_key, tool_info in tools_dict.items():
-            print(f"Tool: {tool_key}")
-            print(f"  Function: {tool_info['function_name']}")
-            print(f"  Module: {tool_info['module_name']}")
-            print(f"  Return Type: {tool_info['return_type']}")
-            print("  Arguments:")
             for arg in tool_info['args']:
                 default_str = f" = {arg['default']}" if arg['default'] is not None else ""
                 type_str = f": {arg['type']}" if arg['type'] is not None else ""
-                print(f"    {arg['name']}{type_str}{default_str}")
-            print()
 
 
 def main():
@@ -214,4 +205,3 @@ def main():
 
 if __name__ == "__main__":
     tools_dict = main()
-    print(f"\nTotal tools found: {len(tools_dict)}") 
