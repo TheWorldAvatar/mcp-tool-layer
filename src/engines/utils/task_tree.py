@@ -9,7 +9,7 @@ class TaskNode:
         self.name = task_data.get('name', '')
         self.description = task_data.get('description', '')
         self.tools_required = task_data.get('tools_required', [])
-        self.dependencies = task_data.get('task_dependencies', [])
+        self.dependencies = task_data.get('dependencies', [])
         self.file_name = task_data.get('file_name', '')  # Add file_name field
         self.children: List['TaskNode'] = []
         self.parent: Set['TaskNode'] = set()
@@ -50,7 +50,7 @@ class TaskNode:
             'name': self.name,
             'description': self.description,
             'tools_required': self.tools_required,
-            'task_dependencies': self.dependencies,
+            'dependencies': self.dependencies,
             'file_name': self.file_name,
             'children': [child.task_id for child in self.children],
             'parent': [parent.task_id for parent in self.parent]
@@ -135,6 +135,7 @@ class TaskTree:
                 dfs(child, depth + 1, visited.copy())
 
         if not self.roots:
+            print("No roots found in the task tree.")
         else:
             for root in sorted(self.roots, key=lambda n: n.task_id):
                 dfs(root)
