@@ -10,3 +10,4 @@ configs/mcp_configs.json
 /sandbox
 /playground
 configs/pretask_mcp_configs.json
+/src/agents/mops/dynamic_mcp/prompts/archive

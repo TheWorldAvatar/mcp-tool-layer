@@ -1,0 +1,305 @@
+# mcp_run_agent_hint_only_dynamic.py
+import os, argparse, asyncio, shutil, json, time, random
+from typing import List, Dict
+from models.BaseAgent import BaseAgent
+from models.ModelConfig import ModelConfig
+from src.utils.global_logger import get_logger
+from src.agents.mops.dynamic_mcp.modules.kg import parse_top_level_entities
+from src.agents.mops.dynamic_mcp.modules.extraction import extract_content
+# dynamic namespaces, do NOT import specific names
+from src.agents.mops.dynamic_mcp.prompts import prompts as prompts_ns
+from src.agents.mops.dynamic_mcp.prompts import extraction_scopes as scopes_ns
+from src.agents.mops.dynamic_mcp.modules.prompt_utils import (
+    collect_scopes, collect_prompts, format_prompt
+)
+
+log = get_logger("agent", "MainDynamic")
+
+# -------------------- FS helpers --------------------
+def clear_previous_data():
+    for p in ["memory", ".kg_memory", ".kg_state"]:
+        if os.path.exists(p): shutil.rmtree(p)
+    if os.path.exists("data"):
+        for doi_dir in os.listdir("data"):
+            doi_path = os.path.join("data", doi_dir)
+            if os.path.isdir(doi_path) and doi_dir not in ['log', 'ontologies']:
+                mem = os.path.join(doi_path, "memory")
+                if os.path.exists(mem): shutil.rmtree(mem)
+                mcp_run = os.path.join(doi_path, "mcp_run")
+                if os.path.exists(mcp_run): shutil.rmtree(mcp_run)
+                for fp in ["iteration_1.ttl", "output.ttl"]:
+                    pth = os.path.join(doi_path, fp)
+                    if os.path.exists(pth): os.remove(pth)
+    os.makedirs(".kg_memory", exist_ok=True)
+    os.makedirs(".kg_state", exist_ok=True)
+
+def find_tasks(root="data"):
+    return [d for d in os.listdir(root)
+            if os.path.isdir(os.path.join(root, d))
+            and not d.startswith('.')
+            and d not in ['log', 'ontologies']]
+
+def _read_text(path: str) -> str:
+    with open(path, "r", encoding="utf-8") as f:
+        return f.read()
+
+def _write_text(path: str, content: str):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(content)
+
+def _discover_tbox(paper_md_path: str) -> str:
+    root = os.path.dirname(paper_md_path)
+    tbox_path = os.path.join(root, "ontosynthesis.ttl")
+    return _read_text(tbox_path) if os.path.exists(tbox_path) else ""
+
+def _agent(tools=None, model="gpt-4o", temp=0.2, top_p=0.2, mcp_set="run_created_mcp.json"):
+    return BaseAgent(
+        model_name=model,
+        model_config=ModelConfig(temperature=temp, top_p=top_p),
+        remote_model=True,
+        mcp_tools=tools or [],
+        mcp_set_name=mcp_set,
+    )
+
+def _safe_name(label: str) -> str:
+    return (label or "entity").replace(" ", "_").replace("/", "_")
+
+# -------------------- Rate limiter --------------------
+class RateLimiter:
+    def __init__(self, min_delay=1.0, max_delay=2.0):
+        self.min_delay = float(min_delay)
+        self.max_delay = float(max_delay)
+        self._lock = asyncio.Lock()
+        self._last = 0.0
+
+    async def wait(self):
+        async with self._lock:
+            now = time.time()
+            dt = now - self._last
+            need = random.uniform(self.min_delay, self.max_delay)
+            if dt < need:
+                await asyncio.sleep(need - dt)
+            self._last = time.time()
+
+# -------------------- Core runner --------------------
+async def run_task(doi: str, test: bool = False):
+    doi_dir = os.path.join("data", doi)
+    md_path = os.path.join(doi_dir, f"{doi}_stitched.md")
+    if not os.path.exists(md_path):
+        print(f"Skipping {doi}: _stitched.md file not found")
+        return
+
+    paper = _read_text(md_path)
+    t_box = _discover_tbox(md_path)
+
+    scopes = collect_scopes(scopes_ns)       # [(iter, scope_text), ...] sorted
+    prompt_map = collect_prompts(prompts_ns) # {iter: template, ...}
+    if not scopes:
+        print("No EXTRACTION_SCOPE_* found. Nothing to run.")
+        return
+
+    hints_dir = os.path.join(doi_dir, "mcp_run")
+    os.makedirs(hints_dir, exist_ok=True)
+
+    intermediate_ttl_dir = os.path.join(doi_dir, "intermediate_ttl_files")
+    os.makedirs(intermediate_ttl_dir, exist_ok=True)
+
+    # ----- Iteration 1 -----
+    iter1_scope = next(((i, s) for (i, s) in scopes if i == 1), None)
+    if iter1_scope:
+        i1, scope_text_1 = iter1_scope
+        response_file_1 = os.path.join(hints_dir, "iter1_response.md")
+        # task-wise skip
+        if os.path.exists(response_file_1):
+            print(f"⏭️  Skip entire iteration {i1}: {response_file_1} exists")
+        else:
+            hint_file_1 = os.path.join(hints_dir, f"iter{i1}_hints.txt")
+            if os.path.exists(hint_file_1):
+                print(f"⏭️  Skip extraction iter {i1}: {hint_file_1} exists")
+                hints1 = _read_text(hint_file_1)
+            else:
+                print(f"🔍 Extracting hints for iteration {i1} (global)...")
+                hints1 = await extract_content(
+                    paper_content=paper,
+                    goal=scope_text_1,
+                    t_box=t_box,
+                    entity_label=None,
+                    entity_uri=None,
+                )
+                _write_text(hint_file_1, hints1)
+                print(f"✅ Saved hints to {hint_file_1}")
+
+            if i1 in prompt_map:
+                tmpl1 = prompt_map[i1]
+                instr1 = format_prompt(
+                    tmpl1,
+                    doi=doi,
+                    iteration=i1,
+                    paper_content=_read_text(hint_file_1),
+                )
+                _write_text(os.path.join(hints_dir, "iter1_instruction.md"),
+                            f"# Iteration {i1} — Instruction\n\n{instr1}")
+
+                iteration_1_ttl = os.path.join(doi_dir, "iteration_1.ttl")
+                if not test:
+                    if os.path.exists(iteration_1_ttl):
+                        print(f"⏭️  Skip iter {i1} execution: {iteration_1_ttl} exists")
+                    else:
+                        print("🚀 Running iteration 1 agent...")
+                        agent1 = _agent(tools=["llm_created_mcp"])
+                        resp1, _ = await agent1.run(instr1, recursion_limit=600)
+                        _write_text(response_file_1,
+                                    f"# Iteration {i1}\n\n## Instruction\n\n{instr1}\n\n## Response\n\n{resp1}")
+                        out_local = os.path.join(doi_dir, "output.ttl")
+                        if os.path.exists(out_local):
+                            shutil.copy2(out_local, iteration_1_ttl)
+            else:
+                print("⚠️  No prompt for iteration 1; continuing.")
+    else:
+        print("⚠️  No iteration 1 scope found; continuing without top entities.")
+
+    # harvest top entities
+    top_entities = parse_top_level_entities(doi) or []  # [{label, uri}]
+    _write_text(os.path.join(hints_dir, "iter1_top_entities.json"), json.dumps(top_entities, indent=2))
+
+    # ----- Iterations >= 2: parallel per-entity extraction with batch size 8 and 1–2s spacing -----
+    async def _extract_entity(iter_no: int, scope_text: str, e: Dict[str, str],
+                              semaphore: asyncio.Semaphore, rl: RateLimiter):
+        label = e.get("label", "")
+        uri = e.get("uri", "")
+        safe = _safe_name(label)
+        response_file = os.path.join(hints_dir, f"iter{iter_no}_{safe}.md")
+        if os.path.exists(response_file):
+            print(f"⏭️  Skip entity '{label}' for iter {iter_no}: response exists")
+            return
+
+        hint_file = os.path.join(hints_dir, f"iter{iter_no}_hints_{safe}.txt")
+        if os.path.exists(hint_file):
+            print(f"⏭️  Skip extraction iter {iter_no} for '{label}': {hint_file} exists")
+            return
+
+        async with semaphore:
+            await rl.wait()  # 1–2s spacing across tasks
+            print(f"🔍 Extracting (iter {iter_no}) for entity '{label}'...")
+            hints = await extract_content(
+                paper_content=paper,
+                goal=scope_text,
+                t_box=t_box,
+                entity_label=label,
+                entity_uri=uri,
+            )
+            _write_text(hint_file, hints)
+            print(f"✅ Saved {hint_file}")
+
+    for iter_no, scope_text in scopes:
+        if iter_no == 1:
+            continue
+        if not top_entities:
+            print(f"⚠️  No top entities for iter {iter_no}.")
+            continue
+
+        # build job list honoring task-wise skip before scheduling
+        jobs: List[Dict[str, str]] = []
+        for e in top_entities:
+            label = e.get("label", "")
+            safe = _safe_name(label)
+            response_file = os.path.join(hints_dir, f"iter{iter_no}_{safe}.md")
+            hint_file = os.path.join(hints_dir, f"iter{iter_no}_hints_{safe}.txt")
+            if os.path.exists(response_file):
+                print(f"⏭️  Skip entity '{label}' for iter {iter_no}: response exists")
+                continue
+            if os.path.exists(hint_file):
+                print(f"⏭️  Skip extraction iter {iter_no} for '{label}': {hint_file} exists")
+                continue
+            jobs.append(e)
+
+        if not jobs:
+            continue
+
+        print(f"🚦 Parallel extraction iter {iter_no}: {len(jobs)} entity jobs")
+        sem = asyncio.Semaphore(8)          # batch size/concurrency cap
+        rate = RateLimiter(1.0, 2.0)        # 1–2s between starts
+        tasks = [asyncio.create_task(_extract_entity(iter_no, scope_text, e, sem, rate)) for e in jobs]
+        await asyncio.gather(*tasks)
+
+    if test:
+        return
+
+    # ----- Iterations >= 2: per-entity execution with SINGLE hint -----
+    for iter_no, _ in scopes:
+        if iter_no == 1:
+            continue
+        if iter_no not in prompt_map:
+            continue
+
+        tmpl = prompt_map[iter_no]
+        if not top_entities:
+            print(f"⚠️  No entities to run for iter {iter_no}.")
+            continue
+
+        for e in top_entities:
+            label = e.get("label", "")
+            uri = e.get("uri", "")
+            safe = _safe_name(label)
+
+            response_file = os.path.join(hints_dir, f"iter{iter_no}_{safe}.md")
+            if os.path.exists(response_file):
+                print(f"⏭️  Skip iter {iter_no} for '{label}': response exists")
+                continue
+
+            hint_file = os.path.join(hints_dir, f"iter{iter_no}_hints_{safe}.txt")
+            if not os.path.exists(hint_file):
+                print(f"⚠️  Missing hints for iter {iter_no}, entity '{label}'. Skipping.")
+                continue
+
+            single_hint = _read_text(hint_file)
+            instr = format_prompt(
+                tmpl,
+                doi=doi,
+                iteration=iter_no,
+                entity_label=label,
+                entity_uri=uri,
+                paper_content=single_hint,
+            )
+
+            _write_text(os.path.join(hints_dir, f"iter{iter_no}_{safe}_instruction.md"),
+                        f"# Iteration {iter_no} — {label} — Instruction\n\n{instr}")
+
+            print(f"🚀 Running iteration {iter_no} for entity: {label}")
+            agent = _agent(tools=["llm_created_mcp"])
+            resp, _ = await agent.run(instr, recursion_limit=600)
+            _write_text(response_file,
+                        f"# Iteration {iter_no} — {label}\n\n## Instruction\n\n{instr}\n\n## Response\n\n{resp}")
+
+            out_local = os.path.join(doi_dir, "output.ttl")
+            if os.path.exists(out_local):
+                intermediate_ttl = os.path.join(intermediate_ttl_dir, f"iteration_{iter_no}_{safe}.ttl")
+                shutil.copy2(out_local, intermediate_ttl)
+                print(f"✅ Saved intermediate TTL to {intermediate_ttl}")
+
+# -------------------- CLI --------------------
+if __name__ == "__main__":
+    ap = argparse.ArgumentParser()
+    ap.add_argument('--clear', action='store_true')
+    ap.add_argument('--single', type=str, help='DOI folder to run once')
+    ap.add_argument('--test', action='store_true', help='Dry run: prepare hints and instructions only')
+    args = ap.parse_args()
+
+    if args.clear:
+        print("🧹 Clearing previous data...")
+        clear_previous_data()
+        print("✅ Cleared")
+
+    if args.single:
+        asyncio.run(run_task(args.single, test=args.test))
+    else:
+        tasks = find_tasks()
+        print(f"Running in {'TEST' if args.test else 'normal'} mode with {len(tasks)} DOI folders")
+        for doi in tasks:
+            md = os.path.join("data", doi, f"{doi}_stitched.md")
+            if os.path.exists(md):
+                print(f"Processing: {doi}")
+                asyncio.run(run_task(doi, test=args.test))
+            else:
+                print(f"Skipping {doi}: _stitched.md file not found")
