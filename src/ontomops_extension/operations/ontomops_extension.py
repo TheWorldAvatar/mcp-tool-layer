@@ -17,6 +17,7 @@ from typing import Optional, Tuple, List, Dict
 from filelock import FileLock
 from rdflib import Graph, Namespace, URIRef, Literal
 from rdflib.namespace import RDF, RDFS, OWL, XSD
+from models.locations import DATA_DIR
 
 # ----------------------------------------------------------------------------------------------------------------------
 # Namespaces (from ontology)
@@ -33,17 +34,24 @@ XSD = Namespace("http://www.w3.org/2001/XMLSchema#")
 # ----------------------------------------------------------------------------------------------------------------------
 # Memory management & locking
 # ----------------------------------------------------------------------------------------------------------------------
-MEM_DIR = "memory"
-MEM_TTL = os.path.join(MEM_DIR, "memory_ontomops.ttl")
-MEM_LOCK = os.path.join(MEM_DIR, "memory_ontomops.lock")
-os.makedirs(MEM_DIR, exist_ok=True)
+def get_memory_paths(hash_value: str):
+    """Get memory paths for a specific hash."""
+    mem_dir = os.path.join(DATA_DIR, hash_value, "memory_ontomops")
+    mem_ttl = os.path.join(mem_dir, "memory_ontomops.ttl")
+    mem_lock = os.path.join(mem_dir, "memory_ontomops.lock")
+
+    os.makedirs(mem_dir, exist_ok=True)
+    return mem_dir, mem_ttl, mem_lock
+
 
 SESSION_NODE = URIRef("https://www.theworldavatar.com/kg/OntoMOPs/instance/Session")
 
 @contextmanager
-def locked_graph(timeout: float = 30.0):
+def locked_graph(hash_value: str, timeout: float = 30.0):
     """Lock, load, yield, then atomically write-back the memory graph."""
-    lock = FileLock(MEM_LOCK)
+    mem_dir, mem_ttl, mem_lock = get_memory_paths(hash_value)
+    
+    lock = FileLock(mem_lock)
     lock.acquire(timeout=timeout)
     g = Graph()
     # Bind prefixes for nicer serialization and readability
@@ -54,14 +62,14 @@ def locked_graph(timeout: float = 30.0):
     g.bind("rdf", RDF)
     g.bind("rdfs", RDFS)
     g.bind("xsd", XSD)
-    if os.path.exists(MEM_TTL):
-        g.parse(MEM_TTL, format="turtle")
+    if os.path.exists(mem_ttl):
+        g.parse(mem_ttl, format="turtle")
     try:
         yield g
-        fd, tmp = tempfile.mkstemp(dir=MEM_DIR, suffix=".ttl.tmp")
+        fd, tmp = tempfile.mkstemp(dir=mem_dir, suffix=".ttl.tmp")
         os.close(fd)
         g.serialize(destination=tmp, format="turtle")
-        os.replace(tmp, MEM_TTL)
+        os.replace(tmp, mem_ttl)
     finally:
         lock.release()
 
@@ -157,16 +165,16 @@ def _ensure_individual(g: Graph, iri_str: str, expected_type: URIRef, default_la
 # Memory API
 # ----------------------------------------------------------------------------------------------------------------------
 
-def init_memory() -> str:
-    """Initialize or resume the global memory graph and return the session hash."""
-    with locked_graph() as g:
+def init_memory(hash_value: str) -> str:
+    """Initialize or resume the memory graph and return the session hash."""
+    with locked_graph(hash_value=hash_value, timeout=30.0) as g:
         sh = _get_or_create_session_hash(g)
     return sh
 
-def inspect_memory() -> str:
+def inspect_memory(hash_value: str) -> str:
     """Return a detailed summary of the current graph: IRIs, types, labels, attributes, and connections."""
     lines: List[str] = []
-    with locked_graph() as g:
+    with locked_graph(hash_value=hash_value, timeout=30.0) as g:
         lines.append("=== OntoMOPs Memory Summary ===")
         # Group by subject
         subjects = set()
@@ -198,27 +206,32 @@ def inspect_memory() -> str:
                     lines.append(f"  {g.namespace_manager.normalizeUri(p)} -> {o}")
     return "\n".join(lines)
 
-def export_memory(file_name: str) -> str:
-    """Serialize the entire memory graph to a Turtle file (.ttl) and return the absolute path."""
-    if not file_name.endswith(".ttl"):
-        raise ValueError("Only .ttl allowed")
-    with locked_graph() as g:
-        g.serialize(destination=file_name, format="turtle")
-    return os.path.abspath(file_name)
+def export_memory(hash_value: str) -> str:
+    """Serialize the entire memory graph to a Turtle file and return the absolute path."""
+    # Hardcoded output filename
+    file_name = "ontomops_extension.ttl"
+    
+    # Save to data/{hash}/ directory
+    output_path = os.path.join(DATA_DIR, hash_value, file_name)
+    
+    with locked_graph(hash_value=hash_value, timeout=30.0) as g:
+        g.serialize(destination=output_path, format="turtle")
+    return os.path.abspath(output_path)
 
 # ----------------------------------------------------------------------------------------------------------------------
 # OntoMOPs Core Classes
 # ----------------------------------------------------------------------------------------------------------------------
 
-def create_chemical_building_unit(name: str, iri: Optional[str] = None) -> str:
+def create_chemical_building_unit(name: str, hash_value: str, iri: Optional[str] = None) -> str:
     """
     Create ontomops:ChemicalBuildingUnit.
     
     Args:
         name: Human-readable name for the CBU
+        hash: Hash value for memory management
         iri: Optional existing IRI to use instead of minting a new one
     """
-    with locked_graph() as g:
+    with locked_graph(hash_value=hash_value, timeout=30.0) as g:
         if iri:
             # Use existing IRI
             iri_ref = URIRef(iri)
@@ -232,6 +245,7 @@ def create_chemical_building_unit(name: str, iri: Optional[str] = None) -> str:
         return str(iri_ref)
 
 def create_metal_organic_polyhedron(name: str,
+                                   hash_value: str,
                                    ccdc_number: Optional[str] = None,
                                    mop_formula: Optional[str] = None,
                                    iri: Optional[str] = None) -> str:
@@ -240,11 +254,12 @@ def create_metal_organic_polyhedron(name: str,
     
     Args:
         name: Human-readable name for the MOP
+        hash: Hash value for memory management
         ccdc_number: CCDC number of the MOP (optional)
         mop_formula: Chemical formula of the MOP (optional)
         iri: Optional existing IRI to use instead of minting a new one
     """
-    with locked_graph() as g:
+    with locked_graph(hash_value=hash_value, timeout=30.0) as g:
         if iri:
             # Use existing IRI
             iri_ref = URIRef(iri)
@@ -270,9 +285,9 @@ def create_metal_organic_polyhedron(name: str,
 # Property updaters
 # ----------------------------------------------------------------------------------------------------------------------
 
-def update_mop_ccdc_number(mop_iri: str, ccdc_number: str) -> str:
+def update_mop_ccdc_number(mop_iri: str, ccdc_number: str, hash_value: str) -> str:
     """Update or set the CCDC number for a MetalOrganicPolyhedron."""
-    with locked_graph() as g:
+    with locked_graph(hash_value=hash_value, timeout=30.0) as g:
         mop = _ensure_individual(g, mop_iri, ONTOMOPS.MetalOrganicPolyhedron)
         # Remove existing CCDC numbers
         for o in list(g.objects(mop, ONTOMOPS.hasCCDCNumber)):
@@ -281,9 +296,9 @@ def update_mop_ccdc_number(mop_iri: str, ccdc_number: str) -> str:
         g.add((mop, ONTOMOPS.hasCCDCNumber, Literal(ccdc_number)))
         return str(mop)
 
-def update_mop_formula(mop_iri: str, mop_formula: str) -> str:
+def update_mop_formula(mop_iri: str, mop_formula: str, hash_value: str) -> str:
     """Update or set the MOP formula for a MetalOrganicPolyhedron."""
-    with locked_graph() as g:
+    with locked_graph(hash_value=hash_value, timeout=30.0) as g:
         mop = _ensure_individual(g, mop_iri, ONTOMOPS.MetalOrganicPolyhedron)
         # Remove existing formulas
         for o in list(g.objects(mop, ONTOMOPS.hasMOPFormula)):
@@ -296,17 +311,17 @@ def update_mop_formula(mop_iri: str, mop_formula: str) -> str:
 # Relationship creators
 # ----------------------------------------------------------------------------------------------------------------------
 
-def add_cbu_to_mop(mop_iri: str, cbu_iri: str) -> str:
+def add_cbu_to_mop(mop_iri: str, cbu_iri: str, hash_value: str) -> str:
     """Add a ChemicalBuildingUnit to a MetalOrganicPolyhedron."""
-    with locked_graph() as g:
+    with locked_graph(hash_value=hash_value, timeout=30.0) as g:
         mop = _ensure_individual(g, mop_iri, ONTOMOPS.MetalOrganicPolyhedron)
         cbu = _ensure_individual(g, cbu_iri, ONTOMOPS.ChemicalBuildingUnit)
         g.add((mop, ONTOMOPS.hasChemicalBuildingUnit, cbu))
         return str(mop)
 
-def remove_cbu_from_mop(mop_iri: str, cbu_iri: str) -> str:
+def remove_cbu_from_mop(mop_iri: str, cbu_iri: str, hash_value: str) -> str:
     """Remove a ChemicalBuildingUnit from a MetalOrganicPolyhedron."""
-    with locked_graph() as g:
+    with locked_graph(hash_value=hash_value, timeout=30.0) as g:
         mop = _ensure_individual(g, mop_iri, ONTOMOPS.MetalOrganicPolyhedron)
         cbu = _ensure_individual(g, cbu_iri, ONTOMOPS.ChemicalBuildingUnit)
         g.remove((mop, ONTOMOPS.hasChemicalBuildingUnit, cbu))
@@ -316,27 +331,27 @@ def remove_cbu_from_mop(mop_iri: str, cbu_iri: str) -> str:
 # Query utilities
 # ----------------------------------------------------------------------------------------------------------------------
 
-def find_mops_by_ccdc_number(ccdc_number: str) -> List[str]:
+def find_mops_by_ccdc_number(ccdc_number: str, hash_value: str) -> List[str]:
     """Find all MetalOrganicPolyhedra with a specific CCDC number."""
-    with locked_graph() as g:
+    with locked_graph(hash_value=hash_value, timeout=30.0) as g:
         results = []
         for s in g.subjects(ONTOMOPS.hasCCDCNumber, Literal(ccdc_number)):
             if (s, RDF.type, ONTOMOPS.MetalOrganicPolyhedron) in g:
                 results.append(str(s))
         return results
 
-def find_mops_by_formula(mop_formula: str) -> List[str]:
+def find_mops_by_formula(mop_formula: str, hash_value: str) -> List[str]:
     """Find all MetalOrganicPolyhedra with a specific formula."""
-    with locked_graph() as g:
+    with locked_graph(hash_value=hash_value, timeout=30.0) as g:
         results = []
         for s in g.subjects(ONTOMOPS.hasMOPFormula, Literal(mop_formula)):
             if (s, RDF.type, ONTOMOPS.MetalOrganicPolyhedron) in g:
                 results.append(str(s))
         return results
 
-def get_mop_cbus(mop_iri: str) -> List[str]:
+def get_mop_cbus(mop_iri: str, hash_value: str) -> List[str]:
     """Get all ChemicalBuildingUnits associated with a MetalOrganicPolyhedron."""
-    with locked_graph() as g:
+    with locked_graph(hash_value=hash_value, timeout=30.0) as g:
         mop = URIRef(mop_iri)
         results = []
         for o in g.objects(mop, ONTOMOPS.hasChemicalBuildingUnit):
@@ -348,9 +363,9 @@ def get_mop_cbus(mop_iri: str) -> List[str]:
 # Delete utilities
 # ----------------------------------------------------------------------------------------------------------------------
 
-def delete_entity(entity_iri: str) -> str:
+def delete_entity(entity_iri: str, hash_value: str) -> str:
     """Remove all triples where entity_iri is subject or object."""
-    with locked_graph() as g:
+    with locked_graph(hash_value=hash_value, timeout=30.0) as g:
         s = URIRef(entity_iri)
         # Remove subject triples
         for p, o in list(g.predicate_objects(s)):
@@ -360,9 +375,9 @@ def delete_entity(entity_iri: str) -> str:
             g.remove((subj, pred, s))
         return entity_iri
 
-def delete_triple(subject_iri: str, predicate_uri: str, object_iri_or_literal: str, is_object_literal: bool = False) -> str:
+def delete_triple(subject_iri: str, predicate_uri: str, object_iri_or_literal: str, hash_value: str, is_object_literal: bool = False) -> str:
     """Delete a specific triple from the graph."""
-    with locked_graph() as g:
+    with locked_graph(hash_value=hash_value, timeout=30.0) as g:
         s = URIRef(subject_iri)
         p = URIRef(predicate_uri)
         if is_object_literal:
@@ -380,22 +395,25 @@ def delete_triple(subject_iri: str, predicate_uri: str, object_iri_or_literal: s
 # ----------------------------------------------------------------------------------------------------------------------
 if __name__ == "__main__":
     # Initialize memory
-    sh = init_memory()
+    hash_value = "178ef569"
+    sh = init_memory(hash_value)
     print(f"OntoMOPs Session hash: {sh}")
 
     # Create ChemicalBuildingUnits (minting new IRIs)
-    cbu1 = create_chemical_building_unit("1,3,5-benzenetricarboxylic acid")
-    cbu2 = create_chemical_building_unit("1,3,5-tris(4-pyridyl)benzene")
+    cbu1 = create_chemical_building_unit("1,3,5-benzenetricarboxylic acid", hash_value)
+    cbu2 = create_chemical_building_unit("1,3,5-tris(4-pyridyl)benzene", hash_value)
     
     # Create ChemicalBuildingUnit with existing IRI (entity linking)
     cbu3 = create_chemical_building_unit(
         "Copper(II) ion", 
+        hash_value,
         iri="https://www.theworldavatar.com/kg/OntoMOPs/instance/ChemicalBuildingUnit/copper-ii-ion"
     )
 
     # Create MetalOrganicPolyhedron (minting new IRI)
     mop1 = create_metal_organic_polyhedron(
         name="MOP-123",
+        hash_value=hash_value,
         ccdc_number="1234567",
         mop_formula="C36H27N3O6"
     )
@@ -403,26 +421,27 @@ if __name__ == "__main__":
     # Create MetalOrganicPolyhedron with existing IRI (entity linking)
     mop2 = create_metal_organic_polyhedron(
         name="MOP-456",
+        hash_value=hash_value,
         ccdc_number="1234568",
         mop_formula="C42H30N6O6",
         iri="https://www.theworldavatar.com/kg/OntoMOPs/instance/MetalOrganicPolyhedron/mop-456"
     )
 
     # Update properties
-    update_mop_ccdc_number(mop1, "1234568")
-    update_mop_formula(mop1, "C36H27N3O6·2H2O")
+    update_mop_ccdc_number(mop1, "1234568", hash_value)
+    update_mop_formula(mop1, "C36H27N3O6·2H2O", hash_value)
 
     # Connect ChemicalBuildingUnits to MetalOrganicPolyhedra
-    add_cbu_to_mop(mop1, cbu1)
-    add_cbu_to_mop(mop1, cbu2)
-    add_cbu_to_mop(mop2, cbu3)
+    add_cbu_to_mop(mop1, cbu1, hash_value)
+    add_cbu_to_mop(mop1, cbu2, hash_value)
+    add_cbu_to_mop(mop2, cbu3, hash_value)
 
     # Query examples
-    print(f"\nMOPs with CCDC number 1234568: {find_mops_by_ccdc_number('1234568')}")
-    print(f"MOPs with formula C36H27N3O6·2H2O: {find_mops_by_formula('C36H27N3O6·2H2O')}")
-    print(f"CBUs in MOP-123: {get_mop_cbus(mop1)}")
+    print(f"\nMOPs with CCDC number 1234568: {find_mops_by_ccdc_number('1234568', hash_value)}")
+    print(f"MOPs with formula C36H27N3O6·2H2O: {find_mops_by_formula('C36H27N3O6·2H2O', hash_value)}")
+    print(f"CBUs in MOP-123: {get_mop_cbus(mop1, hash_value)}")
 
     # Export and inspect
-    out_path = export_memory("ontomops_snapshot.ttl")
+    out_path = export_memory(hash_value)
     print(f"\nExported TTL: {out_path}")
-    print("\n" + inspect_memory())
+    print("\n" + inspect_memory(hash_value))

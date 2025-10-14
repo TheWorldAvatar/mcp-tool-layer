@@ -1,5 +1,5 @@
 from fastmcp import FastMCP
-from .operations.ontospecies_extension import (
+from src.ontospecies_extension.operations.ontospecies_extension import (
     # Memory API
     init_memory as _init_memory,
     inspect_memory as _inspect_memory,
@@ -133,170 +133,170 @@ def instruction_prompt():
 # =========================
 # Memory
 # =========================
-@mcp.tool(name="init_memory", description="Init or resume persistent graph; returns session hash.")
+@mcp.tool(name="init_memory", description="Init or resume persistent graph; returns session hash_value. If hash_value is provided, use data/{hash_value}/memory for storage.")
 @mcp_tool_logger
-def init_memory() -> str: return _init_memory()
+def init_memory(hash_value: str) -> str: return _init_memory(hash_value)
 
 @mcp.tool(name="inspect_memory", description="Human-readable dump for all nodes and edges.")
 @mcp_tool_logger
-def inspect_memory() -> str: return _inspect_memory()
+def inspect_memory(hash_value: str) -> str: return _inspect_memory(hash_value)
 
-@mcp.tool(name="export_memory", description="Serialize graph to .ttl file.")
+@mcp.tool(name="export_memory", description="Serialize graph to .ttl file. If hash_value is provided, save to data/{hash_value}/ directory. Output filename is hardcoded as 'ontospecies_extension.ttl'.")
 @mcp_tool_logger
-def export_memory(file_name: str) -> str: return _export_memory(file_name)
+def export_memory(hash_value: str) -> str: return _export_memory(hash_value)
 
 # =========================
 # Create
 # =========================
 @mcp.tool(name="create_species", description="Create Species.")
 @mcp_tool_logger
-def create_species(name: str, iri: str = None) -> str: return _create_species(name, iri)
+def create_species(name: str, hash_value: str, iri: str = None) -> str: return _create_species(name, hash_value, iri)
 
 @mcp.tool(name="create_characterization_session", description="Create CharacterizationSession.")
 @mcp_tool_logger
-def create_characterization_session(name: str, iri: str = None) -> str:
-    return _create_characterization_session(name, iri)
+def create_characterization_session(name: str, hash_value: str, iri: str = None) -> str:
+    return _create_characterization_session(name, hash_value, iri)
 
 @mcp.tool(name="create_hnmr_device", description="Create HNMRDevice.")
 @mcp_tool_logger
-def create_hnmr_device(name: str, iri: str = None) -> str: return _create_hnmr_device(name, iri)
+def create_hnmr_device(name: str, hash_value: str, iri: str = None) -> str: return _create_hnmr_device(name, hash_value, iri)
 
 @mcp.tool(name="create_elemental_analysis_device", description="Create ElementalAnalysisDevice.")
 @mcp_tool_logger
-def create_elemental_analysis_device(name: str, iri: str = None) -> str:
-    return _create_elemental_analysis_device(name, iri)
+def create_elemental_analysis_device(name: str, hash_value: str, iri: str = None) -> str:
+    return _create_elemental_analysis_device(name, hash_value, iri)
 
 @mcp.tool(name="create_infrared_spectroscopy_device", description="Create InfraredSpectroscopyDevice.")
 @mcp_tool_logger
-def create_infrared_spectroscopy_device(name: str, iri: str = None) -> str:
-    return _create_infrared_spectroscopy_device(name, iri)
+def create_infrared_spectroscopy_device(name: str, hash_value: str, iri: str = None) -> str:
+    return _create_infrared_spectroscopy_device(name, hash_value, iri)
 
 @mcp.tool(name="create_hnmr_data", description="Create HNMRData.")
 @mcp_tool_logger
-def create_hnmr_data(name: str, iri: str = None) -> str: return _create_hnmr_data(name, iri)
+def create_hnmr_data(name: str, hash_value: str, iri: str = None) -> str: return _create_hnmr_data(name, hash_value, iri)
 
 @mcp.tool(name="create_elemental_analysis_data", description="Create ElementalAnalysisData.")
 @mcp_tool_logger
-def create_elemental_analysis_data(name: str, iri: str = None) -> str:
-    return _create_elemental_analysis_data(name, iri)
+def create_elemental_analysis_data(name: str, hash_value: str, iri: str = None) -> str:
+    return _create_elemental_analysis_data(name, hash_value, iri)
 
 @mcp.tool(name="create_infrared_spectroscopy_data_with_bands", description="Create InfraredSpectroscopyData with bands text.")
 @mcp_tool_logger
-def create_infrared_spectroscopy_data_with_bands(label: str, bands_text: str = None, iri: str = None) -> str:
-    return _create_infrared_spectroscopy_data_with_bands(label, bands_text, iri)
+def create_infrared_spectroscopy_data_with_bands(label: str, bands_text: str = None, hash_value: str = None, iri: str = None) -> str:
+    return _create_infrared_spectroscopy_data_with_bands(label, bands_text, hash_value, iri)
 
 # High-level single-call functions
 @mcp.tool(name="create_and_link_ccdc_number", description="Create CCDC number and link to species in one call.")
 @mcp_tool_logger
-def create_and_link_ccdc_number(species_iri: str, value: str = None) -> str:
-    return _create_and_link_ccdc_number(species_iri, value)
+def create_and_link_ccdc_number(species_iri: str, value: str = None, hash_value: str = None) -> str:
+    return _create_and_link_ccdc_number(species_iri, value, hash_value)
 
 @mcp.tool(name="create_and_link_ir_data", description="Create IR data with bands and optionally link material/device/session.")
 @mcp_tool_logger
 def create_and_link_ir_data(species_iri: str, ir_data_label: str, bands_text: str = None, 
-                          material_label: str = None, device_label: str = None, session_label: str = None) -> str:
-    return _create_and_link_ir_data(species_iri, ir_data_label, bands_text, material_label, device_label, session_label)
+                          material_label: str = None, device_label: str = None, session_label: str = None, hash_value: str = None) -> str:
+    return _create_and_link_ir_data(species_iri, ir_data_label, bands_text, hash_value, material_label, device_label, session_label)
 
 @mcp.tool(name="create_material", description="Create Material.")
 @mcp_tool_logger
-def create_material(name: str, iri: str = None) -> str: return _create_material(name, iri)
+def create_material(name: str, hash_value: str, iri: str = None) -> str: return _create_material(name, hash_value, iri)
 
 @mcp.tool(name="create_molecular_formula", description="Create MolecularFormula.")
 @mcp_tool_logger
-def create_molecular_formula(name: str, iri: str = None) -> str: return _create_molecular_formula(name, iri)
+def create_molecular_formula(name: str, hash_value: str, iri: str = None) -> str: return _create_molecular_formula(name, hash_value, iri)
 
 @mcp.tool(name="create_chemical_formula", description="Create ChemicalFormula.")
 @mcp_tool_logger
-def create_chemical_formula(name: str, iri: str = None) -> str: return _create_chemical_formula(name, iri)
+def create_chemical_formula(name: str, hash_value: str, iri: str = None) -> str: return _create_chemical_formula(name, hash_value, iri)
 
 @mcp.tool(name="create_weight_percentage", description="Create WeightPercentage.")
 @mcp_tool_logger
-def create_weight_percentage(name: str, iri: str = None) -> str: return _create_weight_percentage(name, iri)
+def create_weight_percentage(name: str, hash_value: str, iri: str = None) -> str: return _create_weight_percentage(name, hash_value, iri)
 
 @mcp.tool(name="create_ccdc_number", description="Create CCDCNumber.")
 @mcp_tool_logger
-def create_ccdc_number(name: str, iri: str = None) -> str: return _create_ccdc_number(name, iri)
+def create_ccdc_number(name: str, hash_value: str, iri: str = None) -> str: return _create_ccdc_number(name, hash_value, iri)
 
 @mcp.tool(name="create_element", description="Create Element.")
 @mcp_tool_logger
-def create_element(name: str, iri: str = None) -> str: return _create_element(name, iri)
+def create_element(name: str, hash_value: str, iri: str = None) -> str: return _create_element(name, hash_value, iri)
 
 @mcp.tool(name="create_atomic_weight", description="Create AtomicWeight.")
 @mcp_tool_logger
-def create_atomic_weight(value: str, iri: str = None) -> str: return _create_atomic_weight(value, iri)
+def create_atomic_weight(value: str, hash_value: str, iri: str = None) -> str: return _create_atomic_weight(value, hash_value, iri)
 
 # =========================
 # Link
 # =========================
 @mcp.tool(name="add_characterization_session_to_species", description="Link session to species.")
 @mcp_tool_logger
-def add_characterization_session_to_species(species_iri: str, characterization_session_iri: str) -> str:
-    return _add_characterization_session_to_species(species_iri, characterization_session_iri)
+def add_characterization_session_to_species(species_iri: str, characterization_session_iri: str, hash_value: str) -> str:
+    return _add_characterization_session_to_species(species_iri, characterization_session_iri, hash_value)
 
 
 @mcp.tool(name="add_hnmr_device_to_characterization_session", description="Link HNMRDevice.")
 @mcp_tool_logger
-def add_hnmr_device_to_characterization_session(characterization_session_iri: str, hnmr_device_iri: str) -> str:
-    return _add_hnmr_device_to_characterization_session(characterization_session_iri, hnmr_device_iri)
+def add_hnmr_device_to_characterization_session(characterization_session_iri: str, hnmr_device_iri: str, hash_value: str) -> str:
+    return _add_hnmr_device_to_characterization_session(characterization_session_iri, hnmr_device_iri, hash_value)
 
 @mcp.tool(name="add_elemental_analysis_device_to_characterization_session", description="Link EA device.")
 @mcp_tool_logger
-def add_elemental_analysis_device_to_characterization_session(characterization_session_iri: str, elemental_device_iri: str) -> str:
-    return _add_elemental_analysis_device_to_characterization_session(characterization_session_iri, elemental_device_iri)
+def add_elemental_analysis_device_to_characterization_session(characterization_session_iri: str, elemental_device_iri: str, hash_value: str) -> str:
+    return _add_elemental_analysis_device_to_characterization_session(characterization_session_iri, elemental_device_iri, hash_value)
 
 @mcp.tool(name="add_infrared_spectroscopy_device_to_characterization_session", description="Link IR device.")
 @mcp_tool_logger
-def add_infrared_spectroscopy_device_to_characterization_session(characterization_session_iri: str, infrared_device_iri: str) -> str:
-    return _add_infrared_spectroscopy_device_to_characterization_session(characterization_session_iri, infrared_device_iri)
+def add_infrared_spectroscopy_device_to_characterization_session(characterization_session_iri: str, infrared_device_iri: str, hash_value: str) -> str:
+    return _add_infrared_spectroscopy_device_to_characterization_session(characterization_session_iri, infrared_device_iri, hash_value)
 
 @mcp.tool(name="add_hnmr_data_to_species", description="Link HNMRData to species.")
 @mcp_tool_logger
-def add_hnmr_data_to_species(species_iri: str, hnmr_data_iri: str) -> str:
-    return _add_hnmr_data_to_species(species_iri, hnmr_data_iri)
+def add_hnmr_data_to_species(species_iri: str, hnmr_data_iri: str, hash_value: str) -> str:
+    return _add_hnmr_data_to_species(species_iri, hnmr_data_iri, hash_value)
 
 @mcp.tool(name="add_elemental_analysis_data_to_species", description="Link EA data to species.")
 @mcp_tool_logger
-def add_elemental_analysis_data_to_species(species_iri: str, elemental_data_iri: str) -> str:
-    return _add_elemental_analysis_data_to_species(species_iri, elemental_data_iri)
+def add_elemental_analysis_data_to_species(species_iri: str, elemental_data_iri: str, hash_value: str) -> str:
+    return _add_elemental_analysis_data_to_species(species_iri, elemental_data_iri, hash_value)
 
 
 @mcp.tool(name="add_molecular_formula_to_species", description="Link MolecularFormula.")
 @mcp_tool_logger
-def add_molecular_formula_to_species(species_iri: str, molecular_formula_iri: str) -> str:
-    return _add_molecular_formula_to_species(species_iri, molecular_formula_iri)
+def add_molecular_formula_to_species(species_iri: str, molecular_formula_iri: str, hash_value: str) -> str:
+    return _add_molecular_formula_to_species(species_iri, molecular_formula_iri, hash_value)
 
 @mcp.tool(name="add_chemical_formula_to_species", description="Link ChemicalFormula.")
 @mcp_tool_logger
-def add_chemical_formula_to_species(species_iri: str, chemical_formula_iri: str) -> str:
-    return _add_chemical_formula_to_species(species_iri, chemical_formula_iri)
+def add_chemical_formula_to_species(species_iri: str, chemical_formula_iri: str, hash_value: str) -> str:
+    return _add_chemical_formula_to_species(species_iri, chemical_formula_iri, hash_value)
 
 @mcp.tool(name="add_ccdc_number_to_species", description="Link CCDCNumber.")
 @mcp_tool_logger
-def add_ccdc_number_to_species(species_iri: str, ccdc_number_iri: str) -> str:
-    return _add_ccdc_number_to_species(species_iri, ccdc_number_iri)
+def add_ccdc_number_to_species(species_iri: str, ccdc_number_iri: str, hash_value: str) -> str:
+    return _add_ccdc_number_to_species(species_iri, ccdc_number_iri, hash_value)
 
 
 @mcp.tool(name="add_atomic_weight_to_element", description="Link AtomicWeight to Element.")
 @mcp_tool_logger
-def add_atomic_weight_to_element(element_iri: str, atomic_weight_iri: str) -> str:
-    return _add_atomic_weight_to_element(element_iri, atomic_weight_iri)
+def add_atomic_weight_to_element(element_iri: str, atomic_weight_iri: str, hash_value: str) -> str:
+    return _add_atomic_weight_to_element(element_iri, atomic_weight_iri, hash_value)
 
 @mcp.tool(name="add_element_to_weight_percentage", description="Link Element to WeightPercentage.")
 @mcp_tool_logger
-def add_element_to_weight_percentage(weight_percentage_iri: str, element_iri: str) -> str:
-    return _add_element_to_weight_percentage(weight_percentage_iri, element_iri)
+def add_element_to_weight_percentage(weight_percentage_iri: str, element_iri: str, hash_value: str) -> str:
+    return _add_element_to_weight_percentage(weight_percentage_iri, element_iri, hash_value)
 
 # =========================
 # Delete
 # =========================
 @mcp.tool(name="delete_entity", description="Remove all triples touching an IRI.")
 @mcp_tool_logger
-def delete_entity(entity_iri: str) -> str: return _delete_entity(entity_iri)
+def delete_entity(entity_iri: str, hash_value: str) -> str: return _delete_entity(entity_iri, hash_value)
 
 @mcp.tool(name="delete_triple", description="Remove one triple; set is_object_literal if needed.")
 @mcp_tool_logger
-def delete_triple(subject_iri: str, predicate_uri: str, object_iri_or_literal: str, is_object_literal: bool = False) -> str:
-    return _delete_triple(subject_iri, predicate_uri, object_iri_or_literal, is_object_literal)
+def delete_triple(subject_iri: str, predicate_uri: str, object_iri_or_literal: str, hash_value: str, is_object_literal: bool = False) -> str:
+    return _delete_triple(subject_iri, predicate_uri, object_iri_or_literal, hash_value, is_object_literal)
 
 if __name__ == "__main__":
     mcp.run(transport="stdio")

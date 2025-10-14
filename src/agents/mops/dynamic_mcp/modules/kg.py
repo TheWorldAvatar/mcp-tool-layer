@@ -2,9 +2,9 @@ import os
 from rdflib import Graph, Namespace
 from src.utils.global_logger import get_logger
 
-def parse_top_level_entities(doi: str):
+def parse_top_level_entities(doi: str, output_file: str = "iteration_1.ttl"):
     logger = get_logger("agent", "MCPRunAgent")
-    ttl_file_path = os.path.join("data", doi, "iteration_1.ttl")
+    ttl_file_path = os.path.join("data", doi, output_file)
     if not os.path.exists(ttl_file_path):
         logger.warning(f"TTL not found: {ttl_file_path}")
         return []

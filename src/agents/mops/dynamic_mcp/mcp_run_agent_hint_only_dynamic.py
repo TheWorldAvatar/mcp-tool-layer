@@ -53,7 +53,7 @@ def _discover_tbox(paper_md_path: str) -> str:
     tbox_path = os.path.join(root, "ontosynthesis.ttl")
     return _read_text(tbox_path) if os.path.exists(tbox_path) else ""
 
-def _agent(tools=None, model="gpt-4o", temp=0.2, top_p=0.2, mcp_set="run_created_mcp.json"):
+def _agent(tools=None, model="gpt-4o", temp=0.1, top_p=0.1, mcp_set="run_created_mcp.json"):
     return BaseAgent(
         model_name=model,
         model_config=ModelConfig(temperature=temp, top_p=top_p),
@@ -64,6 +64,46 @@ def _agent(tools=None, model="gpt-4o", temp=0.2, top_p=0.2, mcp_set="run_created
 
 def _safe_name(label: str) -> str:
     return (label or "entity").replace(" ", "_").replace("/", "_")
+
+# -------------------- Retry wrapper --------------------
+async def _run_agent_with_retry(agent, instruction: str, max_retries: int = 3, recursion_limit: int = 600):
+    """
+    Run agent with retry mechanism.
+    
+    Args:
+        agent: The agent instance to run
+        instruction: The instruction to pass to the agent
+        max_retries: Maximum number of retry attempts (default 3 total attempts)
+        recursion_limit: Recursion limit for agent execution
+        
+    Returns:
+        tuple: (response, metadata) from successful agent execution
+        
+    Raises:
+        RuntimeError: If all retry attempts fail
+    """
+    retries = 0
+    last_error = None
+    
+    while retries < max_retries:
+        try:
+            log.info(f"Agent execution attempt {retries + 1}/{max_retries}")
+            response, metadata = await agent.run(instruction, recursion_limit=recursion_limit)
+            log.info(f"Agent execution succeeded on attempt {retries + 1}")
+            return response, metadata
+        except Exception as e:
+            last_error = e
+            retries += 1
+            log.error(f"Agent execution failed on attempt {retries}/{max_retries}: {e}")
+            
+            if retries < max_retries:
+                wait_time = 5 * retries  # Progressive backoff: 5s, 10s, 15s
+                log.info(f"Waiting {wait_time}s before retry...")
+                await asyncio.sleep(wait_time)
+            else:
+                log.error(f"Agent execution failed after {max_retries} attempts")
+    
+    raise RuntimeError(f"Agent execution failed after {max_retries} attempts. Last error: {last_error}")
 
 # -------------------- Rate limiter --------------------
 class RateLimiter:
@@ -110,7 +150,7 @@ async def run_task(doi: str, test: bool = False):
     if iter1_scope:
         i1, scope_text_1 = iter1_scope
         response_file_1 = os.path.join(hints_dir, "iter1_response.md")
-        # task-wise skip
+
         if os.path.exists(response_file_1):
             print(f"⏭️  Skip entire iteration {i1}: {response_file_1} exists")
         else:
@@ -142,28 +182,112 @@ async def run_task(doi: str, test: bool = False):
                             f"# Iteration {i1} — Instruction\n\n{instr1}")
 
                 iteration_1_ttl = os.path.join(doi_dir, "iteration_1.ttl")
-                if not test:
-                    if os.path.exists(iteration_1_ttl):
-                        print(f"⏭️  Skip iter {i1} execution: {iteration_1_ttl} exists")
-                    else:
-                        print("🚀 Running iteration 1 agent...")
-                        agent1 = _agent(tools=["llm_created_mcp"])
-                        resp1, _ = await agent1.run(instr1, recursion_limit=600)
+                if os.path.exists(iteration_1_ttl):
+                    print(f"⏭️  Skip iter {i1} execution: {iteration_1_ttl} exists")
+                else:
+                    print("🚀 Running iteration 1 agent...")
+                    agent1 = _agent(tools=["llm_created_mcp"])
+                    try:
+                        resp1, _ = await _run_agent_with_retry(agent1, instr1, max_retries=3, recursion_limit=600)
                         _write_text(response_file_1,
                                     f"# Iteration {i1}\n\n## Instruction\n\n{instr1}\n\n## Response\n\n{resp1}")
                         out_local = os.path.join(doi_dir, "output.ttl")
                         if os.path.exists(out_local):
                             shutil.copy2(out_local, iteration_1_ttl)
+                    except RuntimeError as e:
+                        log.error(f"Failed to complete iteration 1 after retries: {e}")
+                        print(f"❌ Failed to complete iteration 1 after retries: {e}")
             else:
                 print("⚠️  No prompt for iteration 1; continuing.")
     else:
         print("⚠️  No iteration 1 scope found; continuing without top entities.")
 
-    # harvest top entities
-    top_entities = parse_top_level_entities(doi) or []  # [{label, uri}]
+    # Parse top-level entities from output_top.ttl (iteration 1 output)
+    if test:
+        top_entities = parse_top_level_entities(doi, output_file="output_top.ttl")[:1]  # first entity only
+    else:
+        top_entities = parse_top_level_entities(doi, output_file="output_top.ttl") or []
+
     _write_text(os.path.join(hints_dir, "iter1_top_entities.json"), json.dumps(top_entities, indent=2))
 
-    # ----- Iterations >= 2: parallel per-entity extraction with batch size 8 and 1–2s spacing -----
+    # Iterations >= 2 for test mode: single entity through all iterations
+    if test and top_entities:
+        async def _test_mode_single_entity():
+            e = top_entities[0]  # only the first entity
+            label = e.get("label", "")
+            uri = e.get("uri", "")
+            safe = _safe_name(label)
+
+            # Run through all iterations >= 2 for the first entity
+            for iter_no, scope_text in scopes:
+                if iter_no == 1:  # Skip iteration 1 (already handled above)
+                    continue
+                    
+                print(f"🔄 Test mode: Processing iteration {iter_no} for entity '{label}'...")
+
+                # Check if hints already exist
+                hint_file = os.path.join(hints_dir, f"iter{iter_no}_hints_{safe}.txt")
+                if os.path.exists(hint_file):
+                    print(f"⏭️  Skip test extraction for '{label}' iter {iter_no}: {hint_file} exists")
+                    hints = _read_text(hint_file)
+                else:
+                    print(f"🔍 Test mode: Extracting for entity '{label}' iter {iter_no}...")
+                    hints = await extract_content(
+                        paper_content=paper,
+                        goal=scope_text,
+                        t_box=t_box,
+                        entity_label=label,
+                        entity_uri=uri,
+                    )
+                    print(f"✅ Test mode: Completed extraction for '{label}' iter {iter_no}.")
+                    
+                    # Save hints
+                    _write_text(hint_file, hints)
+                    print(f"✅ Test mode: Saved hints to {hint_file}")
+                
+                # Run the actual agent execution for test mode
+                if iter_no in prompt_map:
+                    tmpl = prompt_map[iter_no]
+                    response_file = os.path.join(hints_dir, f"iter{iter_no}_{safe}.md")
+                    
+                    if os.path.exists(response_file):
+                        print(f"⏭️  Skip test execution for '{label}' iter {iter_no}: response exists")
+                    else:
+                        print(f"🚀 Test mode: Running iteration {iter_no} for entity: {label}")
+                        instr = format_prompt(
+                            tmpl,
+                            doi=doi,
+                            iteration=iter_no,
+                            entity_label=label,
+                            entity_uri=uri,
+                            paper_content=hints,
+                        )
+                        
+                        _write_text(os.path.join(hints_dir, f"iter{iter_no}_{safe}_instruction.md"),
+                                    f"# Iteration {iter_no} — {label} — Instruction\n\n{instr}")
+                        
+                        agent = _agent(tools=["llm_created_mcp"])
+                        try:
+                            resp, _ = await _run_agent_with_retry(agent, instr, max_retries=3, recursion_limit=600)
+                            _write_text(response_file,
+                                        f"# Iteration {iter_no} — {label}\n\n## Instruction\n\n{instr}\n\n## Response\n\n{resp}")
+                            
+                            # Copy output.ttl if it exists
+                            out_local = os.path.join(doi_dir, "output.ttl")
+                            if os.path.exists(out_local):
+                                intermediate_ttl = os.path.join(intermediate_ttl_dir, f"iteration_{iter_no}_{safe}.ttl")
+                                shutil.copy2(out_local, intermediate_ttl)
+                                print(f"✅ Test mode: Saved intermediate TTL to {intermediate_ttl}")
+                        except RuntimeError as e:
+                            log.error(f"Test mode: Failed to complete iter {iter_no} for '{label}' after retries: {e}")
+                            print(f"❌ Test mode: Failed to complete iter {iter_no} for '{label}' after retries: {e}")
+                else:
+                    print(f"⚠️  No prompt for iteration {iter_no}; test mode completed extraction only.")
+
+        await _test_mode_single_entity()
+        return
+
+    # Iterations >= 2: parallel per-entity extraction with batch size 8 and 1–2s spacing
     async def _extract_entity(iter_no: int, scope_text: str, e: Dict[str, str],
                               semaphore: asyncio.Semaphore, rl: RateLimiter):
         label = e.get("label", "")
@@ -193,7 +317,7 @@ async def run_task(doi: str, test: bool = False):
             print(f"✅ Saved {hint_file}")
 
     for iter_no, scope_text in scopes:
-        if iter_no == 1:
+        if iter_no == 1 or (test and iter_no != 2):
             continue
         if not top_entities:
             print(f"⚠️  No top entities for iter {iter_no}.")
@@ -220,13 +344,14 @@ async def run_task(doi: str, test: bool = False):
         print(f"🚦 Parallel extraction iter {iter_no}: {len(jobs)} entity jobs")
         sem = asyncio.Semaphore(8)          # batch size/concurrency cap
         rate = RateLimiter(1.0, 2.0)        # 1–2s between starts
-        tasks = [asyncio.create_task(_extract_entity(iter_no, scope_text, e, sem, rate)) for e in jobs]
+        tasks = [asyncio.create_task(_extract_entity(iter_no, scope_text, e, sem, rate)) 
+                 for e in jobs]
         await asyncio.gather(*tasks)
 
     if test:
         return
 
-    # ----- Iterations >= 2: per-entity execution with SINGLE hint -----
+    # Iterations >= 2: per-entity execution with SINGLE hint
     for iter_no, _ in scopes:
         if iter_no == 1:
             continue
@@ -268,15 +393,19 @@ async def run_task(doi: str, test: bool = False):
 
             print(f"🚀 Running iteration {iter_no} for entity: {label}")
             agent = _agent(tools=["llm_created_mcp"])
-            resp, _ = await agent.run(instr, recursion_limit=600)
-            _write_text(response_file,
-                        f"# Iteration {iter_no} — {label}\n\n## Instruction\n\n{instr}\n\n## Response\n\n{resp}")
+            try:
+                resp, _ = await _run_agent_with_retry(agent, instr, max_retries=3, recursion_limit=600)
+                _write_text(response_file,
+                            f"# Iteration {iter_no} — {label}\n\n## Instruction\n\n{instr}\n\n## Response\n\n{resp}")
 
-            out_local = os.path.join(doi_dir, "output.ttl")
-            if os.path.exists(out_local):
-                intermediate_ttl = os.path.join(intermediate_ttl_dir, f"iteration_{iter_no}_{safe}.ttl")
-                shutil.copy2(out_local, intermediate_ttl)
-                print(f"✅ Saved intermediate TTL to {intermediate_ttl}")
+                out_local = os.path.join(doi_dir, "output.ttl")
+                if os.path.exists(out_local):
+                    intermediate_ttl = os.path.join(intermediate_ttl_dir, f"iteration_{iter_no}_{safe}.ttl")
+                    shutil.copy2(out_local, intermediate_ttl)
+                    print(f"✅ Saved intermediate TTL to {intermediate_ttl}")
+            except RuntimeError as e:
+                log.error(f"Failed to complete iter {iter_no} for entity '{label}' after retries: {e}")
+                print(f"❌ Failed to complete iter {iter_no} for entity '{label}' after retries: {e}")
 
 # -------------------- CLI --------------------
 if __name__ == "__main__":

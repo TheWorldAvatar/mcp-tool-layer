@@ -50,6 +50,15 @@ async def extract_content(
     """Extract content per EXTACTION_SCOPE. If entity info is provided, scope strictly to that entity."""
     logger = get_logger("agent", "Extractor")
 
+    # Log extraction context for debugging
+    entity_info = f"'{entity_label}'" if entity_label else "global (iteration 1)"
+    logger.info(f"Starting extraction for entity: {entity_info}")
+    logger.debug(f"Paper content length: {len(paper_content)} chars")
+    logger.debug(f"Goal length: {len(goal)} chars")
+    logger.debug(f"T-Box length: {len(t_box)} chars")
+    if entity_uri:
+        logger.debug(f"Entity URI: {entity_uri}")
+
     focus_block = (
         FOCUS_BLOCK_WITH_ENTITY.format(entity_label=entity_label or "", entity_uri=entity_uri or "")
         if entity_label and entity_uri else
@@ -62,6 +71,11 @@ async def extract_content(
         paper_content=paper_content or "",
         t_box=t_box or "",
     )
+    
+    prompt_length = len(prompt)
+    logger.info(f"Generated prompt length: {prompt_length} chars (~{prompt_length // 4} tokens)")
+    if prompt_length > 100000:
+        logger.warning(f"⚠️  Very long prompt ({prompt_length} chars) - may exceed model limits or cause timeouts")
 
     llm_creator = LLMCreator(
         model="gpt-4.1",
@@ -69,22 +83,129 @@ async def extract_content(
         remote_model=True,
     )
     llm = llm_creator.setup_llm()
+    
+    # Add timeout configuration to prevent hanging requests
+    # LangChain ChatOpenAI uses httpx under the hood with default 60s timeout
+    # The timeout might need to be adjusted based on API performance
 
     retries = 0
-    max_retries = 2
+    max_retries = 3  # Increased from 2 to 3
     start = time.time()
+    attempt_durations = []
+    
     while retries < max_retries:
+        attempt_start = time.time()
         try:
+            logger.info(f"🔄 Attempt {retries + 1}/{max_retries} for entity: {entity_info}")
             resp = llm.invoke(prompt).content
+            attempt_duration = time.time() - attempt_start
+            
+            # Validate that we got a non-empty response
+            if not resp or len(str(resp).strip()) == 0:
+                raise ValueError("Empty response from LLM")
+            
+            # Success!
+            total_duration = time.time() - start
+            logger.info(f"✅ Extraction succeeded on attempt {retries + 1} ({attempt_duration:.2f}s)")
+            logger.info(f"Response length: {len(str(resp))} chars")
+            if retries > 0:
+                logger.info(f"Total time including retries: {total_duration:.2f}s")
             return str(resp).strip()
+            
         except Exception as e:
-            logger.error(f"Extraction error: {e}")
+            attempt_duration = time.time() - attempt_start
+            attempt_durations.append(attempt_duration)
             retries += 1
-            time.sleep(8)
+            error_type = type(e).__name__
+            error_msg = str(e)
+            
+            # Detailed error logging with context
+            logger.error("=" * 80)
+            logger.error(f"❌ EXTRACTION FAILED - Attempt {retries}/{max_retries}")
+            logger.error(f"Entity: {entity_info}")
+            logger.error(f"Error Type: {error_type}")
+            logger.error(f"Attempt Duration: {attempt_duration:.2f}s")
+            logger.error("-" * 80)
+            
+            # Check if it's a JSON parsing error (common with API issues)
+            if "Expecting value" in error_msg or "JSONDecodeError" in error_type:
+                logger.error(f"JSON Parsing Error: {error_msg[:300]}")
+                logger.error("🔍 Root Cause Analysis:")
+                logger.error("  • API response was truncated or malformed")
+                logger.error("  • Possible reasons:")
+                logger.error("    - Network timeout or interruption")
+                logger.error("    - API backend processing timeout")
+                logger.error("    - Response size exceeds buffer limits")
+                logger.error("    - Token limit exceeded during generation")
+                if attempt_duration > 60:
+                    logger.error(f"  • Long duration ({attempt_duration:.0f}s) suggests timeout issue")
+                if prompt_length > 80000:
+                    logger.error(f"  • Large prompt ({prompt_length} chars) may cause processing delays")
+            elif "timeout" in error_msg.lower() or "timed out" in error_msg.lower():
+                logger.error(f"Timeout Error: {error_msg[:300]}")
+                logger.error("🔍 Root Cause: Request timed out")
+                logger.error(f"  • Attempt took {attempt_duration:.2f}s before timeout")
+                logger.error(f"  • Prompt size: {prompt_length} chars")
+                logger.error("  • Consider: reducing input size or increasing timeout")
+            elif "Empty response" in error_msg:
+                logger.error("Empty Response Error")
+                logger.error("🔍 Root Cause: LLM returned no content")
+                logger.error("  • API may have rejected the request")
+                logger.error("  • Check API rate limits or quotas")
+            else:
+                logger.error(f"Unexpected Error: {error_msg[:300]}")
+                if len(error_msg) > 300:
+                    logger.error(f"  (Full error truncated, see above for first 300 chars)")
+            
+            # Add context about what's being processed
+            logger.error("-" * 80)
+            logger.error("📊 Request Context:")
+            logger.error(f"  • Prompt length: {prompt_length} chars (~{prompt_length // 4} tokens)")
+            logger.error(f"  • Paper length: {len(paper_content)} chars")
+            logger.error(f"  • Model: gpt-4.1")
+            logger.error(f"  • Temperature: 0.1, Top-P: 0.2")
+            if entity_uri:
+                logger.error(f"  • Entity URI: {entity_uri}")
+            
+            if retries < max_retries:
+                # Progressive backoff: 5s, 10s, 15s
+                wait_time = 5 * retries
+                logger.error(f"⏳ Retrying in {wait_time}s... ({max_retries - retries} attempts remaining)")
+                logger.error("=" * 80)
+                time.sleep(wait_time)
+            else:
+                logger.error("=" * 80)
+                logger.error("❌ ALL RETRY ATTEMPTS EXHAUSTED")
+                logger.error("=" * 80)
 
-    dur = time.time() - start
-    logger.error(f"Extraction failed after retries. Duration {dur:.2f}s")
-    raise RuntimeError("Failed to extract content after maximum retries.")
+    # Final failure summary
+    total_duration = time.time() - start
+    logger.error("=" * 80)
+    logger.error("💥 EXTRACTION COMPLETELY FAILED")
+    logger.error("-" * 80)
+    logger.error(f"Entity: {entity_info}")
+    if entity_label:
+        logger.error(f"Entity Label: {entity_label}")
+    if entity_uri:
+        logger.error(f"Entity URI: {entity_uri}")
+    logger.error(f"Total Duration: {total_duration:.2f}s")
+    logger.error(f"Attempts: {max_retries}")
+    logger.error(f"Attempt Durations: {', '.join(f'{d:.2f}s' for d in attempt_durations)}")
+    logger.error(f"Prompt Size: {prompt_length} chars (~{prompt_length // 4} tokens)")
+    logger.error("-" * 80)
+    logger.error("🔧 Debugging Steps:")
+    logger.error("  1. Check if paper content is too long")
+    logger.error("  2. Verify API connectivity and rate limits")
+    logger.error("  3. Check API logs for backend errors")
+    logger.error("  4. Try reducing input size or splitting extraction")
+    logger.error("  5. Increase timeout configuration if available")
+    logger.error("=" * 80)
+    
+    raise RuntimeError(
+        f"Failed to extract content for entity '{entity_label or 'global'}' "
+        f"after {max_retries} attempts. Total duration: {total_duration:.2f}s. "
+        f"Last error type: {error_type}"
+    )
 
 
 if __name__ == "__main__":

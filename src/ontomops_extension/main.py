@@ -1,5 +1,5 @@
 from fastmcp import FastMCP
-from .operations.ontomops_extension import (
+from src.ontomops_extension.operations.ontomops_extension import (
     # Memory API
     init_memory as _init_memory,
     inspect_memory as _inspect_memory,
@@ -21,7 +21,7 @@ from .operations.ontomops_extension import (
     delete_entity as _delete_entity,
     delete_triple as _delete_triple,
 )
-from src.utils.global_logger import get_logger, mcp_tool_logger
+from src.utils.global_logger import mcp_tool_logger
 
 mcp = FastMCP(name="ontomops_extension")
 
@@ -33,12 +33,12 @@ def instruction_prompt():
         "This server provides tools to create and manage ChemicalBuildingUnits and MetalOrganicPolyhedra instances "
         "with their properties and relationships. All tools accept plain strings and numbers and return IRIs as strings. "
         "IRIs are minted to be readable and stable, but you can also provide existing IRIs for entity linking. "
-        "The server uses a file-based object memory with locking. Begin every session by calling init_memory and persist the returned session hash in your task memory. "
-        "The hash is implicit for all subsequent calls but keep it for reporting and continuity. "
+        "The server uses a file-based object memory with locking. Begin every session by calling init_memory and persist the returned session hash_value in your task memory. "
+        "The hash_value is implicit for all subsequent calls but keep it for reporting and continuity. "
         "Prefer to use paper exact wording for rdfs:label fields to preserve provenance. "
         "\n\n"
         "Recommended calling sequence to build a complete MOP knowledge graph: "
-        "\n1. init_memory to open or create the persistent graph and obtain session hash. "
+        "\n1. init_memory to open or create the persistent graph and obtain session hash_value. "
         "\n2. Create ChemicalBuildingUnits: "
         "\n   - create_chemical_building_unit for each building block (linkers, metals, etc.) "
         "\n   - Optionally provide an existing IRI for entity linking "
@@ -47,6 +47,7 @@ def instruction_prompt():
         "\n   - Optionally provide an existing IRI for entity linking "
         "\n4. Establish relationships: "
         "\n   - add_cbu_to_mop to link ChemicalBuildingUnits to MetalOrganicPolyhedra "
+        "\n   - Usually, one MetalOrganicPolyhedron has multiple ChemicalBuildingUnits, metal and organic "
         "\n5. Update properties as needed: "
         "\n   - update_mop_ccdc_number to set or update CCDC numbers "
         "\n   - update_mop_formula to set or update MOP formulas "
@@ -72,11 +73,11 @@ def instruction_prompt():
 # =========================
 @mcp.tool(
     name="init_memory",
-    description="Initialize or resume the persistent graph and return the session hash. Next: create ChemicalBuildingUnits and MetalOrganicPolyhedra instances."
+    description="Initialize or resume the persistent graph and return the session hash_value. If hash_value is provided, use data/{hash_value}/memory for storage. Next: create ChemicalBuildingUnits and MetalOrganicPolyhedra instances."
 )
 @mcp_tool_logger
-def init_memory() -> str:
-    return _init_memory()
+def init_memory(hash_value: str = None) -> str:
+    return _init_memory(hash_value)
 
 
 @mcp.tool(
@@ -90,11 +91,11 @@ def inspect_memory() -> str:
 
 @mcp.tool(
     name="export_memory",
-    description="Export the entire graph to a Turtle file. Only .ttl extension is allowed. Next: keep building or finalize the workflow."
+    description="Export the entire graph to a Turtle file. If hash_value is provided, save to data/{hash_value}/ directory. Output filename is hardcoded as 'ontomops_extension.ttl'. Next: keep building or finalize the workflow."
 )
 @mcp_tool_logger
-def export_memory(file_name: str) -> str:
-    return _export_memory(file_name)
+def export_memory(hash_value: str = None) -> str:
+    return _export_memory(hash_value)
 
 
 # =========================
@@ -105,8 +106,8 @@ def export_memory(file_name: str) -> str:
     description="Create a ChemicalBuildingUnit with a human-readable name. Optionally provide an existing IRI for entity linking. Next: add it to MetalOrganicPolyhedra using add_cbu_to_mop."
 )
 @mcp_tool_logger
-def create_chemical_building_unit(name: str, iri: str = None) -> str:
-    return _create_chemical_building_unit(name, iri)
+def create_chemical_building_unit(name: str, hash_value: str, iri: str = None) -> str:
+    return _create_chemical_building_unit(name, hash_value, iri)
 
 
 @mcp.tool(
@@ -114,8 +115,8 @@ def create_chemical_building_unit(name: str, iri: str = None) -> str:
     description="Create a MetalOrganicPolyhedron with optional CCDC number and MOP formula. Optionally provide an existing IRI for entity linking. Next: add ChemicalBuildingUnits using add_cbu_to_mop."
 )
 @mcp_tool_logger
-def create_metal_organic_polyhedron(name: str, ccdc_number: str = None, mop_formula: str = None, iri: str = None) -> str:
-    return _create_metal_organic_polyhedron(name, ccdc_number, mop_formula, iri)
+def create_metal_organic_polyhedron(name: str, hash_value: str, ccdc_number: str = None, mop_formula: str = None, iri: str = None) -> str:
+    return _create_metal_organic_polyhedron(name, hash_value, ccdc_number, mop_formula, iri)
 
 
 # =========================
@@ -126,8 +127,8 @@ def create_metal_organic_polyhedron(name: str, ccdc_number: str = None, mop_form
     description="Update or set the CCDC number for a MetalOrganicPolyhedron. Next: use find_mops_by_ccdc_number to query by CCDC number."
 )
 @mcp_tool_logger
-def update_mop_ccdc_number(mop_iri: str, ccdc_number: str) -> str:
-    return _update_mop_ccdc_number(mop_iri, ccdc_number)
+def update_mop_ccdc_number(mop_iri: str, ccdc_number: str, hash_value: str) -> str:
+    return _update_mop_ccdc_number(mop_iri, ccdc_number, hash_value)
 
 
 @mcp.tool(
@@ -135,8 +136,8 @@ def update_mop_ccdc_number(mop_iri: str, ccdc_number: str) -> str:
     description="Update or set the MOP formula for a MetalOrganicPolyhedron. Next: use find_mops_by_formula to query by formula."
 )
 @mcp_tool_logger
-def update_mop_formula(mop_iri: str, mop_formula: str) -> str:
-    return _update_mop_formula(mop_iri, mop_formula)
+def update_mop_formula(mop_iri: str, mop_formula: str, hash_value: str) -> str:
+    return _update_mop_formula(mop_iri, mop_formula, hash_value)
 
 
 # =========================
@@ -147,8 +148,8 @@ def update_mop_formula(mop_iri: str, mop_formula: str) -> str:
     description="Add a ChemicalBuildingUnit to a MetalOrganicPolyhedron. Next: use get_mop_cbus to see all CBUs in a MOP."
 )
 @mcp_tool_logger
-def add_cbu_to_mop(mop_iri: str, cbu_iri: str) -> str:
-    return _add_cbu_to_mop(mop_iri, cbu_iri)
+def add_cbu_to_mop(mop_iri: str, cbu_iri: str, hash_value: str) -> str:
+    return _add_cbu_to_mop(mop_iri, cbu_iri, hash_value)
 
 
 @mcp.tool(
@@ -156,8 +157,8 @@ def add_cbu_to_mop(mop_iri: str, cbu_iri: str) -> str:
     description="Remove a ChemicalBuildingUnit from a MetalOrganicPolyhedron. Next: inspect_memory to verify the removal."
 )
 @mcp_tool_logger
-def remove_cbu_from_mop(mop_iri: str, cbu_iri: str) -> str:
-    return _remove_cbu_from_mop(mop_iri, cbu_iri)
+def remove_cbu_from_mop(mop_iri: str, cbu_iri: str, hash_value: str) -> str:
+    return _remove_cbu_from_mop(mop_iri, cbu_iri, hash_value)
 
 
 # =========================
@@ -168,8 +169,8 @@ def remove_cbu_from_mop(mop_iri: str, cbu_iri: str) -> str:
     description="Find all MetalOrganicPolyhedra with a specific CCDC number. Next: use get_mop_cbus to explore the CBUs in found MOPs."
 )
 @mcp_tool_logger
-def find_mops_by_ccdc_number(ccdc_number: str) -> str:
-    results = _find_mops_by_ccdc_number(ccdc_number)
+def find_mops_by_ccdc_number(ccdc_number: str, hash_value: str) -> str:
+    results = _find_mops_by_ccdc_number(ccdc_number, hash_value)
     if not results:
         return f"No MetalOrganicPolyhedra found with CCDC number: {ccdc_number}"
     return f"Found {len(results)} MetalOrganicPolyhedra with CCDC number {ccdc_number}:\n" + "\n".join(results)
@@ -180,8 +181,8 @@ def find_mops_by_ccdc_number(ccdc_number: str) -> str:
     description="Find all MetalOrganicPolyhedra with a specific formula. Next: use get_mop_cbus to explore the CBUs in found MOPs."
 )
 @mcp_tool_logger
-def find_mops_by_formula(mop_formula: str) -> str:
-    results = _find_mops_by_formula(mop_formula)
+def find_mops_by_formula(mop_formula: str, hash_value: str) -> str:
+    results = _find_mops_by_formula(mop_formula, hash_value)
     if not results:
         return f"No MetalOrganicPolyhedra found with formula: {mop_formula}"
     return f"Found {len(results)} MetalOrganicPolyhedra with formula {mop_formula}:\n" + "\n".join(results)
@@ -192,8 +193,8 @@ def find_mops_by_formula(mop_formula: str) -> str:
     description="Get all ChemicalBuildingUnits associated with a MetalOrganicPolyhedron. Next: use this to explore the composition of MOPs."
 )
 @mcp_tool_logger
-def get_mop_cbus(mop_iri: str) -> str:
-    results = _get_mop_cbus(mop_iri)
+def get_mop_cbus(mop_iri: str, hash_value: str) -> str:
+    results = _get_mop_cbus(mop_iri, hash_value)
     if not results:
         return f"No ChemicalBuildingUnits found for MOP: {mop_iri}"
     return f"Found {len(results)} ChemicalBuildingUnits in MOP {mop_iri}:\n" + "\n".join(results)
@@ -207,8 +208,8 @@ def get_mop_cbus(mop_iri: str) -> str:
     description="Delete an entity by removing all incoming and outgoing triples. Next: inspect_memory to verify cleanup and repair any broken links."
 )
 @mcp_tool_logger
-def delete_entity(entity_iri: str) -> str:
-    return _delete_entity(entity_iri)
+def delete_entity(entity_iri: str, hash_value: str) -> str:
+    return _delete_entity(entity_iri, hash_value)
 
 
 @mcp.tool(
@@ -216,8 +217,8 @@ def delete_entity(entity_iri: str) -> str:
     description="Delete a specific triple given subject, predicate, and object. Set is_object_literal to true when removing a literal value. Next: inspect_memory to confirm the change."
 )
 @mcp_tool_logger
-def delete_triple(subject_iri: str, predicate_uri: str, object_iri_or_literal: str, is_object_literal: bool = False) -> str:
-    return _delete_triple(subject_iri, predicate_uri, object_iri_or_literal, is_object_literal)
+def delete_triple(subject_iri: str, predicate_uri: str, object_iri_or_literal: str, hash_value: str, is_object_literal: bool = False) -> str:
+    return _delete_triple(subject_iri, predicate_uri, object_iri_or_literal, hash_value, is_object_literal)
 
 
 if __name__ == "__main__":
