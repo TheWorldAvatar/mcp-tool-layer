@@ -1,92 +1,53 @@
 from models.BaseAgent import BaseAgent
 from models.ModelConfig import ModelConfig
-from models.locations import SANDBOX_TASK_DIR, PLAYGROUND_DATA_DIR
 from src.utils.global_logger import get_logger
+from models.locations import DATA_DIR
 import os
-import asyncio  
+import asyncio
 import argparse
-import json
-import csv
 from pathlib import Path
-from typing import Dict, List, Set, Tuple
+from typing import Dict, List, Tuple, Set
 from datetime import datetime
 
-
-def load_cbu_database(csv_path: str) -> Tuple[List[Dict[str, str]], Set[str]]:
-    """
-    Load CBU database from CSV file and return as list of dictionaries.
-    Only includes formula, category, and smiles columns.
-    Also returns a set of all formulas for quick exact matching.
-    """
-    cbu_data = []
-    formula_set = set()
-    try:
-        with open(csv_path, 'r', encoding='utf-8') as file:
-            reader = csv.DictReader(file)
-            for row in reader:
-                if row['formula']:  # Skip empty rows
-                    cbu_data.append({
-                        'formula': row['formula'],
-                        'category': row['category'],
-                        'smiles': row['canonical_smiles'] if row['canonical_smiles'] != 'N/A' else row['smiles']
-                    })
-                    # Add formula to set for quick lookups (case-insensitive)
-                    formula_set.add(row['formula'].strip().lower())
-    except Exception as e:
-        print(f"Error loading CBU database: {e}")
-    return cbu_data, formula_set
+from src.agents.mops.cbu_derivation.utils.io_utils import (
+    resolve_identifier_to_hash,
+    get_paths_for_hash,
+)
+from src.agents.mops.cbu_derivation.utils.ttl_utils import (
+    load_top_entities_from_output_top,
+    load_ontomops_extension_ttl,
+)
+from src.agents.mops.cbu_derivation.utils.markdown_utils import (
+    write_individual_md,
+    write_summary_md,
+)
+from src.agents.mops.cbu_derivation.utils.db_utils import load_cbu_database, check_exact_match
 
 
-def scan_cbu_directories(base_path: str) -> List[Dict[str, any]]:
-    """
-    Scan all subdirectories under the CBU base path and identify JSON files
-    without _ground_truth or _previous suffix.
-    """
-    base_dir = Path(base_path)
-    json_files = []
-    
-    if not base_dir.exists():
-        print(f"Base directory does not exist: {base_path}")
-        return json_files
-    
-    for subdir in base_dir.iterdir():
-        if subdir.is_dir():
-            for json_file in subdir.glob("*.json"):
-                # Skip files with _ground_truth or _previous suffix
-                if json_file.stem.endswith('_ground_truth'):
-                    json_files.append({
-                        'path': json_file,
-                        'subdir': subdir.name,
-                        'filename': json_file.name
-                    })
-    
-    return json_files
+TEST_DOI = "10.1021.acs.chemmater.0c01965"
 
 
-def extract_species_names(json_file_path: Path) -> Set[str]:
+def derive_species_list_from_ttl(hash_value: str) -> List[str]:
+    """Extract organic species names to derive from top entities or extension TTL.
+    Currently uses output_top.ttl labels as candidates.
     """
-    Extract and deduplicate all cbuSpeciesNames1 and cbuSpeciesNames2 from a JSON file.
-    """
-    species_names = set()
-    
-    try:
-        with open(json_file_path, 'r', encoding='utf-8') as file:
-            data = json.load(file)
-            
-        if 'synthesisProcedures' in data:
-            for procedure in data['synthesisProcedures']:
-                # Extract from cbuSpeciesNames1
-                if 'cbuSpeciesNames1' in procedure and isinstance(procedure['cbuSpeciesNames1'], list):
-                    species_names.update(procedure['cbuSpeciesNames1'])
-                
-                # Extract from cbuSpeciesNames2
-                if 'cbuSpeciesNames2' in procedure and isinstance(procedure['cbuSpeciesNames2'], list):
-                    species_names.update(procedure['cbuSpeciesNames2'])
-                    
-    except Exception as e:
-        print(f"Error reading JSON file {json_file_path}: {e}")
-    
-    return species_names
+    top_entities = load_top_entities_from_output_top(hash_value)
+    # Use labels directly for now; filtering to organics can be added if needed
+    species = [lbl for (lbl, _iri) in top_entities]
+    return sorted(set(species))
+
+
+def format_cbu_database_for_prompt(cbu_data: List[Dict[str, str]]) -> str:
+    lines = ["**Available CBU Database (Organic Only via SMILES matching):**\n",
+             "| Formula | Category | SMILES |",
+             "|---------|----------|--------|"]
+    # We keep all entries; the agent instruction will focus on organics using SMILES search
+    for cbu in cbu_data:
+        formula = cbu['formula']
+        category = cbu['category']
+        smiles = cbu['smiles'] if cbu['smiles'] != 'N/A' else 'Not available'
+        lines.append(f"| {formula} | {category} | {smiles} |")
+    return "\n".join(lines)
 
 
 def format_cbu_database_for_prompt(cbu_data: List[Dict[str, str]]) -> str:
@@ -130,15 +91,14 @@ Your workflow should be:
    - Look for CAS number, which is usually the most reliable identifier and commonly available. If you can not find the CAS numberm, you can use other reliable unique identifiers for the task. 
    - Wrap the chemical product name in quotes for exact match searches
 
-2. **Get canonical SMILES representation**:
-   - **Critical**: This only applies to organic compounds. For inorganic compounds, you can skip this step and do Step 3 directly.
+2. **Get canonical SMILES representation (organic only)**:
    - Use pubchem tool with CAS number to get accurate SMILES representation. If that doesn't work, the chemistry tool offers a query function to get information via CAS number as well. 
    - Only use pubchem after you have the CAS number for the chemical.
    - Get the SMILES string from pubchem
    - **Critical**: Use the chemistry tool to canonicalize the SMILES string to get the canonical SMILES representation
 
-3. **Ground to CBU database**:
-   - Compare your findings with the provided CBU database below **AND** via fuzzy_smiles_search tool
+3. **Ground to CBU database (organic focus)**:
+   - Compare your findings with the provided CBU database below AND via fuzzy_smiles_search tool
    - You need to choose the **ONE** best matching CBU for the given species name
 
    - **Critical**: One very important trick to find the suitable inorganic CBU is to consider the context of the paper, 
@@ -152,15 +112,6 @@ Your workflow should be:
 
    - **Critical**: For organic compounds, CBUs are not directly provided in the CBU database below, so you need to match based on canonical SMILES representation using the fuzzy_smiles_search tool to find the best match. Be aware 
    that you should only input canonical SMILES converted as input. 
-
-Here are some extra guidance for matching inorganic CBUs:
-
-    - Elemental consistency: The metals present in the precursor must be contained in the CBU.
-    - Anion retention: Counter-anions from the precursor (e.g. SO₄²⁻, NO₃⁻, Cl⁻) must also appear in the CBU.
-    - Ligand context: Neutral ligands (water, alcohol, amines) can transform into hydroxo/oxo/alkoxo species in the CBU; treat them flexibly.
-    - Hydration: Waters of crystallization are ignored, not required in the CBU.
-    - Nuclearity preference: Choose CBUs with common nuclearities for that metal system, unless other rules exclude them.
-    - Minimal extras: Prefer CBUs without additional metals or anions not indicated by the precursor.
 
 {cbu_database}
 
@@ -236,6 +187,7 @@ Reasoning: Exact match found in CBU database - no grounding needed"""
     }
 
 
+# Legacy function references removed in refactor; keeping signature comments for context
 async def process_json_file(json_file_info: Dict[str, any], cbu_data: List[Dict[str, str]], formula_set: Set[str], output_dir: Path):
     """
     Process a single JSON file: extract species names, run grounding agent, and generate MD output.
@@ -247,8 +199,8 @@ async def process_json_file(json_file_info: Dict[str, any], cbu_data: List[Dict[
     
     print(f"\n🔬 Processing: {filename}")
     
-    # Extract species names
-    species_names = extract_species_names(json_path)
+    # Deprecated flow; kept for backward compatibility if needed
+    species_names = set()
     if not species_names:
         print(f"  ⚠️  No species names found in {filename}")
         return
@@ -421,130 +373,82 @@ def generate_cumulative_markdown_output(json_file_info: Dict[str, any], results:
         f.write('\n'.join(content))
 
 
-async def test_cbu_grounding():
-    """
-    Test function to process converted_cbu.json with specific paper content.
-    """
-    print("🚀 Starting CBU Grounding Agent Test Mode")
-    
-    # Load paper content
-    paper_file_path = os.path.join(SANDBOX_TASK_DIR, "10.1002_anie.201811027", "10.1002_anie.201811027_complete.md")
-    try:
-        with open(paper_file_path, 'r', encoding='utf-8') as f:
-            paper_content = f.read()
-        print(f"✅ Loaded paper content from: {paper_file_path}")
-    except FileNotFoundError:
-        print(f"❌ Paper file not found: {paper_file_path}")
-        return
-    except Exception as e:
-        print(f"❌ Error reading paper file: {e}")
-        return
-    
-    # Load CBU database
-    cbu_csv_path = "scripts/cbu_alignment/data/full_cbus_with_canonical_smiles_updated.csv"
-    print("📊 Loading CBU database...")
+async def run_for_hash(hash_value: str, test_mode: bool = False):
+    logger = get_logger("agent", "CBUDerivationOrganic")
+    hash_dir, output_dir = get_paths_for_hash(hash_value)
+
+    # Skipping: if summary exists and not test_mode, skip
+    summary_path = Path(output_dir) / "summary.md"
+    if summary_path.exists() and not test_mode:
+        print(f"⏭️  Skipping CBU derivation (summary exists): {summary_path}")
+        return True
+
+    # Load inputs
+    species_list = derive_species_list_from_ttl(hash_value)
+    if not species_list:
+        print("⚠️  No top-level entities found to derive organics from")
+        return True
+
+    # Load OntoMOPs extension content (context only)
+    ontomops_extension_text = load_ontomops_extension_ttl(hash_value)
+
+    # Load CBU database from DATA_DIR/ontologies
+    cbu_csv_path = os.path.join(DATA_DIR, "ontologies", "full_cbus_with_canonical_smiles_updated.csv")
     cbu_data, formula_set = load_cbu_database(cbu_csv_path)
-    if not cbu_data:
-        print("❌ Failed to load CBU database. Exiting.")
-        return
-    print(f"  ✅ Loaded {len(cbu_data)} CBU entries")
-    
-    # Load converted_cbu.json
-    converted_cbu_path = "converted_cbu.json"
-    try:
-        with open(converted_cbu_path, 'r', encoding='utf-8') as f:
-            converted_data = json.load(f)
-        print(f"✅ Loaded converted CBU data from: {converted_cbu_path}")
-    except FileNotFoundError:
-        print(f"❌ Converted CBU file not found: {converted_cbu_path}")
-        return
-    except Exception as e:
-        print(f"❌ Error reading converted CBU file: {e}")
-        return
-    
-    # Format CBU database for prompt
     cbu_database_text = format_cbu_database_for_prompt(cbu_data)
-    
-    # Process each synthesis procedure
-    print("\n🔬 Processing synthesis procedures...")
-    for i, procedure in enumerate(converted_data['synthesisProcedures'], 1):
-        print(f"\n📁 Processing procedure {i}/{len(converted_data['synthesisProcedures'])}")
-        print(f"  MOP CCDC Number: {procedure['mopCCDCNumber']}")
-        
-        # Combine cbuSpeciesNames1 and cbuSpeciesNames2
-        all_species = procedure['cbuSpeciesNames1'] + procedure['cbuSpeciesNames2']
-        species_string = ", ".join(all_species)
-        print(f"  Species: {species_string}")
-        
-        # Process each species
-        for j, species_name in enumerate(all_species, 1):
-            print(f"\n  🧪 Processing species {j}/{len(all_species)}: {species_name}")
-            
-            # Check for exact match first
+
+    summary: Dict[str, str] = {}
+    for idx, species_name in enumerate(species_list, 1):
+        print(f"🔬 [{idx}/{len(species_list)}] Deriving organic CBU for: {species_name}")
+        try:
+            # Prefer exact match where possible
             if check_exact_match(species_name, formula_set):
-                print(f"    🎯 Exact match found in CBU database")
-                result = create_exact_match_result(species_name, cbu_data)
-                print(f"    ✅ Result: {result['response']}")
+                match_line = f"Species Name: {species_name}\nCBU Match: {species_name}\nConfidence: High\nReasoning: Exact literal match in database"
+                write_individual_md(output_dir, species_name, match_line)
+                summary[species_name] = species_name
                 continue
-            
-            # Process via agent
-            try:
-                response = await cbu_grounding_agent(species_name, cbu_database_text, paper_content)
-                print(f"    ✅ Agent Response:")
-                print(f"    {response}")
-                x = input("Press Enter to continue...")
-            except Exception as e:
-                print(f"    ❌ Error processing {species_name}: {e}")
-    
-    print(f"\n🎉 Test processing completed!")
+
+            # Run agent for derivation
+            response = await cbu_grounding_agent(
+                species_name=species_name,
+                cbu_database=cbu_database_text,
+                paper_content=ontomops_extension_text,
+            )
+            write_individual_md(output_dir, species_name, response)
+            # Extract quick match line if present
+            match = None
+            if "CBU Match:" in response:
+                try:
+                    match = response.split("CBU Match:")[1].split("\n")[0].strip()
+                except Exception:
+                    match = None
+            summary[species_name] = match
+        except Exception as e:
+            write_individual_md(output_dir, species_name, f"Error: {e}")
+            summary[species_name] = None
+
+    write_summary_md(output_dir, summary)
+    print(f"✅ Organic CBU derivation completed. Outputs: {output_dir}")
+    return True
 
 async def main():
-    """
-    Main function to process all CBU JSON files and generate grounding results.
-    """
-    print("🚀 Starting CBU Grounding Agent Batch Processing")
-    
-    # Paths
-    cbu_base_path = "playground/data/triple_compare/cbu"
-    cbu_csv_path = "scripts/cbu_alignment/data/full_cbus_with_canonical_smiles_updated.csv"
-    output_dir = Path("cbu_grounding")
-    
-    # Load CBU database
-    print("📊 Loading CBU database...")
-    cbu_data, formula_set = load_cbu_database(cbu_csv_path)
-    if not cbu_data:
-        print("❌ Failed to load CBU database. Exiting.")
-        return
-    print(f"  ✅ Loaded {len(cbu_data)} CBU entries")
-    print(f"  📋 Created formula lookup set with {len(formula_set)} unique formulas")
-    
-    # Scan directories for JSON files
-    print("🔍 Scanning for JSON files...")
-    json_files = scan_cbu_directories(cbu_base_path)
-    if not json_files:
-        print("❌ No JSON files found. Exiting.")
-        return
-    print(f"  ✅ Found {len(json_files)} JSON files to process")
-    
-    # Process each JSON file
-    print("\n🔬 Starting processing...")
-    for i, json_file_info in enumerate(json_files, 1):
-        print(f"\n📁 Processing file {i}/{len(json_files)}: {json_file_info['filename']}")
-        try:
-            await process_json_file(json_file_info, cbu_data, formula_set, output_dir)
-        except Exception as e:
-            print(f"❌ Error processing {json_file_info['filename']}: {e}")
-    
-    print(f"\n🎉 Batch processing completed!")
-    print(f"📝 Results saved to: {output_dir}")
+    parser = argparse.ArgumentParser(description='Organic CBU Derivation Agent')
+    parser.add_argument('--test', action='store_true', help='Run test mode with hardcoded DOI')
+    parser.add_argument('--file', type=str, help='Run for specific DOI (or hash)')
+    args = parser.parse_args()
+
+    if args.test:
+        hash_value = resolve_identifier_to_hash(TEST_DOI)
+        print(f"Running test mode with hash: {hash_value}")
+        await run_for_hash(hash_value, test_mode=True)
+    elif args.file:
+        hash_value = resolve_identifier_to_hash(args.file)
+        print(f"Running for hash: {hash_value}")
+        await run_for_hash(hash_value, test_mode=False)
+    else:
+        # If no file provided, we consider this a no-op; integration will call per hash from pipeline
+        print("No --file provided. Nothing to do. Use --file <DOI|hash> or --test.")
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='CBU Grounding Agent')
-    parser.add_argument('--test', action='store_true', help='Run test mode with converted_cbu.json and paper content')
-    args = parser.parse_args()
-    
-    if args.test:
-        asyncio.run(test_cbu_grounding())
-    else:
-        asyncio.run(main())
+    asyncio.run(main())
