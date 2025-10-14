@@ -1,42 +1,6 @@
 {
-
-    "mops_chemical_output": {
-        "command": "python",
-        "args": [
-            "-m",
-            "src.mcp_servers.mops_chemical.main"
-        ],
-        "transport": "stdio"
-    },
-
-    "mops_cbu_output": {
-        "command": "python",
-        "args": [
-            "-m",
-            "src.mcp_servers.mops_cbu.main"
-        ],
-        "transport": "stdio"
-    },
-
-    "mops_characterisation_output": {
-        "command": "python",
-        "args": [
-            "-m",
-            "src.mcp_servers.mops_characterisation.main"
-        ],
-        "transport": "stdio"
-    },
-
-    "mops_step_output": {
-        "command": "python",
-        "args": [
-            "-m",
-            "src.mcp_servers.mops_step.main"
-        ],
-        "transport": "stdio"
-    },
-
     "document": {
+        "description": "Document MCP server, for classification of sections",
         "command": "python",
         "args": [
             "-m",

@@ -2,7 +2,8 @@
   "chemistry": {
     "command": "python",
     "args": [
-      "src/mcp_servers/chemistry/main.py"
+      "-m",
+      "src.mcp_servers.chemistry.main"
     ],
     "transport": "stdio"
   },

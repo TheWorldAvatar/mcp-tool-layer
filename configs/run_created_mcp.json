@@ -3,7 +3,7 @@
         "command": "python",
         "args": [
             "-m", 
-            "sandbox.code.mcp_creation.3.main"
+            "sandbox.code.mcp_creation.main"
         ],
         "transport": "stdio"
     },
