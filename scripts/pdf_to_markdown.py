@@ -1,31 +1,122 @@
 from docling.document_converter import DocumentConverter
 import os
+import sys
+import importlib.util
+from typing import Optional
+
+import pandas as pd  # used for table markdown export
 from models.locations import DATA_DIR 
 
+def _load_simple_conversion_module():
+    """Load scripts/simple_conversion.py as a module regardless of package layout."""
+    here = os.path.dirname(__file__)
+    simple_path = os.path.join(here, "simple_conversion.py")
+    spec = importlib.util.spec_from_file_location("simple_conversion", simple_path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Unable to load simple_conversion.py from {simple_path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _extract_text_md(pdf_path: str, output_folder: str) -> str:
+    """Use simple_conversion to extract text to <pdf>_text.md and return its path."""
+    # Defer heavy imports to runtime to keep CLI snappy
+    sc = _load_simple_conversion_module()
+    try:
+        import fitz  # PyMuPDF
+    except Exception as e:
+        raise RuntimeError(
+            "PyMuPDF (fitz) is required by simple_conversion for text extraction"
+        ) from e
+
+    base_name = os.path.splitext(os.path.basename(pdf_path))[0]
+    text_md = os.path.join(output_folder, f"{base_name}_text.md")
+
+    parts = []
+    with fitz.open(pdf_path) as doc:
+        for i in range(len(doc)):
+            page = doc.load_page(i)
+            md = sc.page_to_markdown(page)
+            if not md:
+                # Fallback to raw text normalized by simple_conversion
+                md = sc._norm_whitespace(page.get_text()) or ""
+            parts.append(md)
+
+    text_content = "\n\n".join(p for p in parts if p is not None)
+    with open(text_md, "w", encoding="utf-8") as f:
+        f.write(text_content)
+    return text_md
+
+
+def _extract_tables_md(pdf_path: str, output_folder: str) -> str:
+    """Use docling (table_only logic) to extract tables to <pdf>_tables.md and return its path."""
+    base_name = os.path.splitext(os.path.basename(pdf_path))[0]
+    tables_md = os.path.join(output_folder, f"{base_name}_tables.md")
+
+    converter = DocumentConverter()
+    res = converter.convert(pdf_path)
+
+    lines = []
+    for i, table in enumerate(res.document.tables or [], start=1):
+        df = table.export_to_dataframe()
+        lines.append(f"## Table {i}\n")
+        lines.append(df.to_markdown(index=False))
+        lines.append("")
+
+    with open(tables_md, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines))
+    return tables_md
+
+
+def _combine_text_and_tables(text_md: str, tables_md: Optional[str], combined_md: str) -> str:
+    """Combine text and table markdown files into the final combined markdown."""
+    text_content = ""
+    tables_content = ""
+    if os.path.exists(text_md):
+        with open(text_md, "r", encoding="utf-8") as f:
+            text_content = f.read()
+    if tables_md and os.path.exists(tables_md):
+        with open(tables_md, "r", encoding="utf-8") as f:
+            tables_content = f.read()
+
+    if tables_content.strip():
+        combined = f"{text_content}\n\n{tables_content}" if text_content else tables_content
+    else:
+        combined = text_content
+
+    with open(combined_md, "w", encoding="utf-8") as f:
+        f.write(combined)
+    return combined_md
+
+
 def convert_pdf_to_markdown(pdf_path, output_folder):
-    """Convert a PDF to markdown and save to the same folder."""
+    """Convert a PDF by extracting text and tables, then combine into a single markdown.
+
+    Creates three files in output_folder:
+      - <pdf>_text.md
+      - <pdf>_tables.md
+      - <pdf>.md (combined)
+    """
     try:
         print(f"Converting {pdf_path}...")
-        # Initialize the converter
-        converter = DocumentConverter()
-        
-        # Convert the PDF
-        result = converter.convert(pdf_path)
-        
-        # Generate markdown content
-        markdown_content = result.document.export_to_markdown()
-        
-        # Create output filename
+
         base_name = os.path.splitext(os.path.basename(pdf_path))[0]
-        output_file = os.path.join(output_folder, f"{base_name}.md")
-        
-        # Save markdown to file
-        with open(output_file, 'w', encoding='utf-8') as f:
-            f.write(markdown_content)
-        
-        print(f"Successfully converted {pdf_path} to {output_file}")
-        return output_file
-        
+        combined_md = os.path.join(output_folder, f"{base_name}.md")
+
+        # 1) Text extraction via simple_conversion
+        text_md = _extract_text_md(pdf_path, output_folder)
+        print(f"OK Text extracted to {text_md}")
+
+        # 2) Table extraction via docling (table_only logic)
+        tables_md = _extract_tables_md(pdf_path, output_folder)
+        print(f"OK Tables extracted to {tables_md}")
+
+        # 3) Combine
+        final_md = _combine_text_and_tables(text_md, tables_md, combined_md)
+        print(f"Successfully combined markdown at {final_md}")
+        return final_md
+
     except Exception as e:
         print(f"Error converting {pdf_path}: {str(e)}")
         return None
@@ -92,10 +183,13 @@ def convert_all_dois():
     # Skip log directory and other non-DOI directories
     excluded_dirs = {'log', '__pycache__', '.git', '.vscode', 'node_modules'}
     
-    doi_folders = [d for d in os.listdir(DATA_DIR) 
-                   if os.path.isdir(os.path.join(DATA_DIR, d)) 
-                   and not d.startswith('.')
-                   and d not in excluded_dirs]
+    doi_folders = sorted(
+        [d for d in os.listdir(DATA_DIR)
+         if os.path.isdir(os.path.join(DATA_DIR, d))
+         and not d.startswith('.')
+         and d not in excluded_dirs],
+        key=lambda s: s.lower()
+    )
     
     if not doi_folders:
         print("No DOI folders found in data directory")
