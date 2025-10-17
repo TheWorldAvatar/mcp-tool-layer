@@ -13,6 +13,9 @@ import tempfile
 import unicodedata
 from contextlib import contextmanager
 from typing import Optional, Tuple, List, Dict
+from urllib.parse import urlparse
+from datetime import datetime, timezone
+import hashlib
 
 from filelock import FileLock
 from rdflib import Graph, Namespace, URIRef, Literal
@@ -32,26 +35,54 @@ RDFS = Namespace("http://www.w3.org/2000/01/rdf-schema#")
 XSD = Namespace("http://www.w3.org/2001/XMLSchema#")
 
 # ----------------------------------------------------------------------------------------------------------------------
-# Memory management & locking
+# Global state (JSON) + Memory management & locking
 # ----------------------------------------------------------------------------------------------------------------------
-def get_memory_paths(hash_value: str):
-    """Get memory paths for a specific hash."""
-    mem_dir = os.path.join(DATA_DIR, hash_value, "memory_ontomops")
-    mem_ttl = os.path.join(mem_dir, "memory_ontomops.ttl")
-    mem_lock = os.path.join(mem_dir, "memory_ontomops.lock")
+GLOBAL_STATE_DIR = DATA_DIR
+GLOBAL_STATE_JSON = os.path.join(GLOBAL_STATE_DIR, "ontomops_global_state.json")
+GLOBAL_STATE_LOCK = os.path.join(GLOBAL_STATE_DIR, "ontomops_global_state.lock")
 
+def _read_global_state() -> Tuple[str, str]:
+    """Read global state: returns (doi, top_level_entity_name). Read-only, no writes."""
+    os.makedirs(GLOBAL_STATE_DIR, exist_ok=True)
+    lock = FileLock(GLOBAL_STATE_LOCK)
+    lock.acquire(timeout=30.0)
+    try:
+        if not os.path.exists(GLOBAL_STATE_JSON):
+            raise RuntimeError("Global state file not found at data/ontomops_global_state.json")
+        import json
+        with open(GLOBAL_STATE_JSON, "r", encoding="utf-8") as f:
+            state = json.load(f)
+        doi = (state.get("doi") or "").strip()
+        entity = (state.get("top_level_entity_name") or "").strip()
+        if not doi:
+            raise RuntimeError("Global state missing 'doi'")
+        if not entity:
+            raise RuntimeError("Global state missing 'top_level_entity_name'")
+        return doi, entity
+    finally:
+        lock.release()
+
+def get_memory_paths(doi: str, top_level_entity_name: str):
+    """Get memory paths based on DOI and top-level entity name."""
+    mem_dir = os.path.join("data", doi, "memory_ontomops")    
     os.makedirs(mem_dir, exist_ok=True)
-    return mem_dir, mem_ttl, mem_lock
-
-
-SESSION_NODE = URIRef("https://www.theworldavatar.com/kg/OntoMOPs/instance/Session")
+    return {
+        'dir': mem_dir,
+        'ttl': os.path.join(mem_dir, f"{top_level_entity_name}.ttl"),
+        'lock': os.path.join(mem_dir, f"{top_level_entity_name}.lock")
+    }
 
 @contextmanager
-def locked_graph(hash_value: str, timeout: float = 30.0):
-    """Lock, load, yield, then atomically write-back the memory graph."""
-    mem_dir, mem_ttl, mem_lock = get_memory_paths(hash_value)
-    
-    lock = FileLock(mem_lock)
+def locked_graph(doi: Optional[str] = None, top_level_entity_name: Optional[str] = None, timeout: float = 30.0):
+    """Lock, load, yield, then atomically write-back the memory graph for the given DOI and entity.
+    If doi/top_level_entity_name are not provided, resolve them from ontomops_global_state.json.
+    """
+    if not doi or not top_level_entity_name:
+        doi_g, entity_g = _read_global_state()
+        doi = doi or doi_g
+        top_level_entity_name = top_level_entity_name or entity_g
+    paths = get_memory_paths(doi, top_level_entity_name)
+    lock = FileLock(paths['lock'])
     lock.acquire(timeout=timeout)
     g = Graph()
     # Bind prefixes for nicer serialization and readability
@@ -62,32 +93,20 @@ def locked_graph(hash_value: str, timeout: float = 30.0):
     g.bind("rdf", RDF)
     g.bind("rdfs", RDFS)
     g.bind("xsd", XSD)
-    if os.path.exists(mem_ttl):
-        g.parse(mem_ttl, format="turtle")
+    if os.path.exists(paths['ttl']):
+        g.parse(paths['ttl'], format="turtle")
     try:
         yield g
-        fd, tmp = tempfile.mkstemp(dir=mem_dir, suffix=".ttl.tmp")
+        fd, tmp = tempfile.mkstemp(dir=paths['dir'], suffix=".ttl.tmp")
         os.close(fd)
         g.serialize(destination=tmp, format="turtle")
-        os.replace(tmp, mem_ttl)
+        os.replace(tmp, paths['ttl'])
     finally:
         lock.release()
 
 # ----------------------------------------------------------------------------------------------------------------------
-# Session hash management & IRI helpers
+# IRI helpers
 # ----------------------------------------------------------------------------------------------------------------------
-
-def _get_or_create_session_hash(g: Graph) -> str:
-    """Return a persistent short session hash. Create and store if missing (dc:identifier on SESSION_NODE)."""
-    for _, _, h in g.triples((SESSION_NODE, DC.identifier, None)):
-        if isinstance(h, Literal):
-            return str(h)
-    # Create
-    sh = uuid.uuid4().hex[:8]
-    g.add((SESSION_NODE, RDF.type, OWL.NamedIndividual))
-    g.add((SESSION_NODE, RDFS.label, Literal(f"OntoMOPs Session {sh}")))
-    g.add((SESSION_NODE, DC.identifier, Literal(sh)))
-    return sh
 
 INST_BASE = "https://www.theworldavatar.com/kg/OntoMOPs/instance"
 
@@ -122,154 +141,128 @@ def _find_by_type_and_label(g: Graph, class_uri: URIRef, label: str) -> Optional
             return s
     return None
 
-def _mint_iri(g: Graph, class_local: str, label: str) -> URIRef:
-    """
-    Deterministic IRI minting.
-    Rule:
-      1) If an individual with rdf:type=class_uri and rdfs:label==label exists, reuse its IRI.
-      2) Else mint INST_BASE/<ClassLocal>/<slug(label)>, without numeric suffixes.
-      3) If the canonical IRI already exists in graph, reuse it.
-    """
-    class_uri = _resolve_class_uri(class_local)
-    if class_uri is not None:
-        existing = _find_by_type_and_label(g, class_uri, label)
-        if existing is not None:
-            return existing
-
-    slug = _slugify(label)
-    base = URIRef(f"{INST_BASE}/{class_local}/{slug}")
-    if _iri_exists(g, base):
-        return base
-    return base
+def _mint_hash_iri(class_local: str) -> URIRef:
+    """Mint IRI using SHA-1 of timestamp+class for stability and uniqueness."""
+    ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+    h = hashlib.sha1(f"{ts}|{class_local}".encode("utf-8")).hexdigest()
+    return URIRef(f"{INST_BASE}/{class_local}/{h}")
 
 # ----------------------------------------------------------------------------------------------------------------------
 # Generic helpers: ensure individual exists with expected type and label
 # ----------------------------------------------------------------------------------------------------------------------
 
-def _ensure_individual(g: Graph, iri_str: str, expected_type: URIRef, default_label: Optional[str] = None) -> URIRef:
-    iri = URIRef(iri_str)
-    # If not present, create a minimal stub
-    if (iri, RDF.type, None) not in g:
-        g.add((iri, RDF.type, expected_type))
-        g.add((iri, RDFS.label, Literal(default_label or iri_str)))
-    else:
-        # Ensure at least typed with expected_type
-        if (iri, RDF.type, expected_type) not in g:
-            g.add((iri, RDF.type, expected_type))
-        # Ensure it has a label
-        if (iri, RDFS.label, None) not in g:
-            g.add((iri, RDFS.label, Literal(default_label or iri_str)))
-    return iri
+def _is_abs_iri(s: str) -> bool:
+    try:
+        u = urlparse(s); return bool(u.scheme) and bool(u.netloc) and u.scheme in ("http", "https")
+    except Exception:
+        return False
+
+def _safe_parent(parent_iri: str) -> Optional[URIRef]:
+    """Validate absolute HTTPS IRI parents; return URIRef or None to fail fast."""
+    return URIRef(parent_iri) if _is_abs_iri(parent_iri) else None
 
 # ----------------------------------------------------------------------------------------------------------------------
 # Memory API
 # ----------------------------------------------------------------------------------------------------------------------
 
-def init_memory(hash_value: str) -> str:
-    """Initialize or resume the memory graph and return the session hash."""
-    with locked_graph(hash_value=hash_value, timeout=30.0) as g:
-        sh = _get_or_create_session_hash(g)
-    return sh
+def init_memory(doi: Optional[str] = None, top_level_entity_name: Optional[str] = None) -> str:
+    """Initialize or resume the memory graph. Returns a success message.
+    If doi/entity are None, they are resolved from ontomops_global_state.json.
+    """
+    with locked_graph(doi=doi, top_level_entity_name=top_level_entity_name, timeout=30.0) as g:
+        # Just ensure the graph is loaded/created. No session hash needed.
+        pass
+    doi_actual, entity_actual = _read_global_state() if not (doi and top_level_entity_name) else (doi, top_level_entity_name)
+    return f"OntoMOPs memory initialized for DOI: {doi_actual}, entity: {entity_actual}"
 
-def inspect_memory(hash_value: str) -> str:
-    """Return a detailed summary of the current graph: IRIs, types, labels, attributes, and connections."""
+def inspect_memory() -> str:
+    """
+    Print a summary of the entire memory graph for the specific entity.
+    Since memory is now entity-specific, we can return the full graph.
+    """
     lines: List[str] = []
-    with locked_graph(hash_value=hash_value, timeout=30.0) as g:
-        lines.append("=== OntoMOPs Memory Summary ===")
-        # Group by subject
-        subjects = set()
-        for s, _, _ in g:
-            if isinstance(s, URIRef):
-                subjects.add(s)
-        for s in sorted(subjects, key=lambda u: str(u)):
-            lines.append(f"\nSubject: {s}")
+    doi, top_level_entity_name = _read_global_state()
+    with locked_graph(timeout=30.0) as g:
+        lines.append("=== OntoMOPs Memory Summary (entity-specific) ===")
+        lines.append(f"Entity: {top_level_entity_name}")
+        lines.append(f"DOI: {doi}")
+        lines.append(f"Triples: {len(g)}")
+
+        # group by subject
+        subjects = sorted({sub for sub, _, _ in g if isinstance(sub, URIRef)}, key=str)
+        for sub in subjects:
+            lines.append(f"\nSubject: {sub}")
             # types
-            types = [str(o) for o in g.objects(s, RDF.type)]
+            types = [str(o) for o in g.objects(sub, RDF.type)]
             if types:
                 lines.append("  rdf:type:")
                 for t in types:
                     lines.append(f"    - {t}")
             # label
-            for lbl in g.objects(s, RDFS.label):
+            for lbl in g.objects(sub, RDFS.label):
                 lines.append(f"  rdfs:label: {str(lbl)}")
+                break
             # data properties
-            for p, o in g.predicate_objects(s):
+            for p, o in g.predicate_objects(sub):
                 if p in (RDF.type, RDFS.label):
                     continue
                 if isinstance(o, Literal):
-                    lines.append(f"  {g.namespace_manager.normalizeUri(p)}: {o} ({o.datatype or 'xsd:string'})")
+                    lines.append(f"  {p} = {o}")
             # object properties
-            for p, o in g.predicate_objects(s):
+            for p, o in g.predicate_objects(sub):
                 if p in (RDF.type, RDFS.label):
                     continue
                 if isinstance(o, URIRef):
-                    lines.append(f"  {g.namespace_manager.normalizeUri(p)} -> {o}")
+                    lines.append(f"  {p} -> {o}")
+
     return "\n".join(lines)
 
-def export_memory(hash_value: str) -> str:
-    """Serialize the entire memory graph to a Turtle file and return the absolute path."""
-    # Hardcoded output filename
-    file_name = "ontomops_extension.ttl"
-    
-    # Save to data/{hash}/ directory
-    output_path = os.path.join(DATA_DIR, hash_value, file_name)
-    
-    with locked_graph(hash_value=hash_value, timeout=30.0) as g:
-        g.serialize(destination=output_path, format="turtle")
-    return os.path.abspath(output_path)
+def export_memory() -> str:
+    """Serialize the entire memory graph to a Turtle file (.ttl) and return the absolute path."""
+    # resolve state
+    doi, top_level_entity_name = _read_global_state()
+    # Generate filename based on entity name
+    filename = f"ontomops_extension_{top_level_entity_name}.ttl"
+    # Save to data/<doi>/ontomops_output directory
+    output_dir = os.path.join("data", doi, "ontomops_output")
+    os.makedirs(output_dir, exist_ok=True)
+    file_path = os.path.join(output_dir, filename)
+    with locked_graph(timeout=30.0) as g:
+        g.serialize(destination=file_path, format="turtle")
+    return os.path.abspath(file_path)
 
 # ----------------------------------------------------------------------------------------------------------------------
 # OntoMOPs Core Classes
 # ----------------------------------------------------------------------------------------------------------------------
 
-def create_chemical_building_unit(name: str, hash_value: str, iri: Optional[str] = None) -> str:
+def add_chemical_building_unit(name: str) -> str:
     """
     Create ontomops:ChemicalBuildingUnit.
     
     Args:
         name: Human-readable name for the CBU
-        hash: Hash value for memory management
-        iri: Optional existing IRI to use instead of minting a new one
     """
-    with locked_graph(hash_value=hash_value, timeout=30.0) as g:
-        if iri:
-            # Use existing IRI
-            iri_ref = URIRef(iri)
-            g.add((iri_ref, RDF.type, ONTOMOPS.ChemicalBuildingUnit))
-            g.add((iri_ref, RDFS.label, Literal(name)))
-        else:
-            # Mint new IRI
-            iri_ref = _mint_iri(g, "ChemicalBuildingUnit", name)
-            g.add((iri_ref, RDF.type, ONTOMOPS.ChemicalBuildingUnit))
-            g.add((iri_ref, RDFS.label, Literal(name)))
+    with locked_graph() as g:
+        iri_ref = _mint_hash_iri("ChemicalBuildingUnit")
+        g.add((iri_ref, RDF.type, ONTOMOPS.ChemicalBuildingUnit))
+        g.add((iri_ref, RDFS.label, Literal(name)))
         return str(iri_ref)
 
-def create_metal_organic_polyhedron(name: str,
-                                   hash_value: str,
-                                   ccdc_number: Optional[str] = None,
-                                   mop_formula: Optional[str] = None,
-                                   iri: Optional[str] = None) -> str:
+def add_metal_organic_polyhedron(name: str,
+                                 ccdc_number: Optional[str] = None,
+                                 mop_formula: Optional[str] = None) -> str:
     """
     Create ontomops:MetalOrganicPolyhedron.
     
     Args:
         name: Human-readable name for the MOP
-        hash: Hash value for memory management
         ccdc_number: CCDC number of the MOP (optional)
         mop_formula: Chemical formula of the MOP (optional)
-        iri: Optional existing IRI to use instead of minting a new one
     """
-    with locked_graph(hash_value=hash_value, timeout=30.0) as g:
-        if iri:
-            # Use existing IRI
-            iri_ref = URIRef(iri)
-            g.add((iri_ref, RDF.type, ONTOMOPS.MetalOrganicPolyhedron))
-            g.add((iri_ref, RDFS.label, Literal(name)))
-        else:
-            # Mint new IRI
-            iri_ref = _mint_iri(g, "MetalOrganicPolyhedron", name)
-            g.add((iri_ref, RDF.type, ONTOMOPS.MetalOrganicPolyhedron))
-            g.add((iri_ref, RDFS.label, Literal(name)))
+    with locked_graph() as g:
+        iri_ref = _mint_hash_iri("MetalOrganicPolyhedron")
+        g.add((iri_ref, RDF.type, ONTOMOPS.MetalOrganicPolyhedron))
+        g.add((iri_ref, RDFS.label, Literal(name)))
         
         # Add CCDC number if provided
         if ccdc_number:
@@ -285,10 +278,12 @@ def create_metal_organic_polyhedron(name: str,
 # Property updaters
 # ----------------------------------------------------------------------------------------------------------------------
 
-def update_mop_ccdc_number(mop_iri: str, ccdc_number: str, hash_value: str) -> str:
-    """Update or set the CCDC number for a MetalOrganicPolyhedron."""
-    with locked_graph(hash_value=hash_value, timeout=30.0) as g:
-        mop = _ensure_individual(g, mop_iri, ONTOMOPS.MetalOrganicPolyhedron)
+def update_mop_ccdc_number(mop_iri: str, ccdc_number: str) -> str:
+    """Update or set the CCDC number for a MetalOrganicPolyhedron. Ensures single value."""
+    with locked_graph() as g:
+        if not _is_abs_iri(mop_iri):
+            return "mop_iri must be an absolute https IRI"
+        mop = URIRef(mop_iri)
         # Remove existing CCDC numbers
         for o in list(g.objects(mop, ONTOMOPS.hasCCDCNumber)):
             g.remove((mop, ONTOMOPS.hasCCDCNumber, o))
@@ -296,10 +291,12 @@ def update_mop_ccdc_number(mop_iri: str, ccdc_number: str, hash_value: str) -> s
         g.add((mop, ONTOMOPS.hasCCDCNumber, Literal(ccdc_number)))
         return str(mop)
 
-def update_mop_formula(mop_iri: str, mop_formula: str, hash_value: str) -> str:
-    """Update or set the MOP formula for a MetalOrganicPolyhedron."""
-    with locked_graph(hash_value=hash_value, timeout=30.0) as g:
-        mop = _ensure_individual(g, mop_iri, ONTOMOPS.MetalOrganicPolyhedron)
+def update_mop_formula(mop_iri: str, mop_formula: str) -> str:
+    """Update or set the MOP formula for a MetalOrganicPolyhedron. Ensures single value."""
+    with locked_graph() as g:
+        if not _is_abs_iri(mop_iri):
+            return "mop_iri must be an absolute https IRI"
+        mop = URIRef(mop_iri)
         # Remove existing formulas
         for o in list(g.objects(mop, ONTOMOPS.hasMOPFormula)):
             g.remove((mop, ONTOMOPS.hasMOPFormula, o))
@@ -307,23 +304,40 @@ def update_mop_formula(mop_iri: str, mop_formula: str, hash_value: str) -> str:
         g.add((mop, ONTOMOPS.hasMOPFormula, Literal(mop_formula)))
         return str(mop)
 
+def update_entity_label(entity_iri: str, label: str) -> str:
+    """Update or set the rdfs:label for any entity. Ensures single value."""
+    with locked_graph() as g:
+        if not _is_abs_iri(entity_iri):
+            return "entity_iri must be an absolute https IRI"
+        entity = URIRef(entity_iri)
+        # Remove existing labels
+        for o in list(g.objects(entity, RDFS.label)):
+            g.remove((entity, RDFS.label, o))
+        # Add new label
+        g.add((entity, RDFS.label, Literal(label)))
+        return str(entity)
+
 # ----------------------------------------------------------------------------------------------------------------------
 # Relationship creators
 # ----------------------------------------------------------------------------------------------------------------------
 
-def add_cbu_to_mop(mop_iri: str, cbu_iri: str, hash_value: str) -> str:
+def add_cbu_to_mop(mop_iri: str, cbu_iri: str) -> str:
     """Add a ChemicalBuildingUnit to a MetalOrganicPolyhedron."""
-    with locked_graph(hash_value=hash_value, timeout=30.0) as g:
-        mop = _ensure_individual(g, mop_iri, ONTOMOPS.MetalOrganicPolyhedron)
-        cbu = _ensure_individual(g, cbu_iri, ONTOMOPS.ChemicalBuildingUnit)
+    with locked_graph() as g:
+        if not _is_abs_iri(mop_iri) or not _is_abs_iri(cbu_iri):
+            return "mop_iri and cbu_iri must be absolute https IRIs"
+        mop = URIRef(mop_iri)
+        cbu = URIRef(cbu_iri)
         g.add((mop, ONTOMOPS.hasChemicalBuildingUnit, cbu))
         return str(mop)
 
-def remove_cbu_from_mop(mop_iri: str, cbu_iri: str, hash_value: str) -> str:
+def remove_cbu_from_mop(mop_iri: str, cbu_iri: str) -> str:
     """Remove a ChemicalBuildingUnit from a MetalOrganicPolyhedron."""
-    with locked_graph(hash_value=hash_value, timeout=30.0) as g:
-        mop = _ensure_individual(g, mop_iri, ONTOMOPS.MetalOrganicPolyhedron)
-        cbu = _ensure_individual(g, cbu_iri, ONTOMOPS.ChemicalBuildingUnit)
+    with locked_graph() as g:
+        if not _is_abs_iri(mop_iri) or not _is_abs_iri(cbu_iri):
+            return "mop_iri and cbu_iri must be absolute https IRIs"
+        mop = URIRef(mop_iri)
+        cbu = URIRef(cbu_iri)
         g.remove((mop, ONTOMOPS.hasChemicalBuildingUnit, cbu))
         return str(mop)
 
@@ -331,27 +345,27 @@ def remove_cbu_from_mop(mop_iri: str, cbu_iri: str, hash_value: str) -> str:
 # Query utilities
 # ----------------------------------------------------------------------------------------------------------------------
 
-def find_mops_by_ccdc_number(ccdc_number: str, hash_value: str) -> List[str]:
+def find_mops_by_ccdc_number(ccdc_number: str) -> List[str]:
     """Find all MetalOrganicPolyhedra with a specific CCDC number."""
-    with locked_graph(hash_value=hash_value, timeout=30.0) as g:
+    with locked_graph() as g:
         results = []
         for s in g.subjects(ONTOMOPS.hasCCDCNumber, Literal(ccdc_number)):
             if (s, RDF.type, ONTOMOPS.MetalOrganicPolyhedron) in g:
                 results.append(str(s))
         return results
 
-def find_mops_by_formula(mop_formula: str, hash_value: str) -> List[str]:
+def find_mops_by_formula(mop_formula: str) -> List[str]:
     """Find all MetalOrganicPolyhedra with a specific formula."""
-    with locked_graph(hash_value=hash_value, timeout=30.0) as g:
+    with locked_graph() as g:
         results = []
         for s in g.subjects(ONTOMOPS.hasMOPFormula, Literal(mop_formula)):
             if (s, RDF.type, ONTOMOPS.MetalOrganicPolyhedron) in g:
                 results.append(str(s))
         return results
 
-def get_mop_cbus(mop_iri: str, hash_value: str) -> List[str]:
+def get_mop_cbus(mop_iri: str) -> List[str]:
     """Get all ChemicalBuildingUnits associated with a MetalOrganicPolyhedron."""
-    with locked_graph(hash_value=hash_value, timeout=30.0) as g:
+    with locked_graph() as g:
         mop = URIRef(mop_iri)
         results = []
         for o in g.objects(mop, ONTOMOPS.hasChemicalBuildingUnit):
@@ -363,9 +377,11 @@ def get_mop_cbus(mop_iri: str, hash_value: str) -> List[str]:
 # Delete utilities
 # ----------------------------------------------------------------------------------------------------------------------
 
-def delete_entity(entity_iri: str, hash_value: str) -> str:
+def delete_entity(entity_iri: str) -> str:
     """Remove all triples where entity_iri is subject or object."""
-    with locked_graph(hash_value=hash_value, timeout=30.0) as g:
+    with locked_graph() as g:
+        if not _is_abs_iri(entity_iri):
+            return "entity_iri must be an absolute https IRI"
         s = URIRef(entity_iri)
         # Remove subject triples
         for p, o in list(g.predicate_objects(s)):
@@ -375,9 +391,11 @@ def delete_entity(entity_iri: str, hash_value: str) -> str:
             g.remove((subj, pred, s))
         return entity_iri
 
-def delete_triple(subject_iri: str, predicate_uri: str, object_iri_or_literal: str, hash_value: str, is_object_literal: bool = False) -> str:
+def delete_triple(subject_iri: str, predicate_uri: str, object_iri_or_literal: str, is_object_literal: bool = False) -> str:
     """Delete a specific triple from the graph."""
-    with locked_graph(hash_value=hash_value, timeout=30.0) as g:
+    with locked_graph() as g:
+        if not _is_abs_iri(subject_iri) or not _is_abs_iri(predicate_uri):
+            return "subject_iri and predicate_uri must be absolute https IRIs"
         s = URIRef(subject_iri)
         p = URIRef(predicate_uri)
         if is_object_literal:
@@ -386,6 +404,8 @@ def delete_triple(subject_iri: str, predicate_uri: str, object_iri_or_literal: s
                 if isinstance(o, Literal) and str(o) == object_iri_or_literal:
                     g.remove((s, p, o))
         else:
+            if not _is_abs_iri(object_iri_or_literal):
+                return "object_iri_or_literal must be an absolute https IRI when is_object_literal is False"
             o = URIRef(object_iri_or_literal)
             g.remove((s, p, o))
         return subject_iri
@@ -394,54 +414,44 @@ def delete_triple(subject_iri: str, predicate_uri: str, object_iri_or_literal: s
 # Example usage
 # ----------------------------------------------------------------------------------------------------------------------
 if __name__ == "__main__":
-    # Initialize memory
-    hash_value = "178ef569"
-    sh = init_memory(hash_value)
-    print(f"OntoMOPs Session hash: {sh}")
+    # Initialize memory using global state (reads from ontomops_global_state.json)
+    result = init_memory()
+    print(f"OntoMOPs Memory: {result}")
 
-    # Create ChemicalBuildingUnits (minting new IRIs)
-    cbu1 = create_chemical_building_unit("1,3,5-benzenetricarboxylic acid", hash_value)
-    cbu2 = create_chemical_building_unit("1,3,5-tris(4-pyridyl)benzene", hash_value)
-    
-    # Create ChemicalBuildingUnit with existing IRI (entity linking)
-    cbu3 = create_chemical_building_unit(
-        "Copper(II) ion", 
-        hash_value,
-        iri="https://www.theworldavatar.com/kg/OntoMOPs/instance/ChemicalBuildingUnit/copper-ii-ion"
-    )
+    # Add ChemicalBuildingUnits (minting new IRIs)
+    cbu1 = add_chemical_building_unit("1,3,5-benzenetricarboxylic acid")
+    cbu2 = add_chemical_building_unit("1,3,5-tris(4-pyridyl)benzene")
+    cbu3 = add_chemical_building_unit("Copper(II) ion")
 
-    # Create MetalOrganicPolyhedron (minting new IRI)
-    mop1 = create_metal_organic_polyhedron(
+    # Add MetalOrganicPolyhedra (minting new IRIs)
+    mop1 = add_metal_organic_polyhedron(
         name="MOP-123",
-        hash_value=hash_value,
         ccdc_number="1234567",
         mop_formula="C36H27N3O6"
     )
     
-    # Create MetalOrganicPolyhedron with existing IRI (entity linking)
-    mop2 = create_metal_organic_polyhedron(
+    mop2 = add_metal_organic_polyhedron(
         name="MOP-456",
-        hash_value=hash_value,
         ccdc_number="1234568",
-        mop_formula="C42H30N6O6",
-        iri="https://www.theworldavatar.com/kg/OntoMOPs/instance/MetalOrganicPolyhedron/mop-456"
+        mop_formula="C42H30N6O6"
     )
 
     # Update properties
-    update_mop_ccdc_number(mop1, "1234568", hash_value)
-    update_mop_formula(mop1, "C36H27N3O6·2H2O", hash_value)
+    update_mop_ccdc_number(mop1, "1234568")
+    update_mop_formula(mop1, "C36H27N3O6·2H2O")
+    update_entity_label(cbu1, "1,3,5-Benzenetricarboxylic acid (updated)")
 
     # Connect ChemicalBuildingUnits to MetalOrganicPolyhedra
-    add_cbu_to_mop(mop1, cbu1, hash_value)
-    add_cbu_to_mop(mop1, cbu2, hash_value)
-    add_cbu_to_mop(mop2, cbu3, hash_value)
+    add_cbu_to_mop(mop1, cbu1)
+    add_cbu_to_mop(mop1, cbu2)
+    add_cbu_to_mop(mop2, cbu3)
 
     # Query examples
-    print(f"\nMOPs with CCDC number 1234568: {find_mops_by_ccdc_number('1234568', hash_value)}")
-    print(f"MOPs with formula C36H27N3O6·2H2O: {find_mops_by_formula('C36H27N3O6·2H2O', hash_value)}")
-    print(f"CBUs in MOP-123: {get_mop_cbus(mop1, hash_value)}")
+    print(f"\nMOPs with CCDC number 1234568: {find_mops_by_ccdc_number('1234568')}")
+    print(f"MOPs with formula C36H27N3O6·2H2O: {find_mops_by_formula('C36H27N3O6·2H2O')}")
+    print(f"CBUs in MOP-123: {get_mop_cbus(mop1)}")
 
     # Export and inspect
-    out_path = export_memory(hash_value)
+    out_path = export_memory()
     print(f"\nExported TTL: {out_path}")
-    print("\n" + inspect_memory(hash_value))
+    print("\n" + inspect_memory())
