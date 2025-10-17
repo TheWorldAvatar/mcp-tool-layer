@@ -154,39 +154,55 @@ def run_pipeline_for_hash(doi_hash, test_mode=False):
             return False
         print("✅ Division and classification completed successfully")
     
-    # Step 3: Dynamic MCP-based MOPs extraction
+    # Step 3: Dynamic MCP-based MOPs extraction (skip if output.ttl already exists)
     print("Step 3: Running dynamic MCP-based MOPs extraction...")
-    try:
-        # Run the dynamic MCP agent
-        asyncio.run(run_task(doi_hash, test=test_mode))
-        print("✅ Dynamic MCP-based MOPs extraction completed successfully")
-    except Exception as e:
-        print(f"Failed to run dynamic MCP agent for hash: {doi_hash}")
-        print(f"Error: {e}")
-        return False
+    out_ttl = os.path.join(directory, "output.ttl")
+    if os.path.exists(out_ttl):
+        print("⏭️  Skipping dynamic MCP extraction: output.ttl already exists")
+    else:
+        try:
+            asyncio.run(run_task(doi_hash, test=test_mode))
+            print("✅ Dynamic MCP-based MOPs extraction completed successfully")
+        except Exception as e:
+            print(f"Failed to run dynamic MCP agent for hash: {doi_hash}")
+            print(f"Error: {e}")
+            return False
 
-    # Step 4: OntoMOPs extension (extract per-entity hints then extend A-Box)
+    # Step 4: OntoMOPs extension (skip if ontomops_output already populated)
     print("Step 4: Running OntoMOPs extension agent...")
-    try:
-        # Always run against the specific hash to keep consistency with current pipeline run
-        cmd = [sys.executable, "-m", "src.agents.mops.extension.ontomop-extension-agent", "--file", doi_hash]
-        completed = subprocess.run(cmd, cwd=os.getcwd(), capture_output=False, check=True)
-        print("✅ OntoMOPs extension completed")
-    except subprocess.CalledProcessError as e:
-        print(f"Failed to run OntoMOPs extension for hash: {doi_hash}")
-        print(f"Error: {e}")
-        return False
+    ontomops_out_dir = os.path.join(directory, "ontomops_output")
+    ontomops_done = os.path.isdir(ontomops_out_dir) and any(
+        name for name in os.listdir(ontomops_out_dir) if name.endswith(".ttl")
+    )
+    if ontomops_done:
+        print("⏭️  Skipping OntoMOPs extension: ontomops_output already populated")
+    else:
+        try:
+            cmd = [sys.executable, "-m", "src.agents.mops.extension.ontomop-extension-agent", "--file", doi_hash]
+            subprocess.run(cmd, cwd=os.getcwd(), capture_output=False, check=True)
+            print("✅ OntoMOPs extension completed")
+        except subprocess.CalledProcessError as e:
+            print(f"Failed to run OntoMOPs extension for hash: {doi_hash}")
+            print(f"Error: {e}")
+            return False
 
-    # Step 5: OntoSpecies extension (extract per-entity hints then extend A-Box)
+    # Step 5: OntoSpecies extension (skip if ontospecies_output already populated)
     print("Step 5: Running OntoSpecies extension agent...")
-    try:
-        cmd = [sys.executable, "-m", "src.agents.mops.extension.ontospecies-extension-agent", "--file", doi_hash]
-        completed = subprocess.run(cmd, cwd=os.getcwd(), capture_output=False, check=True)
-        print("✅ OntoSpecies extension completed")
-    except subprocess.CalledProcessError as e:
-        print(f"Failed to run OntoSpecies extension for hash: {doi_hash}")
-        print(f"Error: {e}")
-        return False
+    ontospecies_out_dir = os.path.join(directory, "ontospecies_output")
+    ontospecies_done = os.path.isdir(ontospecies_out_dir) and any(
+        name for name in os.listdir(ontospecies_out_dir) if name.endswith(".ttl")
+    )
+    if ontospecies_done:
+        print("⏭️  Skipping OntoSpecies extension: ontospecies_output already populated")
+    else:
+        try:
+            cmd = [sys.executable, "-m", "src.agents.mops.extension.ontospecies-extension-agent", "--file", doi_hash]
+            subprocess.run(cmd, cwd=os.getcwd(), capture_output=False, check=True)
+            print("✅ OntoSpecies extension completed")
+        except subprocess.CalledProcessError as e:
+            print(f"Failed to run OntoSpecies extension for hash: {doi_hash}")
+            print(f"Error: {e}")
+            return False
     
     print(f"Pipeline completed for DOI hash: {doi_hash}")
     return True

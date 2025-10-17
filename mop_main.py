@@ -69,9 +69,12 @@ def discover_and_create_mappings():
         print(f"Raw data directory not found: {RAW_DATA_DIR}")
         return False
     
-    # Get all PDF files in raw_data directory
-    pdf_files = [f for f in os.listdir(RAW_DATA_DIR) 
-                 if f.endswith('.pdf') and not f.endswith('_si.pdf')]
+    # Get all PDF files in raw_data directory (deterministic order)
+    pdf_files = sorted(
+        [f for f in os.listdir(RAW_DATA_DIR)
+         if f.endswith('.pdf') and not f.endswith('_si.pdf')],
+        key=lambda s: s.lower()
+    )
     
     if not pdf_files:
         print(f"No PDF files found in {RAW_DATA_DIR}")
