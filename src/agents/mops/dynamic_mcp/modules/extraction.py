@@ -89,7 +89,7 @@ async def extract_content(
     # The timeout might need to be adjusted based on API performance
 
     retries = 0
-    max_retries = 3  # Increased from 2 to 3
+    max_retries = 10
     start = time.time()
     attempt_durations = []
     
