@@ -1,450 +1,467 @@
-# ontospecies_extension_v3_singlecall.py
-# OntoSpecies A-Box utilities — single-call creation, hardcoded invariants, predictable behavior
-# - One-shot creators accept required literal values
-# - IR bands stored ONLY as one literal string on the IR data node (dc:description)
-# - CCDC number requires a value at creation; empty inputs become "N/A"
-# - Deterministic linking: replace existing links when semantic cardinality is 1
-# - File-locked, atomic writes; idempotent by label+class
+#!/usr/bin/env python3
+# ontospecies_extension.py — creation-time hard typing for every node
 
-import os
-import re
-import uuid
-import tempfile
-import unicodedata
+import os, tempfile, hashlib, re
+from datetime import datetime, timezone
 from contextlib import contextmanager
 from typing import Optional, List, Tuple
+from urllib.parse import urlparse
+
 from filelock import FileLock
 from rdflib import Graph, Namespace, URIRef, Literal
-from rdflib.namespace import RDF, RDFS, OWL, XSD
-from models.locations import DATA_DIR
-from urllib.parse import quote
-# -------------------------------------------------------------------------------------------------
-# Namespaces
-# -------------------------------------------------------------------------------------------------
-KG = Namespace("https://www.theworldavatar.com/kg/")
-ONTOSPECIES = Namespace("http://www.theworldavatar.com/ontology/ontospecies/OntoSpecies.owl#")
-PERIODIC = Namespace("http://www.daml.org/2003/01/periodictable/PeriodicTable#")
-DC = Namespace("http://purl.org/dc/elements/1.1/")
-OWL = Namespace("http://www.w3.org/2002/07/owl#")
-RDF = Namespace("http://www.w3.org/1999/02/22-rdf-syntax-ns#")
-RDFS = Namespace("http://www.w3.org/2000/01/rdf-schema#")
-XSD = Namespace("http://www.w3.org/2001/XMLSchema#")
+from rdflib.namespace import RDF, RDFS, XSD
 
-# -------------------------------------------------------------------------------------------------
-# Memory + locking
-# -------------------------------------------------------------------------------------------------
-def get_memory_paths(hash_value: str):
-    """Get memory paths for a specific hash."""
-    mem_dir = os.path.join(DATA_DIR, hash_value, "memory_ontospecies")
-    mem_ttl = os.path.join(mem_dir, "memory_ontospecies.ttl")
-    mem_lock = os.path.join(mem_dir, "memory_ontospecies.lock")
- 
+# ========= Namespaces =========
+OS  = Namespace("http://www.theworldavatar.com/ontology/ontospecies/OntoSpecies.owl#")
+PER = Namespace("http://www.daml.org/2003/01/periodictable/PeriodicTable#")
+
+INST_BASE = "https://www.theworldavatar.com/kg/OntoSpecies/instance"
+
+# ========= Storage =========
+DATA_DIR = "data"
+GLOBAL_STATE_JSON = os.path.join(DATA_DIR, "ontospecies_global_state.json")
+GLOBAL_STATE_LOCK = os.path.join(DATA_DIR, "ontospecies_global_state.lock")
+
+# ========= Helpers =========
+def _is_abs_iri(s: str) -> bool:
+    try:
+        u = urlparse(s); return bool(u.scheme) and bool(u.netloc)
+    except Exception:
+        return False
+
+def _class(ns: Namespace, local: str) -> URIRef:
+    return getattr(ns, local)
+
+def _mint_hash_iri(class_local: str) -> URIRef:
+    ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+    h = hashlib.sha1(f"{ts}|{class_local}".encode("utf-8")).hexdigest()
+    return URIRef(f"{INST_BASE}/{class_local}/{h}")
+
+def _read_global_state():
+    if not os.path.exists(GLOBAL_STATE_JSON):
+        return "default-doi", "default-entity"
+    from json import load
+    with FileLock(GLOBAL_STATE_LOCK):
+        with open(GLOBAL_STATE_JSON, "r", encoding="utf-8") as f:
+            st = load(f)
+    doi = (st.get("doi") or "default-doi").strip()
+    ent = (st.get("top_level_entity_name") or "default-entity").strip()
+    return doi, ent
+
+def _slugify(text: str, maxlen: int = 120) -> str:
+    import unicodedata
+    s = unicodedata.normalize("NFKC", str(text)).strip()
+    s = re.sub(r"\s+", "-", s); s = re.sub(r"[^\w\-.~]", "-", s)
+    s = re.sub(r"[-_]{2,}", "-", s).strip("-_.")
+    s = s[:maxlen].rstrip("-_.") or "entity"
+    from urllib.parse import quote
+    return quote(s, safe="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.~")
+
+def _memory_paths():
+    doi, ent = _read_global_state()
+    mem_dir = os.path.join(DATA_DIR, doi, "memory_ontospecies")
     os.makedirs(mem_dir, exist_ok=True)
-    return mem_dir, mem_ttl, mem_lock
-
- 
-SESSION_NODE = URIRef("https://www.theworldavatar.com/kg/OntoSpecies/instance/Session")
+    return {
+        "ttl":  os.path.join(mem_dir, f"{_slugify(ent)}.ttl"),
+        "lock": os.path.join(mem_dir, f"{_slugify(ent)}.lock"),
+        "dir":  mem_dir,
+    }
 
 @contextmanager
-def locked_graph(hash_value: str, timeout: float = 30.0):
-    """Exclusive-lock graph context. Atomic write via temp file."""
-    mem_dir, mem_ttl, mem_lock = get_memory_paths(hash_value)
-    
-    lock = FileLock(mem_lock)
+def locked_graph(timeout: float = 30.0):
+    paths = _memory_paths()
+    lock = FileLock(paths["lock"])
     lock.acquire(timeout=timeout)
     g = Graph()
-    g.bind("kg", KG); g.bind("ontospecies", ONTOSPECIES); g.bind("periodic", PERIODIC)
-    g.bind("dc", DC); g.bind("owl", OWL); g.bind("rdf", RDF); g.bind("rdfs", RDFS); g.bind("xsd", XSD)
-    if os.path.exists(mem_ttl):
-        g.parse(mem_ttl, format="turtle")
+    # Bind needed prefixes (rdf first so Turtle prints 'a')
+    g.bind("rdf", RDF)
+    g.bind("rdfs", RDFS)
+    g.bind("xsd", XSD)
+    g.bind("ontospecies", OS)
+    g.bind("periodic", PER)
+    if os.path.exists(paths["ttl"]):
+        g.parse(paths["ttl"], format="turtle")
     try:
         yield g
-        fd, tmp = tempfile.mkstemp(dir=mem_dir, suffix=".ttl.tmp"); os.close(fd)
-        g.serialize(destination=tmp, format="turtle"); os.replace(tmp, mem_ttl)
+        fd, tmp = tempfile.mkstemp(dir=paths["dir"], suffix=".ttl.tmp"); os.close(fd)
+        g.serialize(destination=tmp, format="turtle")
+        os.replace(tmp, paths["ttl"])
     finally:
         lock.release()
 
-# -------------------------------------------------------------------------------------------------
-# Session helpers
-# -------------------------------------------------------------------------------------------------
-def _get_or_create_session_hash(g: Graph) -> str:
-    for _, _, h in g.triples((SESSION_NODE, DC.identifier, None)):
-        if isinstance(h, Literal): return str(h)
-    sh = uuid.uuid4().hex[:8]
-    g.add((SESSION_NODE, RDF.type, OWL.NamedIndividual))
-    g.add((SESSION_NODE, RDFS.label, Literal(f"OntoSpecies Session {sh}")))
-    g.add((SESSION_NODE, DC.identifier, Literal(sh)))
-    return sh
+def _ensure_type_with_label(g: Graph, iri: URIRef, cls: URIRef, label: Optional[str] = None) -> None:
+    g.add((iri, RDF.type, cls))
+    if label is not None:
+        g.set((iri, RDFS.label, Literal(label)))
 
-def init_memory(hash_value: str) -> str:
-    """Initialize persistent graph and return session hash."""
-    with locked_graph(hash_value=hash_value, timeout=30.0) as g:
-        return _get_or_create_session_hash(g)
+def _safe_parent(parent_iri: str) -> Optional[URIRef]:
+    return URIRef(parent_iri) if _is_abs_iri(parent_iri) else None
 
-def inspect_memory(hash_value: str) -> str:
-    """Readable dump of subjects and key properties (agent-friendly)."""
-    lines: List[str] = ["=== OntoSpecies Memory Summary ==="]
-    with locked_graph(hash_value=hash_value, timeout=30.0) as g:
-        subs = sorted({s for s, _, _ in g if isinstance(s, URIRef)}, key=lambda u: str(u))
-        for s in subs:
-            lines.append(f"\nSubject: {s}")
-            for o in g.objects(s, RDF.type): lines.append(f"  rdf:type: {o}")
-            for o in g.objects(s, RDFS.label): lines.append(f"  rdfs:label: {o}")
-            for p, o in g.predicate_objects(s):
-                if p in (RDF.type, RDFS.label): continue
-                if isinstance(o, Literal):
-                    lines.append(f"  {g.namespace_manager.normalizeUri(p)}: {o} ({o.datatype or 'xsd:string'})")
-                else:
-                    lines.append(f"  {g.namespace_manager.normalizeUri(p)} -> {o}")
-    return "\n".join(lines)
+# Empirical formula validator (compact elemental only)
+_EMP_RE = re.compile(r"^(?:[A-Z][a-z]?\d*)+$")
+def _is_empirical(s: str) -> bool:
+    return bool(_EMP_RE.fullmatch((s or "").strip()))
 
-def export_memory(hash_value: str) -> str:
-    """Serialize the entire memory graph to a Turtle file and return the absolute path."""
-    # Hardcoded output filename
-    file_name = "ontospecies_extension.ttl"
-    
-    # If hash_value is provided, save to data/{hash}/ directory
-    if hash_value:
-        output_path = os.path.join(DATA_DIR, hash_value, file_name)
-    else:
-        output_path = file_name
-    
-    with locked_graph(hash_value=hash_value, timeout=30.0) as g:
-        g.serialize(destination=output_path, format="turtle")
-    return os.path.abspath(output_path)
+# ========= Top-level creators =========
+def create_species(label: str, product_name: Optional[str] = None) -> str:
+    with locked_graph() as g:
+        s = _mint_hash_iri("Species")
+        _ensure_type_with_label(g, s, _class(OS, "Species"), label)
+        if product_name:
+            g.set((s, _class(OS, "hasProductName"), Literal(product_name)))
+        return str(s)
 
-# -------------------------------------------------------------------------------------------------
-# Core engine
-# -------------------------------------------------------------------------------------------------
-INST_BASE = "https://www.theworldavatar.com/kg/OntoSpecies/instance"
+def create_element(label: str, symbol: Optional[str] = None) -> str:
+    with locked_graph() as g:
+        e = _mint_hash_iri("Element")
+        _ensure_type_with_label(g, e, _class(PER, "Element"), label)
+        g.set((e, _class(OS, "hasElementName"), Literal(label)))
+        if symbol:
+            g.set((e, _class(OS, "hasElementSymbol"), Literal(symbol)))
+        return str(e)
 
-def _slugify(text: str, *, maxlen: int = 120) -> str:
-    # Normalize and lowercase
-    s = unicodedata.normalize("NFKC", str(text)).strip().casefold()
-    # Whitespace -> hyphen
-    s = re.sub(r"\s+", "-", s)
-    # Keep word chars plus -_.~ ; replace everything else with hyphen
-    s = re.sub(r"[^\w\-\.~]", "-", s)
-    # Collapse runs of - or _
-    s = re.sub(r"[-_]{2,}", "-", s)
-    # Trim leading/trailing separators
-    s = s.strip("-_.")
-    # Fallback if empty
-    if not s:
-        return "entity"
-    # Length cap, keep clean ending
-    s = s[:maxlen].rstrip("-_.")
-    # Percent-encode non-ASCII to keep IRIs ASCII-safe
-    return quote(s, safe="abcdefghijklmnopqrstuvwxyz0123456789-_.~")
-
-def _iri_exists(g: Graph, iri: URIRef) -> bool:
-    return (iri, None, None) in g or (None, None, iri) in g
-
-def _resolve_class_uri(class_local: str) -> Optional[URIRef]:
-    for ns in (ONTOSPECIES, PERIODIC):
-        uri = getattr(ns, class_local, None)
-        if isinstance(uri, URIRef): return uri
-    return None
-
-def _find_by_type_and_label(g: Graph, class_uri: URIRef, label: str) -> Optional[URIRef]:
-    lbl = Literal(label)
-    for s in g.subjects(RDF.type, class_uri):
-        if (s, RDFS.label, lbl) in g: return s
-    return None
-
-def _mint_iri(g: Graph, class_local: str, label: str) -> URIRef:
-    class_uri = _resolve_class_uri(class_local)
-    if class_uri is not None:
-        existing = _find_by_type_and_label(g, class_uri, label)
-        if existing is not None: return existing
-    slug = _slugify(label)
-    iri = URIRef(f"{INST_BASE}/{class_local}/{slug}")
-    return iri if not _iri_exists(g, iri) else iri
-
-def _ensure_individual(g: Graph, iri: URIRef, class_uri: URIRef, label: Optional[str] = None) -> URIRef:
-    if (iri, RDF.type, None) not in g: g.add((iri, RDF.type, class_uri))
-    if (iri, RDF.type, class_uri) not in g: g.add((iri, RDF.type, class_uri))
-    if (iri, RDFS.label, None) not in g and label is not None: g.add((iri, RDFS.label, Literal(label)))
-    return iri
-
-# --- literals -----------------------------------------------------------------------------------
-def _set_literal_ns(subject_iri: str, predicate_ns: Namespace, predicate_local: str, value: str,
-                    dtype: Optional[URIRef] = None, hash_value: str = None) -> str:
-    with locked_graph(hash_value=hash_value, timeout=30.0) as g:
-        s = URIRef(subject_iri)
-        pred = getattr(predicate_ns, predicate_local, None)
-        if pred is None: raise ValueError(f"Unknown data property: {predicate_ns}{predicate_local}")
-        for o in list(g.objects(s, pred)):
-            if isinstance(o, Literal): g.remove((s, pred, o))
-        g.add((s, pred, Literal(value, datatype=dtype)))
-        return subject_iri
-
-# --- links --------------------------------------------------------------------------------------
-def _link(subject_iri: str, predicate_local: str, object_iri: str, hash_value: str, expect: Optional[Tuple[str, str]] = None) -> str:
-    with locked_graph(hash_value=hash_value, timeout=30.0) as g:
-        s, o = URIRef(subject_iri), URIRef(object_iri)
-        pred = getattr(ONTOSPECIES, predicate_local, None)
-        if pred is None: raise ValueError(f"Unknown object property: {predicate_local}")
-        if expect:
-            scls = _resolve_class_uri(expect[0]); ocls = _resolve_class_uri(expect[1])
-            if scls is not None: g.add((s, RDF.type, scls))
-            if ocls is not None: g.add((o, RDF.type, ocls))
-        g.add((s, pred, o))
-        return subject_iri
-
-def _replace_links(subject_iri: str, predicate_local: str, object_iri: str, hash_value: str) -> str:
-    with locked_graph(hash_value=hash_value, timeout=30.0) as g:
-        s = URIRef(subject_iri)
-        pred = getattr(ONTOSPECIES, predicate_local, None)
-        for o in list(g.objects(s, pred)):
-            g.remove((s, pred, o))
-        g.add((s, pred, URIRef(object_iri)))
-        return subject_iri
-
-# -------------------------------------------------------------------------------------------------
-# Public API — single-call creators (preferred)
-# -------------------------------------------------------------------------------------------------
-# Core entities
-def create_species(name: str, hash_value: str, iri: Optional[str] = None) -> str:
-    """Create or fetch Species by label."""
-    with locked_graph(hash_value=hash_value, timeout=30.0) as g:
-        class_uri = _resolve_class_uri("Species")
-        iri_ref = URIRef(iri) if iri else _mint_iri(g, "Species", name)
-        _ensure_individual(g, iri_ref, class_uri, name)
-        return str(iri_ref)
-
-def create_characterization_session(name: str, hash_value: str, iri: Optional[str] = None) -> str:
-    with locked_graph(hash_value=hash_value, timeout=30.0) as g:
-        class_uri = _resolve_class_uri("CharacterizationSession")
-        iri_ref = URIRef(iri) if iri else _mint_iri(g, "CharacterizationSession", name)
-        _ensure_individual(g, iri_ref, class_uri, name)
-        return str(iri_ref)
-
-# Devices
-def create_hnmr_device(name: str, hash_value: str, iri: Optional[str] = None) -> str:
-    with locked_graph(hash_value=hash_value, timeout=30.0) as g:
-        iri_ref = URIRef(iri) if iri else _mint_iri(g, "HNMRDevice", name)
-        _ensure_individual(g, iri_ref, _resolve_class_uri("HNMRDevice"), name)
-        return str(iri_ref)
-
-def create_elemental_analysis_device(name: str, hash_value: str, iri: Optional[str] = None) -> str:
-    with locked_graph(hash_value=hash_value, timeout=30.0) as g:
-        iri_ref = URIRef(iri) if iri else _mint_iri(g, "ElementalAnalysisDevice", name)
-        _ensure_individual(g, iri_ref, _resolve_class_uri("ElementalAnalysisDevice"), name)
-        return str(iri_ref)
-
-def create_infrared_spectroscopy_device(name: str, hash_value: str, iri: Optional[str] = None) -> str:
-    with locked_graph(hash_value=hash_value, timeout=30.0) as g:
-        iri_ref = URIRef(iri) if iri else _mint_iri(g, "InfraredSpectroscopyDevice", name)
-        _ensure_individual(g, iri_ref, _resolve_class_uri("InfraredSpectroscopyDevice"), name)
-        return str(iri_ref)
-
-# Data containers — SINGLE-CALL variants that also set literals
-def create_hnmr_data(label: str, hash_value: str, iri: Optional[str] = None) -> str:
-    with locked_graph(hash_value=hash_value, timeout=30.0) as g:
-        iri_ref = URIRef(iri) if iri else _mint_iri(g, "HNMRData", label)
-        _ensure_individual(g, iri_ref, _resolve_class_uri("HNMRData"), label)
-        return str(iri_ref)
-
-def create_elemental_analysis_data(label: str, hash_value: str, iri: Optional[str] = None) -> str:
-    with locked_graph(hash_value=hash_value, timeout=30.0) as g:
-        iri_ref = URIRef(iri) if iri else _mint_iri(g, "ElementalAnalysisData", label)
-        _ensure_individual(g, iri_ref, _resolve_class_uri("ElementalAnalysisData"), label)
-        return str(iri_ref)
-
-def create_infrared_spectroscopy_data_with_bands(label: str, bands_text: Optional[str], hash_value: str, iri: Optional[str] = None) -> str:
-    """Create IR data and store bands as ONE literal (dc:description). Any existing hasInfraredBand links are removed."""
-    with locked_graph(hash_value=hash_value, timeout=30.0) as g:
-        iri_ref = URIRef(iri) if iri else _mint_iri(g, "InfraredSpectroscopyData", label)
-        _ensure_individual(g, iri_ref, _resolve_class_uri("InfraredSpectroscopyData"), label)
-    _set_ir_bands_text(str(iri_ref), bands_text, hash_value)
-    return str(iri_ref)
-
-# Parts — SINGLE-CALL creators with embedded value semantics
-def create_ccdc_number(value: Optional[str], hash_value: str, label_prefix: str = "CCDC") -> str:
-    """Create CCDCNumber with required value literal at creation.
-    - value: the accession string; falsy -> "N/A"
-    - label is f"{label_prefix} {value_or_NA}"
-    - stores dc:identifier = value_or_NA
-    """
-    val = (value or "").strip() or "N/A"
-    label = f"{label_prefix} {val}"
-    with locked_graph(hash_value=hash_value, timeout=30.0) as g:
-        iri_ref = _mint_iri(g, "CCDCNumber", label)
-        _ensure_individual(g, iri_ref, _resolve_class_uri("CCDCNumber"), label)
-    _set_literal_ns(str(iri_ref), DC, "identifier", val, dtype=XSD.string, hash_value=hash_value)
-    return str(iri_ref)
-
-def create_molecular_formula(value: str, hash_value: str, iri: Optional[str] = None) -> str:
-    with locked_graph(hash_value=hash_value, timeout=30.0) as g:
-        label = value
-        iri_ref = URIRef(iri) if iri else _mint_iri(g, "MolecularFormula", label)
-        _ensure_individual(g, iri_ref, _resolve_class_uri("MolecularFormula"), label)
-        return str(iri_ref)
-
-def create_chemical_formula(value: str, hash_value: str, iri: Optional[str] = None) -> str:
-    with locked_graph(hash_value=hash_value, timeout=30.0) as g:
-        label = value
-        iri_ref = URIRef(iri) if iri else _mint_iri(g, "ChemicalFormula", label)
-        _ensure_individual(g, iri_ref, _resolve_class_uri("ChemicalFormula"), label)
-        return str(iri_ref)
-
-def create_weight_percentage(text: str, hash_value: str, iri: Optional[str] = None) -> str:
-    with locked_graph(hash_value=hash_value, timeout=30.0) as g:
-        label = text
-        iri_ref = URIRef(iri) if iri else _mint_iri(g, "WeightPercentage", label)
-        _ensure_individual(g, iri_ref, _resolve_class_uri("WeightPercentage"), label)
-        return str(iri_ref)
-
-def create_element(name: str, hash_value: str, iri: Optional[str] = None) -> str:
-    with locked_graph(hash_value=hash_value, timeout=30.0) as g:
-        iri_ref = URIRef(iri) if iri else _mint_iri(g, "Element", name)
-        _ensure_individual(g, iri_ref, _resolve_class_uri("Element"), name)
-        return str(iri_ref)
-
-def create_atomic_weight(value: str, hash_value: str, iri: Optional[str] = None) -> str:
-    label = f"Atomic Weight {value}"
-    with locked_graph(hash_value=hash_value, timeout=30.0) as g:
-        iri_ref = URIRef(iri) if iri else _mint_iri(g, "AtomicWeight", label)
-        _ensure_individual(g, iri_ref, _resolve_class_uri("AtomicWeight"), label)
-        return str(iri_ref)
-
-def create_material(name: str, hash_value: str, iri: Optional[str] = None) -> str:
-    with locked_graph(hash_value=hash_value, timeout=30.0) as g:
-        iri_ref = URIRef(iri) if iri else _mint_iri(g, "Material", name)
-        _ensure_individual(g, iri_ref, _resolve_class_uri("Material"), name)
-        return str(iri_ref)
-
-# -------------------------------------------------------------------------------------------------
-# High-level single-call blocks (predictable behavior)
-# -------------------------------------------------------------------------------------------------
-def create_and_link_ccdc_number(species_iri: str, value: Optional[str], hash_value: str) -> str:
-    """One call: create CCDC with value and replace existing Species->hasCCDCNumber links."""
-    ccdc_iri = create_ccdc_number(value, hash_value)
-    _replace_links(species_iri, "hasCCDCNumber", ccdc_iri, hash_value)
-    return ccdc_iri
-
-def create_and_link_ir_data(
-    species_iri: str,
-    ir_data_label: str,
-    bands_text: Optional[str],
-    hash_value: str,
-    material_label: Optional[str] = None,
-    device_label: Optional[str] = None,
-    session_label: Optional[str] = None,
+# ========= Link helpers (always type the NEW child) =========
+def _mint_and_link_child(
+    parent_iri: str,
+    predicate_local: str,            # object property on OS
+    child_class_ns: Namespace,
+    child_class_local: str,
+    child_label: Optional[str] = None,
+    literals: Optional[List[Tuple[Namespace, str, Literal]]] = None,
+    replace: bool = False,
 ) -> str:
-    """One call: create IR data with bands literal, replace existing band links, attach optional material/device/session."""
-    ir_data_iri = create_infrared_spectroscopy_data_with_bands(ir_data_label, bands_text, hash_value)
-    _replace_links(species_iri, "hasInfraredSpectroscopyData", ir_data_iri, hash_value)  # deterministic latest-wins
+    with locked_graph() as g:
+        parent = _safe_parent(parent_iri)
+        if parent is None:
+            return "parent IRI must be absolute https IRI"
+        child = _mint_hash_iri(child_class_local)
+        _ensure_type_with_label(g, child, _class(child_class_ns, child_class_local), child_label)
+        if literals:
+            for ns, pred_local, lit in literals:
+                g.set((child, _class(ns, pred_local), lit))
+        g.add((parent, _class(OS, predicate_local), child))
+        if replace:
+            # optional replace semantics if needed by caller (not used by default)
+            pass
+        return str(child)
 
-    if material_label:
-        mat = create_material(material_label, hash_value)
-        _link(ir_data_iri, "hasMaterial", mat, hash_value, expect=("InfraredSpectroscopyData","Material"))
-
-    if device_label and session_label:
-        dev = create_infrared_spectroscopy_device(device_label, hash_value)
-        ses = create_characterization_session(session_label, hash_value)
-        _link(ses, "hasInfraredSpectroscopyDevice", dev, hash_value, expect=("CharacterizationSession","InfraredSpectroscopyDevice"))
-        _link(species_iri, "hasCharacterizationSession", ses, hash_value, expect=("Species","CharacterizationSession"))
-
-    return ir_data_iri
-
-# -------------------------------------------------------------------------------------------------
-# Backward-compat links kept (thin wrappers)
-# -------------------------------------------------------------------------------------------------
-def add_characterization_session_to_species(species_iri: str, characterization_session_iri: str, hash_value: str) -> str:
-    return _link(species_iri, "hasCharacterizationSession", characterization_session_iri, hash_value, expect=("Species","CharacterizationSession"))
-
-def add_hnmr_data_to_species(species_iri: str, hnmr_data_iri: str, hash_value: str) -> str:
-    return _link(species_iri, "hasHNMRData", hnmr_data_iri, hash_value, expect=("Species","HNMRData"))
-
-def add_elemental_analysis_data_to_species(species_iri: str, elemental_data_iri: str, hash_value: str) -> str:
-    return _link(species_iri, "hasElementalAnalysisData", elemental_data_iri, hash_value, expect=("Species","ElementalAnalysisData"))
-
-def add_molecular_formula_to_species(species_iri: str, molecular_formula_iri: str, hash_value: str) -> str:
-    return _link(species_iri, "hasMolecularFormula", molecular_formula_iri, hash_value, expect=("Species","MolecularFormula"))
-
-def add_chemical_formula_to_species(species_iri: str, chemical_formula_iri: str, hash_value: str) -> str:
-    return _link(species_iri, "hasChemicalFormula", chemical_formula_iri, hash_value, expect=("Species","ChemicalFormula"))
-
-def add_ccdc_number_to_species(species_iri: str, ccdc_number_iri: str, hash_value: str) -> str:
-    return _replace_links(species_iri, "hasCCDCNumber", ccdc_number_iri, hash_value)
-
-def add_hnmr_device_to_characterization_session(characterization_session_iri: str, hnmr_device_iri: str, hash_value: str) -> str:
-    return _link(characterization_session_iri, "hasHNMRDevice", hnmr_device_iri, hash_value, expect=("CharacterizationSession","HNMRDevice"))
-
-def add_elemental_analysis_device_to_characterization_session(characterization_session_iri: str, elemental_device_iri: str, hash_value: str) -> str:
-    return _link(characterization_session_iri, "hasElementalAnalysisDevice", elemental_device_iri, hash_value, expect=("CharacterizationSession","ElementalAnalysisDevice"))
-
-def add_infrared_spectroscopy_device_to_characterization_session(characterization_session_iri: str, infrared_device_iri: str, hash_value: str) -> str:
-    return _link(characterization_session_iri, "hasInfraredSpectroscopyDevice", infrared_device_iri, hash_value, expect=("CharacterizationSession","InfraredSpectroscopyDevice"))
-
-def add_atomic_weight_to_element(element_iri: str, atomic_weight_iri: str, hash_value: str) -> str:
-    return _link(element_iri, "hasAtomicWeight", atomic_weight_iri, hash_value, expect=("Element","AtomicWeight"))
-
-def add_element_to_weight_percentage(weight_percentage_iri: str, element_iri: str, hash_value: str) -> str:
-    return _link(weight_percentage_iri, "hasElement", element_iri, hash_value, expect=("WeightPercentage","Element"))
-
-# -------------------------------------------------------------------------------------------------
-# IR bands helpers (hardcoded invariant)
-# -------------------------------------------------------------------------------------------------
-def _set_ir_bands_text(ir_data_iri: str, bands_text: Optional[str], hash_value: str) -> str:
-    # remove any InfraredBand links and store single literal under dc:description
-    with locked_graph(hash_value=hash_value, timeout=30.0) as g:
-        s = URIRef(ir_data_iri)
-        pred = getattr(ONTOSPECIES, "hasInfraredBand")
-        for o in list(g.objects(s, pred)):
-            g.remove((s, pred, o))
-    if bands_text is None or not bands_text.strip():
-        bands_text = "N/A"
-    return _set_literal_ns(ir_data_iri, DC, "description", bands_text.strip(), dtype=XSD.string, hash_value=hash_value)
-
-# -------------------------------------------------------------------------------------------------
-# Deletes
-# -------------------------------------------------------------------------------------------------
-def delete_triple(subject_iri: str, predicate_uri: str, object_iri_or_literal: str, hash_value: str, is_object_literal: bool = False) -> str:
-    with locked_graph(hash_value=hash_value, timeout=30.0) as g:
-        s = URIRef(subject_iri); p = URIRef(predicate_uri)
-        if is_object_literal:
-            for o in list(g.objects(s, p)):
-                if isinstance(o, Literal) and str(o) == object_iri_or_literal:
-                    g.remove((s, p, o))
-        else:
-            o = URIRef(object_iri_or_literal); g.remove((s, p, o))
-        return subject_iri
-
-def delete_entity(entity_iri: str, hash_value: str) -> str:
-    with locked_graph(hash_value=hash_value, timeout=30.0) as g:
-        s = URIRef(entity_iri)
-        for p, o in list(g.predicate_objects(s)):
-            g.remove((s, p, o))
-        for subj, pred in list(g.subject_predicates(s)):
-            g.remove((subj, pred, s))
-        return entity_iri
-
-# -------------------------------------------------------------------------------------------------
-# Minimal demo
-# -------------------------------------------------------------------------------------------------
-if __name__ == "__main__":
-    hash_value = "9f13ab77"
-    sh = init_memory(hash_value=hash_value)
-    print(f"OntoSpecies Session hash: {sh}")
-
-    sp = create_species("VMOPa", hash_value=hash_value)
-
-    # One-call CCDC creation+linking with required value (empty -> "N/A")
-    create_and_link_ccdc_number(sp, "2345678", hash_value=hash_value)
-
-    # One-call IR creation+linking with single-string bands
-    create_and_link_ir_data(
-        species_iri=sp,
-        ir_data_label="VMOPa IR",
-        bands_text="498 w; 579 w; 650 m; 782 m; 867 w; 947 s; 1038 m; 1228 w; 1420 vs; 1549 m; 1595 vs; 2816 w; 2924 w; 3423 w",
-        material_label="KBr pellet",
-        device_label="FT-IR Spectrometer",
-        session_label="Characterization-of-VMOPa",
-        hash_value=hash_value
+# ========= Characterization session + devices =========
+def add_characterization_session_to_species(species_iri: str, session_label: str) -> str:
+    return _mint_and_link_child(
+        species_iri, "hasCharacterizationSession", OS, "CharacterizationSession", session_label
     )
 
-    print(export_memory(hash_value=hash_value))
-    print(inspect_memory(hash_value=hash_value))
+def add_hnmr_device_to_characterization_session(session_iri: str, device_name: str, frequency: Optional[str] = None) -> str:
+    lits = [ (OS, "hasDeviceName", Literal(device_name)) ]
+    if frequency:
+        lits.append((OS, "hasFrequency", Literal(frequency)))
+    return _mint_and_link_child(
+        session_iri, "hasHNMRDevice", OS, "HNMRDevice", device_name, lits
+    )
+
+def add_elemental_analysis_device_to_characterization_session(session_iri: str, device_name: str) -> str:
+    lits = [ (OS, "hasDeviceName", Literal(device_name)) ]
+    return _mint_and_link_child(
+        session_iri, "hasElementalAnalysisDevice", OS, "ElementalAnalysisDevice", device_name, lits
+    )
+
+def add_infrared_spectroscopy_device_to_characterization_session(session_iri: str, device_name: str) -> str:
+    lits = [ (OS, "hasDeviceName", Literal(device_name)) ]
+    return _mint_and_link_child(
+        session_iri, "hasInfraredSpectroscopyDevice", OS, "InfraredSpectroscopyDevice", device_name, lits
+    )
+
+# ========= HNMR data =========
+def add_hnmr_data_to_species(
+    species_iri: str,
+    data_label: str,
+    shifts: Optional[str] = None,
+    temperature: Optional[str] = None,
+    solvent_name: Optional[str] = None,
+) -> str:
+    with locked_graph() as g:
+        parent = _safe_parent(species_iri)
+        if parent is None:
+            return "parent IRI must be absolute https IRI"
+
+        # HNMRData
+        hn = _mint_hash_iri("HNMRData")
+        _ensure_type_with_label(g, hn, _class(OS, "HNMRData"), data_label)
+        if shifts is not None:
+            g.set((hn, _class(OS, "hasShifts"), Literal(shifts)))
+        if temperature is not None:
+            g.set((hn, _class(OS, "hasTemperature"), Literal(temperature)))
+
+        # Optional Solvent node (object) + name literal
+        if solvent_name:
+            sv = _mint_hash_iri("Solvent")
+            _ensure_type_with_label(g, sv, _class(OS, "Solvent"), solvent_name)
+            g.set((sv, _class(OS, "hasSolventName"), Literal(solvent_name)))
+            g.add((hn, _class(OS, "usesSolvent"), sv))
+
+        g.add((parent, _class(OS, "hasHNMRData"), hn))
+        return str(hn)
+
+def add_chemical_shift_to_hnmrdata(hnmr_data_iri: str, shift_label: str) -> str:
+    # optional granular NMR peaks
+    return _mint_and_link_child(
+        hnmr_data_iri, "hasChemicalShift", OS, "ChemicalShift", shift_label
+    )
+
+# ========= Elemental analysis data =========
+def add_elemental_analysis_data_to_species(
+    species_iri: str,
+    data_label: str,
+    calculated_value_text: Optional[str] = None,     # e.g., "C 40.09; H 5.43; N 8.05"
+    experimental_value_text: Optional[str] = None,   # e.g., "C 39.86; H 5.48; N 8.22"
+    empirical_molecular_formula: Optional[str] = None,  # enforce empirical
+) -> str:
+    with locked_graph() as g:
+        parent = _safe_parent(species_iri)
+        if parent is None:
+            return "parent IRI must be absolute https IRI"
+
+        ea = _mint_hash_iri("ElementalAnalysisData")
+        _ensure_type_with_label(g, ea, _class(OS, "ElementalAnalysisData"), data_label)
+
+        # Calculated WeightPercentage node
+        if calculated_value_text is not None:
+            wp_c = _mint_hash_iri("WeightPercentage")
+            _ensure_type_with_label(g, wp_c, _class(OS, "WeightPercentage"), "Calculated")
+            g.set((wp_c, _class(OS, "hasWeightPercentageCalculatedValue"), Literal(calculated_value_text)))
+            g.add((ea, _class(OS, "hasWeightPercentageCalculated"), wp_c))
+
+        # Experimental WeightPercentage node
+        if experimental_value_text is not None:
+            wp_e = _mint_hash_iri("WeightPercentage")
+            _ensure_type_with_label(g, wp_e, _class(OS, "WeightPercentage"), "Experimental")
+            g.set((wp_e, _class(OS, "hasWeightPercentageExperimentalValue"), Literal(experimental_value_text)))
+            g.add((ea, _class(OS, "hasWeightPercentageExperimental"), wp_e))
+
+        # Empirical molecular formula node (MolecularFormula) if provided
+        if empirical_molecular_formula is not None:
+            if not _is_empirical(empirical_molecular_formula):
+                return "empirical_molecular_formula must be compact elemental, e.g., 'C230H308N34O103Fe12S12'"
+            mf = _mint_hash_iri("MolecularFormula")
+            _ensure_type_with_label(g, mf, _class(OS, "MolecularFormula"), empirical_molecular_formula)
+            g.set((mf, _class(OS, "hasMolecularFormulaValue"), Literal(empirical_molecular_formula)))
+            g.add((parent, _class(OS, "hasMolecularFormula"), mf))
+
+        g.add((parent, _class(OS, "hasElementalAnalysisData"), ea))
+        return str(ea)
+
+# ========= IR data =========
+def add_infrared_spectroscopy_data_to_species(
+    species_iri: str,
+    data_label: str,
+    bands_text: Optional[str] = None,
+    material_name: Optional[str] = None,
+) -> str:
+    with locked_graph() as g:
+        parent = _safe_parent(species_iri)
+        if parent is None:
+            return "parent IRI must be absolute https IRI"
+
+        ir = _mint_hash_iri("InfraredSpectroscopyData")
+        _ensure_type_with_label(g, ir, _class(OS, "InfraredSpectroscopyData"), data_label)
+        if bands_text is not None:
+            g.set((ir, _class(OS, "hasBands"), Literal(bands_text)))
+
+        if material_name:
+            m = _mint_hash_iri("Material")
+            _ensure_type_with_label(g, m, _class(OS, "Material"), material_name)
+            g.set((m, _class(OS, "hasMaterialName"), Literal(material_name)))
+            g.add((ir, _class(OS, "usesMaterial"), m))
+
+        g.add((parent, _class(OS, "hasInfraredSpectroscopyData"), ir))
+        return str(ir)
+
+def add_infrared_band_to_irdata(ir_data_iri: str, band_label: str) -> str:
+    return _mint_and_link_child(
+        ir_data_iri, "hasInfraredBand", OS, "InfraredBand", band_label
+    )
+
+# ========= Chemical / molecular formulae =========
+def add_molecular_formula_to_species(species_iri: str, empirical_formula: str, label: Optional[str] = None) -> str:
+    if not _is_empirical(empirical_formula):
+        return "empirical_formula must be compact elemental, e.g., 'C108H84N12O88S12'"
+    with locked_graph() as g:
+        parent = _safe_parent(species_iri)
+        if parent is None:
+            return "parent IRI must be absolute https IRI"
+        mf = _mint_hash_iri("MolecularFormula")
+        _ensure_type_with_label(g, mf, _class(OS, "MolecularFormula"), label or empirical_formula)
+        g.set((mf, _class(OS, "hasMolecularFormulaValue"), Literal(empirical_formula)))
+        g.add((parent, _class(OS, "hasMolecularFormula"), mf))
+        return str(mf)
+
+def add_chemical_formula_to_species(species_iri: str, formula_text: str, label: Optional[str] = None) -> str:
+    # free-form structural/extended formula
+    with locked_graph() as g:
+        parent = _safe_parent(species_iri)
+        if parent is None:
+            return "parent IRI must be absolute https IRI"
+        cf = _mint_hash_iri("ChemicalFormula")
+        _ensure_type_with_label(g, cf, _class(OS, "ChemicalFormula"), label or formula_text)
+        g.set((cf, _class(OS, "hasChemicalFormulaValue"), Literal(formula_text)))
+        g.add((parent, _class(OS, "hasChemicalFormula"), cf))
+        return str(cf)
+
+# ========= CCDC =========
+def add_ccdc_number_to_species(species_iri: str, ccdc_value: str) -> str:
+    with locked_graph() as g:
+        parent = _safe_parent(species_iri)
+        if parent is None:
+            return "parent IRI must be absolute https IRI"
+        c = _mint_hash_iri("CCDCNumber")
+        _ensure_type_with_label(g, c, _class(OS, "CCDCNumber"), f"CCDC {ccdc_value}" if ccdc_value else "CCDC N/A")
+        g.set((c, _class(OS, "hasCCDCNumberValue"), Literal(ccdc_value or "N/A")))
+        g.add((parent, _class(OS, "hasCCDCNumber"), c))
+        return str(c)
+
+# ========= Elements / atomic data =========
+def add_atomic_weight_to_element(element_iri: str, value) -> str:
+    """
+    Attach atomic weight to an element node. Handles both float and "N/A" values.
+    """
+    with locked_graph() as g:
+        parent = _safe_parent(element_iri)
+        if parent is None:
+            return "element IRI must be absolute https IRI"
+        aw = _mint_hash_iri("AtomicWeight")
+        # Compose label
+        label = f"Atomic Weight {value if value != 'N/A' else 'N/A'}"
+        _ensure_type_with_label(g, aw, _class(OS, "AtomicWeight"), label)
+        # Handle N/A specially as a string literal; otherwise use float datatype
+        if value == "N/A":
+            g.set((aw, _class(OS, "hasAtomicWeightValue"), Literal("N/A")))
+        else:
+            try:
+                g.set((aw, _class(OS, "hasAtomicWeightValue"), Literal(float(value), datatype=XSD.float)))
+            except Exception:
+                return f"Invalid atomic weight value: {value!r}"
+        g.add((parent, _class(OS, "hasAtomicWeight"), aw))
+        return str(aw)
+
+
+def delete_entity(entity_iri: str) -> str:
+    """Remove all triples where the given entity is subject or object."""
+    with locked_graph() as g:
+        if not _is_abs_iri(entity_iri):
+            return f"entity_iri must be an absolute https IRI, got {entity_iri!r}"
+        e = URIRef(entity_iri)
+        # remove outgoing
+        for p, o in list(g.predicate_objects(e)):
+            g.remove((e, p, o))
+        # remove incoming
+        for s, p in list(g.subject_predicates(e)):
+            g.remove((s, p, e))
+        return str(e)
+def delete_triple(subject_iri: str, predicate_iri: str, object_value: str) -> str:
+    """Remove one RDF triple matching the given subject, predicate, and object."""
+    with locked_graph() as g:
+        if not _is_abs_iri(subject_iri) or not _is_abs_iri(predicate_iri):
+            return "subject_iri and predicate_iri must be absolute https IRIs"
+
+        s = URIRef(subject_iri)
+        p = URIRef(predicate_iri)
+
+        # Determine if object is IRI or literal
+        if _is_abs_iri(object_value):
+            o = URIRef(object_value)
+        else:
+            o = Literal(object_value)
+
+        if (s, p, o) in g:
+            g.remove((s, p, o))
+            return f"Removed triple ({s}, {p}, {o})"
+        else:
+            return f"No such triple found: ({s}, {p}, {o})"
+
+def add_material_to_infrared_spectroscopy_data(ir_data_iri: str, material_name: str) -> str:
+    """Create a Material node, type it, attach name, and link from an IR data node."""
+    with locked_graph() as g:
+        parent = _safe_parent(ir_data_iri)
+        if parent is None:
+            return "ir_data_iri must be an absolute https IRI"
+        m = _mint_hash_iri("Material")
+        _ensure_type_with_label(g, m, _class(OS, "Material"), material_name)
+        g.set((m, _class(OS, "hasMaterialName"), Literal(material_name)))
+        g.add((parent, _class(OS, "usesMaterial"), m))
+        return str(m)
+
+# ========= Introspection / export =========
+def init_memory() -> str:
+    with locked_graph():
+        pass
+    doi, ent = _read_global_state()
+    return f"OntoSpecies memory ready for DOI='{doi}', entity='{ent}'"
+
+def inspect_memory() -> str:
+    lines: List[str] = []
+    with locked_graph() as g:
+        lines.append(f"Triples: {len(g)}")
+        for s in sorted({s for s, _, _ in g if isinstance(s, URIRef)}, key=str):
+            lines.append(f"\n{s}")
+            for t in g.objects(s, RDF.type):
+                lines.append(f"  rdf:type: {t}")
+            for lbl in g.objects(s, RDFS.label):
+                lines.append(f"  rdfs:label: {lbl}")
+            for p, o in g.predicate_objects(s):
+                if p in (RDF.type, RDFS.label):
+                    continue
+                lines.append(f"  {p} {'=' if isinstance(o, Literal) else '->'} {o}")
+    return "\n".join(lines)
+
+def export_memory() -> str:
+    doi, ent = _read_global_state()
+    mem = _memory_paths()
+    out_dir = os.path.join(os.path.dirname(mem["dir"]), "ontospecies_output")
+    os.makedirs(out_dir, exist_ok=True)
+    out = os.path.join(out_dir, f"{_slugify(ent)}.ttl")
+    with locked_graph() as g:
+        g.serialize(destination=out, format="turtle")
+    return os.path.abspath(out)
+
+# ========= Demo =========
+if __name__ == "__main__":
+    print(init_memory())
+    sp = create_species("IRMOP-50", product_name="IRMOP-50")
+    print("species:", sp)
+
+    ses = add_characterization_session_to_species(sp, "IRMOP-50 Characterization")
+    print("session:", ses)
+
+    dev_ir = add_infrared_spectroscopy_device_to_characterization_session(ses, "Nicolet FT-IR Impact 400")
+    dev_ch = add_elemental_analysis_device_to_characterization_session(ses, "Elemental microanalysis, UMich")
+    dev_nmr = add_hnmr_device_to_characterization_session(ses, "Bruker Avance III", "400 MHz")
+    print("devices:", dev_ir, dev_ch, dev_nmr)
+
+    ir = add_infrared_spectroscopy_data_to_species(sp, "IRMOP-50 IR Data",
+                                                   "3436 (m), 3068 (m), 2939 (m), 2815 (w), 1658 (s), ...",
+                                                   "KBr pellet")
+    print("ir data:", ir)
+
+    hn = add_hnmr_data_to_species(sp, "IRMOP-50 1H NMR", "δ 7.2–8.5 (m)", "295 K", "DMSO-d6")
+    print("hnmr data:", hn)
+
+    ea = add_elemental_analysis_data_to_species(
+        sp,
+        "IRMOP-50 EA",
+        calculated_value_text="C 37.94, H 4.96, N 3.63",
+        experimental_value_text="C 37.93, H 4.76, N 3.62",
+        empirical_molecular_formula="C108H84N12O88S12",
+    )
+    print("ea:", ea)
+
+    mf = add_molecular_formula_to_species(sp, "C108H84N12O88S12")
+    print("mf:", mf)
+
+    cf = add_chemical_formula_to_species(sp, "[NH2(CH3)2]8[Fe12O4(SO4)12(BDC)6(py)12]·(DMF)15(py)2(H2O)30")
+    print("cf:", cf)
+
+    el = create_element("Carbon", "C")
+    aw = add_atomic_weight_to_element(el, 12.011)
+    print("element+aw:", el, aw)
+
+    print("export:", export_memory())

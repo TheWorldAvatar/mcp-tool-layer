@@ -1,302 +1,355 @@
+# main.py — MCP server wiring; accepts labels or IRIs; "N/A" is a sentinel for unknowns
 from fastmcp import FastMCP
+from urllib.parse import urlparse
+from src.utils.global_logger import mcp_tool_logger
 from src.ontospecies_extension.operations.ontospecies_extension import (
-    # Memory API
+    # memory
     init_memory as _init_memory,
     inspect_memory as _inspect_memory,
     export_memory as _export_memory,
-    # Core classes
+    # top-level creators
     create_species as _create_species,
-    create_characterization_session as _create_characterization_session,
-    create_hnmr_device as _create_hnmr_device,
-    create_elemental_analysis_device as _create_elemental_analysis_device,
-    create_infrared_spectroscopy_device as _create_infrared_spectroscopy_device,
-    create_hnmr_data as _create_hnmr_data,
-    create_elemental_analysis_data as _create_elemental_analysis_data,
-    create_infrared_spectroscopy_data_with_bands as _create_infrared_spectroscopy_data_with_bands,
-    create_material as _create_material,
-    create_molecular_formula as _create_molecular_formula,
-    create_chemical_formula as _create_chemical_formula,
-    create_weight_percentage as _create_weight_percentage,
-    create_ccdc_number as _create_ccdc_number,
     create_element as _create_element,
-    create_atomic_weight as _create_atomic_weight,
-    # High-level single-call functions
-    create_and_link_ccdc_number as _create_and_link_ccdc_number,
-    create_and_link_ir_data as _create_and_link_ir_data,
-    # Relationships
-    add_characterization_session_to_species as _add_characterization_session_to_species,
-    add_hnmr_device_to_characterization_session as _add_hnmr_device_to_characterization_session,
-    add_elemental_analysis_device_to_characterization_session as _add_elemental_analysis_device_to_characterization_session,
-    add_infrared_spectroscopy_device_to_characterization_session as _add_infrared_spectroscopy_device_to_characterization_session,
+    # child creation + linking (relations)
+    add_characterization_session_to_species as _add_session_to_species,
+    add_hnmr_device_to_characterization_session as _add_hnmr_dev_to_session,
+    add_elemental_analysis_device_to_characterization_session as _add_elem_dev_to_session,
+    add_infrared_spectroscopy_device_to_characterization_session as _add_ir_dev_to_session,
     add_hnmr_data_to_species as _add_hnmr_data_to_species,
-    add_elemental_analysis_data_to_species as _add_elemental_analysis_data_to_species,
-    add_molecular_formula_to_species as _add_molecular_formula_to_species,
-    add_chemical_formula_to_species as _add_chemical_formula_to_species,
-    add_ccdc_number_to_species as _add_ccdc_number_to_species,
-    add_atomic_weight_to_element as _add_atomic_weight_to_element,
-    add_element_to_weight_percentage as _add_element_to_weight_percentage,
-    # Delete
+    add_elemental_analysis_data_to_species as _add_elem_data_to_species,
+    add_infrared_spectroscopy_data_to_species as _add_ir_data_to_species,
+    add_material_to_infrared_spectroscopy_data as _add_material_to_ir,
+    add_molecular_formula_to_species as _add_mf_to_species,
+    add_chemical_formula_to_species as _add_cf_to_species,
+    add_ccdc_number_to_species as _add_ccdc_to_species,
+    add_atomic_weight_to_element as _add_aw_to_element,
+    # deletes
     delete_entity as _delete_entity,
     delete_triple as _delete_triple,
 )
-from src.utils.global_logger import get_logger, mcp_tool_logger
 
 mcp = FastMCP(name="ontospecies_extension")
 
+# ---------- helpers ----------
+def _is_abs_iri(s: str) -> bool:
+    if not s or not isinstance(s, str):
+        return False
+    u = urlparse(s)
+    return bool(u.scheme) and bool(u.netloc)
+
+def _require_abs_iri(param_name: str, value: str) -> None:
+    """
+    Enforce absolute HTTPS IRIs for graph parents or existing nodes.
+    Accepts 'N/A' as an explicit unknown sentinel that will be stored as a literal when applicable.
+    """
+    if value == "N/A":
+        return
+    if not _is_abs_iri(value):
+        raise ValueError(f"{param_name} must be an absolute IRI (https://...). Got: {value!r}")
+
+# ---------- system prompt ----------
 @mcp.prompt(name="instruction")
 def instruction_prompt():
+    """
+    High-level usage banner returned to MCP runtimes.
+    """
     return (
-        "OntoSpecies MCP - Build comprehensive chemical characterization knowledge graphs\n\n"
-
-        "If any information is indeed not found in the paper, use 'N/A' as the value. It is very important to include all information in the paper, even if it is not found in the paper. "
-        "Inclusion priority over accuracy. "
-        
-        "WORKFLOW (3 steps):\n"
-        "1) init_memory - Initialize the knowledge graph\n"
-        "2) create_* entities - Create all needed components\n"
-        "3) add_* relationships - Connect entities together\n"
-        "4) Use high-level functions for complex operations (create_and_link_*)\n"
-         
-        "CORE ENTITIES:\n"
-        "• Species: Chemical compounds/products (e.g., 'Water', 'Methanol', 'Aspirin')\n"
-        "• CharacterizationSession: Analysis sessions (e.g., 'NMR Analysis 2024-01-15')\n"
-        "• Devices: Analytical instruments\n"
-        "  - HNMRDevice: NMR spectrometers (e.g., 'Bruker 400 MHz', 'Varian 500 MHz')\n"
-        "  - ElementalAnalysisDevice: CHN analyzers (e.g., 'PerkinElmer 2400', 'Thermo Flash 2000')\n"
-        "  - InfraredSpectroscopyDevice: FT-IR spectrometers (e.g., 'Nicolet iS50', 'Bruker Alpha II')\n\n"
-        
-        "DATA OBJECTS:\n"
-        "• HNMRData: NMR spectroscopic data (e.g., 'Compound A 1H NMR', 'Product NMR Analysis')\n"
-        "• ElementalAnalysisData: Elemental composition data (e.g., 'C12H8O4 Analysis', 'CHN Results')\n"
-        "• InfraredSpectroscopyData: IR spectral data (e.g., 'Product IR Spectrum', 'Compound FTIR')\n\n"
-        
-        "MOLECULAR PROPERTIES:\n"
-        "• MolecularFormula: Simple formulas (e.g., 'C6H12O6', 'H2O', 'C8H10N4O2')\n"
-        "• ChemicalFormula: Extended formulas with structure (e.g., 'C6H5OH', 'CH3COOH')\n"
-        "• CCDCNumber: Cambridge Crystallographic Data Centre numbers (e.g., '123456', '987654')\n\n"
-        
-        "SPECTROSCOPIC COMPONENTS:\n"
-        "• ChemicalShift: NMR chemical shifts (e.g., '7.2 ppm', '3.4 ppm', '1.2 ppm')\n"
-        "• InfraredBand: IR absorption bands (e.g., '3400 cm-1', '1650 cm-1', '1200 cm-1')\n"
-        "• Solvent: NMR solvents (e.g., 'DMSO-d6', 'CDCl3', 'D2O', 'MeOH-d4', 'Acetone-d6')\n"
-        "• Material: IR sample preparation materials (e.g., 'KBr pellet', 'KBr', 'ATR crystal', 'NaCl plate')\n\n"
-        
-        "ELEMENTS & WEIGHTS:\n"
-        "• Element: Chemical elements (e.g., 'Carbon', 'Hydrogen', 'Oxygen', 'Nitrogen')\n"
-        "• AtomicWeight: Element atomic weights (e.g., '12.011', '1.008', '15.999', '14.007')\n"
-        "• WeightPercentage: Elemental composition percentages (e.g., 'C 60.0%', 'H 4.5%', 'O 35.5%')\n\n"
-        
-        "RELATIONSHIP PATTERNS:\n"
-        "1. Link sessions to species: add_characterization_session_to_species\n"
-        "2. Link devices to sessions: add_*_device_to_characterization_session\n"
-        "3. Link data to species: add_*_data_to_species\n"
-        "4. Link formulas to species: add_*_formula_to_species\n"
-        "5. Link components to data: add_*_to_*_data\n"
-        "6. Link elements to weights: add_atomic_weight_to_element\n\n"
-        
-        "HIGH-LEVEL FUNCTIONS:\n"
-        "• create_and_link_ccdc_number: Create and link CCDC number to species\n"
-        "• create_and_link_ir_data: Create IR data with bands and optionally link material/device/session\n"
-        "• create_infrared_spectroscopy_data_with_bands: Create IR data with bands text\n\n"
-        
-        "IR BANDS FORMAT:\n"
-        "• Use semicolon-separated format: '498 w; 579 w; 650 m; 782 m; 867 w; 947 s'\n"
-        "• Intensity markers: w=weak, m=medium, s=strong, vs=very strong\n"
-        "• Include wavenumber and intensity: '3400 (s), 1650 (m), 1200 (w) cm-1'\n\n"
-        
-        "COMMON MATERIALS FOR IR:\n"
-        "• KBr pellet: Most common for solid samples\n"
-        "• KBr: Potassium bromide powder\n"
-        "• ATR crystal: Attenuated Total Reflectance\n"
-        "• NaCl plate: Sodium chloride windows\n"
-        "• CaF2: Calcium fluoride windows\n"
-        "• ZnSe: Zinc selenide windows\n\n"
-        
-        "COMMON NMR SOLVENTS:\n"
-        "• CDCl3: Chloroform-d (most common)\n"
-        "• DMSO-d6: Dimethyl sulfoxide-d6\n"
-        "• D2O: Deuterated water\n"
-        "• MeOH-d4: Methanol-d4\n"
-        "• Acetone-d6: Acetone-d6\n"
-        "• THF-d8: Tetrahydrofuran-d8\n\n"
-        
-        "RULES:\n"
-        "• Create entities first, then connect them\n"
-        "• Use descriptive names that match source data\n"
-        "• Reuse IRIs if provided\n"
-        "• Set literal values after creating relationships\n"
-        "• Use proper chemical notation and units\n"
-        "• Include multiplicity and coupling in NMR data (s, d, t, q, m)\n"
-        "• Use standard IR band notation (s=strong, m=medium, w=weak)\n"
+        "OntoSpecies MCP (simplified ops)\n"
+        "Rules:\n"
+        "- ** Top priority: don't derive any new information yourself, only use the information provided in the paper."
+        "- Parent arguments must be absolute IRIs (https). Use 'N/A' when a parent value is unknown.\n"
+        "- Child nodes are created from provided labels; IRIs are minted internally.\n"
+        "- Do not emit file:// IRIs.\n"
+        "Workflow: init_memory → create_species/element → add_* relations → export_memory\n"
+        "Notes:\n"
+        "- 'N/A' is treated as an unknown sentinel for values (e.g., CCDC) and may be persisted as a literal.\n"
+        "- Labels are human-readable; IRIs identify individuals already in the graph.\n"
+        "- Every function must be called in the workflow, even if the information is not provided in the paper, you will need to call the function."
     )
 
-# =========================
-# Memory
-# =========================
-@mcp.tool(name="init_memory", description="Init or resume persistent graph; returns session hash_value. If hash_value is provided, use data/{hash_value}/memory for storage.")
+# ===== Memory =====
+@mcp.tool(
+    name="init_memory",
+    description=(
+        "Initialize or resume a persisted RDF graph for the current session. "
+        "Call this once before creating or linking entities. "
+        "Args: doi (optional string), top_level_entity_name (optional string label). "
+        "Returns a status string with the active store location or resume info."
+    ),
+)
 @mcp_tool_logger
-def init_memory(hash_value: str) -> str: return _init_memory(hash_value)
+def init_memory() -> str:
+    return _init_memory()
 
-@mcp.tool(name="inspect_memory", description="Human-readable dump for all nodes and edges.")
+@mcp.tool(
+    name="inspect_memory",
+    description=(
+        "Summarize the current graph: counts of individuals, rdf:types, rdfs:labels, "
+        "literals, and links. Returns a human-readable report."
+    ),
+)
 @mcp_tool_logger
-def inspect_memory(hash_value: str) -> str: return _inspect_memory(hash_value)
+def inspect_memory() -> str:
+    return _inspect_memory()
 
-@mcp.tool(name="export_memory", description="Serialize graph to .ttl file. If hash_value is provided, save to data/{hash_value}/ directory. Output filename is hardcoded as 'ontospecies_extension.ttl'.")
+@mcp.tool(
+    name="export_memory",
+    description=(
+        "Serialize the current graph to Turtle (.ttl) and return the filesystem path. "
+        "Use after a sequence of create/link operations to persist results."
+    ),
+)
 @mcp_tool_logger
-def export_memory(hash_value: str) -> str: return _export_memory(hash_value)
+def export_memory() -> str:
+    return _export_memory()
 
-# =========================
-# Create
-# =========================
-@mcp.tool(name="create_species", description="Create Species.")
+# ===== Creators =====
+@mcp.tool(
+    name="create_species",
+    description=(
+        "Create a new OntoSpecies individual from a human-readable label. "
+        "Argument: name (string label, not an IRI). "
+        "Returns the minted absolute IRI for the new species."
+    ),
+)
 @mcp_tool_logger
-def create_species(name: str, hash_value: str, iri: str = None) -> str: return _create_species(name, hash_value, iri)
+def create_species(name: str) -> str:
+    return _create_species(name)
 
-@mcp.tool(name="create_characterization_session", description="Create CharacterizationSession.")
+@mcp.tool(
+    name="create_element",
+    description=(
+        "Create a new Element individual from a label (e.g., 'Carbon'). "
+        "Argument: name (string label). Returns the minted absolute IRI."
+    ),
+)
 @mcp_tool_logger
-def create_characterization_session(name: str, hash_value: str, iri: str = None) -> str:
-    return _create_characterization_session(name, hash_value, iri)
+def create_element(name: str) -> str:
+    return _create_element(name)
 
-@mcp.tool(name="create_hnmr_device", description="Create HNMRDevice.")
+# ===== Relations / Child creation =====
+@mcp.tool(
+    name="add_characterization_session_to_species",
+    description=(
+        "Create and link a CharacterizationSession under a Species. "
+        "Args: species_iri (absolute https IRI), session_label (string). "
+        "Returns the new session IRI."
+    ),
+)
 @mcp_tool_logger
-def create_hnmr_device(name: str, hash_value: str, iri: str = None) -> str: return _create_hnmr_device(name, hash_value, iri)
+def add_characterization_session_to_species(species_iri: str, session_label: str) -> str:
+    _require_abs_iri("species_iri", species_iri)
+    return _add_session_to_species(species_iri, session_label)
 
-@mcp.tool(name="create_elemental_analysis_device", description="Create ElementalAnalysisDevice.")
+@mcp.tool(
+    name="add_hnmr_device_to_characterization_session",
+    description=(
+        "Create and link an HNMR Device to a CharacterizationSession. "
+        "Args: session_iri (absolute https IRI), device_label (string). "
+        "Returns the new device IRI."
+    ),
+)
 @mcp_tool_logger
-def create_elemental_analysis_device(name: str, hash_value: str, iri: str = None) -> str:
-    return _create_elemental_analysis_device(name, hash_value, iri)
+def add_hnmr_device_to_characterization_session(session_iri: str, device_label: str) -> str:
+    _require_abs_iri("session_iri", session_iri)
+    return _add_hnmr_dev_to_session(session_iri, device_label)
 
-@mcp.tool(name="create_infrared_spectroscopy_device", description="Create InfraredSpectroscopyDevice.")
+@mcp.tool(
+    name="add_elemental_analysis_device_to_characterization_session",
+    description=(
+        "Create and link an Elemental Analysis Device to a CharacterizationSession. "
+        "Args: session_iri (absolute https IRI), device_label (string). "
+        "Returns the new device IRI."
+    ),
+)
 @mcp_tool_logger
-def create_infrared_spectroscopy_device(name: str, hash_value: str, iri: str = None) -> str:
-    return _create_infrared_spectroscopy_device(name, hash_value, iri)
+def add_elemental_analysis_device_to_characterization_session(session_iri: str, device_label: str) -> str:
+    _require_abs_iri("session_iri", session_iri)
+    return _add_elem_dev_to_session(session_iri, device_label)
 
-@mcp.tool(name="create_hnmr_data", description="Create HNMRData.")
+@mcp.tool(
+    name="add_infrared_spectroscopy_device_to_characterization_session",
+    description=(
+        "Create and link an Infrared Spectroscopy Device to a CharacterizationSession. "
+        "Args: session_iri (absolute https IRI), device_label (string). "
+        "Returns the new device IRI."
+    ),
+)
 @mcp_tool_logger
-def create_hnmr_data(name: str, hash_value: str, iri: str = None) -> str: return _create_hnmr_data(name, hash_value, iri)
+def add_infrared_spectroscopy_device_to_characterization_session(session_iri: str, device_label: str) -> str:
+    _require_abs_iri("session_iri", session_iri)
+    return _add_ir_dev_to_session(session_iri, device_label)
 
-@mcp.tool(name="create_elemental_analysis_data", description="Create ElementalAnalysisData.")
+@mcp.tool(
+    name="add_hnmr_data_to_species",
+    description=(
+        "Create and link an HNMR Data node under a Species and attach literals when provided. "
+        "Args: species_iri (absolute https IRI), data_label (string), "
+        "shifts_text (optional string), solvent (optional string), temperature (optional string). "
+        "Returns the new data IRI."
+    ),
+)
 @mcp_tool_logger
-def create_elemental_analysis_data(name: str, hash_value: str, iri: str = None) -> str:
-    return _create_elemental_analysis_data(name, hash_value, iri)
+def add_hnmr_data_to_species(
+    species_iri: str,
+    data_label: str,
+    shifts_text: str | None = None,
+    solvent: str | None = None,
+    temperature: str | None = None,
+) -> str:
+    _require_abs_iri("species_iri", species_iri)
+    return _add_hnmr_data_to_species(species_iri, data_label, shifts_text, solvent, temperature)
 
-@mcp.tool(name="create_infrared_spectroscopy_data_with_bands", description="Create InfraredSpectroscopyData with bands text.")
+@mcp.tool(
+    name="add_elemental_analysis_data_to_species",
+    description=(
+        "Create and link an Elemental Analysis Data node under a Species and attach literals when provided. "
+        "Args: species_iri (absolute https IRI), data_label (string), "
+        "weight_percentage_calculated (optional string), "
+        "weight_percentage_experimental (optional string), "
+        "chemical_formula (optional string). You should always use empirical (elemental) chemical formula as stated in the paper. "
+        "This chemical formula meaning the formula used for elemental analysis, not other formulae. "
+        "Only include the elemental formula directly stated used in the Elemental Analysis, if not, leave it as 'N/A'."
+        "In other words, if the Elemental Analysis data is not provided, then the chemicalFormula should be 'N/A'."
+        "**Critical**: Sometimes the formula is provided in the text, but not directly used in the Elemental Analysis, you must carefully judge and decide whether it is used in the Elemental Analysis. If there is no direct evidence, this case, leave it as 'N/A'."
+        "Returns the new data IRI."
+    ),
+)
 @mcp_tool_logger
-def create_infrared_spectroscopy_data_with_bands(label: str, bands_text: str = None, hash_value: str = None, iri: str = None) -> str:
-    return _create_infrared_spectroscopy_data_with_bands(label, bands_text, hash_value, iri)
+def add_elemental_analysis_data_to_species(
+    species_iri: str,
+    data_label: str,
+    weight_percentage_calculated: str | None = None,
+    weight_percentage_experimental: str | None = None,
+    chemical_formula: str | None = None,
+) -> str:
+    _require_abs_iri("species_iri", species_iri)
+    return _add_elem_data_to_species(
+        species_iri,
+        data_label,
+        weight_percentage_calculated,
+        weight_percentage_experimental,
+        chemical_formula,
+    )
 
-# High-level single-call functions
-@mcp.tool(name="create_and_link_ccdc_number", description="Create CCDC number and link to species in one call.")
+@mcp.tool(
+    name="add_infrared_spectroscopy_data_to_species",
+    description=(
+        "Create and link an Infrared Spectroscopy Data node under a Species. "
+        "Optionally attach free-text IR bands. "
+        "Args: species_iri (absolute https IRI), data_label (string), bands_text (optional string). "
+        "Returns the new data IRI."
+    ),
+)
 @mcp_tool_logger
-def create_and_link_ccdc_number(species_iri: str, value: str = None, hash_value: str = None) -> str:
-    return _create_and_link_ccdc_number(species_iri, value, hash_value)
+def add_infrared_spectroscopy_data_to_species(
+    species_iri: str, data_label: str, bands_text: str = None
+) -> str:
+    _require_abs_iri("species_iri", species_iri)
+    return _add_ir_data_to_species(species_iri, data_label, bands_text)
 
-@mcp.tool(name="create_and_link_ir_data", description="Create IR data with bands and optionally link material/device/session.")
+@mcp.tool(
+    name="add_material_to_infrared_spectroscopy_data",
+    description=(
+        "Create and link a Material node to an Infrared Spectroscopy Data node. "
+        "Args: ir_data_iri (absolute https IRI), material_label (string). "
+        "Returns the new material IRI."
+    ),
+)
 @mcp_tool_logger
-def create_and_link_ir_data(species_iri: str, ir_data_label: str, bands_text: str = None, 
-                          material_label: str = None, device_label: str = None, session_label: str = None, hash_value: str = None) -> str:
-    return _create_and_link_ir_data(species_iri, ir_data_label, bands_text, hash_value, material_label, device_label, session_label)
+def add_material_to_infrared_spectroscopy_data(ir_data_iri: str, material_label: str) -> str:
+    _require_abs_iri("ir_data_iri", ir_data_iri)
+    return _add_material_to_ir(ir_data_iri, material_label)
 
-@mcp.tool(name="create_material", description="Create Material.")
+# @mcp.tool(
+#     name="add_molecular_formula_to_species",
+#     description=(
+#         "Attach a molecular formula literal to a Species. "
+#         "Args: species_iri (absolute https IRI), formula_label (string, e.g., 'C7H8N2O2'). "
+#         "Returns a confirmation string."
+#     ),
+# )
+# @mcp_tool_logger
+# def add_molecular_formula_to_species(species_iri: str, formula_label: str) -> str:
+#     _require_abs_iri("species_iri", species_iri)
+#     return _add_mf_to_species(species_iri, formula_label)
+
+# @mcp.tool(
+#     name="add_chemical_formula_to_species",
+#     description=(
+#         "Attach a chemical formula literal to a Species. "
+#         "You should always use empirical (elemental) chemical formula as stated in the paper. "
+#         "Args: species_iri (absolute https IRI), formula_label (string). "
+#         "Returns a confirmation string."
+#     ),
+# )
+# @mcp_tool_logger
+# def add_chemical_formula_to_species(species_iri: str, formula_label: str) -> str:
+#     _require_abs_iri("species_iri", species_iri)
+#     return _add_cf_to_species(species_iri, formula_label)
+
+@mcp.tool(
+    name="add_ccdc_number_to_species",
+    description=(
+        "Attach a CCDC number literal to a Species. "
+        "Args: species_iri (absolute https IRI), ccdc_value (string or 'N/A'). "
+        "Returns a confirmation string."
+    ),
+)
 @mcp_tool_logger
-def create_material(name: str, hash_value: str, iri: str = None) -> str: return _create_material(name, hash_value, iri)
+def add_ccdc_number_to_species(species_iri: str, ccdc_value: str = None) -> str:
+    _require_abs_iri("species_iri", species_iri)
+    return _add_ccdc_to_species(species_iri, ccdc_value)
 
-@mcp.tool(name="create_molecular_formula", description="Create MolecularFormula.")
+@mcp.tool(
+    name="add_atomic_weight_to_element",
+    description=(
+        "Attach an atomic weight literal to an Element. "
+        "Args: element_iri (absolute https IRI), value_label (string or numeric literal). "
+        "Returns a confirmation string."
+    ),
+)
 @mcp_tool_logger
-def create_molecular_formula(name: str, hash_value: str, iri: str = None) -> str: return _create_molecular_formula(name, hash_value, iri)
+def add_atomic_weight_to_element(element_iri: str, value_label: str) -> str:
+    _require_abs_iri("element_iri", element_iri)
+    return _add_aw_to_element(element_iri, value_label)
 
-@mcp.tool(name="create_chemical_formula", description="Create ChemicalFormula.")
+# ===== Deletes =====
+@mcp.tool(
+    name="delete_triple",
+    description=(
+        "Delete a specific triple from the graph. "
+        "Args: subject_iri (absolute https IRI), predicate_uri (absolute IRI), "
+        "object_iri_or_literal (IRI or literal), is_object_literal (bool). "
+        "Set is_object_literal=True when the object is a literal value."
+    ),
+)
 @mcp_tool_logger
-def create_chemical_formula(name: str, hash_value: str, iri: str = None) -> str: return _create_chemical_formula(name, hash_value, iri)
+def delete_triple(
+    subject_iri: str,
+    predicate_uri: str,
+    object_iri_or_literal: str,
+    is_object_literal: bool = False,
+) -> str:
+    if not _is_abs_iri(predicate_uri):
+        raise ValueError(f"predicate_uri must be an absolute IRI. Got: {predicate_uri!r}")
+    _require_abs_iri("subject_iri", subject_iri)
+    if not is_object_literal:
+        _require_abs_iri("object_iri_or_literal", object_iri_or_literal)
+    return _delete_triple(subject_iri, predicate_uri, object_iri_or_literal, is_object_literal)
 
-@mcp.tool(name="create_weight_percentage", description="Create WeightPercentage.")
+@mcp.tool(
+    name="delete_entity",
+    description=(
+        "Delete an entity and its outgoing triples. "
+        "Arg: entity_iri (absolute https IRI). "
+        "Use with care. Returns a confirmation string."
+    ),
+)
 @mcp_tool_logger
-def create_weight_percentage(name: str, hash_value: str, iri: str = None) -> str: return _create_weight_percentage(name, hash_value, iri)
-
-@mcp.tool(name="create_ccdc_number", description="Create CCDCNumber.")
-@mcp_tool_logger
-def create_ccdc_number(name: str, hash_value: str, iri: str = None) -> str: return _create_ccdc_number(name, hash_value, iri)
-
-@mcp.tool(name="create_element", description="Create Element.")
-@mcp_tool_logger
-def create_element(name: str, hash_value: str, iri: str = None) -> str: return _create_element(name, hash_value, iri)
-
-@mcp.tool(name="create_atomic_weight", description="Create AtomicWeight.")
-@mcp_tool_logger
-def create_atomic_weight(value: str, hash_value: str, iri: str = None) -> str: return _create_atomic_weight(value, hash_value, iri)
-
-# =========================
-# Link
-# =========================
-@mcp.tool(name="add_characterization_session_to_species", description="Link session to species.")
-@mcp_tool_logger
-def add_characterization_session_to_species(species_iri: str, characterization_session_iri: str, hash_value: str) -> str:
-    return _add_characterization_session_to_species(species_iri, characterization_session_iri, hash_value)
-
-
-@mcp.tool(name="add_hnmr_device_to_characterization_session", description="Link HNMRDevice.")
-@mcp_tool_logger
-def add_hnmr_device_to_characterization_session(characterization_session_iri: str, hnmr_device_iri: str, hash_value: str) -> str:
-    return _add_hnmr_device_to_characterization_session(characterization_session_iri, hnmr_device_iri, hash_value)
-
-@mcp.tool(name="add_elemental_analysis_device_to_characterization_session", description="Link EA device.")
-@mcp_tool_logger
-def add_elemental_analysis_device_to_characterization_session(characterization_session_iri: str, elemental_device_iri: str, hash_value: str) -> str:
-    return _add_elemental_analysis_device_to_characterization_session(characterization_session_iri, elemental_device_iri, hash_value)
-
-@mcp.tool(name="add_infrared_spectroscopy_device_to_characterization_session", description="Link IR device.")
-@mcp_tool_logger
-def add_infrared_spectroscopy_device_to_characterization_session(characterization_session_iri: str, infrared_device_iri: str, hash_value: str) -> str:
-    return _add_infrared_spectroscopy_device_to_characterization_session(characterization_session_iri, infrared_device_iri, hash_value)
-
-@mcp.tool(name="add_hnmr_data_to_species", description="Link HNMRData to species.")
-@mcp_tool_logger
-def add_hnmr_data_to_species(species_iri: str, hnmr_data_iri: str, hash_value: str) -> str:
-    return _add_hnmr_data_to_species(species_iri, hnmr_data_iri, hash_value)
-
-@mcp.tool(name="add_elemental_analysis_data_to_species", description="Link EA data to species.")
-@mcp_tool_logger
-def add_elemental_analysis_data_to_species(species_iri: str, elemental_data_iri: str, hash_value: str) -> str:
-    return _add_elemental_analysis_data_to_species(species_iri, elemental_data_iri, hash_value)
-
-
-@mcp.tool(name="add_molecular_formula_to_species", description="Link MolecularFormula.")
-@mcp_tool_logger
-def add_molecular_formula_to_species(species_iri: str, molecular_formula_iri: str, hash_value: str) -> str:
-    return _add_molecular_formula_to_species(species_iri, molecular_formula_iri, hash_value)
-
-@mcp.tool(name="add_chemical_formula_to_species", description="Link ChemicalFormula.")
-@mcp_tool_logger
-def add_chemical_formula_to_species(species_iri: str, chemical_formula_iri: str, hash_value: str) -> str:
-    return _add_chemical_formula_to_species(species_iri, chemical_formula_iri, hash_value)
-
-@mcp.tool(name="add_ccdc_number_to_species", description="Link CCDCNumber.")
-@mcp_tool_logger
-def add_ccdc_number_to_species(species_iri: str, ccdc_number_iri: str, hash_value: str) -> str:
-    return _add_ccdc_number_to_species(species_iri, ccdc_number_iri, hash_value)
-
-
-@mcp.tool(name="add_atomic_weight_to_element", description="Link AtomicWeight to Element.")
-@mcp_tool_logger
-def add_atomic_weight_to_element(element_iri: str, atomic_weight_iri: str, hash_value: str) -> str:
-    return _add_atomic_weight_to_element(element_iri, atomic_weight_iri, hash_value)
-
-@mcp.tool(name="add_element_to_weight_percentage", description="Link Element to WeightPercentage.")
-@mcp_tool_logger
-def add_element_to_weight_percentage(weight_percentage_iri: str, element_iri: str, hash_value: str) -> str:
-    return _add_element_to_weight_percentage(weight_percentage_iri, element_iri, hash_value)
-
-# =========================
-# Delete
-# =========================
-@mcp.tool(name="delete_entity", description="Remove all triples touching an IRI.")
-@mcp_tool_logger
-def delete_entity(entity_iri: str, hash_value: str) -> str: return _delete_entity(entity_iri, hash_value)
-
-@mcp.tool(name="delete_triple", description="Remove one triple; set is_object_literal if needed.")
-@mcp_tool_logger
-def delete_triple(subject_iri: str, predicate_uri: str, object_iri_or_literal: str, hash_value: str, is_object_literal: bool = False) -> str:
-    return _delete_triple(subject_iri, predicate_uri, object_iri_or_literal, hash_value, is_object_literal)
+def delete_entity(entity_iri: str) -> str:
+    _require_abs_iri("entity_iri", entity_iri)
+    return _delete_entity(entity_iri)
 
 if __name__ == "__main__":
-    mcp.run(transport="stdio")
+    mcp.run()
