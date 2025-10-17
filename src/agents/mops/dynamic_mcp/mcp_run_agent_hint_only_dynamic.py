@@ -1,6 +1,7 @@
 # mcp_run_agent_hint_only_dynamic.py
-import os, argparse, asyncio, shutil, json, time, random
+import os, argparse, asyncio, shutil, json, time, random, tempfile
 from typing import List, Dict
+from filelock import FileLock
 from models.BaseAgent import BaseAgent
 from models.ModelConfig import ModelConfig
 from src.utils.global_logger import get_logger
@@ -15,23 +16,28 @@ from src.agents.mops.dynamic_mcp.modules.prompt_utils import (
 
 log = get_logger("agent", "MainDynamic")
 
+# -------------------- Global state writer --------------------
+GLOBAL_STATE_DIR = "data"
+GLOBAL_STATE_JSON = os.path.join(GLOBAL_STATE_DIR, "global_state.json")
+GLOBAL_STATE_LOCK = os.path.join(GLOBAL_STATE_DIR, "global_state.lock")
+
+def write_global_state(doi: str, top_level_entity_name: str):
+    """Write global state atomically with file lock for MCP server to read."""
+    os.makedirs(GLOBAL_STATE_DIR, exist_ok=True)
+    lock = FileLock(GLOBAL_STATE_LOCK)
+    lock.acquire(timeout=30.0)
+    try:
+        state = {"doi": doi, "top_level_entity_name": top_level_entity_name}
+        fd, tmp = tempfile.mkstemp(dir=GLOBAL_STATE_DIR, suffix=".json.tmp")
+        os.close(fd)
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(state, f, indent=2)
+        os.replace(tmp, GLOBAL_STATE_JSON)
+        log.info(f"Global state written: doi={doi}, entity={top_level_entity_name}")
+    finally:
+        lock.release()
+
 # -------------------- FS helpers --------------------
-def clear_previous_data():
-    for p in ["memory", ".kg_memory", ".kg_state"]:
-        if os.path.exists(p): shutil.rmtree(p)
-    if os.path.exists("data"):
-        for doi_dir in os.listdir("data"):
-            doi_path = os.path.join("data", doi_dir)
-            if os.path.isdir(doi_path) and doi_dir not in ['log', 'ontologies']:
-                mem = os.path.join(doi_path, "memory")
-                if os.path.exists(mem): shutil.rmtree(mem)
-                mcp_run = os.path.join(doi_path, "mcp_run")
-                if os.path.exists(mcp_run): shutil.rmtree(mcp_run)
-                for fp in ["iteration_1.ttl", "output.ttl"]:
-                    pth = os.path.join(doi_path, fp)
-                    if os.path.exists(pth): os.remove(pth)
-    os.makedirs(".kg_memory", exist_ok=True)
-    os.makedirs(".kg_state", exist_ok=True)
 
 def find_tasks(root="data"):
     return [d for d in os.listdir(root)
@@ -186,6 +192,8 @@ async def run_task(doi: str, test: bool = False):
                     print(f"⏭️  Skip iter {i1} execution: {iteration_1_ttl} exists")
                 else:
                     print("🚀 Running iteration 1 agent...")
+                    # Write global state for iteration 1 (top-level entities)
+                    write_global_state(doi, "top")
                     agent1 = _agent(tools=["llm_created_mcp"])
                     try:
                         resp1, _ = await _run_agent_with_retry(agent1, instr1, max_retries=3, recursion_limit=600)
@@ -266,6 +274,8 @@ async def run_task(doi: str, test: bool = False):
                         _write_text(os.path.join(hints_dir, f"iter{iter_no}_{safe}_instruction.md"),
                                     f"# Iteration {iter_no} — {label} — Instruction\n\n{instr}")
                         
+                        # Write global state for this entity
+                        write_global_state(doi, safe)
                         agent = _agent(tools=["llm_created_mcp"])
                         try:
                             resp, _ = await _run_agent_with_retry(agent, instr, max_retries=3, recursion_limit=600)
@@ -392,6 +402,8 @@ async def run_task(doi: str, test: bool = False):
                         f"# Iteration {iter_no} — {label} — Instruction\n\n{instr}")
 
             print(f"🚀 Running iteration {iter_no} for entity: {label}")
+            # Write global state for this entity
+            write_global_state(doi, safe)
             agent = _agent(tools=["llm_created_mcp"])
             try:
                 resp, _ = await _run_agent_with_retry(agent, instr, max_retries=3, recursion_limit=600)
@@ -410,15 +422,9 @@ async def run_task(doi: str, test: bool = False):
 # -------------------- CLI --------------------
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument('--clear', action='store_true')
     ap.add_argument('--single', type=str, help='DOI folder to run once')
     ap.add_argument('--test', action='store_true', help='Dry run: prepare hints and instructions only')
     args = ap.parse_args()
-
-    if args.clear:
-        print("🧹 Clearing previous data...")
-        clear_previous_data()
-        print("✅ Cleared")
 
     if args.single:
         asyncio.run(run_task(args.single, test=args.test))
