@@ -1,27 +1,21 @@
 from fastmcp import FastMCP
-from src.utils.global_logger import get_logger, mcp_tool_logger
+from src.utils.global_logger import get_logger
 
 # Import chemistry operations
 from src.mcp_servers.chemistry.operations.canonical_search import (
-    fuzzy_search_canonical_smiles
+    fuzzy_search_canonical_smiles,
 )
 from src.mcp_servers.chemistry.operations.cas_to_smiles import (
-    cas_to_smiles
+    cas_to_smiles,
+)
+from src.mcp_servers.chemistry.operations.enhanced_smiles_based_cbu_processing import (
+    _to_storage_canonical,
 )
 import json
-import sys
 import os
 
-# Import enhanced SMILES processing
-scripts_dir = os.path.join(os.path.dirname(__file__), '../../../scripts/cbu_alignment')
-sys.path.append(scripts_dir)
-
-try:
-    from enhanced_smiles_based_cbu_processing import _to_storage_canonical
-    _HAS_ENHANCED_SMILES = True
-except ImportError as e:
-    print(f"Warning: Could not import enhanced_smiles_based_cbu_processing: {e}")
-    _HAS_ENHANCED_SMILES = False
+# Enhanced SMILES processing now imported from package path above
+_HAS_ENHANCED_SMILES = True
 
 mcp = FastMCP(name="chemistry")
 
@@ -166,7 +160,7 @@ def fuzzy_smiles_search(canonical_smiles: str) -> str:
         }
         return json.dumps(error_result, ensure_ascii=False, indent=2)
 
-@mcp.tool()
+@mcp.tool(name="cas_to_smiles")
 def cas_to_smiles_convert(cas_number: str) -> str:
     """
     Convert CAS registry number to SMILES strings using PubChem API.

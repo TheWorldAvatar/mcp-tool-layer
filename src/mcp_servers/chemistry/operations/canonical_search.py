@@ -11,7 +11,8 @@ import unicodedata
 from difflib import SequenceMatcher
 from pathlib import Path
 from typing import List, Dict
-
+from models.locations import DATA_DIR
+import os   
 
 def _norm(s: str) -> str:
     """Normalize for robust string equality: strip, collapse spaces, NFC."""
@@ -32,7 +33,7 @@ def load_cbu_database_for_search() -> List[Dict[str, str]]:
     """
     cbu_data: List[Dict[str, str]] = []
     try:
-        csv_path = Path("scripts/cbu_alignment/data/full_cbus_with_canonical_smiles_updated.csv")
+        csv_path = Path(os.path.join(DATA_DIR, "ontologies", "full_cbus_with_canonical_smiles_updated.csv"))
         with open(csv_path, "r", encoding="utf-8") as file:
             reader = csv.DictReader(file)
             for row in reader:
