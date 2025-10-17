@@ -240,8 +240,8 @@ Output Format
 The RES file is below:
 {res_content}
 
-The MOL2 file is below:
-{mol2_content}
+The CIF file is below:
+{cif_content}
 
 The concentrated paper content is below:
 {paper_content}
@@ -606,8 +606,8 @@ Metal CBU:   [EmpiricalFormulaInBracketedForm]
 The RES file is below:
 {res_content}
 
-The MOL2 file is below:
-{mol2_content}
+ThE CIF file is below:
+{cif_content}
 
 The concentrated paper content is below:
 {paper_content}
@@ -820,12 +820,12 @@ Return strictly and only the Metal CBU formula in normalized empirical format â€
 Sources of Truth:
 - Use all three inputs:
   - RES file: definitive crystallographic bonding and occupancy
-  - MOL2 file: chemical group identities and connectivity
+  - CIF file: crystallographic structure and connectivity context
   - Concentrated paper content: semantic and functional role assignments
 
 Information Hierarchy:
 1. Use **RES** file to determine atomic positions, occupancy, coordination environment, and symmetry.
-2. Use **MOL2** file to identify molecular fragments, ligand identity, and bonding patterns.
+2. Use **CIF** file to identify molecular fragments, ligand identity, and bonding patterns.
 3. Use **Concentrated Paper** only to interpret structural roles (e.g., node, core, linker) and symmetry grouping â€” not to extract formulae directly.
 
 === EXISTING METAL CBU DATABASE ===
@@ -943,8 +943,8 @@ Metal CBU:   [MxLy(Gz)n]
 The RES file is below:
 {res_content}
 
-The MOL2 file is below:
-{mol2_content}
+The CIF file is below:
+{cif_content}
 
 The concentrated paper content is below:
 {paper_content}
