@@ -62,9 +62,32 @@ def _read_global_state() -> Tuple[str, str]:
     finally:
         lock.release()
 
+def _hash_for_doi(doi_us: str) -> str:
+    """Resolve hash directory for a given pipeline DOI (underscore form).
+
+    Falls back to doi_us if mapping not found. Accepts an 8-char hex hash as pass-through.
+    """
+    try:
+        # Pass-through when an 8-char hex hash is supplied already
+        if isinstance(doi_us, str) and len(doi_us) == 8 and all(c in "0123456789abcdef" for c in doi_us.lower()):
+            return doi_us
+        import json
+        mapping_path = os.path.join(DATA_DIR, "doi_to_hash.json")
+        if os.path.exists(mapping_path):
+            with open(mapping_path, "r", encoding="utf-8") as f:
+                mapping = json.load(f) or {}
+            hv = mapping.get(doi_us)
+            if hv:
+                return hv
+        print(f"Warning: hash not found for DOI '{doi_us}', using DOI as folder name (compat mode)")
+    except Exception as e:
+        print(f"Warning: failed to resolve hash for DOI '{doi_us}': {e}")
+    return doi_us
+
 def get_memory_paths(doi: str, top_level_entity_name: str):
-    """Get memory paths based on DOI and top-level entity name."""
-    mem_dir = os.path.join("data", doi, "memory_ontomops")    
+    """Get memory paths based on hash (resolved from DOI) and top-level entity name."""
+    hash_value = _hash_for_doi(doi)
+    mem_dir = os.path.join(DATA_DIR, hash_value, "memory_ontomops")    
     os.makedirs(mem_dir, exist_ok=True)
     return {
         'dir': mem_dir,
@@ -223,8 +246,9 @@ def export_memory() -> str:
     doi, top_level_entity_name = _read_global_state()
     # Generate filename based on entity name
     filename = f"ontomops_extension_{top_level_entity_name}.ttl"
-    # Save to data/<doi>/ontomops_output directory
-    output_dir = os.path.join("data", doi, "ontomops_output")
+    # Save to data/<hash>/ontomops_output directory
+    hash_value = _hash_for_doi(doi)
+    output_dir = os.path.join(DATA_DIR, hash_value, "ontomops_output")
     os.makedirs(output_dir, exist_ok=True)
     file_path = os.path.join(output_dir, filename)
     with locked_graph(timeout=30.0) as g:
@@ -259,6 +283,14 @@ def add_metal_organic_polyhedron(name: str,
         ccdc_number: CCDC number of the MOP (optional)
         mop_formula: Chemical formula of the MOP (optional)
     """
+    # check ccdc_number is a valid number, "N/A" is acceptable
+    if ccdc_number.upper() != "N/A":
+        if not ccdc_number.isdigit():
+            return "ccdc_number must be a valid number, also, 1234567-1234568 is acceptable, must be a single number or 'N/A'"
+
+
+
+
     with locked_graph() as g:
         iri_ref = _mint_hash_iri("MetalOrganicPolyhedron")
         g.add((iri_ref, RDF.type, ONTOMOPS.MetalOrganicPolyhedron))
@@ -280,6 +312,12 @@ def add_metal_organic_polyhedron(name: str,
 
 def update_mop_ccdc_number(mop_iri: str, ccdc_number: str) -> str:
     """Update or set the CCDC number for a MetalOrganicPolyhedron. Ensures single value."""
+
+    # check ccdc_number is a valid number, "N/A" is acceptable
+    if ccdc_number.upper() != "N/A":
+        if not ccdc_number.isdigit():
+            return "ccdc_number must be a valid number, also, 1234567-1234568 is acceptable, must be a single number"
+
     with locked_graph() as g:
         if not _is_abs_iri(mop_iri):
             return "mop_iri must be an absolute https IRI"
@@ -436,6 +474,18 @@ if __name__ == "__main__":
         mop_formula="C42H30N6O6"
     )
 
+    mop3 = add_metal_organic_polyhedron(
+        name="MOP-789",
+        ccdc_number="N/A",
+        mop_formula="C36H27N3O6"
+    )
+
+    mop4 = add_metal_organic_polyhedron(
+        name="MOP-1011",
+        ccdc_number="1234567-1234568",
+        mop_formula="C36H27N3O6"
+    )
+
     # Update properties
     update_mop_ccdc_number(mop1, "1234568")
     update_mop_formula(mop1, "C36H27N3O6·2H2O")
@@ -455,3 +505,6 @@ if __name__ == "__main__":
     out_path = export_memory()
     print(f"\nExported TTL: {out_path}")
     print("\n" + inspect_memory())
+
+    print(f"mop3: {mop3}")
+    print(f"mop4: {mop4}")
