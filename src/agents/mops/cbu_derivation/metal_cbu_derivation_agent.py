@@ -87,6 +87,13 @@ class CBUDerivationAgent:
                 paper_content=paper_content
             )
 
+        # Emphasize fallback: if similarity to existing CBUs is low, output the explicit metal CBU directly
+        prompt = (
+            f"{prompt}\n\n"
+            "Important: If the similarity between any existing CBU and the target is low, "
+            "you must directly output the explicit metal CBU you derive."
+        )
+
         # Append entity TTL content without changing the core prompt semantics
         if ttl_content:
             prompt = f"{prompt}\n\nAdditional OntoMOPs A-Box for this entity (TTL):\n```ttl\n{ttl_content}\n```"
@@ -213,7 +220,19 @@ if __name__ == "__main__":
                 continue
             out_dir = os.path.join(DATA_DIR, hv, "cbu_derivation", "metal")
             os.makedirs(out_dir, exist_ok=True)
-            # Copy according earlier_ground_truth CBU json for reference
+            # Fast skip: if all per-entity structured JSONs already exist, skip this identifier
+            try:
+                from src.agents.mops.cbu_derivation.utils.metal_cbu import safe_name as _safe
+                structured_dir_all = os.path.join(out_dir, "structured")
+                if os.path.isdir(structured_dir_all):
+                    expected_jsons = {f"{_safe(e.get('label', ''))}.json" for e in entities if e.get('label')}
+                    present_jsons = {n for n in os.listdir(structured_dir_all) if n.endswith('.json')}
+                    if expected_jsons and expected_jsons.issubset(present_jsons):
+                        print(f"⏭️  Skipping CBU derivation for {identifier} — all structured JSONs already present")
+                        continue
+            except Exception:
+                pass
+            # Copy earlier_ground_truth CBU json for reference under data/<hash>/cbu_derivation/
             try:
                 doi_basename = identifier.replace('/', '_') if ('.' in identifier or '/' in identifier) else None
                 if not doi_basename:
@@ -232,7 +251,9 @@ if __name__ == "__main__":
                 if doi_basename:
                     src_json = os.path.join('earlier_ground_truth', 'cbu', f"{doi_basename}.json")
                     if os.path.exists(src_json):
-                        shutil.copy2(src_json, os.path.join(out_dir, f"{doi_basename}.json"))
+                        dest_dir = os.path.join(DATA_DIR, hv, 'cbu_derivation')
+                        os.makedirs(dest_dir, exist_ok=True)
+                        shutil.copy2(src_json, os.path.join(dest_dir, f"{doi_basename}.json"))
             except Exception:
                 pass
             print("="*100)
@@ -244,6 +265,16 @@ if __name__ == "__main__":
                 if not label:
                     continue
                 try:
+                    # Per-entity fast skip based on structured JSON presence
+                    try:
+                        from src.agents.mops.cbu_derivation.utils.metal_cbu import safe_name as _safe
+                        structured_dir_entity = os.path.join(out_dir, "structured")
+                        json_file = os.path.join(structured_dir_entity, f"{_safe(label)}.json")
+                        if os.path.exists(json_file):
+                            print(f"[{i}/{len(entities)}] {label}: Skip (structured JSON exists)")
+                            continue
+                    except Exception:
+                        pass
                     ttl = util_load_ttl(hv, label)
                     ccdc = util_extract_ccdc(ttl)
                     if not ccdc or ccdc.strip().upper() == "N/A":
@@ -276,7 +307,7 @@ if __name__ == "__main__":
                     prompt_file = os.path.join(prompts_dir, f"{_safe(label)}_prompt{'_without_cbu' if args.ablation else ''}.md")
                     with open(prompt_file, 'w', encoding='utf-8') as pf:
                         pf.write(prompt_text)
-                    # extract final-only formula and write <entity>.md
+                    # extract final-only formula and write structured/<entity>.txt
                     def _extract_cbu_formula(model_response: str) -> str:
                         import re as _re
                         txt = (model_response or "").strip()
@@ -286,11 +317,50 @@ if __name__ == "__main__":
                         m2 = _re.search(r"(\[[^\n\r\]]+\])", txt)
                         return m2.group(1).strip() if m2 else txt
                     only_formula = _extract_cbu_formula(resp)
-                    suffix = "_without_cbu" if args.ablation else ""
-                    final_file = os.path.join(out_dir, f"{_safe(label)}{suffix}.md")
-                    with open(final_file, 'w', encoding='utf-8') as ff:
+                    structured_dir = os.path.join(out_dir, "structured")
+                    os.makedirs(structured_dir, exist_ok=True)
+                    final_txt = os.path.join(structured_dir, f"{_safe(label)}.txt")
+                    with open(final_txt, 'w', encoding='utf-8') as ff:
                         ff.write(only_formula)
-                    print(f"[{i}/{len(entities)}] {label}: OK → {os.path.basename(final_file)} (+ prompt)")
+
+                    # Persist per-entity JSON for selector
+                    try:
+                        cbu_json_path = os.path.join(structured_dir, f"{_safe(label)}.json")
+                        with open(cbu_json_path, 'w', encoding='utf-8') as jf:
+                            json.dump({
+                                "metal_cbu": only_formula,
+                                "entity_label": label,
+                                "ccdc": ccdc
+                            }, jf, indent=2, ensure_ascii=False)
+                    except Exception:
+                        pass
+
+                    # Run auxiliary GPT-5 to choose ontomops:ChemicalBuildingUnit IRI
+                    try:
+                        iri_prompt = (
+                            "Select the best-matching ontomops:ChemicalBuildingUnit IRI.\n"
+                            "Respond with ONLY the chosen IRI, nothing else.\n\n"
+                            "OntoMOPs A-Box (TTL):\n" + (ttl or "") + "\n\n"
+                            "Metal CBU JSON:\n" + json.dumps({
+                                "metal_cbu": only_formula,
+                                "entity_label": label,
+                                "ccdc": ccdc
+                            }, ensure_ascii=False, indent=2)
+                        )
+                        selector_llm = LLMCreator(model="gpt-5", remote_model=True, model_config=ModelConfig(temperature=0.0, top_p=0.02)).setup_llm()
+                        iri_choice = (selector_llm.invoke(iri_prompt).content or "").strip()
+                        iri_file = os.path.join(structured_dir, f"{_safe(label)}_iri.txt")
+                        with open(iri_file, 'w', encoding='utf-8') as wf:
+                            wf.write(iri_choice)
+                    except Exception:
+                        try:
+                            iri_file = os.path.join(structured_dir, f"{_safe(label)}_iri.txt")
+                            with open(iri_file, 'w', encoding='utf-8') as wf:
+                                wf.write("")
+                        except Exception:
+                            pass
+
+                    print(f"[{i}/{len(entities)}] {label}: OK → structured outputs (+ prompt)")
                 except Exception as e:
                     print(f"[{i}/{len(entities)}] {label}: ERROR {e}")
 

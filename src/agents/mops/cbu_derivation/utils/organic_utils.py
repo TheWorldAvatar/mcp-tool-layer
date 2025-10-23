@@ -69,7 +69,7 @@ async def cbu_grounding_agent(res_content: str, paper_content: str, ttl_content:
         paper_content=paper_content.strip(),
         ttl_content=ttl_content.strip(),
     )
-    response, _metadata = await agent.run(instruction)
+    response, _metadata = await agent.run(instruction, recursion_limit=200)
     return response
 
 

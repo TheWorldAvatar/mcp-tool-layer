@@ -35,7 +35,8 @@ ORGANIC_PROMPT_STR = ORGANIC_PROMPT
 
 
 def get_prompt() -> str:
-    return ORGANIC_PROMPT_STR
+    # Emphasize fallback when similarity to existing CBUs is low
+    return ORGANIC_PROMPT_STR + "\n\nImportant: If similarity to any existing CBU is low, directly output the explicit organic CBU you derive."
 
 async def run_for_hash(hash_value: str, test_mode: bool = False):
     logger = get_logger("agent", "CBUDerivationOrganic")
@@ -85,6 +86,20 @@ async def run_for_hash(hash_value: str, test_mode: bool = False):
                 extraction_text = load_entity_extraction_content(hash_value, entity_label)
             except Exception as e:
                 extraction_text = ""
+            # Load iter2 hints if present and append to paper content
+            hints_dir = os.path.join(DATA_DIR, hash_value, "mcp_run")
+            safe = metal_safe_name(entity_label)
+            iter2_hint_file = os.path.join(hints_dir, f"iter2_hints_{safe}.txt")
+            hints_text = ""
+            if os.path.exists(iter2_hint_file):
+                try:
+                    with open(iter2_hint_file, "r", encoding="utf-8") as hf:
+                        hints_text = hf.read()
+                except Exception:
+                    hints_text = ""
+            combined_paper_content = extraction_text
+            if hints_text:
+                combined_paper_content = f"[iter2_hints_file]: {iter2_hint_file}\n\n{extraction_text}\n\n[iter2_hints]\n{hints_text}"
             # Extract CCDC strictly from the entity TTL and load RES; no fallback allowed
             ccdc = extract_ccdc_from_entity_ttl(ttl_text) if ttl_text else ""
             if not ccdc or ccdc.strip().upper() == "N/A":
@@ -106,7 +121,7 @@ async def run_for_hash(hash_value: str, test_mode: bool = False):
 
             # Build and persist instruction
             instruction_text = ORGANIC_PROMPT_STR.format(
-                paper_content=extraction_text,
+                paper_content=combined_paper_content,
                 res_content=res_text or "",
             )
             write_instruction_md(os.path.join(output_dir, "instructions"), entity_label, instruction_text)
@@ -114,7 +129,7 @@ async def run_for_hash(hash_value: str, test_mode: bool = False):
             # Invoke agent with full context
             response = await run_cbu_agent(
                 res_content=res_text or "",
-                paper_content=extraction_text,
+                paper_content=combined_paper_content,
                 ttl_content=ttl_text or "",
             )
             write_individual_md(output_dir, entity_label, response)
@@ -125,9 +140,41 @@ async def run_for_hash(hash_value: str, test_mode: bool = False):
             if structured and structured != "Ignore":
                 # Write formula-only output
                 safe_name = entity_label.replace(' ', '_')
-                with open(os.path.join(structured_dir, f"{safe_name}.txt"), "w", encoding="utf-8") as f:
+                txt_path = os.path.join(structured_dir, f"{safe_name}.txt")
+                with open(txt_path, "w", encoding="utf-8") as f:
                     f.write(structured)
                 summary[entity_label] = structured
+
+                # Also write per-entity JSON to support IRI selection
+                json_path = os.path.join(structured_dir, f"{safe_name}.json")
+                try:
+                    with open(json_path, "w", encoding="utf-8") as jf:
+                        json.dump({"organic_cbu": structured, "entity_label": entity_label}, jf, indent=2, ensure_ascii=False)
+                except Exception:
+                    pass
+
+                # Auxiliary GPT-5 to choose ontomops:ChemicalBuildingUnit IRI
+                try:
+                    from models.LLMCreator import LLMCreator
+                    from models.ModelConfig import ModelConfig
+                    iri_prompt = (
+                        "Select the best-matching ontomops:ChemicalBuildingUnit IRI.\n"
+                        "Respond with ONLY the chosen IRI, nothing else.\n\n"
+                        "OntoMOPs A-Box (TTL):\n" + (ttl_text or "") + "\n\n"
+                        "Organic CBU JSON:\n" + json.dumps({"organic_cbu": structured, "entity_label": entity_label}, ensure_ascii=False, indent=2)
+                    )
+                    selector_llm = LLMCreator(model="gpt-5", remote_model=True, model_config=ModelConfig(temperature=0.0, top_p=0.02)).setup_llm()
+                    iri_choice = (selector_llm.invoke(iri_prompt).content or "").strip()
+                    iri_file = os.path.join(structured_dir, f"{safe_name}_iri.txt")
+                    with open(iri_file, 'w', encoding='utf-8') as wf:
+                        wf.write(iri_choice)
+                except Exception:
+                    try:
+                        iri_file = os.path.join(structured_dir, f"{safe_name}_iri.txt")
+                        with open(iri_file, 'w', encoding='utf-8') as wf:
+                            wf.write("")
+                    except Exception:
+                        pass
             else:
                 # Ignore metal results
                 summary[entity_label] = "Ignore"
