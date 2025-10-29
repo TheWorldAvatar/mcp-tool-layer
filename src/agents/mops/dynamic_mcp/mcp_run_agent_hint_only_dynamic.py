@@ -21,13 +21,15 @@ GLOBAL_STATE_DIR = "data"
 GLOBAL_STATE_JSON = os.path.join(GLOBAL_STATE_DIR, "global_state.json")
 GLOBAL_STATE_LOCK = os.path.join(GLOBAL_STATE_DIR, "global_state.lock")
 
-def write_global_state(doi: str, top_level_entity_name: str):
+def write_global_state(doi: str, top_level_entity_name: str, top_level_entity_iri: str | None = None):
     """Write global state atomically with file lock for MCP server to read."""
     os.makedirs(GLOBAL_STATE_DIR, exist_ok=True)
     lock = FileLock(GLOBAL_STATE_LOCK)
     lock.acquire(timeout=30.0)
     try:
         state = {"doi": doi, "top_level_entity_name": top_level_entity_name}
+        if top_level_entity_iri:
+            state["top_level_entity_iri"] = top_level_entity_iri
         fd, tmp = tempfile.mkstemp(dir=GLOBAL_STATE_DIR, suffix=".json.tmp")
         os.close(fd)
         with open(tmp, "w", encoding="utf-8") as f:
@@ -200,8 +202,15 @@ async def run_task(doi: str, test: bool = False):
                         _write_text(response_file_1,
                                     f"# Iteration {i1}\n\n## Instruction\n\n{instr1}\n\n## Response\n\n{resp1}")
                         out_local = os.path.join(doi_dir, "output.ttl")
+                        top_local = os.path.join(doi_dir, "output_top.ttl")
                         if os.path.exists(out_local):
                             shutil.copy2(out_local, iteration_1_ttl)
+                            print(f"✅ Saved iteration_1.ttl from output.ttl")
+                        elif os.path.exists(top_local):
+                            shutil.copy2(top_local, iteration_1_ttl)
+                            print(f"✅ Saved iteration_1.ttl from output_top.ttl")
+                        else:
+                            print("⚠️ No TTL produced for iteration 1 (neither output.ttl nor output_top.ttl found)")
                     except RuntimeError as e:
                         log.error(f"Failed to complete iteration 1 after retries: {e}")
                         print(f"❌ Failed to complete iteration 1 after retries: {e}")
@@ -270,12 +279,16 @@ async def run_task(doi: str, test: bool = False):
                             entity_uri=uri,
                             paper_content=hints,
                         )
+                        instr += ("\n\n"
+                                  "Before exporting the final TTL/memory, call the tool `check_orphan_entities` to detect any orphan entities. "
+                                  "If any are found, attempt to connect them appropriately (e.g., attach to synthesis, steps, IO, or parameters). "
+                                  "If you cannot connect some, list their details in your response and proceed with export.")
                         
                         _write_text(os.path.join(hints_dir, f"iter{iter_no}_{safe}_instruction.md"),
                                     f"# Iteration {iter_no} — {label} — Instruction\n\n{instr}")
                         
-                        # Write global state for this entity
-                        write_global_state(doi, safe)
+                        # Write global state for this entity (include entity IRI)
+                        write_global_state(doi, safe, uri)
                         agent = _agent(tools=["llm_created_mcp"])
                         try:
                             resp, _ = await _run_agent_with_retry(agent, instr, max_retries=3, recursion_limit=600)
@@ -397,13 +410,17 @@ async def run_task(doi: str, test: bool = False):
                 entity_uri=uri,
                 paper_content=single_hint,
             )
+            instr += ("\n\n"
+                      "Before exporting the final TTL/memory, call the tool `check_orphan_entities` to detect any orphan entities. "
+                      "If any are found, attempt to connect them appropriately (e.g., attach to synthesis, steps, IO, or parameters). "
+                      "If you cannot connect some, list their details in your response and proceed with export.")
 
             _write_text(os.path.join(hints_dir, f"iter{iter_no}_{safe}_instruction.md"),
                         f"# Iteration {iter_no} — {label} — Instruction\n\n{instr}")
 
             print(f"🚀 Running iteration {iter_no} for entity: {label}")
-            # Write global state for this entity
-            write_global_state(doi, safe)
+            # Write global state for this entity (include entity IRI)
+            write_global_state(doi, safe, uri)
             agent = _agent(tools=["llm_created_mcp"])
             try:
                 resp, _ = await _run_agent_with_retry(agent, instr, max_retries=3, recursion_limit=600)
@@ -420,6 +437,99 @@ async def run_task(doi: str, test: bool = False):
                 print(f"❌ Failed to complete iter {iter_no} for entity '{label}' after retries: {e}")
 
 # -------------------- CLI --------------------
+async def run_task_iter1_only(doi: str, test: bool = False):
+    """Run only iteration 1 for the given DOI folder and emit iteration_1.ttl.
+    Also writes iter1_top_entities.json for downstream steps.
+    """
+    doi_dir = os.path.join("data", doi)
+    md_path = os.path.join(doi_dir, f"{doi}_stitched.md")
+    if not os.path.exists(md_path):
+        print(f"Skipping {doi}: _stitched.md file not found")
+        return
+
+    paper = _read_text(md_path)
+    t_box = _discover_tbox(md_path)
+
+    scopes = collect_scopes(scopes_ns)
+    prompt_map = collect_prompts(prompts_ns)
+    if not scopes:
+        print("No EXTRACTION_SCOPE_* found. Nothing to run.")
+        return
+
+    hints_dir = os.path.join(doi_dir, "mcp_run")
+    os.makedirs(hints_dir, exist_ok=True)
+
+    iter1_scope = next(((i, s) for (i, s) in scopes if i == 1), None)
+    if not iter1_scope:
+        print("⚠️  No iteration 1 scope found; nothing to do.")
+        return
+
+    i1, scope_text_1 = iter1_scope
+    response_file_1 = os.path.join(hints_dir, "iter1_response.md")
+    hint_file_1 = os.path.join(hints_dir, f"iter{i1}_hints.txt")
+
+    if os.path.exists(hint_file_1):
+        print(f"⏭️  Skip extraction iter {i1}: {hint_file_1} exists")
+        hints1 = _read_text(hint_file_1)
+    else:
+        print(f"🔍 Extracting hints for iteration {i1} (global)...")
+        hints1 = await extract_content(
+            paper_content=paper,
+            goal=scope_text_1,
+            t_box=t_box,
+            entity_label=None,
+            entity_uri=None,
+        )
+        _write_text(hint_file_1, hints1)
+        print(f"✅ Saved hints to {hint_file_1}")
+
+    if i1 not in prompt_map:
+        print("⚠️  No prompt for iteration 1; stopping.")
+        return
+
+    instr1 = format_prompt(
+        prompt_map[i1],
+        doi=doi,
+        iteration=i1,
+        paper_content=_read_text(hint_file_1),
+    )
+    _write_text(os.path.join(hints_dir, "iter1_instruction.md"),
+                f"# Iteration {i1} — Instruction\n\n{instr1}")
+
+    iteration_1_ttl = os.path.join(doi_dir, "iteration_1.ttl")
+    if os.path.exists(iteration_1_ttl):
+        print(f"⏭️  Skip iter {i1} execution: {iteration_1_ttl} exists")
+    else:
+        print("🚀 Running iteration 1 agent...")
+        write_global_state(doi, "top")
+        agent1 = _agent(tools=["llm_created_mcp"])
+        try:
+            resp1, _ = await _run_agent_with_retry(agent1, instr1, max_retries=3, recursion_limit=600)
+            _write_text(response_file_1,
+                        f"# Iteration {i1}\n\n## Instruction\n\n{instr1}\n\n## Response\n\n{resp1}")
+            out_local = os.path.join(doi_dir, "output.ttl")
+            top_local = os.path.join(doi_dir, "output_top.ttl")
+            if os.path.exists(out_local):
+                shutil.copy2(out_local, iteration_1_ttl)
+                print(f"✅ Saved iteration_1.ttl from output.ttl")
+            elif os.path.exists(top_local):
+                shutil.copy2(top_local, iteration_1_ttl)
+                print(f"✅ Saved iteration_1.ttl from output_top.ttl")
+            else:
+                print("⚠️ No TTL produced for iteration 1 (neither output.ttl nor output_top.ttl found)")
+        except RuntimeError as e:
+            log.error(f"Failed to complete iteration 1 after retries: {e}")
+            print(f"❌ Failed to complete iteration 1 after retries: {e}")
+
+    # Always emit top entities JSON (if any)
+    top_entities = parse_top_level_entities(doi, output_file="output_top.ttl") or []
+    _write_text(os.path.join(hints_dir, "iter1_top_entities.json"), json.dumps(top_entities, indent=2))
+
+    print("✅ Iteration 1 only flow completed.")
+
+    return
+
+ # -------------------- CLI --------------------
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument('--single', type=str, help='DOI folder to run once')
