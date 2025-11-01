@@ -7,6 +7,7 @@ from models.ModelConfig import ModelConfig
 from src.utils.global_logger import get_logger
 from src.agents.mops.dynamic_mcp.modules.kg import parse_top_level_entities
 from src.agents.mops.dynamic_mcp.modules.extraction import extract_content
+from src.utils.extraction_models import get_extraction_model
 # dynamic namespaces, do NOT import specific names
 from src.agents.mops.dynamic_mcp.prompts import prompts as prompts_ns
 from src.agents.mops.dynamic_mcp.prompts import extraction_scopes as scopes_ns
@@ -62,8 +63,10 @@ def _discover_tbox(paper_md_path: str) -> str:
     return _read_text(tbox_path) if os.path.exists(tbox_path) else ""
 
 def _agent(tools=None, model="gpt-4o", temp=0.1, top_p=0.1, mcp_set="run_created_mcp.json"):
+    # Allow override via env var to keep iter-specific model choices controllable from the driver
+    model_override = os.environ.get("MOPS_EXTRACTION_MODEL") or model
     return BaseAgent(
-        model_name=model,
+        model_name=model_override,
         model_config=ModelConfig(temperature=temp, top_p=top_p),
         remote_model=True,
         mcp_tools=tools or [],
@@ -174,6 +177,7 @@ async def run_task(doi: str, test: bool = False):
                     t_box=t_box,
                     entity_label=None,
                     entity_uri=None,
+                    model_name=get_extraction_model("iter1_hints"),
                 )
                 _write_text(hint_file_1, hints1)
                 print(f"✅ Saved hints to {hint_file_1}")
@@ -255,6 +259,7 @@ async def run_task(doi: str, test: bool = False):
                         t_box=t_box,
                         entity_label=label,
                         entity_uri=uri,
+                        model_name=get_extraction_model(f"iter{iter_no}_hints"),
                     )
                     print(f"✅ Test mode: Completed extraction for '{label}' iter {iter_no}.")
                     
@@ -329,15 +334,61 @@ async def run_task(doi: str, test: bool = False):
         async with semaphore:
             await rl.wait()  # 1–2s spacing across tasks
             print(f"🔍 Extracting (iter {iter_no}) for entity '{label}'...")
+
+            # Pre-extraction for iter3: extract raw relevant text spans for this entity
+            source_text = paper
+            if iter_no == 3:
+                llm_out_dir = os.path.join(doi_dir, "llm_based_results")
+                os.makedirs(llm_out_dir, exist_ok=True)
+                entity_text_path = os.path.join(llm_out_dir, f"entity_text_{safe}.txt")
+
+                pre_text = ""
+                if os.path.exists(entity_text_path):
+                    try:
+                        with open(entity_text_path, "r", encoding="utf-8") as f:
+                            pre_text = f.read().strip()
+                    except Exception:
+                        pre_text = ""
+
+                if not pre_text:
+                    pre_goal = getattr(scopes_ns, "EXTRACTION_SCOPE_6_PRE_EXTRACTION", "")
+                    try:
+                        pre_text = await extract_content(
+                            paper_content=paper,
+                            goal=pre_goal,
+                            t_box=t_box,
+                            entity_label=label,
+                            entity_uri=uri,
+                            model_name=get_extraction_model("iter3_pre_extraction"),
+                        )
+                        try:
+                            with open(entity_text_path, "w", encoding="utf-8") as f:
+                                f.write(pre_text or "")
+                        except Exception:
+                            pass
+                    except Exception:
+                        pre_text = ""
+
+                if pre_text:
+                    source_text = pre_text
+
             hints = await extract_content(
-                paper_content=paper,
+                paper_content=source_text,
                 goal=scope_text,
-                t_box=t_box,
-                entity_label=label,
-                entity_uri=uri,
+                t_box="" if iter_no >= 3 else t_box,
+                entity_label=None if iter_no >= 3 else label,
+                entity_uri=None if iter_no >= 3 else uri,
+                model_name=(get_extraction_model("iter3_hints") if iter_no == 3 else get_extraction_model(f"iter{iter_no}_hints")),
             )
             _write_text(hint_file, hints)
             print(f"✅ Saved {hint_file}")
+            if iter_no == 3:
+                # Also persist a copy under step_type_only_extraction
+                extra_dir = os.path.join(doi_dir, "step_type_only_extraction")
+                os.makedirs(extra_dir, exist_ok=True)
+                extra_file = os.path.join(extra_dir, f"iter3_0_hints_{safe}.txt")
+                _write_text(extra_file, hints)
+                print(f"✅ Saved step-type-only copy to {extra_file}")
 
     for iter_no, scope_text in scopes:
         if iter_no == 1 or (test and iter_no != 2):
@@ -370,6 +421,99 @@ async def run_task(doi: str, test: bool = False):
         tasks = [asyncio.create_task(_extract_entity(iter_no, scope_text, e, sem, rate)) 
                  for e in jobs]
         await asyncio.gather(*tasks)
+    
+    # After iter3 completes, run iter3_1 to add detailed step information
+    # iter3_1 uses iter3 results + pre-extraction text to enrich the step types with full details
+    scope_3_1 = getattr(scopes_ns, "EXTRACTION_SCOPE_3_1", "")
+    if scope_3_1 and any(iter_no == 3 for iter_no, _ in scopes):
+        print("🔄 Running iter3_1 (detailed step enrichment)...")
+        
+        async def _enrich_iter3_entity(e: Dict[str, str], semaphore: asyncio.Semaphore, rl: RateLimiter):
+            label = e.get("label", "")
+            uri = e.get("uri", "")
+            safe = _safe_name(label)
+            
+            iter3_hint_file = os.path.join(hints_dir, f"iter3_hints_{safe}.txt")
+            iter3_1_done_marker = os.path.join(hints_dir, f"iter3_1_done_{safe}.marker")
+            
+            # Skip if iter3_1 already completed or iter3 hints don't exist
+            if os.path.exists(iter3_1_done_marker):
+                print(f"⏭️  Skip iter3_1 for '{label}': already enriched")
+                return
+            if not os.path.exists(iter3_hint_file):
+                print(f"⚠️  Skip iter3_1 for '{label}': iter3 hints not found")
+                return
+            
+            async with semaphore:
+                await rl.wait()
+                print(f"🔍 Running iter3_1 enrichment for entity '{label}'...")
+                
+                # Read iter3 step types
+                iter3_steps = _read_text(iter3_hint_file)
+
+                # Get pre-extraction text (required)
+                llm_out_dir = os.path.join(doi_dir, "llm_based_results")
+                entity_text_path = os.path.join(llm_out_dir, f"entity_text_{safe}.txt")
+                pre_text = ""
+                if os.path.exists(entity_text_path):
+                    try:
+                        pre_text = _read_text(entity_text_path)
+                    except Exception:
+                        pre_text = ""
+                if not pre_text:
+                    print(f"⚠️  Skip iter3_1 for '{label}': pre-extraction text not found")
+                    return
+                source_text = pre_text
+                
+                # Build enrichment prompt including iter3 step types as guidance
+                enrichment_prompt = f"{scope_3_1}\n\nEntity: {label}\n\nIter3 Step Types (for guidance):\n{iter3_steps}\n\nText:\n{source_text}"
+                
+                # Extract detailed steps
+                try:
+                    detailed_hints = await extract_content(
+                        paper_content=source_text,
+                        goal=enrichment_prompt,
+                        t_box="",
+                        entity_label=None,
+                        entity_uri=None,
+                        previous_extraction=iter3_steps,
+                        model_name=get_extraction_model("iter3_1_enrichment"),
+                    )
+
+                    # Overwrite iter3 hints with iter3_1 detailed results
+                    _write_text(iter3_hint_file, detailed_hints)
+                    # Create done marker
+                    _write_text(iter3_1_done_marker, "done")
+                    print(f"✅ Enriched iter3 hints for '{label}' with iter3_1 details")
+                except Exception as e:
+                    print(f"❌ Failed iter3_1 enrichment for '{label}': {e}")
+        
+        # Build job list for iter3_1
+        iter3_1_jobs: List[Dict[str, str]] = []
+        for e in top_entities:
+            label = e.get("label", "")
+            safe = _safe_name(label)
+            iter3_1_done_marker = os.path.join(hints_dir, f"iter3_1_done_{safe}.marker")
+            iter3_hint_file = os.path.join(hints_dir, f"iter3_hints_{safe}.txt")
+            
+            if os.path.exists(iter3_1_done_marker):
+                print(f"⏭️  Skip iter3_1 for '{label}': already enriched")
+                continue
+            if not os.path.exists(iter3_hint_file):
+                print(f"⚠️  Skip iter3_1 for '{label}': iter3 hints not found")
+                continue
+            iter3_1_jobs.append(e)
+        
+        if iter3_1_jobs:
+            print(f"🚦 Running iter3_1 enrichment for {len(iter3_1_jobs)} entities")
+            sem_3_1 = asyncio.Semaphore(8)
+            rate_3_1 = RateLimiter(1.0, 2.0)
+            tasks_3_1 = [asyncio.create_task(_enrich_iter3_entity(e, sem_3_1, rate_3_1)) 
+                         for e in iter3_1_jobs]
+            await asyncio.gather(*tasks_3_1)
+            print("✅ iter3_1 enrichment completed")
+        else:
+            print("⏭️  No entities require iter3_1 enrichment")
 
     if test:
         return
@@ -437,7 +581,210 @@ async def run_task(doi: str, test: bool = False):
                 print(f"❌ Failed to complete iter {iter_no} for entity '{label}' after retries: {e}")
 
 # -------------------- CLI --------------------
-async def run_task_iter1_only(doi: str, test: bool = False):
+async def run_task_hints_only(doi: str, start_iter: int = 2, end_iter: int = 4, include_iter3_1: bool = True):
+    """Generate ONLY hints for iterations in [start_iter, end_iter] and stop.
+
+    - Requires iteration 1 to have been completed (for top entities discovery).
+    - Does NOT run any per-entity execution step or iter3_1 enrichment.
+    - Skips already existing hint files.
+    """
+    doi_dir = os.path.join("data", doi)
+    md_path = os.path.join(doi_dir, f"{doi}_stitched.md")
+    if not os.path.exists(md_path):
+        print(f"Skipping {doi}: _stitched.md file not found")
+        return
+
+    paper = _read_text(md_path)
+    t_box = _discover_tbox(md_path)
+
+    scopes = collect_scopes(scopes_ns)
+    if not scopes:
+        print("No EXTRACTION_SCOPE_* found. Nothing to run.")
+        return
+
+    hints_dir = os.path.join(doi_dir, "mcp_run")
+    os.makedirs(hints_dir, exist_ok=True)
+
+    # Load top entities from iter1
+    entities_path = os.path.join(hints_dir, "iter1_top_entities.json")
+    top_entities: List[Dict[str, str]] = []
+    if os.path.exists(entities_path):
+        try:
+            with open(entities_path, "r", encoding="utf-8") as f:
+                top_entities = json.load(f)
+        except Exception:
+            top_entities = []
+    if not top_entities:
+        # Fallback: try to parse from output_top.ttl if available
+        top_entities = parse_top_level_entities(doi, output_file="output_top.ttl") or []
+    if not top_entities:
+        print("⚠️  No top entities available; cannot generate iter≥2 hints.")
+        return
+
+    # Build jobs for the requested iteration range and run hint extraction only
+    iters = [i for (i, _s) in scopes if start_iter <= i <= end_iter and i != 1]
+    if not iters:
+        print("Nothing to do: no iterations in requested range.")
+        return
+
+    async def _extract_entity(iter_no: int, scope_text: str, e: Dict[str, str],
+                              semaphore: asyncio.Semaphore, rl: RateLimiter):
+        label = e.get("label", "")
+        uri = e.get("uri", "")
+        safe = _safe_name(label)
+
+        response_file = os.path.join(hints_dir, f"iter{iter_no}_{safe}.md")
+        hint_file = os.path.join(hints_dir, f"iter{iter_no}_hints_{safe}.txt")
+        if os.path.exists(hint_file):
+            print(f"⏭️  Skip extraction iter {iter_no} for '{label}': {hint_file} exists")
+            return
+
+        async with semaphore:
+            await rl.wait()
+            try:
+                # Choose source text: for iter3 use pre-extraction text if available
+                source_text = paper
+                if iter_no == 3:
+                    llm_out_dir = os.path.join(doi_dir, "llm_based_results")
+                    entity_text_path = os.path.join(llm_out_dir, f"entity_text_{safe}.txt")
+                    if os.path.exists(entity_text_path):
+                        try:
+                            source_text = _read_text(entity_text_path)
+                        except Exception:
+                            source_text = paper
+                hints = await extract_content(
+                    paper_content=source_text,
+                    goal=scope_text,
+                    t_box="" if iter_no >= 3 else t_box,
+                    entity_label=None if iter_no >= 3 else (label or None),
+                    entity_uri=None if iter_no >= 3 else (uri or None),
+                    model_name=(get_extraction_model("iter3_hints") if iter_no == 3 else get_extraction_model(f"iter{iter_no}_hints")),
+                )
+                _write_text(hint_file, hints)
+                print(f"✅ Saved {hint_file}")
+                if iter_no == 3:
+                    extra_dir = os.path.join(doi_dir, "step_type_only_extraction")
+                    os.makedirs(extra_dir, exist_ok=True)
+                    extra_file = os.path.join(extra_dir, f"iter3_0_hints_{safe}.txt")
+                    _write_text(extra_file, hints)
+                    print(f"✅ Saved step-type-only copy to {extra_file}")
+            except RuntimeError as e:
+                print(f"❌ Failed to extract hints for iter {iter_no}, entity '{label}': {e}")
+
+    for iter_no, scope_text in scopes:
+        if iter_no not in iters:
+            continue
+        if not top_entities:
+            print(f"⚠️  No top entities for iter {iter_no}.")
+            continue
+
+        jobs: List[Dict[str, str]] = []
+        for e in top_entities:
+            label = e.get("label", "")
+            safe = _safe_name(label)
+            hint_file = os.path.join(hints_dir, f"iter{iter_no}_hints_{safe}.txt")
+            if os.path.exists(hint_file):
+                print(f"⏭️  Skip extraction iter {iter_no} for '{label}': {hint_file} exists")
+                continue
+            jobs.append(e)
+
+        if not jobs:
+            continue
+
+        print(f"🚦 Parallel extraction iter {iter_no} (hints only): {len(jobs)} entity jobs")
+        sem = asyncio.Semaphore(8)
+        rate = RateLimiter(1.0, 2.0)
+        tasks = [asyncio.create_task(_extract_entity(iter_no, scope_text, e, sem, rate)) for e in jobs]
+        await asyncio.gather(*tasks)
+
+    # Optionally run iter3_1 enrichment after iter3 hints are available
+    if include_iter3_1 and any(i == 3 for i in iters):
+        scope_3_1 = getattr(scopes_ns, "EXTRACTION_SCOPE_3_1", "")
+        if scope_3_1:
+            print("🔄 Running iter3_1 (detailed step enrichment)...")
+
+            async def _enrich_iter3_entity(e: Dict[str, str], semaphore: asyncio.Semaphore, rl: RateLimiter):
+                label = e.get("label", "")
+                uri = e.get("uri", "")
+                safe = _safe_name(label)
+
+                iter3_hint_file = os.path.join(hints_dir, f"iter3_hints_{safe}.txt")
+                iter3_1_done_marker = os.path.join(hints_dir, f"iter3_1_done_{safe}.marker")
+
+                if os.path.exists(iter3_1_done_marker):
+                    print(f"⏭️  Skip iter3_1 for '{label}': already enriched")
+                    return
+                if not os.path.exists(iter3_hint_file):
+                    print(f"⚠️  Skip iter3_1 for '{label}': iter3 hints not found")
+                    return
+
+                async with semaphore:
+                    await rl.wait()
+                    print(f"🔍 Running iter3_1 enrichment for entity '{label}'...")
+
+                    iter3_steps = _read_text(iter3_hint_file)
+
+                    llm_out_dir = os.path.join(doi_dir, "llm_based_results")
+                    entity_text_path = os.path.join(llm_out_dir, f"entity_text_{safe}.txt")
+                    pre_text = ""
+                    if os.path.exists(entity_text_path):
+                        try:
+                            pre_text = _read_text(entity_text_path)
+                        except Exception:
+                            pre_text = ""
+
+                    if not pre_text:
+                        print(f"⚠️  Skip iter3_1 for '{label}': pre-extraction text not found")
+                        return
+                    source_text = pre_text
+
+                    enrichment_prompt = f"{scope_3_1}\n\nEntity: {label}\n\nIter3 Step Types (for guidance):\n{iter3_steps}\n\nText:\n{source_text}"
+
+                    try:
+                        detailed_hints = await extract_content(
+                            paper_content=source_text,
+                            goal=enrichment_prompt,
+                            t_box="",
+                            entity_label=None,
+                            entity_uri=None,
+                            previous_extraction=iter3_steps,
+                            model_name=get_extraction_model("iter3_1_enrichment"),
+                        )
+                        _write_text(iter3_hint_file, detailed_hints)
+                        _write_text(iter3_1_done_marker, "done")
+                        print(f"✅ Enriched iter3 hints for '{label}' with iter3_1 details")
+                    except Exception as e:
+                        print(f"❌ Failed iter3_1 enrichment for '{label}': {e}")
+
+            # Build enrichment jobs
+            iter3_1_jobs: List[Dict[str, str]] = []
+            for e in top_entities:
+                label = e.get("label", "")
+                safe = _safe_name(label)
+                iter3_1_done_marker = os.path.join(hints_dir, f"iter3_1_done_{safe}.marker")
+                iter3_hint_file = os.path.join(hints_dir, f"iter3_hints_{safe}.txt")
+                if os.path.exists(iter3_1_done_marker):
+                    print(f"⏭️  Skip iter3_1 for '{label}': already enriched")
+                    continue
+                if not os.path.exists(iter3_hint_file):
+                    print(f"⚠️  Skip iter3_1 for '{label}': iter3 hints not found")
+                    continue
+                iter3_1_jobs.append(e)
+
+            if iter3_1_jobs:
+                print(f"🚦 Running iter3_1 enrichment for {len(iter3_1_jobs)} entities")
+                sem_3_1 = asyncio.Semaphore(8)
+                rate_3_1 = RateLimiter(1.0, 2.0)
+                tasks_3_1 = [asyncio.create_task(_enrich_iter3_entity(e, sem_3_1, rate_3_1)) for e in iter3_1_jobs]
+                await asyncio.gather(*tasks_3_1)
+                print("✅ iter3_1 enrichment completed")
+            else:
+                print("⏭️  No entities require iter3_1 enrichment")
+
+    print("✅ Hints-only generation completed.")
+
+
+async def run_task_iter1_only(doi: str, test: bool = False, test_iteration_num: int | None = None):
     """Run only iteration 1 for the given DOI folder and emit iteration_1.ttl.
     Also writes iter1_top_entities.json for downstream steps.
     """
@@ -468,20 +815,98 @@ async def run_task_iter1_only(doi: str, test: bool = False):
     response_file_1 = os.path.join(hints_dir, "iter1_response.md")
     hint_file_1 = os.path.join(hints_dir, f"iter{i1}_hints.txt")
 
-    if os.path.exists(hint_file_1):
-        print(f"⏭️  Skip extraction iter {i1}: {hint_file_1} exists")
-        hints1 = _read_text(hint_file_1)
+    # If test_iteration_num is provided, perform N separate runs for hints and top entities
+    if isinstance(test_iteration_num, int) and test_iteration_num > 0:
+        test_dir = os.path.join(doi_dir, "iter1_test_results")
+        os.makedirs(test_dir, exist_ok=True)
+
+        first_hints: str | None = None
+        last_top_entities = []
+        def _cleanup_between_runs():
+            # Remove memory directories and TTL files under doi_dir
+            try:
+                for entry in os.listdir(doi_dir):
+                    p = os.path.join(doi_dir, entry)
+                    if os.path.isdir(p) and entry.startswith("memory"):
+                        shutil.rmtree(p, ignore_errors=True)
+                    elif os.path.isfile(p) and p.lower().endswith(".ttl"):
+                        try:
+                            os.remove(p)
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+
+        for i in range(1, test_iteration_num + 1):
+            if i > 1:
+                print("🧹 Cleaning memory and TTLs before next test run...")
+                _cleanup_between_runs()
+            print(f"🔍 Extracting hints for iteration {i1} (run {i})...")
+            hints_i = await extract_content(
+                paper_content=paper,
+                goal=scope_text_1,
+                t_box=t_box,
+                entity_label=None,
+                entity_uri=None,
+                model_name=get_extraction_model("iter1_hints"),
+            )
+            if first_hints is None:
+                first_hints = hints_i
+            _write_text(os.path.join(test_dir, f"iter1_hints_{i}.txt"), hints_i)
+
+            if i1 not in prompt_map:
+                print("⚠️  No prompt for iteration 1; skipping agent execution for test run")
+            else:
+                instr_i = format_prompt(
+                    prompt_map[i1],
+                    doi=doi,
+                    iteration=i1,
+                    paper_content=hints_i,
+                )
+                print("🚀 Running iteration 1 agent (test run)...")
+                write_global_state(doi, "top")
+                agent1 = _agent(tools=["llm_created_mcp"])
+                try:
+                    resp1, _ = await _run_agent_with_retry(agent1, instr_i, max_retries=3, recursion_limit=600)
+                    _write_text(response_file_1, f"# Iteration {i1} (test run {i})\n\n## Instruction\n\n{instr_i}\n\n## Response\n\n{resp1}")
+                    out_local = os.path.join(doi_dir, "output.ttl")
+                    top_local = os.path.join(doi_dir, "output_top.ttl")
+                    if os.path.exists(out_local):
+                        shutil.copy2(out_local, os.path.join(doi_dir, "iteration_1.ttl"))
+                    elif os.path.exists(top_local):
+                        shutil.copy2(top_local, os.path.join(doi_dir, "iteration_1.ttl"))
+                except RuntimeError as e:
+                    log.error(f"Failed to complete iteration 1 test run after retries: {e}")
+                    print(f"❌ Failed to complete iteration 1 test run after retries: {e}")
+
+            # Parse and write per-test top entities
+            last_top_entities = parse_top_level_entities(doi, output_file="output_top.ttl") or []
+            _write_text(os.path.join(test_dir, f"iter1_top_entities_{i}.json"), json.dumps(last_top_entities, indent=2))
+
+        # Ensure baseline outputs exist (non-numbered)
+        if not os.path.exists(hint_file_1) and first_hints is not None:
+            _write_text(hint_file_1, first_hints)
+            print(f"✅ Saved baseline hints to {hint_file_1}")
+        _write_text(os.path.join(hints_dir, "iter1_top_entities.json"), json.dumps(last_top_entities, indent=2))
+        print("✅ Iteration 1 test runs completed.")
+        return
     else:
-        print(f"🔍 Extracting hints for iteration {i1} (global)...")
-        hints1 = await extract_content(
-            paper_content=paper,
-            goal=scope_text_1,
-            t_box=t_box,
-            entity_label=None,
-            entity_uri=None,
-        )
-        _write_text(hint_file_1, hints1)
-        print(f"✅ Saved hints to {hint_file_1}")
+        # Default single-run behavior
+        if os.path.exists(hint_file_1):
+            print(f"⏭️  Skip extraction iter {i1}: {hint_file_1} exists")
+            hints1 = _read_text(hint_file_1)
+        else:
+            print(f"🔍 Extracting hints for iteration {i1} (global)...")
+            hints1 = await extract_content(
+                paper_content=paper,
+                goal=scope_text_1,
+                t_box=t_box,
+                entity_label=None,
+                entity_uri=None,
+                model_name=get_extraction_model("iter1_hints"),
+            )
+            _write_text(hint_file_1, hints1)
+            print(f"✅ Saved hints to {hint_file_1}")
 
     if i1 not in prompt_map:
         print("⚠️  No prompt for iteration 1; stopping.")

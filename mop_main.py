@@ -4,6 +4,11 @@ MOPs Extraction Pipeline
 Default run will process all DOI folders in the data directory.
 --test mode will only run the test DOI and complete the full pipeline.
 --file <doi> mode will only run the specified DOI and complete the full pipeline.
+--extraction-only mode will run the same extraction sequence as the regular pipeline for all hashes, stopping after iter4 hints and iter3_1 enrichment are created (includes PDF conversion and division, stops before final TTL generation).
+--iter1 mode will run the complete iteration 1 process (hints, TTL, JSON) for each hash, then proceed to next.
+--iter2 mode will run until iter2_hints_<entity>.txt files are created for each hash, then proceed to next.
+--iter3 mode will run until iter3_hints_<entity>.txt files are created for each hash, then proceed to next.
+--iter4 mode will run until iter4_hints_<entity>.txt files are created for each hash, then proceed to next.
 
 # Full Pipeline
 
@@ -33,7 +38,7 @@ import sys
 import os
 import json
 import hashlib
-from src.utils.pipeline import run_pipeline_for_hash, run_pipeline_for_all_hashes
+from src.utils.pipeline import run_pipeline_for_hash, run_pipeline_for_all_hashes, run_extraction_only_for_all_hashes, run_iter1_for_all_hashes, run_iter2_for_all_hashes, run_iter3_for_all_hashes, run_iter4_for_all_hashes
 from models.locations import RAW_DATA_DIR
 
 TEST_FILE_DOI = "10.1021.acs.chemmater.0c01965"
@@ -63,24 +68,31 @@ def create_doi_mapping(doi, doi_hash):
     
     print(f"Updated DOI mapping: {doi} -> {doi_hash}")
 
-def discover_and_create_mappings():
-    """Discover all DOIs from raw_data directory and create mappings."""
-    if not os.path.exists(RAW_DATA_DIR):
-        print(f"Raw data directory not found: {RAW_DATA_DIR}")
+def discover_and_create_mappings(input_dir: str | None = None):
+    """Discover all DOIs from an input directory and create mappings.
+    If input_dir is None, defaults to RAW_DATA_DIR.
+    """
+    base_dir = input_dir or RAW_DATA_DIR
+    if not os.path.exists(base_dir):
+        print(f"Raw data directory not found: {base_dir}")
         return False
     
     # Get all PDF files in raw_data directory (deterministic order)
+    try:
+        entries = os.listdir(base_dir)
+    except Exception as e:
+        print(f"Failed to list directory {base_dir}: {e}")
+        return False
     pdf_files = sorted(
-        [f for f in os.listdir(RAW_DATA_DIR)
-         if f.endswith('.pdf') and not f.endswith('_si.pdf')],
+        [f for f in entries if f.endswith('.pdf') and not f.endswith('_si.pdf')],
         key=lambda s: s.lower()
     )
     
     if not pdf_files:
-        print(f"No PDF files found in {RAW_DATA_DIR}")
+        print(f"No PDF files found in {base_dir}")
         return False
     
-    print(f"Found {len(pdf_files)} DOI PDF files in raw_data directory")
+    print(f"Found {len(pdf_files)} DOI PDF files in {base_dir}")
     print("Creating DOI to hash mappings...")
     
     # Extract DOIs from PDF filenames and create mappings
@@ -100,6 +112,22 @@ def main():
                        help='Run pipeline for test DOI only')
     parser.add_argument('--file', type=str, 
                        help='Run pipeline for specific DOI')
+    parser.add_argument('--extraction-only', action='store_true',
+                       help='Run the same extraction sequence as the regular pipeline for all hashes, stopping after iter4 hints and iter3_1 enrichment are created (includes PDF conversion and division, stops before final TTL generation)')
+    parser.add_argument('--iter1', action='store_true',
+                       help='Run the complete iteration 1 process (hints, TTL, JSON) for each hash, then proceed to next')
+    parser.add_argument('--iter2', action='store_true',
+                       help='Run until iter2_hints_<entity>.txt files are created for each hash, then proceed to next')
+    parser.add_argument('--iter3', action='store_true',
+                       help='Run until iter3_hints_<entity>.txt files are created for each hash, then proceed to next')
+    parser.add_argument('--iter4', action='store_true',
+                       help='Run until iter4_hints_<entity>.txt files are created for each hash, then proceed to next')
+    parser.add_argument('--input-dir', type=str,
+                       help='Directory containing input DOI PDFs (defaults to RAW_DATA_DIR)')
+    parser.add_argument('--cache', action='store_true',
+                       help='Enable content-based caching for extraction and organic derivation')
+    parser.add_argument('--num', dest='num', type=int,
+                       help='For --iter1/--iter2 test runs: if N, perform N separate runs and write iter1_test_results/*_1..N or iter2_test_results/*_1..N files')
     
     args = parser.parse_args()
     
@@ -107,20 +135,103 @@ def main():
         doi_hash = generate_hash(TEST_FILE_DOI)
         create_doi_mapping(TEST_FILE_DOI, doi_hash)
         print(f"Running in test mode with DOI hash: {doi_hash}")
-        success = run_pipeline_for_hash(doi_hash, test_mode=True)
+        success = run_pipeline_for_hash(doi_hash, test_mode=True, cache_enabled=args.cache)
+    elif args.iter1:
+        print("Running until iter1_hints.txt is created for each hash")
+        # First, discover DOIs and create mappings
+        if not discover_and_create_mappings(args.input_dir):
+            print("\n❌ Failed to discover DOIs and create mappings!")
+            sys.exit(1)
+        # Optional: restrict to a single hash via --file
+        only_hash: str | None = None
+        if args.file:
+            file_arg = (args.file or "").strip()
+            def _is_hash(s: str) -> bool:
+                if len(s) != 8:
+                    return False
+                hexdigits = set("0123456789abcdefABCDEF")
+                return all(ch in hexdigits for ch in s)
+            if _is_hash(file_arg):
+                only_hash = file_arg
+            else:
+                only_hash = generate_hash(file_arg)
+                create_doi_mapping(file_arg, only_hash)
+        # Force extraction model to gpt-4.1 for iter1
+        os.environ["MOPS_EXTRACTION_MODEL"] = "gpt-4.1"
+        success = run_iter1_for_all_hashes(test_mode=False, input_dir=args.input_dir, cache_enabled=args.cache, iter1_test_num=args.num, only_hash=only_hash)
+    elif args.iter2:
+        print("Running until iter2_hints.txt is created for each hash")
+        # First, discover DOIs and create mappings
+        if not discover_and_create_mappings(args.input_dir):
+            print("\n❌ Failed to discover DOIs and create mappings!")
+            sys.exit(1)
+        # Optional: restrict to a single hash via --file
+        only_hash: str | None = None
+        if args.file:
+            file_arg = (args.file or "").strip()
+            def _is_hash(s: str) -> bool:
+                if len(s) != 8:
+                    return False
+                hexdigits = set("0123456789abcdefABCDEF")
+                return all(ch in hexdigits for ch in s)
+            if _is_hash(file_arg):
+                only_hash = file_arg
+            else:
+                only_hash = generate_hash(file_arg)
+                create_doi_mapping(file_arg, only_hash)
+        # Then run iter2 for all hashes
+        # Force extraction model to gpt-4.1 for iter2
+        os.environ["MOPS_EXTRACTION_MODEL"] = "gpt-4.1"
+        success = run_iter2_for_all_hashes(test_mode=False, input_dir=args.input_dir, cache_enabled=args.cache, iter2_test_num=args.num, only_hash=only_hash, extraction_only=args.extraction_only)
+    elif args.iter3:
+        print("Running until iter3_hints.txt is created for each hash")
+        # First, discover DOIs and create mappings
+        if not discover_and_create_mappings(args.input_dir):
+            print("\n❌ Failed to discover DOIs and create mappings!")
+            sys.exit(1)
+        # Then run iter3 for all hashes
+        success = run_iter3_for_all_hashes(test_mode=False, input_dir=args.input_dir, cache_enabled=args.cache)
+    elif args.iter4:
+        print("Running until iter4_hints.txt is created for each hash")
+        # First, discover DOIs and create mappings
+        if not discover_and_create_mappings(args.input_dir):
+            print("\n❌ Failed to discover DOIs and create mappings!")
+            sys.exit(1)
+        # Then run iter4 for all hashes
+        success = run_iter4_for_all_hashes(test_mode=False, input_dir=args.input_dir, cache_enabled=args.cache)
     elif args.file:
-        doi_hash = generate_hash(args.file)
-        create_doi_mapping(args.file, doi_hash)
-        print(f"Running pipeline for specified DOI hash: {doi_hash}")
-        success = run_pipeline_for_hash(doi_hash, test_mode=False)
+        # Allow --file to accept either a DOI or an 8-char hash
+        file_arg = (args.file or "").strip()
+        def _is_hash(s: str) -> bool:
+            if len(s) != 8:
+                return False
+            hexdigits = set("0123456789abcdefABCDEF")
+            return all(ch in hexdigits for ch in s)
+
+        if _is_hash(file_arg):
+            doi_hash = file_arg
+            print(f"Running pipeline for specified DOI hash: {doi_hash}")
+        else:
+            doi_hash = generate_hash(file_arg)
+            create_doi_mapping(file_arg, doi_hash)
+            print(f"Running pipeline for specified DOI (mapped hash): {doi_hash}")
+        success = run_pipeline_for_hash(doi_hash, test_mode=False, cache_enabled=args.cache)
+    elif args.extraction_only:
+        print("Running extraction for all hashes with minimal preprocessing")
+        # First, discover DOIs and create mappings
+        if not discover_and_create_mappings(args.input_dir):
+            print("\n❌ Failed to discover DOIs and create mappings!")
+            sys.exit(1)
+        # Then run extraction with minimal preprocessing for all hashes
+        success = run_extraction_only_for_all_hashes(test_mode=False, input_dir=args.input_dir, cache_enabled=args.cache)
     else:
         print("Running pipeline for all DOIs")
         # First, discover DOIs and create mappings
-        if not discover_and_create_mappings():
+        if not discover_and_create_mappings(args.input_dir):
             print("\n❌ Failed to discover DOIs and create mappings!")
             sys.exit(1)
         # Then run the pipeline for all hashes
-        success = run_pipeline_for_all_hashes(test_mode=False)
+        success = run_pipeline_for_all_hashes(test_mode=False, input_dir=args.input_dir, cache_enabled=args.cache)
     
     if success:
         print("\n🎉 Pipeline execution completed successfully!")
