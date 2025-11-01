@@ -1,17 +1,6 @@
-STEP_NAME_ONLY_PROMPT = """
-You are an expert at extracting synthesis steps from chemistry texts. Analyze the provided synthesis text for the entity and output ONLY a strict JSON object in this exact format:
-
-{
-  "entity_label": "ENTITY_NAME",
-  "steps": [
-    {"step": "StepType1", "reason": "Brief explanation for why this step was chosen"},
-    {"step": "StepType2", "reason": "Brief explanation for why this step was chosen"}
-  ]
-}
-
+# Core step extraction rules (shared between JSON and text output formats)
+STEP_EXTRACTION_CORE_RULES = """
 Use only these verbatim step names: Add, Stir, Dissolve, HeatChill, Filter, Transfer, Separate, Dry, Evaporate, Sonicate, Crystallize. Preserve the original sequential order of actions. Treat each distinct action as one step; split multi-action sentences into separate steps. Aim for 5-15 steps, prioritizing high recall for Add and explicit actions to avoid missing steps, especially in the first few. Do not invent, merge, or duplicate steps.
-
-Output ONLY the JSON object as specified. No code fences, no extra text, no commentary.
 
 RULES:
 
@@ -81,8 +70,43 @@ CRYSTALLIZE:
 
 STRICT RULE:
 For every input for the synthesis, you add a separate "Add". Here "input" means chemical substances only (reagents, solvents, solutions/mixtures). Do not treat vessels, caps, seals, atmospheres, or equipment as inputs.
+"""
 
-Output ONLY the JSON object as specified above. No code fences, no extra text.
+# JSON output format for step extraction
+STEP_EXTRACTION_JSON_OUTPUT = """
+Output ONLY a strict JSON object in this exact format:
+
+{
+  "entity_label": "ENTITY_NAME",
+  "steps": [
+    {"step": "StepType1", "reason": "Brief explanation for why this step was chosen"},
+    {"step": "StepType2", "reason": "Brief explanation for why this step was chosen"}
+  ]
+}
+
+Output ONLY the JSON object as specified. No code fences, no extra text, no commentary.
+"""
+
+# Text output format for step extraction
+STEP_EXTRACTION_TEXT_OUTPUT = """
+Output format (plain text only):
+Entity: <exact entity_label>
+
+Steps:
+1) <step_type>
+2) <step_type>
+3) <step_type>
+
+Output ONLY the numbered list. No JSON, no code fences, no explanations.
+"""
+
+# Assembled prompt for JSON output (used in tests/step_extraction)
+STEP_NAME_ONLY_PROMPT = f"""
+You are an expert at extracting synthesis steps from chemistry texts. Analyze the provided synthesis text for the entity.
+
+{STEP_EXTRACTION_JSON_OUTPUT}
+
+{STEP_EXTRACTION_CORE_RULES}
 """
  
 # STEP_NAME_ONLY_PROMPT = """
