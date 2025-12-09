@@ -9,6 +9,7 @@ from models.locations import DATA_CCDC_DIR, DATA_DIR
 import os
 import asyncio
 import json
+import csv
 from models.LLMCreator import LLMCreator
 import sys
 import hashlib
@@ -31,15 +32,16 @@ from src.agents.mops.cbu_derivation.utils.cbu_general import (
     load_res_file as util_load_res_file,
     load_cif_file as util_load_cif_file,
 )
-from src.agents.mops.cbu_derivation.cbu_derivation_prompts import (
-    INSTRUCTION_PROMPT_ENHANCED_3,
-    INSTRUCTION_PROMPT_ENHANCED_3_WITH_CBU,
+from src.agents.mops.cbu_derivation.prompts.metal_prompts import (
+    metal_prompt_doi_found,
+    metal_prompt_doi_not_found,
 )
 
 
 class CBUDerivationAgent:
-    def __init__(self, doi: str, concentrate: bool = False, cbu_model: str = "gpt-5-mini", use_cbu_database: bool = True):
-        self.model_config = ModelConfig(temperature=0.0, top_p=0.02)
+    def __init__(self, doi: str, concentrate: bool = False, cbu_model: str = "gpt-5", use_cbu_database: bool = True):
+        # Note: gpt-5 only supports temperature=1.0 (default), not 0.0
+        self.model_config = ModelConfig(temperature=1.0, top_p=0.02)
         self.logger = get_logger("agent", "CBUDerivationAgent")
         self.llm_creator_gpt_5 = LLMCreator(model=cbu_model, remote_model=True, model_config=self.model_config, structured_output=False, structured_output_schema=None)
         self.llm_creator_gpt_4_1 = LLMCreator(model="gpt-4.1", remote_model=True, model_config=self.model_config, structured_output=False, structured_output_schema=None)
@@ -49,6 +51,9 @@ class CBUDerivationAgent:
         # Resolve hash for DOI or pre-hashed identifier
         self.hash_value = resolve_identifier_to_hash(doi)
         self.use_cbu_database = use_cbu_database
+        # Resolve canonical DOI (with '/') for CSV lookup
+        self.canonical_doi = self._resolve_canonical_doi(doi)
+        self.doi_in_cbu_db = self._is_doi_in_cbu_database(self.canonical_doi)
         
         # Load CBU database if requested
         if self.use_cbu_database:
@@ -72,26 +77,16 @@ class CBUDerivationAgent:
         cif_content = util_load_cif_file(ccdc_number)
         paper_content = (paper_content or "").strip()
         
-        # Choose prompt based on whether CBU database is being used
-        if self.use_cbu_database and provide_cbu_db:
-            prompt = INSTRUCTION_PROMPT_ENHANCED_3_WITH_CBU.format(
-                res_content=res_content, 
-                cif_content=cif_content, 
-                paper_content=paper_content,
-                existing_cbu_database=self.cbu_database_text
-            )
-        else:
-            prompt = INSTRUCTION_PROMPT_ENHANCED_3.format(
-                res_content=res_content, 
-                cif_content=cif_content, 
-                paper_content=paper_content
-            )
-
-        # Emphasize fallback: if similarity to existing CBUs is low, output the explicit metal CBU directly
-        prompt = (
-            f"{prompt}\n\n"
-            "Important: If the similarity between any existing CBU and the target is low, "
-            "you must directly output the explicit metal CBU you derive."
+        # Build two full prompts based on DOI presence
+        # Select prompt template
+        tmpl = metal_prompt_doi_found if (self.use_cbu_database and provide_cbu_db and self.doi_in_cbu_db) else metal_prompt_doi_not_found
+        # Fill variables
+        prompt = tmpl.format(
+            res_content=res_content,
+            cif_content=cif_content,
+            paper_content=paper_content,
+            existing_cbu_database=self.cbu_database_text,
+            canonical_doi=self.canonical_doi,
         )
 
         # Append entity TTL content without changing the core prompt semantics
@@ -101,6 +96,57 @@ class CBUDerivationAgent:
         # Return both prompt and response for I/O writing by caller
         response = self.llm_gpt_5.invoke(prompt).content
         return prompt, response
+
+    @staticmethod
+    def _resolve_canonical_doi(identifier: str) -> str:
+        """Resolve the canonical DOI with '/' using data/doi_to_hash.json when needed.
+        Accepts either a DOI (with '/' or '_') or a hash; falls back to identifier.
+        """
+        ident = (identifier or "").strip()
+        # If looks like DOI already
+        if "/" in ident:
+            return ident
+        # Convert underscore form
+        if "_" in ident and ident.count("_") >= 2:
+            return ident.replace("_", "/")
+        # Try reverse lookup via mapping
+        try:
+            mapping_path = os.path.join('data', 'doi_to_hash.json')
+            if os.path.exists(mapping_path):
+                import json as _json
+                with open(mapping_path, 'r', encoding='utf-8') as mf:
+                    mp = _json.load(mf) or {}
+                for doi, hv in mp.items():
+                    if hv == resolve_identifier_to_hash(ident):
+                        # mapping stores underscores; convert to slash form
+                        return doi.replace("_", "/")
+        except Exception:
+            pass
+        return ident
+
+    @staticmethod
+    def _is_doi_in_cbu_database(canonical_doi: str) -> bool:
+        """Scan CSV at data/ontologies/full_cbus_with_canonical_smiles_updated.csv to see if DOI appears in kg_dois."""
+        if not canonical_doi:
+            return False
+        csv_path = os.path.join(DATA_DIR, 'ontologies', 'full_cbus_with_canonical_smiles_updated.csv')
+        if not os.path.exists(csv_path):
+            return False
+        doi_lc = canonical_doi.strip().lower()
+        try:
+            with open(csv_path, 'r', encoding='utf-8') as cf:
+                reader = csv.DictReader(cf)
+                for row in reader:
+                    field = (row.get('kg_dois') or '').lower()
+                    if not field:
+                        continue
+                    # split by semicolon; trim
+                    for item in field.split(';'):
+                        if doi_lc == item.strip():
+                            return True
+        except Exception:
+            return False
+        return False
 
 
 def process_single_ccdc(doi: str, mop_ccdc_number: str, cbu_model: str, output_lock, use_cbu_database: bool = True):
@@ -289,17 +335,44 @@ if __name__ == "__main__":
                         except Exception as _e:
                             print(f"[{label}] Failed to fetch RES/CIF for {ccdc}: {_e}")
                     paper = util_load_extraction(hv, label)
-                    # up to 2 attempts if empty output
-                    attempt = 0
-                    prompt_text, resp = "", ""
-                    while attempt < 2:
+                    # Retry mechanism: up to 3 attempts for valid metal CBU formula
+                    max_retries = 3
+                    resp = ""
+                    prompt_text = ""
+                    only_formula = ""
+                    
+                    for attempt in range(1, max_retries + 1):
                         provide_db = (not args.ablation)
                         prompt_text, resp = asyncio.run(agent.run(ccdc, paper, ttl, provide_cbu_db=provide_db))
-                        only_formula_tmp = (lambda s: __import__('re').search(r"Metal\s*CBU:\s*([^\n\r]+)", s or '', __import__('re').IGNORECASE) or __import__('re').search(r"(\[[^\n\r\]]+\])", s or '') )
                         has_content = bool((resp or '').strip())
+                        
                         if has_content:
-                            break
-                        attempt += 1
+                            # Extract formula to validate it
+                            def _extract_cbu_formula_temp(model_response: str) -> str:
+                                import re as _re
+                                txt = (model_response or "").strip()
+                                # Prefer bracketed formula
+                                m2 = _re.search(r"(\[[^\n\r\]]+\])", txt)
+                                if m2:
+                                    return m2.group(1).strip()
+                                m = _re.search(r"Metal\s*CBU:\s*([^\n\r]+)", txt, _re.IGNORECASE)
+                                if m:
+                                    return m.group(1).strip()
+                                return txt
+                            
+                            only_formula = _extract_cbu_formula_temp(resp)
+                            # Check if we got a valid bracketed formula
+                            if only_formula and '[' in only_formula and ']' in only_formula:
+                                print(f"✓ Successfully derived metal CBU for {label} (attempt {attempt})")
+                                break
+                            elif attempt < max_retries:
+                                print(f"⚠️  Attempt {attempt}/{max_retries} returned invalid formula for {label}, retrying...")
+                            else:
+                                print(f"⚠️  Failed to derive valid metal CBU after {max_retries} attempts for {label}")
+                        elif attempt < max_retries:
+                            print(f"⚠️  Attempt {attempt}/{max_retries} returned empty response for {label}, retrying...")
+                        else:
+                            print(f"⚠️  All {max_retries} attempts returned empty for {label}")
                     from src.agents.mops.cbu_derivation.utils.metal_cbu import safe_name as _safe
                     # write prompt record under prompts subfolder
                     prompts_dir = os.path.join(out_dir, "prompts")
@@ -307,58 +380,64 @@ if __name__ == "__main__":
                     prompt_file = os.path.join(prompts_dir, f"{_safe(label)}_prompt{'_without_cbu' if args.ablation else ''}.md")
                     with open(prompt_file, 'w', encoding='utf-8') as pf:
                         pf.write(prompt_text)
-                    # extract final-only formula and write structured/<entity>.txt
-                    def _extract_cbu_formula(model_response: str) -> str:
+                    
+                    # If no valid formula extracted in retry loop, do one more attempt to extract anything
+                    if not only_formula or '[' not in only_formula:
+                        def _extract_cbu_formula(model_response: str) -> str:
+                            import re as _re
+                            txt = (model_response or "").strip()
+                            # Prefer bracketed formula; fall back to text after 'Metal CBU:'
+                            m2 = _re.search(r"(\[[^\n\r\]]+\])", txt)
+                            if m2:
+                                return m2.group(1).strip()
+                            m = _re.search(r"Metal\s*CBU:\s*([^\n\r]+)", txt, _re.IGNORECASE)
+                            if m:
+                                return m.group(1).strip()
+                            return txt
+                        only_formula = _extract_cbu_formula(resp)
+                    
+                    # Enforce bracketed-only formula (strip any commentary after the bracket)
+                    try:
                         import re as _re
-                        txt = (model_response or "").strip()
-                        m = _re.search(r"Metal\s*CBU:\s*([^\n\r]+)", txt, _re.IGNORECASE)
-                        if m:
-                            return m.group(1).strip()
-                        m2 = _re.search(r"(\[[^\n\r\]]+\])", txt)
-                        return m2.group(1).strip() if m2 else txt
-                    only_formula = _extract_cbu_formula(resp)
+                        mm = _re.search(r"(\[[^\]]+\])", only_formula)
+                        if mm:
+                            only_formula = mm.group(1).strip()
+                        else:
+                            only_formula = only_formula.strip()
+                    except Exception:
+                        only_formula = (only_formula or "").strip()
+                    # Validate final-only formula
+                    def _is_valid_formula_block(s: str) -> bool:
+                        if not s or not isinstance(s, str):
+                            return False
+                        t = s.strip()
+                        return t.startswith("[") and ("]" in t)
+
                     structured_dir = os.path.join(out_dir, "structured")
                     os.makedirs(structured_dir, exist_ok=True)
                     final_txt = os.path.join(structured_dir, f"{_safe(label)}.txt")
-                    with open(final_txt, 'w', encoding='utf-8') as ff:
-                        ff.write(only_formula)
+                    if _is_valid_formula_block(only_formula):
+                        with open(final_txt, 'w', encoding='utf-8') as ff:
+                            ff.write(only_formula)
+                    else:
+                        print(f"[{i}/{len(entities)}] {label}: invalid formula block, skipping write")
 
                     # Persist per-entity JSON for selector
                     try:
                         cbu_json_path = os.path.join(structured_dir, f"{_safe(label)}.json")
-                        with open(cbu_json_path, 'w', encoding='utf-8') as jf:
-                            json.dump({
-                                "metal_cbu": only_formula,
-                                "entity_label": label,
-                                "ccdc": ccdc
-                            }, jf, indent=2, ensure_ascii=False)
+                        if _is_valid_formula_block(only_formula):
+                            with open(cbu_json_path, 'w', encoding='utf-8') as jf:
+                                json.dump({
+                                    "metal_cbu": only_formula,
+                                    "entity_label": label,
+                                    "ccdc": ccdc
+                                }, jf, indent=2, ensure_ascii=False)
+                        else:
+                            print(f"[{i}/{len(entities)}] {label}: invalid formula block, skipping JSON write")
                     except Exception:
                         pass
 
-                    # Run auxiliary GPT-5 to choose ontomops:ChemicalBuildingUnit IRI
-                    try:
-                        iri_prompt = (
-                            "Select the best-matching ontomops:ChemicalBuildingUnit IRI.\n"
-                            "Respond with ONLY the chosen IRI, nothing else.\n\n"
-                            "OntoMOPs A-Box (TTL):\n" + (ttl or "") + "\n\n"
-                            "Metal CBU JSON:\n" + json.dumps({
-                                "metal_cbu": only_formula,
-                                "entity_label": label,
-                                "ccdc": ccdc
-                            }, ensure_ascii=False, indent=2)
-                        )
-                        selector_llm = LLMCreator(model="gpt-5", remote_model=True, model_config=ModelConfig(temperature=0.0, top_p=0.02)).setup_llm()
-                        iri_choice = (selector_llm.invoke(iri_prompt).content or "").strip()
-                        iri_file = os.path.join(structured_dir, f"{_safe(label)}_iri.txt")
-                        with open(iri_file, 'w', encoding='utf-8') as wf:
-                            wf.write(iri_choice)
-                    except Exception:
-                        try:
-                            iri_file = os.path.join(structured_dir, f"{_safe(label)}_iri.txt")
-                            with open(iri_file, 'w', encoding='utf-8') as wf:
-                                wf.write("")
-                        except Exception:
-                            pass
+                    # Skip IRI selection here; integration step will select/update CBUs using root TTL context
 
                     print(f"[{i}/{len(entities)}] {label}: OK → structured outputs (+ prompt)")
                 except Exception as e:

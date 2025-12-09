@@ -8,6 +8,13 @@ from src.utils.global_logger import get_logger
 EXTRACTION_PROMPT = """
 You are a domain-agnostic extractor. Extract only what is needed for the EXTACTION_SCOPE, no derivations.
 
+**CRITICAL**: You are only allowed to output markdown content. In no circumstances 
+you should output rdf, turtle, or any other format. markdown content ONLY. 
+
+**CRITICAL**: You must strictly follow the Focus on the task and not include 
+any other content. Especially when top level entity is provided, you must strictly 
+only provide information for the top level entity. ()
+
 CONSTRAINTS
 - ASCII only.
 - Include exact source text fragments where useful.
@@ -46,8 +53,24 @@ async def extract_content(
     t_box: str = "",
     entity_label: str | None = None,
     entity_uri: str | None = None,
+    previous_extraction: str = "",
+    model_name: str | None = None,
+    use_raw_prompt: bool = False,
+    save_prompt_path: str | None = None,
 ) -> str:
-    """Extract content per EXTACTION_SCOPE. If entity info is provided, scope strictly to that entity."""
+    """Extract content per EXTACTION_SCOPE. If entity info is provided, scope strictly to that entity.
+    
+    Args:
+        paper_content: Source document content
+        goal: Extraction scope/goal
+        t_box: T-Box ontology
+        entity_label: Label of the entity to extract for (iter >= 2)
+        entity_uri: URI of the entity to extract for (iter >= 2)
+        previous_extraction: Previous iteration's extraction result for this entity (e.g., iter3 -> iter4)
+        model_name: Model name to use for extraction (required, no default)
+        use_raw_prompt: If True, use goal directly without EXTRACTION_PROMPT wrapper (for iter3)
+        save_prompt_path: If provided, save the full prompt to this file path for comparison
+    """
     logger = get_logger("agent", "Extractor")
 
     # Log extraction context for debugging
@@ -58,28 +81,83 @@ async def extract_content(
     logger.debug(f"T-Box length: {len(t_box)} chars")
     if entity_uri:
         logger.debug(f"Entity URI: {entity_uri}")
+    if previous_extraction:
+        logger.debug(f"Previous extraction provided: {len(previous_extraction)} chars")
 
-    focus_block = (
-        FOCUS_BLOCK_WITH_ENTITY.format(entity_label=entity_label or "", entity_uri=entity_uri or "")
-        if entity_label and entity_uri else
-        FOCUS_BLOCK_GLOBAL
-    )
+    # For iter3 (use_raw_prompt=True), use goal directly without wrapper
+    if use_raw_prompt:
+        # Append previous extraction if provided
+        if previous_extraction:
+            prompt = f"""{goal}
 
-    prompt = EXTRACTION_PROMPT.format(
-        focus_block=focus_block,
-        goal=goal or "",
-        paper_content=paper_content or "",
-        t_box=t_box or "",
-    )
+---
+## PREVIOUS ITERATION EXTRACTION RESULTS
+
+The following content was extracted in a previous iteration for this entity.
+Use this as reference/context for the current extraction task:
+
+{previous_extraction}
+---
+
+## SOURCE TEXT
+
+{paper_content}
+"""
+        else:
+            prompt = f"{goal}\n\n{paper_content}"
+        logger.info("Using raw prompt mode (iter3) - no EXTRACTION_PROMPT wrapper")
+    else:
+        # Standard mode: use EXTRACTION_PROMPT wrapper
+        focus_block = (
+            FOCUS_BLOCK_WITH_ENTITY.format(entity_label=entity_label or "", entity_uri=entity_uri or "")
+            if entity_label and entity_uri else
+            FOCUS_BLOCK_GLOBAL
+        )
+        
+        # Append previous extraction results if provided
+        enhanced_paper_content = paper_content
+        if previous_extraction:
+            enhanced_paper_content = f"""{paper_content}
+
+---
+## PREVIOUS ITERATION EXTRACTION RESULTS
+
+The following content was extracted in a previous iteration for this entity.
+Use this as reference/context for the current extraction task:
+
+{previous_extraction}
+---
+"""
+            logger.info(f"Enhanced paper content with previous extraction: {len(enhanced_paper_content)} chars")
+
+        prompt = EXTRACTION_PROMPT.format(
+            focus_block=focus_block,
+            goal=goal or "",
+            paper_content=enhanced_paper_content,
+            t_box=t_box or "",
+        )
     
     prompt_length = len(prompt)
     logger.info(f"Generated prompt length: {prompt_length} chars (~{prompt_length // 4} tokens)")
     if prompt_length > 100000:
         logger.warning(f"⚠️  Very long prompt ({prompt_length} chars) - may exceed model limits or cause timeouts")
+    
+    # Save prompt if requested (for comparison purposes)
+    if save_prompt_path:
+        try:
+            import os
+            os.makedirs(os.path.dirname(save_prompt_path), exist_ok=True)
+            with open(save_prompt_path, "w", encoding="utf-8") as f:
+                f.write(prompt)
+            logger.info(f"Saved prompt to: {save_prompt_path}")
+        except Exception as e:
+            logger.warning(f"Failed to save prompt to {save_prompt_path}: {e}")
 
+    if not model_name or not str(model_name).strip():
+        raise RuntimeError("extract_content requires an explicit model_name; none was provided")
     llm_creator = LLMCreator(
-        model="gpt-4.1",
-        model_config=ModelConfig(temperature=0.1, top_p=0.2),
+        model=model_name,
+        model_config=ModelConfig(temperature=0, top_p=1),
         remote_model=True,
     )
     llm = llm_creator.setup_llm()
@@ -162,7 +240,7 @@ async def extract_content(
             logger.error("📊 Request Context:")
             logger.error(f"  • Prompt length: {prompt_length} chars (~{prompt_length // 4} tokens)")
             logger.error(f"  • Paper length: {len(paper_content)} chars")
-            logger.error(f"  • Model: gpt-4.1")
+            logger.error(f"  • Model: gpt-4o")
             logger.error(f"  • Temperature: 0.1, Top-P: 0.2")
             if entity_uri:
                 logger.error(f"  • Entity URI: {entity_uri}")

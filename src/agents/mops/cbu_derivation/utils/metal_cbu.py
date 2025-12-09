@@ -36,13 +36,44 @@ def load_entity_ttl_content(hash_or_doi: str, entity_label: str) -> str:
     ontomops_dir = os.path.join(hash_dir, "ontomops_output")
     if os.path.isdir(ontomops_dir):
         try:
+            # First try to use the mapping file for exact matches
+            mapping_file = os.path.join(ontomops_dir, "ontomops_output_mapping.json")
+            if os.path.exists(mapping_file):
+                try:
+                    import json
+                    with open(mapping_file, 'r', encoding='utf-8') as mf:
+                        mapping = json.load(mf)
+                    # Check for exact entity match
+                    if entity_label in mapping:
+                        ttl_filename = mapping[entity_label]
+                        p = os.path.join(ontomops_dir, ttl_filename)
+                        if os.path.exists(p):
+                            with open(p, 'r', encoding='utf-8') as f:
+                                return f.read()
+                    # Check for IRI match (some mappings use IRIs as keys)
+                    for key, ttl_filename in mapping.items():
+                        if key.startswith('http') and entity_label in key:
+                            p = os.path.join(ontomops_dir, ttl_filename)
+                            if os.path.exists(p):
+                                with open(p, 'r', encoding='utf-8') as f:
+                                    return f.read()
+                except Exception:
+                    pass  # Fall back to fuzzy matching
+
+            # Fall back to fuzzy matching if mapping doesn't work
             for fname in os.listdir(ontomops_dir):
                 if not fname.endswith('.ttl'):
                     continue
-                if safe in fname or safe.replace('_','-') in fname or safe.lower() in fname.lower():
+                # Normalize both strings for comparison: replace both _ and space with a common character
+                # This ensures "Ni12(iPr-cdc)12_cage" matches "Ni12(iPr-cdc)12 cage.ttl"
+                fname_normalized = fname.replace('_', ' ').replace('-', ' ').lower()
+                safe_normalized = safe.replace('_', ' ').replace('-', ' ').lower()
+
+                if safe_normalized in fname_normalized:
                     p = os.path.join(ontomops_dir, fname)
                     with open(p, 'r', encoding='utf-8') as f:
                         return f.read()
+            # Only use fallback if no specific match found
             for fname in os.listdir(ontomops_dir):
                 if fname.startswith('ontomops_extension_') and fname.endswith('.ttl'):
                     p = os.path.join(ontomops_dir, fname)

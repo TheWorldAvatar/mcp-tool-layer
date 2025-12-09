@@ -21,7 +21,12 @@ from src.agents.mops.cbu_derivation.utils.organic_utils import (
     organic_cbu_grounding_agent as run_cbu_agent,
     extract_formula_and_classify,
 )
+from src.agents.mops.cbu_derivation.prompts.organic_prompts import (
+    organic_prompt_doi_found,
+    organic_prompt_doi_not_found,
+)
 from models.locations import DATA_DIR
+import csv
 
 
 TEST_DOI = "10.1021.acs.chemmater.0c01965"
@@ -56,26 +61,82 @@ async def run_for_hash(hash_value: str, test_mode: bool = False):
     if not os.path.isdir(ttl_dir):
         print("⚠️  ontomops_output directory missing; nothing to process")
         return True
-    entity_names: List[str] = []
+    
+    # Load mapping file to convert filenames to actual entity labels
+    mapping_file = os.path.join(ttl_dir, "ontomops_output_mapping.json")
+    filename_to_label = {}  # Maps filename -> actual entity label
+    if os.path.exists(mapping_file):
+        try:
+            with open(mapping_file, 'r', encoding='utf-8') as mf:
+                mapping = json.load(mf)
+                # Reverse mapping: filename -> entity_label
+                for entity_label, filename in mapping.items():
+                    if not entity_label.startswith("https://"):  # Skip IRI entries, keep only label entries
+                        filename_to_label[filename] = entity_label
+        except Exception as e:
+            print(f"⚠️  Could not load mapping file: {e}")
+    
+    # Collect pairs of (actual_entity_label, exact_filename) to avoid naming mismatches
+    entities: List[tuple[str, str]] = []
     for name in sorted(os.listdir(ttl_dir)):
         if not name.startswith("ontomops_extension_") or not name.endswith(".ttl"):
             continue
-        entity_names.append(name[len("ontomops_extension_"):-len(".ttl")])
-    if not entity_names:
+        # Try to get actual entity label from mapping, fallback to filename-based label
+        actual_entity_label = filename_to_label.get(name, name[len("ontomops_extension_"):-len(".ttl")])
+        entities.append((actual_entity_label, name))
+    if not entities:
         print("⚠️  No ontomops_extension_*.ttl files found; nothing to process")
         return True
 
     summary: Dict[str, str] = {}
-    for idx, entity_label in enumerate(entity_names, 1):
-        print(f"🔬 [{idx}/{len(entity_names)}] Deriving organic CBU for entity: {entity_label}")
+    # Resolve canonical DOI for this hash (from data/doi_to_hash.json)
+    def _canonical_doi_for_hash(hv: str) -> str:
+        try:
+            mapping_path = os.path.join(DATA_DIR, 'doi_to_hash.json')
+            with open(mapping_path, 'r', encoding='utf-8') as mf:
+                mp = json.load(mf) or {}
+            # mp keys are DOI with underscores → convert to slash form for CSV matching
+            for doi_us, hvv in mp.items():
+                if hvv == hv:
+                    return doi_us.replace('_', '/')
+        except Exception:
+            return ''
+        return ''
+
+    def _doi_in_cbu_csv(canonical_doi: str) -> bool:
+        if not canonical_doi:
+            return False
+        csv_path = os.path.join(DATA_DIR, 'ontologies', 'full_cbus_with_canonical_smiles_updated.csv')
+        if not os.path.exists(csv_path):
+            return False
+        try:
+            with open(csv_path, 'r', encoding='utf-8') as cf:
+                reader = csv.DictReader(cf)
+                for row in reader:
+                    field = (row.get('kg_dois') or '')
+                    if not field:
+                        continue
+                    for item in field.split(';'):
+                        if canonical_doi.strip().lower() == item.strip().lower():
+                            return True
+        except Exception:
+            return False
+        return False
+
+    canonical_doi = _canonical_doi_for_hash(hash_value)
+    doi_in_db = _doi_in_cbu_csv(canonical_doi)
+    print(f"🔎 DOI lookup: canonical='{canonical_doi}' in_cbu_db={doi_in_db}")
+
+    for idx, (entity_label, exact_ttl_name) in enumerate(entities, 1):
+        print(f"🔬 [{idx}/{len(entities)}] Deriving organic CBU for entity: {entity_label}")
         try:
             # Entity-specific context
             ttl_text = ""
             extraction_text = ""
             res_text = ""
-            # Load the exact ontomops_output/ontomops_extension_<entity_name>.ttl; no fallback allowed
+            # Load the exact filename discovered in the directory to avoid safe-name mismatches
             ttl_dir = os.path.join(DATA_DIR, hash_value, "ontomops_output")
-            ttl_file = os.path.join(ttl_dir, f"ontomops_extension_{metal_safe_name(entity_label)}.ttl")
+            ttl_file = os.path.join(ttl_dir, exact_ttl_name)
             if not os.path.exists(ttl_file):
                 print(f"⚠️  Skipping entity (TTL not found): {ttl_file}")
                 summary[entity_label] = None
@@ -120,24 +181,58 @@ async def run_for_hash(hash_value: str, test_mode: bool = False):
                 continue
 
             # Build and persist instruction
-            instruction_text = ORGANIC_PROMPT_STR.format(
+            # Build two full prompts based on DOI presence
+            tmpl = organic_prompt_doi_found if doi_in_db else organic_prompt_doi_not_found
+            print(f"🧩 Prompt selection: {'doi_found' if doi_in_db else 'doi_not_found'} for '{entity_label}'")
+            instruction_text = tmpl.format(
                 paper_content=combined_paper_content,
                 res_content=res_text or "",
+                canonical_doi=canonical_doi,
             )
             write_instruction_md(os.path.join(output_dir, "instructions"), entity_label, instruction_text)
 
-            # Invoke agent with full context
-            response = await run_cbu_agent(
-                res_content=res_text or "",
-                paper_content=combined_paper_content,
-                ttl_content=ttl_text or "",
-            )
-            write_individual_md(output_dir, entity_label, response)
-            # Post-process for controllable structured output
-            structured = extract_formula_and_classify(response)
+            # Invoke agent with full context, with retry mechanism
+            max_retries = 3
+            structured = None
+            response = ""
+            
+            for attempt in range(1, max_retries + 1):
+                try:
+                    response = await run_cbu_agent(
+                        res_content=res_text or "",
+                        paper_content=combined_paper_content,
+                        ttl_content=ttl_text or "",
+                    )
+                    write_individual_md(output_dir, entity_label, response)
+                    
+                    # Post-process for controllable structured output
+                    structured = extract_formula_and_classify(response)
+                    
+                    # Check if we got a valid result
+                    if structured and structured != "Ignore" and structured.strip():
+                        print(f"✓ Successfully derived organic CBU for {entity_label} (attempt {attempt})")
+                        break
+                    elif attempt < max_retries:
+                        print(f"⚠️  Attempt {attempt}/{max_retries} returned empty/invalid result for {entity_label}, retrying...")
+                    else:
+                        print(f"⚠️  Failed to derive valid organic CBU after {max_retries} attempts for {entity_label}")
+                except Exception as e:
+                    if attempt < max_retries:
+                        print(f"⚠️  Attempt {attempt}/{max_retries} failed with error: {e}, retrying...")
+                    else:
+                        print(f"⚠️  All {max_retries} attempts failed for {entity_label}")
+                        raise
+            
             structured_dir = os.path.join(output_dir, "structured")
             os.makedirs(structured_dir, exist_ok=True)
-            if structured and structured != "Ignore":
+            # Final validation: ensure structured string looks like a formula block [ ... ]
+            def _is_valid_formula_block(s: str) -> bool:
+                if not s or not isinstance(s, str):
+                    return False
+                t = s.strip()
+                return t.startswith("[") and ("]" in t)
+
+            if structured and structured != "Ignore" and structured.strip() and _is_valid_formula_block(structured):
                 # Write formula-only output
                 safe_name = entity_label.replace(' ', '_')
                 txt_path = os.path.join(structured_dir, f"{safe_name}.txt")
@@ -145,7 +240,7 @@ async def run_for_hash(hash_value: str, test_mode: bool = False):
                     f.write(structured)
                 summary[entity_label] = structured
 
-                # Also write per-entity JSON to support IRI selection
+                # Also write per-entity JSON; IRI selection is deferred to integration
                 json_path = os.path.join(structured_dir, f"{safe_name}.json")
                 try:
                     with open(json_path, "w", encoding="utf-8") as jf:
@@ -153,31 +248,10 @@ async def run_for_hash(hash_value: str, test_mode: bool = False):
                 except Exception:
                     pass
 
-                # Auxiliary GPT-5 to choose ontomops:ChemicalBuildingUnit IRI
-                try:
-                    from models.LLMCreator import LLMCreator
-                    from models.ModelConfig import ModelConfig
-                    iri_prompt = (
-                        "Select the best-matching ontomops:ChemicalBuildingUnit IRI.\n"
-                        "Respond with ONLY the chosen IRI, nothing else.\n\n"
-                        "OntoMOPs A-Box (TTL):\n" + (ttl_text or "") + "\n\n"
-                        "Organic CBU JSON:\n" + json.dumps({"organic_cbu": structured, "entity_label": entity_label}, ensure_ascii=False, indent=2)
-                    )
-                    selector_llm = LLMCreator(model="gpt-5", remote_model=True, model_config=ModelConfig(temperature=0.0, top_p=0.02)).setup_llm()
-                    iri_choice = (selector_llm.invoke(iri_prompt).content or "").strip()
-                    iri_file = os.path.join(structured_dir, f"{safe_name}_iri.txt")
-                    with open(iri_file, 'w', encoding='utf-8') as wf:
-                        wf.write(iri_choice)
-                except Exception:
-                    try:
-                        iri_file = os.path.join(structured_dir, f"{safe_name}_iri.txt")
-                        with open(iri_file, 'w', encoding='utf-8') as wf:
-                            wf.write("")
-                    except Exception:
-                        pass
             else:
-                # Ignore metal results
+                # Ignore metal results or empty responses
                 summary[entity_label] = "Ignore"
+                print(f"⚠️  No valid organic CBU derived for {entity_label}, marked as 'Ignore'")
         except Exception as e:
             write_individual_md(output_dir, entity_label, f"Error: {e}")
             summary[entity_label] = None

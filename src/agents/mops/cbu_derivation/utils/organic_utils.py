@@ -31,6 +31,12 @@ As a result, you might need to try both or more.
    - Construct a plausible organic CBU formula consistent with the paper context and the canonical formatting you observed.
    - Then retry the search and matching once more using any newly inferred names or fragments.
 
+Fallback mechanism: 
+
+In some rare case that, after you spared no effort to find more information about the organic speices, you can still not find 
+sufficient information to find the smiles strings and do conversion, in this case, you will have to derive the CBU formula 
+according to the RES file directly. 
+
 Guidelines:
 - Use the provided paper context for disambiguation only. Do not derive metal CBUs.
 - Do not attempt to infer metal-containing formulas; focus on organic ligands/species.
@@ -82,10 +88,16 @@ def _extract_formula_exact(agent_output: str) -> str:
     try:
         lines = (agent_output or "").splitlines()
         for line in lines:
-            if line.strip().lower().startswith("- cbu match:") or line.strip().lower().startswith("cbu match:"):
-                parts = line.split(":", 1)
+            ls = line.strip()
+            lsl = ls.lower()
+            if lsl.startswith("- cbu match:") or lsl.startswith("cbu match:"):
+                parts = ls.split(":", 1)
                 if len(parts) == 2:
-                    return parts[1].strip()
+                    raw = parts[1].strip()
+                    # Return only the first bracketed formula if present
+                    import re as _re
+                    m = _re.search(r"\[[^\]]+\]", raw)
+                    return m.group(0).strip() if m else raw
         return ""
     except Exception:
         return ""
@@ -113,6 +125,13 @@ def extract_formula_and_classify(agent_output: str) -> str:
     if not formula_raw:
         return ""
     is_organic = _classify_is_organic(agent_output)
-    return formula_raw if is_organic else "Ignore"
+    # Ensure only bracketed empirical formula is returned for downstream use
+    try:
+        import re as _re
+        m = _re.search(r"\[[^\]]+\]", formula_raw)
+        bracketed = m.group(0).strip() if m else formula_raw.strip()
+    except Exception:
+        bracketed = formula_raw.strip()
+    return bracketed if is_organic else "Ignore"
 
 

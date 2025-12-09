@@ -4,6 +4,7 @@ from typing import List, Dict
 from filelock import FileLock
 from models.BaseAgent import BaseAgent
 from models.ModelConfig import ModelConfig
+from models.LLMCreator import LLMCreator
 from src.utils.global_logger import get_logger
 from src.agents.mops.dynamic_mcp.modules.kg import parse_top_level_entities
 from src.agents.mops.dynamic_mcp.modules.extraction import extract_content
@@ -14,6 +15,8 @@ from src.agents.mops.dynamic_mcp.prompts import extraction_scopes as scopes_ns
 from src.agents.mops.dynamic_mcp.modules.prompt_utils import (
     collect_scopes, collect_prompts, format_prompt
 )
+# Import pre-extraction logic from llm_based.py
+from tests.step_extraction.llm_based import build_text_extraction_prompt
 
 log = get_logger("agent", "MainDynamic")
 
@@ -349,37 +352,159 @@ async def run_task(doi: str, test: bool = False):
                             pre_text = f.read().strip()
                     except Exception:
                         pre_text = ""
+                
+                # If we have pre-text (cached), still save the prompt for comparison
+                if pre_text:
+                    try:
+                        pre_prompt = build_text_extraction_prompt(label, paper)
+                        
+                        # Get actual model name from config
+                        model_name = get_extraction_model("iter3_pre_extraction")
+                        
+                        # Add model info at the end
+                        pre_prompt_with_meta = f"""{pre_prompt}
+
+---
+EFFECTIVE MODEL CONFIGURATION (mcp_run - cached):
+Model: {model_name}
+Temperature: 0
+Top_p: 1.0
+Remote: True
+Config source: configs/extraction_models.json -> iter3_pre_extraction
+"""
+                        
+                        prompt_comparison_dir = os.path.join(doi_dir, "prompt_comparison", "mcp_run")
+                        os.makedirs(prompt_comparison_dir, exist_ok=True)
+                        prompt_comparison_path = os.path.join(prompt_comparison_dir, f"pre_extraction_prompt_{safe}.txt")
+                        with open(prompt_comparison_path, "w", encoding="utf-8") as f:
+                            f.write(pre_prompt_with_meta)
+                    except Exception:
+                        pass
 
                 if not pre_text:
-                    pre_goal = getattr(scopes_ns, "EXTRACTION_SCOPE_6_PRE_EXTRACTION", "")
+                    # Use the exact same pre-extraction logic as llm_based.py
                     try:
-                        pre_text = await extract_content(
-                            paper_content=paper,
-                            goal=pre_goal,
-                            t_box=t_box,
-                            entity_label=label,
-                            entity_uri=uri,
-                            model_name=get_extraction_model("iter3_pre_extraction"),
-                        )
+                        print(f"🔍 Running pre-extraction for entity '{label}' using llm_based.py logic...")
+                        
+                        # Build prompt using llm_based.py function (handles transformation detection internally)
+                        pre_prompt = build_text_extraction_prompt(label, paper)
+                        
+                        # Get actual model name from config
+                        model_name = get_extraction_model("iter3_pre_extraction")
+                        print(f"📝 Using model from config: {model_name}")
+                        
+                        # Add model info at the end
+                        pre_prompt_with_meta = f"""{pre_prompt}
+
+---
+EFFECTIVE MODEL CONFIGURATION (mcp_run):
+Model: {model_name}
+Temperature: 0
+Top_p: 1.0
+Remote: True
+Config source: configs/extraction_models.json -> iter3_pre_extraction
+"""
+                        
+                        # Save prompt for comparison
                         try:
-                            with open(entity_text_path, "w", encoding="utf-8") as f:
-                                f.write(pre_text or "")
+                            prompt_comparison_dir = os.path.join(doi_dir, "prompt_comparison", "mcp_run")
+                            os.makedirs(prompt_comparison_dir, exist_ok=True)
+                            prompt_comparison_path = os.path.join(prompt_comparison_dir, f"pre_extraction_prompt_{safe}.txt")
+                            with open(prompt_comparison_path, "w", encoding="utf-8") as f:
+                                f.write(pre_prompt_with_meta)
                         except Exception:
                             pass
-                    except Exception:
+                        
+                        # Create LLM instance with same config as llm_based.py
+                        llm_pre = LLMCreator(
+                            model=model_name,
+                            model_config=ModelConfig(temperature=0, top_p=1.0),
+                            remote_model=True,
+                        ).setup_llm()
+                        
+                        # Extract with retries (matching llm_based.py)
+                        for attempt in range(2):
+                            try:
+                                resp = llm_pre.invoke(pre_prompt)
+                                pre_text = str(getattr(resp, "content", resp) or "").strip()
+                                if pre_text:
+                                    break
+                            except Exception as invoke_err:
+                                if attempt == 1:
+                                    print(f"⚠️  Pre-extraction failed after retries: {invoke_err}")
+                                    pre_text = ""
+                        
+                        if pre_text:
+                            try:
+                                with open(entity_text_path, "w", encoding="utf-8") as f:
+                                    f.write(pre_text)
+                                print(f"✅ Saved pre-extraction text to {entity_text_path}")
+                            except Exception as write_err:
+                                print(f"⚠️  Failed to write pre-extraction text: {write_err}")
+                        else:
+                            print(f"⚠️  Pre-extraction returned empty text for '{label}'")
+                    except Exception as e:
+                        print(f"⚠️  Pre-extraction setup failed for '{label}': {e}")
                         pre_text = ""
 
                 if pre_text:
                     source_text = pre_text
+                    print(f"✅ Using pre-extracted text for '{label}' ({len(pre_text)} chars)")
+                else:
+                    print(f"⚠️  Using full paper for '{label}' (pre-extraction unavailable)")
 
-            hints = await extract_content(
-                paper_content=source_text,
-                goal=scope_text,
-                t_box="" if iter_no >= 3 else t_box,
-                entity_label=None if iter_no >= 3 else label,
-                entity_uri=None if iter_no >= 3 else uri,
-                model_name=(get_extraction_model("iter3_hints") if iter_no == 3 else get_extraction_model(f"iter{iter_no}_hints")),
-            )
+            # Prepare prompt comparison path for iter3
+            save_prompt_path = None
+            if iter_no == 3:
+                prompt_comparison_dir = os.path.join(doi_dir, "prompt_comparison", "mcp_run")
+                os.makedirs(prompt_comparison_dir, exist_ok=True)
+                save_prompt_path = os.path.join(prompt_comparison_dir, f"iter3_prompt_{safe}.txt")
+                
+                # Get actual model name from config
+                iter3_model = get_extraction_model("iter3_hints")
+                print(f"📝 Using iter3 model from config: {iter3_model}")
+                
+                # Format iter3 prompt to match llm_based.py exactly
+                # Format: [PROMPT]\n\nentity_label: <label>\ncontext:\n<<<\n[text]\n>>>\nOnly output...
+                formatted_goal = f"""{scope_text}
+
+entity_label: {label}
+context:
+<<<
+{source_text}
+>>>
+Only output the JSON object as specified. The MCP tool is a placeholder and does nothing; do not rely on tools.
+
+---
+EFFECTIVE MODEL CONFIGURATION (mcp_run):
+Model: {iter3_model}
+Temperature: 0
+Top_p: 1
+Remote: True
+Config source: configs/extraction_models.json -> iter3_hints
+"""
+                
+                hints = await extract_content(
+                    paper_content="",  # Empty because we included it in formatted_goal
+                    goal=formatted_goal,
+                    t_box="",
+                    entity_label=label,
+                    entity_uri=uri,
+                    model_name=iter3_model,
+                    use_raw_prompt=True,
+                    save_prompt_path=save_prompt_path,
+                )
+            else:
+                hints = await extract_content(
+                    paper_content=source_text,
+                    goal=scope_text,
+                    t_box=t_box,
+                    entity_label=label,
+                    entity_uri=uri,
+                    model_name=get_extraction_model(f"iter{iter_no}_hints"),
+                    use_raw_prompt=False,
+                    save_prompt_path=save_prompt_path,
+                )
             _write_text(hint_file, hints)
             print(f"✅ Saved {hint_file}")
             if iter_no == 3:
@@ -427,6 +552,22 @@ async def run_task(doi: str, test: bool = False):
     scope_3_1 = getattr(scopes_ns, "EXTRACTION_SCOPE_3_1", "")
     if scope_3_1 and any(iter_no == 3 for iter_no, _ in scopes):
         print("🔄 Running iter3_1 (detailed step enrichment)...")
+        
+        # Backup original iter3_hints files before enrichment
+        iter3_results_dir = os.path.join(hints_dir, "iter3_results")
+        os.makedirs(iter3_results_dir, exist_ok=True)
+        print(f"📦 Backing up original iter3_hints files to {iter3_results_dir}")
+        for e in top_entities:
+            label = e.get("label", "")
+            safe = _safe_name(label)
+            iter3_hint_file = os.path.join(hints_dir, f"iter3_hints_{safe}.txt")
+            iter3_1_done_marker = os.path.join(hints_dir, f"iter3_1_done_{safe}.marker")
+            # Only backup if iter3 hints exist and iter3_1 not yet done
+            if os.path.exists(iter3_hint_file) and not os.path.exists(iter3_1_done_marker):
+                backup_file = os.path.join(iter3_results_dir, f"iter3_hints_{safe}.txt")
+                if not os.path.exists(backup_file):  # Don't overwrite existing backups
+                    shutil.copy2(iter3_hint_file, backup_file)
+                    print(f"  ✓ Backed up iter3_hints_{safe}.txt")
         
         async def _enrich_iter3_entity(e: Dict[str, str], semaphore: asyncio.Semaphore, rl: RateLimiter):
             label = e.get("label", "")
@@ -514,6 +655,99 @@ async def run_task(doi: str, test: bool = False):
             print("✅ iter3_1 enrichment completed")
         else:
             print("⏭️  No entities require iter3_1 enrichment")
+    
+    # After iter3_1 completes, run iter3_2 to add vessel types and equipment details
+    # iter3_2 uses iter3_1 enriched results + pre-extraction text to add vessel type information
+    scope_3_2 = getattr(scopes_ns, "EXTRACTION_SCOPE_3_2", "")
+    if scope_3_2 and any(iter_no == 3 for iter_no, _ in scopes):
+        print("🔄 Running iter3_2 (vessel type & equipment enrichment)...")
+        
+        async def _enrich_iter3_2_entity(e: Dict[str, str], semaphore: asyncio.Semaphore, rl: RateLimiter):
+            label = e.get("label", "")
+            uri = e.get("uri", "")
+            safe = _safe_name(label)
+            
+            iter3_hint_file = os.path.join(hints_dir, f"iter3_hints_{safe}.txt")
+            iter3_2_done_marker = os.path.join(hints_dir, f"iter3_2_done_{safe}.marker")
+            
+            # Skip if iter3_2 already completed or iter3 hints don't exist
+            if os.path.exists(iter3_2_done_marker):
+                print(f"⏭️  Skip iter3_2 for '{label}': already enriched")
+                return
+            if not os.path.exists(iter3_hint_file):
+                print(f"⚠️  Skip iter3_2 for '{label}': iter3 hints not found")
+                return
+            
+            async with semaphore:
+                await rl.wait()
+                print(f"🔍 Running iter3_2 enrichment for entity '{label}'...")
+                
+                # Read current iter3 hints (should have iter3_1 enrichment already)
+                iter3_hints = _read_text(iter3_hint_file)
+
+                # Get pre-extraction text (required)
+                llm_out_dir = os.path.join(doi_dir, "llm_based_results")
+                entity_text_path = os.path.join(llm_out_dir, f"entity_text_{safe}.txt")
+                pre_text = ""
+                if os.path.exists(entity_text_path):
+                    try:
+                        pre_text = _read_text(entity_text_path)
+                    except Exception:
+                        pre_text = ""
+                if not pre_text:
+                    print(f"⚠️  Skip iter3_2 for '{label}': pre-extraction text not found")
+                    return
+                source_text = pre_text
+                
+                # Build enrichment prompt including current iter3 hints as reference
+                enrichment_prompt = f"{scope_3_2}\n\nEntity: {label}\n\nCurrent Iter3 Hints (for reference):\n{iter3_hints}\n\nText:\n{source_text}"
+                
+                # Extract vessel types and additional details
+                try:
+                    vessel_enriched_hints = await extract_content(
+                        paper_content=source_text,
+                        goal=enrichment_prompt,
+                        t_box="",
+                        entity_label=None,
+                        entity_uri=None,
+                        previous_extraction=iter3_hints,
+                        model_name=get_extraction_model("iter3_2_enrichment"),
+                    )
+
+                    # Overwrite iter3 hints with iter3_2 enriched results
+                    _write_text(iter3_hint_file, vessel_enriched_hints)
+                    # Create done marker
+                    _write_text(iter3_2_done_marker, "done")
+                    print(f"✅ Enriched iter3 hints for '{label}' with iter3_2 vessel types")
+                except Exception as e:
+                    print(f"❌ Failed iter3_2 enrichment for '{label}': {e}")
+        
+        # Build job list for iter3_2
+        iter3_2_jobs: List[Dict[str, str]] = []
+        for e in top_entities:
+            label = e.get("label", "")
+            safe = _safe_name(label)
+            iter3_2_done_marker = os.path.join(hints_dir, f"iter3_2_done_{safe}.marker")
+            iter3_hint_file = os.path.join(hints_dir, f"iter3_hints_{safe}.txt")
+            
+            if os.path.exists(iter3_2_done_marker):
+                print(f"⏭️  Skip iter3_2 for '{label}': already enriched")
+                continue
+            if not os.path.exists(iter3_hint_file):
+                print(f"⚠️  Skip iter3_2 for '{label}': iter3 hints not found")
+                continue
+            iter3_2_jobs.append(e)
+        
+        if iter3_2_jobs:
+            print(f"🚦 Running iter3_2 enrichment for {len(iter3_2_jobs)} entities")
+            sem_3_2 = asyncio.Semaphore(8)
+            rate_3_2 = RateLimiter(1.0, 2.0)
+            tasks_3_2 = [asyncio.create_task(_enrich_iter3_2_entity(e, sem_3_2, rate_3_2)) 
+                         for e in iter3_2_jobs]
+            await asyncio.gather(*tasks_3_2)
+            print("✅ iter3_2 enrichment completed")
+        else:
+            print("⏭️  No entities require iter3_2 enrichment")
 
     if test:
         return
@@ -646,20 +880,166 @@ async def run_task_hints_only(doi: str, start_iter: int = 2, end_iter: int = 4, 
                 source_text = paper
                 if iter_no == 3:
                     llm_out_dir = os.path.join(doi_dir, "llm_based_results")
+                    os.makedirs(llm_out_dir, exist_ok=True)
                     entity_text_path = os.path.join(llm_out_dir, f"entity_text_{safe}.txt")
+                    
+                    pre_text = ""
                     if os.path.exists(entity_text_path):
                         try:
-                            source_text = _read_text(entity_text_path)
+                            pre_text = _read_text(entity_text_path)
                         except Exception:
-                            source_text = paper
-                hints = await extract_content(
-                    paper_content=source_text,
-                    goal=scope_text,
-                    t_box="" if iter_no >= 3 else t_box,
-                    entity_label=None if iter_no >= 3 else (label or None),
-                    entity_uri=None if iter_no >= 3 else (uri or None),
-                    model_name=(get_extraction_model("iter3_hints") if iter_no == 3 else get_extraction_model(f"iter{iter_no}_hints")),
-                )
+                            pre_text = ""
+                    
+                    # If we have pre-text (cached), still save the prompt for comparison
+                    if pre_text:
+                        try:
+                            pre_prompt = build_text_extraction_prompt(label, paper)
+                            
+                            # Get actual model name from config
+                            model_name = get_extraction_model("iter3_pre_extraction")
+                            
+                            # Add model info at the end
+                            pre_prompt_with_meta = f"""{pre_prompt}
+
+---
+EFFECTIVE MODEL CONFIGURATION (mcp_run - cached):
+Model: {model_name}
+Temperature: 0
+Top_p: 1.0
+Remote: True
+Config source: configs/extraction_models.json -> iter3_pre_extraction
+"""
+                            
+                            prompt_comparison_dir = os.path.join(doi_dir, "prompt_comparison", "mcp_run")
+                            os.makedirs(prompt_comparison_dir, exist_ok=True)
+                            prompt_comparison_path = os.path.join(prompt_comparison_dir, f"pre_extraction_prompt_{safe}.txt")
+                            _write_text(prompt_comparison_path, pre_prompt_with_meta)
+                        except Exception:
+                            pass
+                    
+                    # If pre-extraction text doesn't exist, generate it
+                    if not pre_text:
+                        # Use the exact same pre-extraction logic as llm_based.py
+                        try:
+                            print(f"🔍 Running pre-extraction for entity '{label}' using llm_based.py logic...")
+                            
+                            # Build prompt using llm_based.py function (handles transformation detection internally)
+                            pre_prompt = build_text_extraction_prompt(label, paper)
+                            
+                            # Get actual model name from config
+                            model_name = get_extraction_model("iter3_pre_extraction")
+                            print(f"📝 Using model from config: {model_name}")
+                            
+                            # Add model info at the end
+                            pre_prompt_with_meta = f"""{pre_prompt}
+
+---
+EFFECTIVE MODEL CONFIGURATION (mcp_run):
+Model: {model_name}
+Temperature: 0
+Top_p: 1.0
+Remote: True
+Config source: configs/extraction_models.json -> iter3_pre_extraction
+"""
+                            
+                            # Save prompt for comparison
+                            try:
+                                prompt_comparison_dir = os.path.join(doi_dir, "prompt_comparison", "mcp_run")
+                                os.makedirs(prompt_comparison_dir, exist_ok=True)
+                                prompt_comparison_path = os.path.join(prompt_comparison_dir, f"pre_extraction_prompt_{safe}.txt")
+                                _write_text(prompt_comparison_path, pre_prompt_with_meta)
+                            except Exception:
+                                pass
+                            
+                            # Create LLM instance with same config as llm_based.py
+                            llm_pre = LLMCreator(
+                                model=model_name,
+                                model_config=ModelConfig(temperature=0, top_p=1.0),
+                                remote_model=True,
+                            ).setup_llm()
+                            
+                            # Extract with retries (matching llm_based.py)
+                            for attempt in range(2):
+                                try:
+                                    resp = llm_pre.invoke(pre_prompt)
+                                    pre_text = str(getattr(resp, "content", resp) or "").strip()
+                                    if pre_text:
+                                        break
+                                except Exception as invoke_err:
+                                    if attempt == 1:
+                                        print(f"⚠️  Pre-extraction failed after retries: {invoke_err}")
+                                        pre_text = ""
+                            
+                            if pre_text:
+                                try:
+                                    _write_text(entity_text_path, pre_text)
+                                    print(f"✅ Saved pre-extraction text to {entity_text_path}")
+                                except Exception as write_err:
+                                    print(f"⚠️  Failed to write pre-extraction text: {write_err}")
+                            else:
+                                print(f"⚠️  Pre-extraction returned empty text for '{label}'")
+                        except Exception as e:
+                            print(f"⚠️  Pre-extraction setup failed for '{label}': {e}")
+                            pre_text = ""
+                    
+                    if pre_text:
+                        source_text = pre_text
+                        print(f"✅ Using pre-extracted text for '{label}' ({len(pre_text)} chars)")
+                    else:
+                        print(f"⚠️  Using full paper for '{label}' (pre-extraction unavailable)")
+                # Prepare prompt comparison path for iter3 and iter4
+                save_prompt_path = None
+                if iter_no in (3, 4):
+                    prompt_comparison_dir = os.path.join(doi_dir, "prompt_comparison", "mcp_run")
+                    os.makedirs(prompt_comparison_dir, exist_ok=True)
+                    save_prompt_path = os.path.join(prompt_comparison_dir, f"iter{iter_no}_prompt_{safe}.txt")
+                
+                if iter_no == 3:
+                    # Get actual model name from config
+                    iter3_model = get_extraction_model("iter3_hints")
+                    print(f"📝 Using iter3 model from config: {iter3_model}")
+                    
+                    # Format iter3 prompt to match llm_based.py exactly
+                    # Format: [PROMPT]\n\nentity_label: <label>\ncontext:\n<<<\n[text]\n>>>\nOnly output...
+                    formatted_goal = f"""{scope_text}
+
+entity_label: {label}
+context:
+<<<
+{source_text}
+>>>
+Only output the JSON object as specified. The MCP tool is a placeholder and does nothing; do not rely on tools.
+
+---
+EFFECTIVE MODEL CONFIGURATION (mcp_run):
+Model: {iter3_model}
+Temperature: 0
+Top_p: 1
+Remote: True
+Config source: configs/extraction_models.json -> iter3_hints
+"""
+                    
+                    hints = await extract_content(
+                        paper_content="",  # Empty because we included it in formatted_goal
+                        goal=formatted_goal,
+                        t_box="",
+                        entity_label=label,
+                        entity_uri=uri,
+                        model_name=iter3_model,
+                        use_raw_prompt=True,
+                        save_prompt_path=save_prompt_path,
+                    )
+                else:
+                    hints = await extract_content(
+                        paper_content=source_text,
+                        goal=scope_text,
+                        t_box=t_box,
+                        entity_label=label or None,
+                        entity_uri=uri or None,
+                        model_name=get_extraction_model(f"iter{iter_no}_hints"),
+                        use_raw_prompt=False,
+                        save_prompt_path=save_prompt_path,
+                    )
                 _write_text(hint_file, hints)
                 print(f"✅ Saved {hint_file}")
                 if iter_no == 3:
@@ -772,6 +1152,19 @@ async def run_task_hints_only(doi: str, start_iter: int = 2, end_iter: int = 4, 
                 iter3_1_jobs.append(e)
 
             if iter3_1_jobs:
+                # Backup original iter3_hints files before enrichment
+                iter3_results_dir = os.path.join(hints_dir, "iter3_results")
+                os.makedirs(iter3_results_dir, exist_ok=True)
+                print(f"📦 Backing up original iter3_hints files to {iter3_results_dir}")
+                for e in iter3_1_jobs:
+                    label = e.get("label", "")
+                    safe = _safe_name(label)
+                    iter3_hint_file = os.path.join(hints_dir, f"iter3_hints_{safe}.txt")
+                    if os.path.exists(iter3_hint_file):
+                        backup_file = os.path.join(iter3_results_dir, f"iter3_hints_{safe}.txt")
+                        shutil.copy2(iter3_hint_file, backup_file)
+                        print(f"  ✓ Backed up iter3_hints_{safe}.txt")
+                
                 print(f"🚦 Running iter3_1 enrichment for {len(iter3_1_jobs)} entities")
                 sem_3_1 = asyncio.Semaphore(8)
                 rate_3_1 = RateLimiter(1.0, 2.0)
@@ -780,6 +1173,89 @@ async def run_task_hints_only(doi: str, start_iter: int = 2, end_iter: int = 4, 
                 print("✅ iter3_1 enrichment completed")
             else:
                 print("⏭️  No entities require iter3_1 enrichment")
+        
+        # After iter3_1, optionally run iter3_2 for vessel types enrichment
+        scope_3_2 = getattr(scopes_ns, "EXTRACTION_SCOPE_3_2", "")
+        if scope_3_2:
+            print("🔄 Running iter3_2 (vessel type & equipment enrichment)...")
+
+            async def _enrich_iter3_2_entity(e: Dict[str, str], semaphore: asyncio.Semaphore, rl: RateLimiter):
+                label = e.get("label", "")
+                uri = e.get("uri", "")
+                safe = _safe_name(label)
+
+                iter3_hint_file = os.path.join(hints_dir, f"iter3_hints_{safe}.txt")
+                iter3_2_done_marker = os.path.join(hints_dir, f"iter3_2_done_{safe}.marker")
+
+                if os.path.exists(iter3_2_done_marker):
+                    print(f"⏭️  Skip iter3_2 for '{label}': already enriched")
+                    return
+                if not os.path.exists(iter3_hint_file):
+                    print(f"⚠️  Skip iter3_2 for '{label}': iter3 hints not found")
+                    return
+
+                async with semaphore:
+                    await rl.wait()
+                    print(f"🔍 Running iter3_2 enrichment for entity '{label}'...")
+
+                    iter3_hints = _read_text(iter3_hint_file)
+
+                    llm_out_dir = os.path.join(doi_dir, "llm_based_results")
+                    entity_text_path = os.path.join(llm_out_dir, f"entity_text_{safe}.txt")
+                    pre_text = ""
+                    if os.path.exists(entity_text_path):
+                        try:
+                            pre_text = _read_text(entity_text_path)
+                        except Exception:
+                            pre_text = ""
+
+                    if not pre_text:
+                        print(f"⚠️  Skip iter3_2 for '{label}': pre-extraction text not found")
+                        return
+                    source_text = pre_text
+
+                    enrichment_prompt = f"{scope_3_2}\n\nEntity: {label}\n\nCurrent Iter3 Hints (for reference):\n{iter3_hints}\n\nText:\n{source_text}"
+
+                    try:
+                        vessel_enriched_hints = await extract_content(
+                            paper_content=source_text,
+                            goal=enrichment_prompt,
+                            t_box="",
+                            entity_label=None,
+                            entity_uri=None,
+                            previous_extraction=iter3_hints,
+                            model_name=get_extraction_model("iter3_2_enrichment"),
+                        )
+                        _write_text(iter3_hint_file, vessel_enriched_hints)
+                        _write_text(iter3_2_done_marker, "done")
+                        print(f"✅ Enriched iter3 hints for '{label}' with iter3_2 vessel types")
+                    except Exception as e:
+                        print(f"❌ Failed iter3_2 enrichment for '{label}': {e}")
+
+            # Build enrichment jobs
+            iter3_2_jobs: List[Dict[str, str]] = []
+            for e in top_entities:
+                label = e.get("label", "")
+                safe = _safe_name(label)
+                iter3_2_done_marker = os.path.join(hints_dir, f"iter3_2_done_{safe}.marker")
+                iter3_hint_file = os.path.join(hints_dir, f"iter3_hints_{safe}.txt")
+                if os.path.exists(iter3_2_done_marker):
+                    print(f"⏭️  Skip iter3_2 for '{label}': already enriched")
+                    continue
+                if not os.path.exists(iter3_hint_file):
+                    print(f"⚠️  Skip iter3_2 for '{label}': iter3 hints not found")
+                    continue
+                iter3_2_jobs.append(e)
+
+            if iter3_2_jobs:
+                print(f"🚦 Running iter3_2 enrichment for {len(iter3_2_jobs)} entities")
+                sem_3_2 = asyncio.Semaphore(8)
+                rate_3_2 = RateLimiter(1.0, 2.0)
+                tasks_3_2 = [asyncio.create_task(_enrich_iter3_2_entity(e, sem_3_2, rate_3_2)) for e in iter3_2_jobs]
+                await asyncio.gather(*tasks_3_2)
+                print("✅ iter3_2 enrichment completed")
+            else:
+                print("⏭️  No entities require iter3_2 enrichment")
 
     print("✅ Hints-only generation completed.")
 
