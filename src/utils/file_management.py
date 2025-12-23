@@ -89,16 +89,17 @@ def safe_handle_file_write(file_uri: str, content: str) -> str:
     """
     Safely write content to a file URI. Folder will be created only if:
     - It's at most `max_depth` levels below a registered folder resource.
-    - The folder lies within the whitelisted 'sandbox' directory.
+    - The folder lies within the whitelisted directories ('sandbox' or 'scripts').
     """
 
     max_depth = 3
     fs, file_path = fsspec.core.url_to_fs(file_uri)
     file_path = Path(file_path).resolve()
 
-    # Enforce whitelist: must be inside "sandbox"
-    if "sandbox" not in file_path.parts:
-        return f"Write denied: '{file_path}' is outside the whitelisted 'sandbox' directory."
+    # Enforce whitelist: must be inside "sandbox", "scripts", or "ai_generated_contents_candidate"
+    whitelisted_dirs = {"sandbox", "scripts", "ai_generated_contents_candidate"}
+    if not any(whitelist_dir in file_path.parts for whitelist_dir in whitelisted_dirs):
+        return f"Write denied: '{file_path}' is outside the whitelisted directories {whitelisted_dirs}."
 
     # Step 1: Get parent folder Resource
     folder_path = file_path.parent.resolve()
@@ -122,7 +123,7 @@ def safe_handle_file_write(file_uri: str, content: str) -> str:
             depth += 1
         else:
             # raise RuntimeError(f"No known base folder found for {folder_path}. Aborting write.")
-            return f"No known base folder found for {folder_path}. Aborting write. You are operating outside the sandbox directory."
+            return f"No known base folder found for {folder_path}. Aborting write. You are operating outside the whitelisted directories."
 
         if depth > max_depth:
             return f"Refused to create folder '{folder_path}': exceeds allowed depth ({depth} > {max_depth}) below known resource."
