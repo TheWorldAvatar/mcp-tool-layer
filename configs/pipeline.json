@@ -1,0 +1,18 @@
+{
+  "mode": "per_doi",
+  "description": "Default MOPs pipeline organized via JSON config",
+  "steps": [
+    "pdf_conversion",
+    "section_classification",
+    "stitching",
+    "top_entity_extraction",
+    "top_entity_kg_building",
+    "main_ontology_extractions",
+    "main_kg_building",
+    "extensions_extractions",
+    "extensions_kg_building",
+    "mop_derivation"
+  ]
+}
+
+

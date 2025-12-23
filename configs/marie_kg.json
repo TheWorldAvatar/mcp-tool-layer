@@ -1,0 +1,13 @@
+{
+ 
+    "mops-kg": {
+      "command": "python",
+      "args": [
+        "-m",
+        "mini_marie.kg_server.main"
+      ],
+      "transport": "stdio"
+ 
+  }
+}
+

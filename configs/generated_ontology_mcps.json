@@ -1,0 +1,10 @@
+{
+    "ontosynthesis_mcp": {
+        "command": "python",
+        "args": [
+            "-m",
+            "ai_generated_contents_candidate.scripts.ontosynthesis.main"
+        ],
+        "transport": "stdio"
+    }
+}

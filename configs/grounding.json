@@ -1,0 +1,14 @@
+{
+  "ontospecies": {
+    "command": "python",
+    "args": [
+      "-m",
+      "src.mcp_servers.ontospecies.main",
+      "--script-c",
+      "sandbox/script_c_query_client.py",
+      "--labels-dir",
+      "data/grounding_cache/ontospecies/labels"
+    ],
+    "transport": "stdio"
+  }
+}

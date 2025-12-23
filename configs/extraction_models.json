@@ -1,0 +1,14 @@
+{
+  "iter1_hints": "gpt-4.1",
+  "iter2_hints": "gpt-4.1",
+  "iter3_pre_extraction": "gpt-4.1",
+  "iter3_hints": "gpt-4.1",
+  "iter3_1_enrichment": "gpt-4o",
+  "iter3_2_enrichment": "gpt-4o",
+  "iter4_hints": "gpt-4o",
+  "extension_ontomops": "gpt-4o",
+  "extension_ontospecies": "gpt-4o",
+  "default_model": "gpt-4o",
+  "default_model_config": "gpt-4o",
+  "advanced_model": "gpt-4.1"
+}

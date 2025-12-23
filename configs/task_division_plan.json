@@ -1,0 +1,612 @@
+{
+  "metadata": {
+    "ontology_name": "https://www.theworldavatar.com/kg/OntoSyn",
+    "total_steps": 5,
+    "top_level_entity": "ontosyn:ChemicalSynthesis"
+  },
+  "steps": [
+    {
+      "step_number": 1,
+      "step_name": "Identify and instantiate ChemicalSynthesis per paper",
+      "goal": "Create a ChemicalSynthesis instance for each discrete, isolated product procedure reported in the paper and link it to the source document.",
+      "instances_to_create": [
+        {
+          "class": "ontosyn:ChemicalSynthesis",
+          "description": "One experimental procedure that yields exactly one isolated, identified product as reported in the paper.",
+          "cardinality": "multiple per paper; one per distinct final isolated product procedure"
+        }
+      ],
+      "relations_to_establish": [
+        {
+          "property": "ontosyn:retrievedFrom",
+          "domain": "ontosyn:ChemicalSynthesis",
+          "range": "http://purl.org/ontology/bibo/Document",
+          "description": "Link each ChemicalSynthesis to the source document entity representing the paper."
+        }
+      ],
+      "information_to_extract": [
+        "Paper metadata: title, DOI, year (from whole paper; used to resolve/link bibo:Document)",
+        "Procedure anchors: section or heading identifiers to support later DocumentContext creation",
+        "Count of distinct isolated products and their procedure boundaries (Experimental/Synthesis sections)"
+      ],
+      "constraints": [
+        "Create ontosyn:ChemicalSynthesis only when the paper reports an identifiable, isolated, characterized product.",
+        "Do NOT create syntheses for commercial materials, stock solutions, non-isolated intermediates, conditioning steps, or analytical protocols.",
+        "Exactly one ontosyn:ChemicalSynthesis per isolated product; if multiple products are reported, instantiate multiple syntheses.",
+        "Link to an existing bibo:Document if available; otherwise create or reference a canonical document node outside this step.",
+        "Do NOT create any inputs, outputs, steps, yields, equipment, or DocumentContext in this step."
+      ]
+    },
+    {
+      "step_number": 2,
+      "step_name": "Create product and input substances",
+      "goal": "Instantiate the single ChemicalOutput and all ChemicalInput substances mentioned for each synthesis; attach them to the ChemicalSynthesis.",
+      "instances_to_create": [
+        {
+          "class": "ontosyn:ChemicalOutput",
+          "description": "The single isolated product for the ChemicalSynthesis (specific compound).",
+          "cardinality": "exactly one per synthesis"
+        },
+        {
+          "class": "ontosyn:ChemicalInput",
+          "description": "Reactants/reagents/catalysts intentionally added. Solvents are instantiated as ChemicalInput only if step-level additions will reference them (e.g., Dissolve/Separate/Filter).",
+          "cardinality": "multiple per synthesis as stated"
+        }
+      ],
+      "relations_to_establish": [
+        {
+          "property": "ontosyn:hasChemicalOutput",
+          "domain": "ontosyn:ChemicalSynthesis",
+          "range": "ontosyn:ChemicalOutput",
+          "description": "Attach the single product to its synthesis."
+        },
+        {
+          "property": "ontosyn:hasChemicalInput",
+          "domain": "ontosyn:ChemicalSynthesis",
+          "range": "ontosyn:ChemicalInput",
+          "description": "Attach non-solvent inputs (reactants, reagents, catalysts). Solvents may be excluded here if only referenced at step-level."
+        }
+      ],
+      "information_to_extract": [
+        "Product identifiers: name as written, codes/labels, empirical formula if explicitly stated (from Abstract/Experimental/Product characterization sections).",
+        "List of reagents/reactants/catalysts: names as written, roles if stated (from Experimental/Synthesis sections).",
+        "Solvents explicitly introduced for operations (e.g., dissolution, washing) to be instantiated if needed for step-level relations.",
+        "Disambiguation cues: CAS numbers, synonyms only if explicitly stated."
+      ],
+      "constraints": [
+        "Exactly one ontosyn:ChemicalOutput per ontosyn:ChemicalSynthesis.",
+        "Include a substance as ontosyn:ChemicalInput only if explicitly part of the reaction/work-up; exclude atmospheres and equipment.",
+        "Do NOT infer solvent identities; instantiate a solvent as ChemicalInput only if explicitly named.",
+        "Do NOT link solvents via ontosyn:hasChemicalInput unless the paper treats them as reagents; otherwise reference them later via step-level properties.",
+        "Do not fabricate names/formulas; use verbatim text only.",
+        "Stop when all explicitly named products and inputs for this synthesis are created and linked."
+      ]
+    },
+    {
+      "step_number": 3,
+      "step_name": "Construct ordered SynthesisSteps with vessels, atmospheres, and quantities",
+      "goal": "Instantiate every operational action as a SynthesisStep of the correct subtype, order them, and attach step-specific parameters, vessels, atmospheres, durations, and OM quantities.",
+      "instances_to_create": [
+        {
+          "class": "ontosyn:SynthesisStep",
+          "description": "Generic container for ordered operational steps in a synthesis (will be instantiated via concrete subclasses).",
+          "cardinality": "multiple per synthesis"
+        },
+        {
+          "class": "ontosyn:Add",
+          "description": "Introduce ONE new material to the mixture per step.",
+          "cardinality": "multiple per synthesis; one per added material"
+        },
+        {
+          "class": "ontosyn:Stir",
+          "description": "Stirring step explicitly stated as such.",
+          "cardinality": "as stated"
+        },
+        {
+          "class": "ontosyn:HeatChill",
+          "description": "Heating or cooling, including cooling to room temperature.",
+          "cardinality": "as stated"
+        },
+        {
+          "class": "ontosyn:Evaporate",
+          "description": "Evaporation under heat or reduced pressure.",
+          "cardinality": "as stated"
+        },
+        {
+          "class": "ontosyn:Sonicate",
+          "description": "Ultrasonic treatment step.",
+          "cardinality": "as stated"
+        },
+        {
+          "class": "ontosyn:Dissolve",
+          "description": "Dissolving solids in a solvent.",
+          "cardinality": "as stated"
+        },
+        {
+          "class": "ontosyn:Crystallize",
+          "description": "Crystallization operation.",
+          "cardinality": "as stated"
+        },
+        {
+          "class": "ontosyn:Transfer",
+          "description": "Material transfer between vessels.",
+          "cardinality": "as stated"
+        },
+        {
+          "class": "ontosyn:Separate",
+          "description": "Physical separation (e.g., phase separation, decantation).",
+          "cardinality": "as stated"
+        },
+        {
+          "class": "ontosyn:Filter",
+          "description": "Filtration step.",
+          "cardinality": "as stated"
+        },
+        {
+          "class": "ontosyn:Dry",
+          "description": "Drying step for materials or solids.",
+          "cardinality": "as stated"
+        },
+        {
+          "class": "ontosyn:Vessel",
+          "description": "Physical container used in a step (verbatim descriptors, e.g., 'Teflon-lined SS autoclave, 23 mL').",
+          "cardinality": "multiple; one per step if stated"
+        },
+        {
+          "class": "ontosyn:VesselType",
+          "description": "Vessel type taxonomy linked from a Vessel.",
+          "cardinality": "as needed when the paper names specific types"
+        },
+        {
+          "class": "ontosyn:VesselEnvironment",
+          "description": "Atmosphere for a vessel during a step (e.g., N2, Ar, air, vacuum).",
+          "cardinality": "as stated per step"
+        },
+        {
+          "class": "ontosyn:SeparationType",
+          "description": "Specific separation technique linked from a Separate step.",
+          "cardinality": "as needed when a technique is explicitly named"
+        },
+        {
+          "class": "om-2:Temperature",
+          "description": "Temperature values as written for relevant steps.",
+          "cardinality": "as stated"
+        },
+        {
+          "class": "om-2:Pressure",
+          "description": "Pressure values as written for relevant steps.",
+          "cardinality": "as stated"
+        },
+        {
+          "class": "om-2:Volume",
+          "description": "Volumes for transfers, evaporated-to, vessels if given.",
+          "cardinality": "as stated"
+        },
+        {
+          "class": "om-2:Duration",
+          "description": "Step durations as written.",
+          "cardinality": "as stated"
+        },
+        {
+          "class": "om-2:TemperatureRate",
+          "description": "Heating/cooling rate as written.",
+          "cardinality": "as stated"
+        }
+      ],
+      "relations_to_establish": [
+        {
+          "property": "ontosyn:hasSynthesisStep",
+          "domain": "ontosyn:ChemicalSynthesis",
+          "range": "ontosyn:SynthesisStep",
+          "description": "Attach each step to its parent synthesis."
+        },
+        {
+          "property": "ontosyn:hasOrder",
+          "domain": "ontosyn:SynthesisStep",
+          "range": "xsd:integer",
+          "description": "Order index starting at 1 and increasing by 1 with no gaps."
+        },
+        {
+          "property": "ontosyn:hasVessel",
+          "domain": "ontosyn:SynthesisStep",
+          "range": "ontosyn:Vessel",
+          "description": "Vessel used in the step."
+        },
+        {
+          "property": "ontosyn:hasVesselType",
+          "domain": "ontosyn:Vessel",
+          "range": "ontosyn:VesselType",
+          "description": "Type classification of the vessel, if provided."
+        },
+        {
+          "property": "ontosyn:hasVesselEnvironment",
+          "domain": "ontosyn:SynthesisStep",
+          "range": "ontosyn:VesselEnvironment",
+          "description": "Atmosphere for the step (e.g., N2, Ar, vacuum)."
+        },
+        {
+          "property": "ontosyn:hasStepDuration",
+          "domain": "ontosyn:SynthesisStep",
+          "range": "om-2:Duration",
+          "description": "Duration as written."
+        },
+        {
+          "property": "ontosyn:hasParameter",
+          "domain": "ontosyn:SynthesisStep",
+          "range": "xsd:string",
+          "description": "Key–value parameters explicitly stated for the step (free text)."
+        },
+        {
+          "property": "ontosyn:hasAddedChemicalInput",
+          "domain": "ontosyn:Add",
+          "range": "ontosyn:ChemicalInput",
+          "description": "The single material introduced in this Add step."
+        },
+        {
+          "property": "ontosyn:hasTargetPh",
+          "domain": "ontosyn:Add",
+          "range": "xsd:double",
+          "description": "Target pH when the paper explicitly states it."
+        },
+        {
+          "property": "ontosyn:isLayered",
+          "domain": "ontosyn:Add",
+          "range": "xsd:boolean",
+          "description": "Layering mode for addition if explicitly stated."
+        },
+        {
+          "property": "ontosyn:isStirred",
+          "domain": "ontosyn:Add",
+          "range": "xsd:boolean",
+          "description": "Whether the mixture was stirred during addition, if explicitly stated."
+        },
+        {
+          "property": "ontosyn:hasStirringTemperature",
+          "domain": "ontosyn:Stir",
+          "range": "om-2:Temperature",
+          "description": "Temperature during stirring if given."
+        },
+        {
+          "property": "ontosyn:isWait",
+          "domain": "ontosyn:Stir",
+          "range": "xsd:boolean",
+          "description": "Mark as waiting (no stirring) if explicitly stated."
+        },
+        {
+          "property": "ontosyn:hasTargetTemperature",
+          "domain": "ontosyn:HeatChill",
+          "range": "om-2:Temperature",
+          "description": "Target temperature (including 'room temperature' as written)."
+        },
+        {
+          "property": "ontosyn:hasTemperatureRate",
+          "domain": "ontosyn:HeatChill",
+          "range": "om-2:TemperatureRate",
+          "description": "Ramp rate if provided."
+        },
+        {
+          "property": "ontosyn:hasVacuum",
+          "domain": "ontosyn:HeatChill",
+          "range": "xsd:boolean",
+          "description": "Whether the vessel was under vacuum during Heat/Chill."
+        },
+        {
+          "property": "ontosyn:isSealed",
+          "domain": "ontosyn:HeatChill",
+          "range": "xsd:boolean",
+          "description": "Whether the vessel was sealed (autoclave/closed system)."
+        },
+        {
+          "property": "ontosyn:isStirredHeatChill",
+          "domain": "ontosyn:HeatChill",
+          "range": "xsd:boolean",
+          "description": "Whether stirring occurred during Heat/Chill, if stated."
+        },
+        {
+          "property": "ontosyn:hasEvaporationPressure",
+          "domain": "ontosyn:Evaporate",
+          "range": "om-2:Pressure",
+          "description": "Evaporation pressure as written."
+        },
+        {
+          "property": "ontosyn:hasEvaporationTemperature",
+          "domain": "ontosyn:Evaporate",
+          "range": "om-2:Temperature",
+          "description": "Evaporation temperature as written."
+        },
+        {
+          "property": "ontosyn:isEvaporatedToVolume",
+          "domain": "ontosyn:Evaporate",
+          "range": "om-2:Volume",
+          "description": "Final volume after evaporation if given."
+        },
+        {
+          "property": "ontosyn:removesSpecies",
+          "domain": "ontosyn:Evaporate",
+          "range": "ontosyn:ChemicalInput",
+          "description": "Volatile component(s) removed if explicitly identified."
+        },
+        {
+          "property": "ontosyn:hasSolventDissolve",
+          "domain": "ontosyn:Dissolve",
+          "range": "ontosyn:ChemicalInput",
+          "description": "Solvent used to dissolve materials."
+        },
+        {
+          "property": "ontosyn:hasCrystallizationTargetTemperature",
+          "domain": "ontosyn:Crystallize",
+          "range": "om-2:Temperature",
+          "description": "Crystallization temperature as written."
+        },
+        {
+          "property": "ontosyn:hasTransferedAmount",
+          "domain": "ontosyn:Transfer",
+          "range": "om-2:Volume",
+          "description": "Transferred volume if given."
+        },
+        {
+          "property": "ontosyn:isLayeredTransfer",
+          "domain": "ontosyn:Transfer",
+          "range": "xsd:boolean",
+          "description": "Layered transfer if stated."
+        },
+        {
+          "property": "ontosyn:isTransferedTo",
+          "domain": "ontosyn:Transfer",
+          "range": "ontosyn:Vessel",
+          "description": "Destination vessel for the transfer."
+        },
+        {
+          "property": "ontosyn:isSeparationType",
+          "domain": "ontosyn:Separate",
+          "range": "ontosyn:SeparationType",
+          "description": "Technique used for separation (e.g., decantation, phase separation)."
+        },
+        {
+          "property": "ontosyn:hasSeparationSolvent",
+          "domain": "ontosyn:Separate",
+          "range": "ontosyn:ChemicalInput",
+          "description": "Solvent involved in the separation if specified."
+        },
+        {
+          "property": "ontosyn:hasWashingSolvent",
+          "domain": "ontosyn:Filter",
+          "range": "ontosyn:ChemicalInput",
+          "description": "Washing solvent used during filtration."
+        },
+        {
+          "property": "ontosyn:isVacuumFiltration",
+          "domain": "ontosyn:Filter",
+          "range": "xsd:boolean",
+          "description": "Mark as vacuum filtration if stated."
+        },
+        {
+          "property": "ontosyn:isRepeated",
+          "domain": "ontosyn:Filter",
+          "range": "xsd:integer",
+          "description": "Number of times filtration is repeated (1 if not repeated)."
+        },
+        {
+          "property": "ontosyn:hasDryingAgent",
+          "domain": "ontosyn:Dry",
+          "range": "ontosyn:ChemicalInput",
+          "description": "Drying agent if specified."
+        },
+        {
+          "property": "ontosyn:hasDryingPressure",
+          "domain": "ontosyn:Dry",
+          "range": "om-2:Pressure",
+          "description": "Drying pressure as written."
+        },
+        {
+          "property": "ontosyn:hasDryingTemperature",
+          "domain": "ontosyn:Dry",
+          "range": "om-2:Temperature",
+          "description": "Drying temperature as written."
+        }
+      ],
+      "information_to_extract": [
+        "Explicit operations and their order (from Experimental/Procedure subsections).",
+        "Step types matching ontology (Add, Stir, HeatChill, Evaporate, Sonicate, Dissolve, Crystallize, Transfer, Separate, Filter, Dry).",
+        "Per-step vessel description verbatim (material, volume) and vessel environment (atmosphere).",
+        "Per-step durations, target temperatures, pressures, rates, volumes as written (do not normalize units beyond OM representation).",
+        "For Add: single material per step, target pH, stirring during addition, layered additions if stated.",
+        "For Evaporate: temperature, pressure, final volume, removed species.",
+        "For Separate/Filter/Dissolve: the solvents involved.",
+        "For HeatChill: temperature targets, ramp rates, sealed/vacuum/stirred flags.",
+        "Transfer: destination vessels and volumes."
+      ],
+      "constraints": [
+        "Step order must start at 1 and increment by 1 with no gaps per synthesis.",
+        "Do NOT create generic steps (e.g., 'work up'); map only to allowed step classes.",
+        "Create exactly one ontosyn:Add per added material; do not bundle multiple materials in one Add.",
+        "Use verbatim vessel wording; classify VesselType if type is explicitly stated.",
+        "Only create VesselEnvironment for atmospheric contexts (N2, Ar, air, vacuum).",
+        "Use OM quantity instances only when values are explicitly reported; do not infer or compute missing values.",
+        "Solvents referenced here must be instantiated as ontosyn:ChemicalInput if they appear in step-level relations, regardless of synthesis-level hasChemicalInput linkage.",
+        "Stop when all steps in the procedure text are represented and ordered, and all explicit step-level parameters are captured."
+      ]
+    },
+    {
+      "step_number": 4,
+      "step_name": "Model process equipment at step level",
+      "goal": "Instantiate process equipment and link it to steps via usesEquipment, and model HeatChill-specific devices; capture rotary evaporator flags.",
+      "instances_to_create": [
+        {
+          "class": "ontosyn:Equipment",
+          "description": "Process equipment explicitly used during synthesis (e.g., autoclave, oven, ultrasonic bath, centrifuge, vacuum line). Exclude analytical instruments.",
+          "cardinality": "as stated across steps"
+        },
+        {
+          "class": "ontosyn:HeatChillDevice",
+          "description": "Specific device controlling temperature (e.g., oil bath, ice bath, heating mantle) when explicitly mentioned.",
+          "cardinality": "as stated for HeatChill steps"
+        }
+      ],
+      "relations_to_establish": [
+        {
+          "property": "ontosyn:usesEquipment",
+          "domain": "ontosyn:SynthesisStep",
+          "range": "ontosyn:Equipment",
+          "description": "Link each step to process equipment used, excluding analytical instruments."
+        },
+        {
+          "property": "ontosyn:hasHeatChillDevice",
+          "domain": "ontosyn:HeatChill",
+          "range": "ontosyn:HeatChillDevice",
+          "description": "Attach the specific temperature-control device when stated."
+        },
+        {
+          "property": "ontosyn:hasParameter",
+          "domain": "ontosyn:SynthesisStep",
+          "range": "xsd:string",
+          "description": "Record device settings if expressed only as text (e.g., 'ultrasonicated at 40 kHz')."
+        },
+        {
+          "property": "ontosyn:hasRotaryEvaporator",
+          "domain": "ontosyn:Evaporate",
+          "range": "xsd:boolean",
+          "description": "Mark true if a rotary evaporator is explicitly stated; otherwise false/omitted."
+        }
+      ],
+      "information_to_extract": [
+        "Process equipment mentions per step: autoclaves, ovens, ultrasonic baths, centrifuges, vacuum lines (exclude NMR/IR/PXRD).",
+        "Heat/Chill device names (e.g., 'oil bath', 'ice bath').",
+        "Rotary evaporator usage statements.",
+        "Any step-level device settings described only narratively."
+      ],
+      "constraints": [
+        "Only create ontosyn:Equipment for process equipment; do NOT include analytical instruments.",
+        "Deduplicate equipment within a synthesis: reuse the same Equipment node for repeated identical mentions.",
+        "If a device name could be either vessel or equipment (e.g., 'autoclave'), model as ontosyn:Equipment; vessels are handled separately via ontosyn:Vessel.",
+        "usesEquipment applies to SynthesisStep (or synthesis globally in next step); do not link Vessel via usesEquipment.",
+        "Stop when all equipment explicitly tied to steps are linked; unknown or implied equipment must be omitted."
+      ]
+    },
+    {
+      "step_number": 5,
+      "step_name": "Attach global equipment, yields, document context, suppliers, and chemical metadata",
+      "goal": "Complete remaining synthesis-level properties: global equipment, yield, document context, procedure inheritance, supplier and material provenance, and chemical descriptors.",
+      "instances_to_create": [
+        {
+          "class": "om-2:AmountOfSubstanceFraction",
+          "description": "Yield value (e.g., percent) as written for the ChemicalSynthesis output.",
+          "cardinality": "zero or one per synthesis (only if explicitly reported)"
+        },
+        {
+          "class": "ontosyn:DocumentContext",
+          "description": "In-document anchor (section/subsection/paragraph identifiers) for the procedure.",
+          "cardinality": "one per synthesis when a distinct anchor is identifiable"
+        },
+        {
+          "class": "ontosyn:Supplier",
+          "description": "Supplier entities for inputs only when explicitly mentioned.",
+          "cardinality": "as stated across inputs"
+        },
+        {
+          "class": "ontosyn:Equipment",
+          "description": "Global process equipment used across the synthesis when the paper states equipment without per-step specificity.",
+          "cardinality": "as stated"
+        },
+        {
+          "class": "ontosyn:Yield",
+          "description": "Conceptual class for yield notes/qualifiers (present but not linked by properties in current T-Box; do not instantiate unless a linking property is introduced).",
+          "cardinality": "none by default in current schema"
+        },
+        {
+          "class": "ontosyn:ExecutionPoint",
+          "description": "Reserved class for future execution anchors; not linked by any property in current T-Box.",
+          "cardinality": "none by default in current schema"
+        }
+      ],
+      "relations_to_establish": [
+        {
+          "property": "ontosyn:hasYield",
+          "domain": "ontosyn:ChemicalSynthesis",
+          "range": "om-2:AmountOfSubstanceFraction",
+          "description": "Attach explicit yield value for this synthesis only (do not compute; do not inherit)."
+        },
+        {
+          "property": "ontosyn:hasDocumentContext",
+          "domain": "ontosyn:ChemicalSynthesis",
+          "range": "ontosyn:DocumentContext",
+          "description": "Link synthesis to its in-document anchor (section/paragraph identifiers)."
+        },
+        {
+          "property": "ontosyn:inheritsFromProcedure",
+          "domain": "ontosyn:ChemicalSynthesis",
+          "range": "ontosyn:ChemicalSynthesis",
+          "description": "Link to another ChemicalSynthesis in the same paper when text states 'same as/according to/similar to'; inputs and steps are inherited by default; exceptions parsed from text; yields are NOT inherited."
+        },
+        {
+          "property": "ontosyn:isSuppliedBy",
+          "domain": "ontosyn:ChemicalInput",
+          "range": "ontosyn:Supplier",
+          "description": "Add supplier only if explicitly named in the paper."
+        },
+        {
+          "property": "ontosyn:referencesMaterial",
+          "domain": "ontosyn:ChemicalInput",
+          "range": "http://www.theworldavatar.com/ontology/ontocape/material/material.owl#Material",
+          "description": "Link to a canonical material entity if resolvable; otherwise omit."
+        },
+        {
+          "property": "ontosyn:hasEquipment",
+          "domain": "ontosyn:ChemicalSynthesis",
+          "range": "ontolab:LabEquipment",
+          "description": "Global equipment associated with the synthesis; can include ontosyn:Equipment, ontosyn:Vessel, or ontosyn:HeatChillDevice instances as applicable."
+        },
+        {
+          "property": "ontosyn:isRepresentedBy",
+          "domain": "ontosyn:ChemicalOutput",
+          "range": "https://www.theworldavatar.com/kg/ontomops/MetalOrganicPolyhedron",
+          "description": "Link to a MetalOrganicPolyhedron when the specific MOP instance is identifiable in the knowledge base."
+        },
+        {
+          "property": "ontosyn:hasPurity",
+          "domain": "ontosyn:ChemicalInput",
+          "range": "xsd:string",
+          "description": "Reported purity for inputs (verbatim)."
+        },
+        {
+          "property": "ontosyn:hasAlternativeNames",
+          "domain": "ontosyn:ChemicalInput",
+          "range": "xsd:string",
+          "description": "Any explicit aliases/codes provided in the paper."
+        },
+        {
+          "property": "ontosyn:hasChemicalFormula",
+          "domain": "ontosyn:ChemicalInput",
+          "range": "xsd:string",
+          "description": "Chemical formula as written."
+        },
+        {
+          "property": "ontosyn:hasChemicalDescription",
+          "domain": "ontosyn:ChemicalInput",
+          "range": "xsd:string",
+          "description": "Detailed input description if stated (e.g., hydrated form, hazard notes)."
+        }
+      ],
+      "information_to_extract": [
+        "Yield values and qualifiers (e.g., 'isolated yield 78%', 'crystalline yield'), strictly as written; do not compute (from Results/Experimental/Product sections).",
+        "Global equipment mentions not tied to specific steps (from Experimental/General methods).",
+        "Document anchors: section titles, subsection labels, paragraph numbers for each procedure.",
+        "Inheritance language: 'same as', 'following', 'according to', with explicit exceptions (replace/instead of/without/increase/decrease) within the same paper only.",
+        "Suppliers for inputs when explicitly named (e.g., Sigma-Aldrich).",
+        "Input metadata: purity, aliases/codes, formulas, and descriptive qualifiers.",
+        "Resolvable links for ChemicalOutput to known MetalOrganicPolyhedron instances (if referenced)."
+      ],
+      "constraints": [
+        "Yield cardinality: at most one ontosyn:hasYield per synthesis; only if explicitly reported; do not compute from masses/moles.",
+        "Do NOT inherit yields via ontosyn:inheritsFromProcedure; only inherit inputs and steps with explicit exceptions applied.",
+        "ontolab:LabEquipment linked via ontosyn:hasEquipment must be process equipment; exclude analytical instruments.",
+        "Deduplicate Supplier and Equipment nodes across the paper by exact-match on normalized names; reuse existing instances when possible.",
+        "Only create ontosyn:Supplier when explicitly stated; otherwise omit isSuppliedBy.",
+        "Only create ontosyn:DocumentContext when a specific section/paragraph anchor is identifiable; use verbatim labels.",
+        "Only set ontosyn:isRepresentedBy when a resolvable MOP instance exists; otherwise omit.",
+        "Do not instantiate ontosyn:Yield or ontosyn:ExecutionPoint unless future linking properties are available; keep schema compliance.",
+        "Stop when each synthesis has (if available) a yield, document context, any global equipment, supplier links for inputs, and chemical metadata populated."
+      ]
+    }
+  ]
+}
