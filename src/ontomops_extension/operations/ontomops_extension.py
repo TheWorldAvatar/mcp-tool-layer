@@ -7,6 +7,7 @@
 
 import os
 import re
+import json
 import uuid
 import time
 import tempfile
@@ -27,6 +28,7 @@ from models.locations import DATA_DIR
 # ----------------------------------------------------------------------------------------------------------------------
 KG = Namespace("https://www.theworldavatar.com/kg/")
 ONTOMOPS = Namespace("https://www.theworldavatar.com/kg/ontomops/")
+ONTOSYN = Namespace("https://www.theworldavatar.com/kg/OntoSyn/")
 
 DC = Namespace("http://purl.org/dc/elements/1.1/")
 OWL = Namespace("http://www.w3.org/2002/07/owl#")
@@ -41,8 +43,11 @@ GLOBAL_STATE_DIR = DATA_DIR
 GLOBAL_STATE_JSON = os.path.join(GLOBAL_STATE_DIR, "ontomops_global_state.json")
 GLOBAL_STATE_LOCK = os.path.join(GLOBAL_STATE_DIR, "ontomops_global_state.lock")
 
-def _read_global_state() -> Tuple[str, str]:
-    """Read global state: returns (doi, top_level_entity_name). Read-only, no writes."""
+def _read_global_state() -> Tuple[str, str, str]:
+    """Read global state: returns (hash_value, top_level_entity_name, top_level_entity_iri). Read-only, no writes.
+    
+    Returns the hash value (8-character hex string) that identifies the paper.
+    """
     os.makedirs(GLOBAL_STATE_DIR, exist_ok=True)
     lock = FileLock(GLOBAL_STATE_LOCK)
     lock.acquire(timeout=30.0)
@@ -52,41 +57,46 @@ def _read_global_state() -> Tuple[str, str]:
         import json
         with open(GLOBAL_STATE_JSON, "r", encoding="utf-8") as f:
             state = json.load(f)
-        doi = (state.get("doi") or "").strip()
+        hash_value = (state.get("hash") or "").strip()
         entity = (state.get("top_level_entity_name") or "").strip()
-        if not doi:
-            raise RuntimeError("Global state missing 'doi'")
+        entity_iri = (state.get("top_level_entity_iri") or "").strip()
+        if not hash_value:
+            raise RuntimeError("Global state missing 'hash' field")
         if not entity:
             raise RuntimeError("Global state missing 'top_level_entity_name'")
-        return doi, entity
+        return hash_value, entity, entity_iri
     finally:
         lock.release()
 
-def _hash_for_doi(doi_us: str) -> str:
-    """Resolve hash directory for a given pipeline DOI (underscore form).
-
-    Falls back to doi_us if mapping not found. Accepts an 8-char hex hash as pass-through.
-    """
+def _ensure_top_is_typed_synthesis(g: Graph) -> None:
+    """Ensure the OntoSyn top-level entity is typed as ontosyn:ChemicalSynthesis if present."""
     try:
-        # Pass-through when an 8-char hex hash is supplied already
-        if isinstance(doi_us, str) and len(doi_us) == 8 and all(c in "0123456789abcdef" for c in doi_us.lower()):
-            return doi_us
-        import json
-        mapping_path = os.path.join(DATA_DIR, "doi_to_hash.json")
-        if os.path.exists(mapping_path):
-            with open(mapping_path, "r", encoding="utf-8") as f:
-                mapping = json.load(f) or {}
-            hv = mapping.get(doi_us)
-            if hv:
-                return hv
-        print(f"Warning: hash not found for DOI '{doi_us}', using DOI as folder name (compat mode)")
-    except Exception as e:
-        print(f"Warning: failed to resolve hash for DOI '{doi_us}': {e}")
-    return doi_us
+        _, _, top_iri = _read_global_state()
+    except Exception:
+        return
+    if not top_iri:
+        return
+    try:
+        top = URIRef(top_iri)
+        if (top, RDF.type, ONTOSYN.ChemicalSynthesis) not in g:
+            g.add((top, RDF.type, ONTOSYN.ChemicalSynthesis))
+    except Exception:
+        return
 
-def get_memory_paths(doi: str, top_level_entity_name: str):
-    """Get memory paths based on hash (resolved from DOI) and top-level entity name."""
-    hash_value = _hash_for_doi(doi)
+def get_memory_paths(hash_value: str, top_level_entity_name: str):
+    """Get memory paths based on hash and top-level entity name.
+    
+    Args:
+        hash_value: The 8-character hash identifying the paper (NOT a DOI)
+        top_level_entity_name: Name of the top-level entity
+    
+    Returns:
+        Dictionary with 'dir', 'ttl', and 'lock' paths
+    """
+    # Validate that we received a hash, not a DOI
+    if not (isinstance(hash_value, str) and len(hash_value) == 8 and all(c in "0123456789abcdef" for c in hash_value.lower())):
+        raise ValueError(f"Expected 8-character hex hash, got: {hash_value}. MCP server should never receive DOIs.")
+    
     mem_dir = os.path.join(DATA_DIR, hash_value, "memory_ontomops")    
     os.makedirs(mem_dir, exist_ok=True)
     return {
@@ -96,15 +106,20 @@ def get_memory_paths(doi: str, top_level_entity_name: str):
     }
 
 @contextmanager
-def locked_graph(doi: Optional[str] = None, top_level_entity_name: Optional[str] = None, timeout: float = 30.0):
-    """Lock, load, yield, then atomically write-back the memory graph for the given DOI and entity.
-    If doi/top_level_entity_name are not provided, resolve them from ontomops_global_state.json.
+def locked_graph(hash_value: Optional[str] = None, top_level_entity_name: Optional[str] = None, timeout: float = 30.0):
+    """Lock, load, yield, then atomically write-back the memory graph for the given hash and entity.
+    If hash_value/top_level_entity_name are not provided, resolve them from ontomops_global_state.json.
+    
+    Args:
+        hash_value: The 8-character hash identifying the paper (NOT a DOI)
+        top_level_entity_name: Name of the top-level entity
+        timeout: Lock acquisition timeout in seconds
     """
-    if not doi or not top_level_entity_name:
-        doi_g, entity_g = _read_global_state()
-        doi = doi or doi_g
+    if not hash_value or not top_level_entity_name:
+        hash_g, entity_g, _ = _read_global_state()
+        hash_value = hash_value or hash_g
         top_level_entity_name = top_level_entity_name or entity_g
-    paths = get_memory_paths(doi, top_level_entity_name)
+    paths = get_memory_paths(hash_value, top_level_entity_name)
     lock = FileLock(paths['lock'])
     lock.acquire(timeout=timeout)
     g = Graph()
@@ -140,6 +155,51 @@ def _slugify(text: str) -> str:
     text = re.sub(r"[^a-z0-9\-_]+", "-", text)
     text = re.sub(r"-+", "-", text).strip("-")
     return text or "entity"
+
+def _sanitize_label(raw_label: str) -> str:
+    """Sanitize labels to ensure proper Greek character representation.
+    - Normalize Unicode to NFKC
+    - Remove control/format characters
+    - Replace single-letter Greek substitutes in chemical names (e.g., VMOP-b → VMOP-β)
+    - Collapse whitespace and trim
+    """
+    if raw_label is None:
+        return "entity"
+
+    label = str(raw_label)
+    label = unicodedata.normalize("NFKC", label)
+
+    # Remove control characters (keep standard space)
+    cleaned_chars = []
+    for ch in label:
+        cat = unicodedata.category(ch)
+        if cat.startswith("C"):
+            continue
+        if ch.isspace():
+            cleaned_chars.append(" ")
+        else:
+            cleaned_chars.append(ch)
+    label = "".join(cleaned_chars)
+
+    # Replace single-letter Greek substitutes in chemical names (common in MOPs/VMOPs)
+    single_letter_greek = {
+        "a": "α", "b": "β", "g": "γ", "d": "δ", "e": "ε",
+        "z": "ζ", "h": "η", "q": "θ", "i": "ι", "k": "κ",
+        "l": "λ", "m": "μ", "n": "ν", "x": "ξ", "o": "ο",
+        "p": "π", "r": "ρ", "s": "σ", "t": "τ", "u": "υ",
+        "f": "φ", "c": "χ", "y": "ψ", "w": "ω",
+    }
+    # Match patterns like "VMOP-b", "MOP-a" (preceded by hyphen or underscore)
+    for letter, greek_char in single_letter_greek.items():
+        label = re.sub(
+            r"([-_])%s\b" % re.escape(letter),
+            r"\1%s" % greek_char,
+            label
+        )
+
+    # Collapse repeated spaces and trim
+    label = re.sub(r"\s+", " ", label).strip()
+    return label or "entity"
 
 def _iri_exists(g: Graph, iri: URIRef) -> bool:
     return (iri, None, None) in g or (None, None, iri) in g
@@ -188,15 +248,22 @@ def _safe_parent(parent_iri: str) -> Optional[URIRef]:
 # Memory API
 # ----------------------------------------------------------------------------------------------------------------------
 
-def init_memory(doi: Optional[str] = None, top_level_entity_name: Optional[str] = None) -> str:
+def init_memory(hash_value: Optional[str] = None, top_level_entity_name: Optional[str] = None) -> str:
     """Initialize or resume the memory graph. Returns a success message.
-    If doi/entity are None, they are resolved from ontomops_global_state.json.
+    If hash_value/entity are None, they are resolved from ontomops_global_state.json.
+    
+    Args:
+        hash_value: The 8-character hash identifying the paper (NOT a DOI)
+        top_level_entity_name: Name of the top-level entity
     """
-    with locked_graph(doi=doi, top_level_entity_name=top_level_entity_name, timeout=30.0) as g:
+    with locked_graph(hash_value=hash_value, top_level_entity_name=top_level_entity_name, timeout=30.0) as g:
         # Just ensure the graph is loaded/created. No session hash needed.
         pass
-    doi_actual, entity_actual = _read_global_state() if not (doi and top_level_entity_name) else (doi, top_level_entity_name)
-    return f"OntoMOPs memory initialized for DOI: {doi_actual}, entity: {entity_actual}"
+    if not (hash_value and top_level_entity_name):
+        hash_actual, entity_actual, _ = _read_global_state()
+    else:
+        hash_actual, entity_actual = hash_value, top_level_entity_name
+    return f"OntoMOPs memory initialized for hash: {hash_actual}, entity: {entity_actual}"
 
 def inspect_memory() -> str:
     """
@@ -204,11 +271,11 @@ def inspect_memory() -> str:
     Since memory is now entity-specific, we can return the full graph.
     """
     lines: List[str] = []
-    doi, top_level_entity_name = _read_global_state()
+    hash_value, top_level_entity_name, _ = _read_global_state()
     with locked_graph(timeout=30.0) as g:
         lines.append("=== OntoMOPs Memory Summary (entity-specific) ===")
         lines.append(f"Entity: {top_level_entity_name}")
-        lines.append(f"DOI: {doi}")
+        lines.append(f"Hash: {hash_value}")
         lines.append(f"Triples: {len(g)}")
 
         # group by subject
@@ -241,35 +308,78 @@ def inspect_memory() -> str:
     return "\n".join(lines)
 
 def export_memory() -> str:
-    """Serialize the entire memory graph to a Turtle file (.ttl) and return the absolute path."""
+    """Serialize the entire memory graph to a Turtle file (.ttl) and return the absolute path.
+    
+    Returns the absolute path to the exported file. Also updates the filename mapping file
+    to allow downstream pipelines to find files by entity label.
+    """
     # resolve state
-    doi, top_level_entity_name = _read_global_state()
-    # Generate filename based on entity name
-    filename = f"ontomops_extension_{top_level_entity_name}.ttl"
+    hash_value, top_level_entity_name, top_level_entity_iri = _read_global_state()
+    # Generate filename based on entity name - use slugified version for filesystem safety
+    # Append hash of entity IRI to avoid collisions (e.g., "VMOP-α" and "VMOP-β" both slugify to "vmop-")
+    slugified_name = _slugify(top_level_entity_name)
+    if top_level_entity_iri:
+        # Create a short hash from the entity IRI to ensure uniqueness
+        entity_hash = hashlib.sha256(top_level_entity_iri.encode()).hexdigest()[:8]
+        filename = f"ontomops_extension_{slugified_name}_{entity_hash}.ttl"
+    else:
+        # Fallback if no IRI available
+        filename = f"ontomops_extension_{slugified_name}.ttl"
+    
     # Save to data/<hash>/ontomops_output directory
-    hash_value = _hash_for_doi(doi)
     output_dir = os.path.join(DATA_DIR, hash_value, "ontomops_output")
     os.makedirs(output_dir, exist_ok=True)
     file_path = os.path.join(output_dir, filename)
     with locked_graph(timeout=30.0) as g:
         g.serialize(destination=file_path, format="turtle")
+    
+    # Update mapping file: entity_label -> actual_filename
+    # This allows downstream pipelines (e.g., CBU derivation) to find files by entity label
+    mapping_file = os.path.join(output_dir, "ontomops_output_mapping.json")
+    mapping = {}
+    if os.path.exists(mapping_file):
+        try:
+            with open(mapping_file, 'r', encoding='utf-8') as f:
+                mapping = json.load(f)
+        except Exception:
+            mapping = {}
+    
+    # Add/update mapping entry
+    # Use entity_label as key, actual filename as value
+    mapping[top_level_entity_name] = filename
+    # Also map by entity_iri if available
+    if top_level_entity_iri:
+        mapping[top_level_entity_iri] = filename
+    
+    # Save mapping file
+    try:
+        with open(mapping_file, 'w', encoding='utf-8') as f:
+            json.dump(mapping, f, indent=2, ensure_ascii=False)
+    except Exception as e:
+        # Log but don't fail - mapping is for convenience, not critical
+        import logging
+        logging.warning(f"Failed to update mapping file {mapping_file}: {e}")
+    
     return os.path.abspath(file_path)
 
 # ----------------------------------------------------------------------------------------------------------------------
 # OntoMOPs Core Classes
 # ----------------------------------------------------------------------------------------------------------------------
 
-def add_chemical_building_unit(name: str) -> str:
+def add_chemical_building_unit(iri: str, label: str) -> str:
     """
-    Create ontomops:ChemicalBuildingUnit.
-    
-    Args:
-        name: Human-readable name for the CBU
+    Register a ChemicalBuildingUnit using an existing IRI from OntoSynthesis A-Box.
+    Requires a human-readable label that will be stored as rdfs:label (not optional).
+    No minting; the provided IRI must be an absolute HTTPS IRI.
     """
     with locked_graph() as g:
-        iri_ref = _mint_hash_iri("ChemicalBuildingUnit")
+        if not _is_abs_iri(iri):
+            return "iri must be an absolute https IRI"
+        if not isinstance(label, str) or not label.strip():
+            return "label must be a non-empty string"
+        iri_ref = URIRef(iri)
         g.add((iri_ref, RDF.type, ONTOMOPS.ChemicalBuildingUnit))
-        g.add((iri_ref, RDFS.label, Literal(name)))
+        g.set((iri_ref, RDFS.label, Literal(_sanitize_label(label))))
         return str(iri_ref)
 
 def add_metal_organic_polyhedron(name: str,
@@ -284,17 +394,35 @@ def add_metal_organic_polyhedron(name: str,
         mop_formula: Chemical formula of the MOP (optional)
     """
     # check ccdc_number is a valid number, "N/A" is acceptable
-    if ccdc_number.upper() != "N/A":
+    if ccdc_number and ccdc_number.upper() != "N/A":
         if not ccdc_number.isdigit():
             return "ccdc_number must be a valid number, also, 1234567-1234568 is acceptable, must be a single number or 'N/A'"
 
-
-
-
     with locked_graph() as g:
+        # Check if a MetalOrganicPolyhedron already exists as chemical output
+        try:
+            _, _, entity_iri = _read_global_state()
+            if entity_iri and _is_abs_iri(entity_iri):
+                entity_ref = URIRef(entity_iri)
+                
+                # Count existing MetalOrganicPolyhedron linked via hasChemicalOutput
+                existing_mop_count = 0
+                for o in g.objects(entity_ref, ONTOSYN.hasChemicalOutput):
+                    if (o, RDF.type, ONTOMOPS.MetalOrganicPolyhedron) in g:
+                        existing_mop_count += 1
+                
+                if existing_mop_count >= 1:
+                    return (
+                        f"ERROR: Only one MetalOrganicPolyhedron instance is allowed per entity. "
+                        f"Entity '{entity_iri}' already has {existing_mop_count} MetalOrganicPolyhedron as chemical output. "
+                        f"Cannot create another MetalOrganicPolyhedron."
+                    )
+        except Exception:
+            pass
+        
         iri_ref = _mint_hash_iri("MetalOrganicPolyhedron")
         g.add((iri_ref, RDF.type, ONTOMOPS.MetalOrganicPolyhedron))
-        g.add((iri_ref, RDFS.label, Literal(name)))
+        g.add((iri_ref, RDFS.label, Literal(_sanitize_label(name))))
         
         # Add CCDC number if provided
         if ccdc_number:
@@ -304,6 +432,16 @@ def add_metal_organic_polyhedron(name: str,
         if mop_formula:
             g.add((iri_ref, ONTOMOPS.hasMOPFormula, Literal(mop_formula)))
         
+        # Link top-level OntoSyn entity to this MOP via ontosyn:hasChemicalOutput, if available
+        try:
+            _, _, entity_iri = _read_global_state()
+            if entity_iri and _is_abs_iri(entity_iri):
+                _ensure_top_is_typed_synthesis(g)
+                g.add((URIRef(entity_iri), ONTOSYN.hasChemicalOutput, iri_ref))
+        except Exception:
+            # If state missing, skip linking silently
+            pass
+
         return str(iri_ref)
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -352,7 +490,7 @@ def update_entity_label(entity_iri: str, label: str) -> str:
         for o in list(g.objects(entity, RDFS.label)):
             g.remove((entity, RDFS.label, o))
         # Add new label
-        g.add((entity, RDFS.label, Literal(label)))
+        g.add((entity, RDFS.label, Literal(_sanitize_label(label))))
         return str(entity)
 
 # ----------------------------------------------------------------------------------------------------------------------

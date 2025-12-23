@@ -20,6 +20,15 @@ You are not allowed to make up any information. Also, you should only present in
 
 You should not provide instruction about what is what, or give any instructions for building the A-Box.
 
+** Critical**: Be extremely careful about the entity-related information you are extracting. If you 
+extract the information for the wrong entity, the whole task will fail. 
+
+** Critical**: For chemical formulas used for characterisation, you should only include the formula that is **Explicitly** stated in the paper in the 
+same place as the characterisation information. Do not include the formula appearing in any other place in the paper.
+
+
+You must carefully compare all possible candidates, and select the one that matches exactly. 
+
 Here is the top-level entity:
 
 {entity_label}, {entity_uri}
@@ -56,8 +65,23 @@ indeed missing in the paper, use 'N/A' as the value.
 - Make sure when you create the instances, provide all inputs.  
 - Cover as many information as possible, try to call every mcp server function while populating the ontospecies A-Box. Inclusion priority over accuracy.
 - Extract information from the paper content provided below - do not make up any information.
-- Always include material used in the device for IR data. (e.g., KBr, KBr pellet, etc.)
+- Always include material used in the device for IR data. (e.g., KBr, KBr pellet, 2%% KBr pellet etc.)
 - When calling export_memory, do not provide any parameters - it reads from global state automatically
+
+Special note: 
+
+- For the case where the entity is "transformation from A to B", you should only create the species for B. Never A. 
+- **Critical**: In this case, you should assign the correct ccdc number to B, use name/identifier of B for the search. 
+- The ccdc result returned by the ccdc mcp server is absolutely authoritative, you must use it to assign the correct ccdc number to B.
+
+CCDC Number: 
+
+- CCDC Number is a critical information for the downstream task, you must spare no effort to find the correct ccdc number via the ccdc mcp server.
+
+Here is the DOI for this run (normalized and pipeline forms):
+
+- DOI: {doi_slash}
+- Pipeline DOI: {doi_underscore}
 
 Here is the OntoSynthesis A-Box, make sure you link your created A-box to the existing A-box, by referring 
 to the existing IRIs in the existing A-Box.
@@ -85,6 +109,7 @@ from filelock import FileLock
 from models.BaseAgent import BaseAgent
 from models.ModelConfig import ModelConfig
 from src.agents.mops.dynamic_mcp.modules.extraction import extract_content
+from src.utils.extraction_models import get_extraction_model
 
 def generate_hash(doi):
     """Generate an 8-digit hash from the DOI."""
@@ -95,19 +120,26 @@ GLOBAL_STATE_DIR = "data"
 GLOBAL_STATE_JSON = os.path.join(GLOBAL_STATE_DIR, "ontospecies_global_state.json")
 GLOBAL_STATE_LOCK = os.path.join(GLOBAL_STATE_DIR, "ontospecies_global_state.lock")
 
-def write_ontospecies_global_state(doi: str, top_level_entity_name: str):
-    """Write global state atomically with file lock for OntoSpecies MCP server to read."""
+def write_ontospecies_global_state(hash_value: str, top_level_entity_name: str, top_level_entity_iri: str = ""):
+    """Write global state atomically with file lock for OntoSpecies MCP server to read.
+    Includes top_level_entity_iri for linking ontosyn:hasChemicalOutput.
+    
+    Args:
+        hash_value: The 8-character hash identifying the paper (NOT the DOI)
+        top_level_entity_name: Name of the top-level entity
+        top_level_entity_iri: IRI of the top-level entity
+    """
     os.makedirs(GLOBAL_STATE_DIR, exist_ok=True)
     lock = FileLock(GLOBAL_STATE_LOCK)
     lock.acquire(timeout=30.0)
     try:
-        state = {"doi": doi, "top_level_entity_name": top_level_entity_name}
+        state = {"hash": hash_value, "top_level_entity_name": top_level_entity_name, "top_level_entity_iri": top_level_entity_iri}
         fd, tmp = tempfile.mkstemp(dir=GLOBAL_STATE_DIR, suffix=".json.tmp")
         os.close(fd)
         with open(tmp, "w", encoding="utf-8") as f:
             json.dump(state, f, indent=2)
         os.replace(tmp, GLOBAL_STATE_JSON)
-        print(f"OntoSpecies global state written: doi={doi}, entity={top_level_entity_name}")
+        print(f"OntoSpecies global state written: hash={hash_value}, entity={top_level_entity_name}")
     finally:
         lock.release()
 
@@ -136,6 +168,26 @@ def _write_text(path: str, content: str):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         f.write(content)
+
+def _resolve_doi_from_hash(hash_value: str):
+    """Return (pipeline_doi_with_underscore, slash_doi) for a given hash, or ("", "") if unknown."""
+    try:
+        from models.locations import DATA_DIR
+        mapping_path = os.path.join(DATA_DIR, "doi_to_hash.json")
+        if not os.path.exists(mapping_path):
+            print(f"DOI mapping file not found: {mapping_path}")
+            return "", ""
+        with open(mapping_path, 'r', encoding='utf-8') as f:
+            mapping = json.load(f) or {}
+        for doi_us, hv in mapping.items():
+            if hv == hash_value:
+                doi_sl = doi_us.replace('_', '/')
+                return doi_us, doi_sl
+        print(f"No DOI found for hash: {hash_value}")
+        return "", ""
+    except Exception as e:
+        print(f"Error resolving DOI for hash {hash_value}: {e}")
+        return "", ""
 
 def record_prompt(hash_value, entity_name, prompt_type, prompt_content):
     """Record prompt for debugging purposes."""
@@ -325,6 +377,7 @@ async def extract_ontospecies_content(hash_value, paper_content, test_mode=False
                 t_box=ontospecies_tbox,
                 entity_label=label,
                 entity_uri=uri,
+                model_name=get_extraction_model("extension_ontospecies"),
             )
             
             # Save extracted content
@@ -368,6 +421,7 @@ async def extract_ontospecies_content_for_entity(hash_value, paper_content, enti
             t_box=ontospecies_tbox,
             entity_label=entity_name,
             entity_uri="",
+            model_name=get_extraction_model("extension_ontospecies"),
         )
         
         # Save extracted content
@@ -380,14 +434,26 @@ async def extract_ontospecies_content_for_entity(hash_value, paper_content, enti
 
 async def species_extension_agent(hash_value, entity_name):
     model_config = ModelConfig()
-    mcp_tools = ["ontospecies_extension"]
+    mcp_tools = ["ontospecies_extension", "ccdc"]
     agent = BaseAgent(model_name="gpt-4o", model_config=model_config, remote_model=True, mcp_tools=mcp_tools, mcp_set_name="extension.json")
     
-    # Write global state for this entity
-    write_ontospecies_global_state(hash_value, entity_name)
-    
-    # Load entity-specific TTL file
+    # Resolve DOI from hash (only for prompt formatting, not for global state)
+    doi_us, doi_sl = _resolve_doi_from_hash(hash_value)
+    # Load entity-specific TTL and resolve top-level entity IRI from iter1_top_entities.json
     ontosynthesis_a_box = load_entity_ttl_file(hash_value, entity_name)
+    entity_iri = ""
+    try:
+        top_entities = load_top_level_entities(hash_value)
+        for ent in top_entities:
+            lbl = ent.get("label", "")
+            uri = ent.get("uri", "")
+            if lbl == entity_name or _safe_name(lbl) == entity_name:
+                entity_iri = uri
+                break
+    except Exception:
+        entity_iri = ""
+    # Write hash to global state (NOT DOI) - MCP server will use hash directly
+    write_ontospecies_global_state(hash_value, entity_name, entity_iri)
     
     # Load entity-specific extraction content
     paper_content = load_entity_extraction_content(hash_value, entity_name)
@@ -395,6 +461,8 @@ async def species_extension_agent(hash_value, entity_name):
     # Format the prompt
     formatted_prompt = PROMPT.format(
         hash=hash_value,
+        doi_underscore=doi_us,
+        doi_slash=doi_sl,
         ontosynthesis_a_box=ontosynthesis_a_box, 
         paper_content=paper_content
     )
@@ -407,11 +475,26 @@ async def species_extension_agent(hash_value, entity_name):
 
 async def species_extension_agent_with_content(hash_value, entity_name):
     model_config = ModelConfig()
-    mcp_tools = ["ontospecies_extension"]
+    mcp_tools = ["ontospecies_extension", "ccdc"]
     agent = BaseAgent(model_name="gpt-4o", model_config=model_config, remote_model=True, mcp_tools=mcp_tools, mcp_set_name="extension.json")
     
-    # Write global state for this entity
-    write_ontospecies_global_state(hash_value, entity_name)
+    # Resolve DOI from hash (only for prompt formatting, not for global state)
+    doi_us, doi_sl = _resolve_doi_from_hash(hash_value)
+    # Load entity-specific TTL and resolve top-level entity IRI from iter1_top_entities.json
+    ontosynthesis_a_box = load_entity_ttl_file(hash_value, entity_name)
+    entity_iri = ""
+    try:
+        top_entities = load_top_level_entities(hash_value)
+        for ent in top_entities:
+            lbl = ent.get("label", "")
+            uri = ent.get("uri", "")
+            if lbl == entity_name or _safe_name(lbl) == entity_name:
+                entity_iri = uri
+                break
+    except Exception:
+        entity_iri = ""
+    # Write hash to global state (NOT DOI) - MCP server will use hash directly
+    write_ontospecies_global_state(hash_value, entity_name, entity_iri)
     
     # Load entity-specific TTL file
     ontosynthesis_a_box = load_entity_ttl_file(hash_value, entity_name)
@@ -422,6 +505,8 @@ async def species_extension_agent_with_content(hash_value, entity_name):
     # Format the prompt
     formatted_prompt = PROMPT.format(
         hash=hash_value,
+        doi_underscore=doi_us,
+        doi_slash=doi_sl,
         ontosynthesis_a_box=ontosynthesis_a_box, 
         paper_content=paper_content
     )
@@ -456,7 +541,7 @@ if __name__ == "__main__":
         try:
             paper_content = load_stitched_md_content(test_hash, stitched_file)
             
-            # Run both extraction and extension agent
+            # Run extraction for all entities first (in parallel), then extension
             async def run_extraction_and_extension():
                 # Load top-level entities to get entity names
                 top_entities = load_top_level_entities(test_hash)
@@ -469,20 +554,30 @@ if __name__ == "__main__":
                     top_entities = top_entities[:1]
                     print(f"🔍 Test mode: Processing only the first entity for OntoSpecies extension")
                 
-                # Process each entity separately
+                # 1) Batch extract in parallel
+                names = [e.get("label", "") for e in top_entities if e.get("label")]
+                try:
+                    max_conc = int(os.getenv("MOPS_ONTOSPECIES_EXTRACT_MAX_CONCURRENCY", "0"))
+                except Exception:
+                    max_conc = 0
+                if max_conc <= 0:
+                    max_conc = min(8, len(names)) if names else 1
+                print(f"🚦 OntoSpecies extraction concurrency: {max_conc}")
+
+                sem = asyncio.Semaphore(max_conc)
+                async def _extract_one(nm: str):
+                    async with sem:
+                        print(f"Step 1: Extracting OntoSpecies content for entity '{nm}'...")
+                        await extract_ontospecies_content_for_entity(test_hash, paper_content, nm, args.test)
+
+                await asyncio.gather(*[asyncio.create_task(_extract_one(nm)) for nm in names])
+
+                # 2) Then run extension per entity (sequential)
                 for i, entity in enumerate(top_entities):
                     entity_name = entity.get("label", "")
                     safe_entity_name = _safe_name(entity_name)
-                    
-                    print(f"\n🔄 Processing entity {i+1}/{len(top_entities)}: '{entity_name}'")
-                    
-                    # Step 1: Extract content for this specific entity (skip if exists)
-                    print(f"Step 1: Extracting OntoSpecies content for entity '{entity_name}'...")
-                    await extract_ontospecies_content_for_entity(test_hash, paper_content, entity_name, args.test)
-                    
-                    # Step 2: Run extension agent for this specific entity
-                    print(f"Step 2: Running OntoSpecies extension agent for entity: {entity_name}")
-                    response = await species_extension_agent_with_content(test_hash, safe_entity_name)
+                    print(f"Step 2: Running OntoSpecies extension agent for entity: {entity_name} ({i+1}/{len(top_entities)})")
+                    _ = await species_extension_agent_with_content(test_hash, safe_entity_name)
                     print(f"✅ Completed extension for entity: {entity_name}")
                 
                 return "All entities processed"
@@ -509,28 +604,38 @@ if __name__ == "__main__":
         try:
             paper_content = load_stitched_md_content(hash_value, stitched_file)
             
-            # Run both extraction and extension agent
+            # Run extraction for all entities first (in parallel), then extension
             async def run_extraction_and_extension():
                 # Load top-level entities to get entity names
                 top_entities = load_top_level_entities(hash_value)
                 if not top_entities:
                     print("⚠️  No top-level entities found for OntoSpecies extension")
                     return "No entities to process"
-                
-                # Process each entity separately
+
+                # 1) Batch extract in parallel
+                names = [e.get("label", "") for e in top_entities if e.get("label")]
+                try:
+                    max_conc = int(os.getenv("MOPS_ONTOSPECIES_EXTRACT_MAX_CONCURRENCY", "0"))
+                except Exception:
+                    max_conc = 0
+                if max_conc <= 0:
+                    max_conc = min(8, len(names)) if names else 1
+                print(f"🚦 OntoSpecies extraction concurrency: {max_conc}")
+
+                sem = asyncio.Semaphore(max_conc)
+                async def _extract_one(nm: str):
+                    async with sem:
+                        print(f"Step 1: Extracting OntoSpecies content for entity '{nm}'...")
+                        await extract_ontospecies_content_for_entity(hash_value, paper_content, nm, False)
+
+                await asyncio.gather(*[asyncio.create_task(_extract_one(nm)) for nm in names])
+
+                # 2) Then run extension per entity (sequential)
                 for i, entity in enumerate(top_entities):
                     entity_name = entity.get("label", "")
                     safe_entity_name = _safe_name(entity_name)
-                    
-                    print(f"\n🔄 Processing entity {i+1}/{len(top_entities)}: '{entity_name}'")
-                    
-                    # Step 1: Extract content for this specific entity (skip if exists)
-                    print(f"Step 1: Extracting OntoSpecies content for entity '{entity_name}'...")
-                    await extract_ontospecies_content_for_entity(hash_value, paper_content, entity_name, False)
-                    
-                    # Step 2: Run extension agent for this specific entity
-                    print(f"Step 2: Running OntoSpecies extension agent for entity: {entity_name}")
-                    response = await species_extension_agent_with_content(hash_value, safe_entity_name)
+                    print(f"Step 2: Running OntoSpecies extension agent for entity: {entity_name} ({i+1}/{len(top_entities)})")
+                    _ = await species_extension_agent_with_content(hash_value, safe_entity_name)
                     print(f"✅ Completed extension for entity: {entity_name}")
                 
                 return "All entities processed"

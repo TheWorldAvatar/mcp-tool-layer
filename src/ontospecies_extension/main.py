@@ -56,6 +56,7 @@ def instruction_prompt():
     return (
         "OntoSpecies MCP (simplified ops)\n"
         "Rules:\n"
+        "**Critical**: Always create the species first, before adding any other information. "
         "- ** Top priority: don't derive any new information yourself, only use the information provided in the paper."
         "- Parent arguments must be absolute IRIs (https). Use 'N/A' when a parent value is unknown.\n"
         "- Child nodes are created from provided labels; IRIs are minted internally.\n"
@@ -145,14 +146,18 @@ def add_characterization_session_to_species(species_iri: str, session_label: str
     name="add_hnmr_device_to_characterization_session",
     description=(
         "Create and link an HNMR Device to a CharacterizationSession. "
-        "Args: session_iri (absolute https IRI), device_label (string). "
+        "Args: session_iri (absolute https IRI), device_label (string), frequency (optional string). "
         "Returns the new device IRI."
     ),
 )
 @mcp_tool_logger
-def add_hnmr_device_to_characterization_session(session_iri: str, device_label: str) -> str:
+def add_hnmr_device_to_characterization_session(
+    session_iri: str,
+    device_label: str,
+    frequency: str | None = None,
+) -> str:
     _require_abs_iri("session_iri", session_iri)
-    return _add_hnmr_dev_to_session(session_iri, device_label)
+    return _add_hnmr_dev_to_session(session_iri, device_label, frequency)
 
 @mcp.tool(
     name="add_elemental_analysis_device_to_characterization_session",
@@ -198,7 +203,8 @@ def add_hnmr_data_to_species(
     temperature: str | None = None,
 ) -> str:
     _require_abs_iri("species_iri", species_iri)
-    return _add_hnmr_data_to_species(species_iri, data_label, shifts_text, solvent, temperature)
+    # Underlying signature: (species_iri, data_label, shifts, temperature, solvent_name)
+    return _add_hnmr_data_to_species(species_iri, data_label, shifts_text, temperature, solvent)
 
 @mcp.tool(
     name="add_elemental_analysis_data_to_species",
@@ -236,17 +242,20 @@ def add_elemental_analysis_data_to_species(
     name="add_infrared_spectroscopy_data_to_species",
     description=(
         "Create and link an Infrared Spectroscopy Data node under a Species. "
-        "Optionally attach free-text IR bands. "
-        "Args: species_iri (absolute https IRI), data_label (string), bands_text (optional string). "
+        "Optionally attach free-text IR bands and a material label. "
+        "Args: species_iri (absolute https IRI), data_label (string), bands_text (optional string), material_label (optional string). "
         "Returns the new data IRI."
     ),
 )
 @mcp_tool_logger
 def add_infrared_spectroscopy_data_to_species(
-    species_iri: str, data_label: str, bands_text: str = None
+    species_iri: str,
+    data_label: str,
+    bands_text: str | None = None,
+    material_label: str | None = None,
 ) -> str:
     _require_abs_iri("species_iri", species_iri)
-    return _add_ir_data_to_species(species_iri, data_label, bands_text)
+    return _add_ir_data_to_species(species_iri, data_label, bands_text, material_label)
 
 @mcp.tool(
     name="add_material_to_infrared_spectroscopy_data",
@@ -261,32 +270,6 @@ def add_material_to_infrared_spectroscopy_data(ir_data_iri: str, material_label:
     _require_abs_iri("ir_data_iri", ir_data_iri)
     return _add_material_to_ir(ir_data_iri, material_label)
 
-# @mcp.tool(
-#     name="add_molecular_formula_to_species",
-#     description=(
-#         "Attach a molecular formula literal to a Species. "
-#         "Args: species_iri (absolute https IRI), formula_label (string, e.g., 'C7H8N2O2'). "
-#         "Returns a confirmation string."
-#     ),
-# )
-# @mcp_tool_logger
-# def add_molecular_formula_to_species(species_iri: str, formula_label: str) -> str:
-#     _require_abs_iri("species_iri", species_iri)
-#     return _add_mf_to_species(species_iri, formula_label)
-
-# @mcp.tool(
-#     name="add_chemical_formula_to_species",
-#     description=(
-#         "Attach a chemical formula literal to a Species. "
-#         "You should always use empirical (elemental) chemical formula as stated in the paper. "
-#         "Args: species_iri (absolute https IRI), formula_label (string). "
-#         "Returns a confirmation string."
-#     ),
-# )
-# @mcp_tool_logger
-# def add_chemical_formula_to_species(species_iri: str, formula_label: str) -> str:
-#     _require_abs_iri("species_iri", species_iri)
-#     return _add_cf_to_species(species_iri, formula_label)
 
 @mcp.tool(
     name="add_ccdc_number_to_species",
@@ -319,9 +302,8 @@ def add_atomic_weight_to_element(element_iri: str, value_label: str) -> str:
     name="delete_triple",
     description=(
         "Delete a specific triple from the graph. "
-        "Args: subject_iri (absolute https IRI), predicate_uri (absolute IRI), "
-        "object_iri_or_literal (IRI or literal), is_object_literal (bool). "
-        "Set is_object_literal=True when the object is a literal value."
+        "Args: subject_iri (absolute https IRI), predicate_uri (absolute IRI), object_iri_or_literal (IRI or literal). "
+        "The object is treated as a literal when it is not an absolute IRI."
     ),
 )
 @mcp_tool_logger
@@ -329,14 +311,14 @@ def delete_triple(
     subject_iri: str,
     predicate_uri: str,
     object_iri_or_literal: str,
-    is_object_literal: bool = False,
 ) -> str:
     if not _is_abs_iri(predicate_uri):
         raise ValueError(f"predicate_uri must be an absolute IRI. Got: {predicate_uri!r}")
     _require_abs_iri("subject_iri", subject_iri)
-    if not is_object_literal:
+    # Only enforce absolute IRI for object when it's not a literal
+    if _is_abs_iri(object_iri_or_literal):
         _require_abs_iri("object_iri_or_literal", object_iri_or_literal)
-    return _delete_triple(subject_iri, predicate_uri, object_iri_or_literal, is_object_literal)
+    return _delete_triple(subject_iri, predicate_uri, object_iri_or_literal)
 
 @mcp.tool(
     name="delete_entity",

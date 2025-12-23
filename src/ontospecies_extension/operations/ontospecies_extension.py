@@ -13,6 +13,7 @@ from rdflib.namespace import RDF, RDFS, XSD
 
 # ========= Namespaces =========
 OS  = Namespace("http://www.theworldavatar.com/ontology/ontospecies/OntoSpecies.owl#")
+ONTOSYN = Namespace("https://www.theworldavatar.com/kg/OntoSyn/")
 PER = Namespace("http://www.daml.org/2003/01/periodictable/PeriodicTable#")
 
 INST_BASE = "https://www.theworldavatar.com/kg/OntoSpecies/instance"
@@ -21,6 +22,28 @@ INST_BASE = "https://www.theworldavatar.com/kg/OntoSpecies/instance"
 DATA_DIR = "data"
 GLOBAL_STATE_JSON = os.path.join(DATA_DIR, "ontospecies_global_state.json")
 GLOBAL_STATE_LOCK = os.path.join(DATA_DIR, "ontospecies_global_state.lock")
+
+
+# ========= Elemental analysis data (strict attach) =========
+def _iri_exists(g, iri):
+    return any(g.triples((iri, None, None)))
+
+def _is_species(g, iri):
+    return any(g.triples((iri, RDF.type, _class(OS, "Species"))))
+
+def _list_species_summaries(g, limit=20):
+    out = []
+    count = 0
+    for s, _, _ in g.triples((None, RDF.type, _class(OS, "Species"))):
+        label = next((o for _, _, o in g.triples((s, RDFS.label, None))), None)
+        formula = next((o for _, _, mf in g.triples((s, _class(OS, "hasMolecularFormula"), None))
+                        for _, _, o in g.triples((mf, _class(OS, "hasMolecularFormulaValue"), None))), None)
+        out.append({"iri": str(s), "label": str(label) if label else None, "formula": str(formula) if formula else None})
+        count += 1
+        if count >= limit:
+            break
+    return out
+
 
 # ========= Helpers =========
 def _is_abs_iri(s: str) -> bool:
@@ -38,15 +61,36 @@ def _mint_hash_iri(class_local: str) -> URIRef:
     return URIRef(f"{INST_BASE}/{class_local}/{h}")
 
 def _read_global_state():
+    """Read global state: returns (hash_value, top_level_entity_name, top_level_entity_iri).
+    
+    Returns the hash value (8-character hex string) that identifies the paper.
+    """
     if not os.path.exists(GLOBAL_STATE_JSON):
-        return "default-doi", "default-entity"
+        return "default-hash", "default-entity", ""
     from json import load
     with FileLock(GLOBAL_STATE_LOCK):
         with open(GLOBAL_STATE_JSON, "r", encoding="utf-8") as f:
             st = load(f)
-    doi = (st.get("doi") or "default-doi").strip()
+    hash_value = (st.get("hash") or "default-hash").strip()
     ent = (st.get("top_level_entity_name") or "default-entity").strip()
-    return doi, ent
+    ent_iri = (st.get("top_level_entity_iri") or "").strip()
+    return hash_value, ent, ent_iri
+
+def _ensure_top_is_typed_synthesis(g: Graph) -> None:
+    try:
+        _, _, top_iri = _read_global_state()
+    except Exception:
+        return
+    if not top_iri:
+        return
+    try:
+        if not _is_abs_iri(top_iri):
+            return
+        top = URIRef(top_iri)
+        if (top, RDF.type, URIRef(str(ONTOSYN) + "ChemicalSynthesis")) not in g:
+            g.add((top, RDF.type, URIRef(str(ONTOSYN) + "ChemicalSynthesis")))
+    except Exception:
+        return
 
 def _slugify(text: str, maxlen: int = 120) -> str:
     import unicodedata
@@ -57,9 +101,76 @@ def _slugify(text: str, maxlen: int = 120) -> str:
     from urllib.parse import quote
     return quote(s, safe="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.~")
 
+def _sanitize_label(raw_label: str) -> str:
+    """Sanitize labels to ensure proper Greek character representation.
+    - Normalize Unicode to NFKC
+    - Remove control/format characters
+    - Replace single-letter Greek substitutes in chemical names (e.g., VMOP-b → VMOP-β)
+    - Collapse whitespace and trim
+    """
+    import unicodedata
+    if raw_label is None:
+        return "entity"
+
+    label = str(raw_label)
+    label = unicodedata.normalize("NFKC", label)
+
+    # Remove control characters (keep standard space)
+    cleaned_chars = []
+    for ch in label:
+        cat = unicodedata.category(ch)
+        if cat.startswith("C"):
+            continue
+        if ch.isspace():
+            cleaned_chars.append(" ")
+        else:
+            cleaned_chars.append(ch)
+    label = "".join(cleaned_chars)
+
+    # Replace single-letter Greek substitutes in chemical names (common in MOPs/VMOPs)
+    single_letter_greek = {
+        "a": "α", "b": "β", "g": "γ", "d": "δ", "e": "ε",
+        "z": "ζ", "h": "η", "q": "θ", "i": "ι", "k": "κ",
+        "l": "λ", "m": "μ", "n": "ν", "x": "ξ", "o": "ο",
+        "p": "π", "r": "ρ", "s": "σ", "t": "τ", "u": "υ",
+        "f": "φ", "c": "χ", "y": "ψ", "w": "ω",
+    }
+    # Match patterns like "VMOP-b", "MOP-a" (preceded by hyphen or underscore)
+    for letter, greek_char in single_letter_greek.items():
+        label = re.sub(
+            r"([-_])%s\b" % re.escape(letter),
+            r"\1%s" % greek_char,
+            label
+        )
+
+    # Collapse repeated spaces and trim
+    label = re.sub(r"\s+", " ", label).strip()
+    return label or "entity"
+
+def _hash_for_doi(doi_us: str) -> str:
+    """Resolve hash directory for a given pipeline DOI (underscore form).
+
+    Falls back to doi_us if mapping not found. Accepts an 8-char hex hash as pass-through.
+    """
+    try:
+        if isinstance(doi_us, str) and len(doi_us) == 8 and all(c in "0123456789abcdef" for c in doi_us.lower()):
+            return doi_us
+        from json import load
+        mapping_path = os.path.join(DATA_DIR, "doi_to_hash.json")
+        if os.path.exists(mapping_path):
+            with open(mapping_path, "r", encoding="utf-8") as f:
+                mapping = load(f) or {}
+            hv = mapping.get(doi_us)
+            if hv:
+                return hv
+        print(f"Warning: hash not found for DOI '{doi_us}', using DOI as folder name (compat mode)")
+    except Exception as e:
+        print(f"Warning: failed to resolve hash for DOI '{doi_us}': {e}")
+    return doi_us
+
 def _memory_paths():
-    doi, ent = _read_global_state()
-    mem_dir = os.path.join(DATA_DIR, doi, "memory_ontospecies")
+    hash_value, ent, _ = _read_global_state()
+    mem_dir = os.path.join(DATA_DIR, hash_value, "memory_ontospecies")
     os.makedirs(mem_dir, exist_ok=True)
     return {
         "ttl":  os.path.join(mem_dir, f"{_slugify(ent)}.ttl"),
@@ -92,7 +203,7 @@ def locked_graph(timeout: float = 30.0):
 def _ensure_type_with_label(g: Graph, iri: URIRef, cls: URIRef, label: Optional[str] = None) -> None:
     g.add((iri, RDF.type, cls))
     if label is not None:
-        g.set((iri, RDFS.label, Literal(label)))
+        g.set((iri, RDFS.label, Literal(_sanitize_label(label))))
 
 def _safe_parent(parent_iri: str) -> Optional[URIRef]:
     return URIRef(parent_iri) if _is_abs_iri(parent_iri) else None
@@ -105,10 +216,41 @@ def _is_empirical(s: str) -> bool:
 # ========= Top-level creators =========
 def create_species(label: str, product_name: Optional[str] = None) -> str:
     with locked_graph() as g:
+        # Check if a Species already exists as chemical output
+        try:
+            _, _, entity_iri = _read_global_state()
+            if entity_iri and _is_abs_iri(entity_iri):
+                entity_ref = URIRef(entity_iri)
+                species_class = _class(OS, "Species")
+                has_chemical_output = URIRef(str(ONTOSYN) + "hasChemicalOutput")
+                
+                # Count existing Species linked via hasChemicalOutput
+                existing_species_count = 0
+                for o in g.objects(entity_ref, has_chemical_output):
+                    if (o, RDF.type, species_class) in g:
+                        existing_species_count += 1
+                
+                if existing_species_count >= 1:
+                    return (
+                        f"ERROR: Only one Species instance is allowed per entity. "
+                        f"Entity '{entity_iri}' already has {existing_species_count} Species as chemical output. "
+                        f"Cannot create another Species."
+                    )
+        except Exception:
+            pass
+        
         s = _mint_hash_iri("Species")
         _ensure_type_with_label(g, s, _class(OS, "Species"), label)
         if product_name:
             g.set((s, _class(OS, "hasProductName"), Literal(product_name)))
+        # Link top-level ChemicalSynthesis to this Species as chemical output, if available
+        try:
+            _, _, entity_iri = _read_global_state()
+            if entity_iri:
+                _ensure_top_is_typed_synthesis(g)
+                g.add((URIRef(entity_iri), URIRef(str(ONTOSYN) + "hasChemicalOutput"), s))
+        except Exception:
+            pass
         return str(s)
 
 def create_element(label: str, symbol: Optional[str] = None) -> str:
@@ -208,47 +350,143 @@ def add_chemical_shift_to_hnmrdata(hnmr_data_iri: str, shift_label: str) -> str:
         hnmr_data_iri, "hasChemicalShift", OS, "ChemicalShift", shift_label
     )
 
-# ========= Elemental analysis data =========
+
+    
+# ========= Elemental Analysis Data =========
 def add_elemental_analysis_data_to_species(
     species_iri: str,
     data_label: str,
-    calculated_value_text: Optional[str] = None,     # e.g., "C 40.09; H 5.43; N 8.05"
-    experimental_value_text: Optional[str] = None,   # e.g., "C 39.86; H 5.48; N 8.22"
-    empirical_molecular_formula: Optional[str] = None,  # enforce empirical
+    calculated_value_text: Optional[str] = None,
+    experimental_value_text: Optional[str] = None,
+    empirical_molecular_formula: Optional[str] = None,
 ) -> str:
     with locked_graph() as g:
-        parent = _safe_parent(species_iri)
-        if parent is None:
-            return "parent IRI must be absolute https IRI"
+        # Basic validations
+        if not species_iri or not data_label:
+            return "ERROR: species_iri and data_label are required."
+        if not _is_abs_iri(species_iri):
+            return "ERROR: species_iri must be an absolute IRI."
 
+        species_ref = URIRef(species_iri)
+
+        # Check if species exists
+        exists = any(g.triples((species_ref, RDF.type, _class(OS, "Species"))))
+        if not exists:
+            catalog = _list_species_summaries(g, 20)
+            return (
+                f"ERROR: target species not found.\n"
+                f"Requested: {species_iri}\n"
+                f"Create the species first, then retry.\n"
+                f"Existing Species (up to 20):\n{catalog}"
+            )
+
+        # Create EA node
         ea = _mint_hash_iri("ElementalAnalysisData")
         _ensure_type_with_label(g, ea, _class(OS, "ElementalAnalysisData"), data_label)
 
         # Calculated WeightPercentage node
-        if calculated_value_text is not None:
+        if calculated_value_text:
             wp_c = _mint_hash_iri("WeightPercentage")
             _ensure_type_with_label(g, wp_c, _class(OS, "WeightPercentage"), "Calculated")
             g.set((wp_c, _class(OS, "hasWeightPercentageCalculatedValue"), Literal(calculated_value_text)))
             g.add((ea, _class(OS, "hasWeightPercentageCalculated"), wp_c))
 
         # Experimental WeightPercentage node
-        if experimental_value_text is not None:
+        if experimental_value_text:
             wp_e = _mint_hash_iri("WeightPercentage")
             _ensure_type_with_label(g, wp_e, _class(OS, "WeightPercentage"), "Experimental")
             g.set((wp_e, _class(OS, "hasWeightPercentageExperimentalValue"), Literal(experimental_value_text)))
             g.add((ea, _class(OS, "hasWeightPercentageExperimental"), wp_e))
 
-        # Empirical molecular formula node (MolecularFormula) if provided
-        if empirical_molecular_formula is not None:
-            if not _is_empirical(empirical_molecular_formula):
-                return "empirical_molecular_formula must be compact elemental, e.g., 'C230H308N34O103Fe12S12'"
+        # Empirical molecular formula node (optional)
+        if empirical_molecular_formula:
             mf = _mint_hash_iri("MolecularFormula")
             _ensure_type_with_label(g, mf, _class(OS, "MolecularFormula"), empirical_molecular_formula)
             g.set((mf, _class(OS, "hasMolecularFormulaValue"), Literal(empirical_molecular_formula)))
-            g.add((parent, _class(OS, "hasMolecularFormula"), mf))
+            g.add((species_ref, _class(OS, "hasMolecularFormula"), mf))
 
-        g.add((parent, _class(OS, "hasElementalAnalysisData"), ea))
+        # Attach EA to species
+        g.add((species_ref, _class(OS, "hasElementalAnalysisData"), ea))
+
         return str(ea)
+
+# def add_elemental_analysis_data_to_species(
+#     species_iri: str,
+#     data_label: str,
+#     calculated_value_text: Optional[str] = None,     # e.g., "C 40.09; H 5.43; N 8.05"
+#     experimental_value_text: Optional[str] = None,   # e.g., "C 39.86; H 5.48; N 8.22"
+#     empirical_molecular_formula: Optional[str] = None,  # enforce empirical
+# ) -> str:
+#     with locked_graph() as g:
+#         # 0) Basic validations
+#         if not species_iri or not data_label:
+#             return "species_iri and data_label are required."
+
+#         parent = _safe_parent(species_iri)
+#         if parent is None:
+#             return "parent IRI must be absolute https IRI"
+
+#         # 1) Enforce existence and correct rdf:type BEFORE creating anything
+#         parent_ref = URIRef(parent)
+#         is_species = any(g.triples((parent_ref, RDF.type, _class(OS, "Species"))))
+#         if not is_species:
+#             # Build a compact catalog of existing Species (IRI | label | formula)
+#             lines = []
+#             count = 0
+#             for s, _, _ in g.triples((None, RDF.type, _class(OS, "Species"))):
+#                 lbl = next((str(o) for _, _, o in g.triples((s, RDFS.label, None))), None)
+#                 # find attached MolecularFormula -> value
+#                 formula_val = None
+#                 for _, _, mf in g.triples((s, _class(OS, "hasMolecularFormula"), None)):
+#                     formula_val = next(
+#                         (str(v) for _, _, v in g.triples((mf, _class(OS, "hasMolecularFormulaValue"), None))),
+#                         None
+#                     )
+#                     if formula_val:
+#                         break
+#                 lines.append(f"- {str(s)}" + (f" | label={lbl}" if lbl else "") + (f" | formula={formula_val}" if formula_val else ""))
+#                 count += 1
+#                 if count >= 50:
+#                     break
+#             catalog = "\n".join(lines) if lines else "(no Species found in graph)"
+#             return (
+#                 "Target species does not exist or is not typed as ontospecies:Species. "
+#                 "Create the species first, then attach elemental analysis.\n"
+#                 f"Requested: {species_iri}\n"
+#                 "Existing Species (up to 50):\n"
+#                 f"{catalog}"
+#             )
+
+#         # 2) Safe to create EA only now
+#         ea = _mint_hash_iri("ElementalAnalysisData")
+#         _ensure_type_with_label(g, ea, _class(OS, "ElementalAnalysisData"), data_label)
+
+#         # 3) Calculated WeightPercentage node
+#         if calculated_value_text is not None:
+#             wp_c = _mint_hash_iri("WeightPercentage")
+#             _ensure_type_with_label(g, wp_c, _class(OS, "WeightPercentage"), "Calculated")
+#             g.set((wp_c, _class(OS, "hasWeightPercentageCalculatedValue"), Literal(calculated_value_text)))
+#             g.add((ea, _class(OS, "hasWeightPercentageCalculated"), wp_c))
+
+#         # 4) Experimental WeightPercentage node
+#         if experimental_value_text is not None:
+#             wp_e = _mint_hash_iri("WeightPercentage")
+#             _ensure_type_with_label(g, wp_e, _class(OS, "WeightPercentage"), "Experimental")
+#             g.set((wp_e, _class(OS, "hasWeightPercentageExperimentalValue"), Literal(experimental_value_text)))
+#             g.add((ea, _class(OS, "hasWeightPercentageExperimental"), wp_e))
+
+#         # 5) Empirical molecular formula (attach to species, not EA)
+#         if empirical_molecular_formula is not None:
+#             if not _is_empirical(empirical_molecular_formula):
+#                 return "empirical_molecular_formula must be compact elemental, e.g., 'C230H308N34O103Fe12S12'"
+#             mf = _mint_hash_iri("MolecularFormula")
+#             _ensure_type_with_label(g, mf, _class(OS, "MolecularFormula"), empirical_molecular_formula)
+#             g.set((mf, _class(OS, "hasMolecularFormulaValue"), Literal(empirical_molecular_formula)))
+#             g.add((parent_ref, _class(OS, "hasMolecularFormula"), mf))
+
+#         # 6) Attach EA to species
+#         g.add((parent_ref, _class(OS, "hasElementalAnalysisData"), ea))
+#         return str(ea)
 
 # ========= IR data =========
 def add_infrared_spectroscopy_data_to_species(
@@ -309,6 +547,11 @@ def add_chemical_formula_to_species(species_iri: str, formula_text: str, label: 
 
 # ========= CCDC =========
 def add_ccdc_number_to_species(species_iri: str, ccdc_value: str) -> str:
+    # check ccdc_value is a valid number, "N/A" is acceptable
+    if ccdc_value.upper() != "N/A":
+        if not ccdc_value.isdigit():
+            return "ccdc_value must be a valid number, also, 1234567-1234568 is acceptable, must be a single number or 'N/A'"
+
     with locked_graph() as g:
         parent = _safe_parent(species_iri)
         if parent is None:
@@ -394,8 +637,8 @@ def add_material_to_infrared_spectroscopy_data(ir_data_iri: str, material_name: 
 def init_memory() -> str:
     with locked_graph():
         pass
-    doi, ent = _read_global_state()
-    return f"OntoSpecies memory ready for DOI='{doi}', entity='{ent}'"
+    hash_value, ent, _ = _read_global_state()
+    return f"OntoSpecies memory ready for hash='{hash_value}', entity='{ent}'"
 
 def inspect_memory() -> str:
     lines: List[str] = []
@@ -414,8 +657,9 @@ def inspect_memory() -> str:
     return "\n".join(lines)
 
 def export_memory() -> str:
-    doi, ent = _read_global_state()
+    hash_value, ent, _ = _read_global_state()
     mem = _memory_paths()
+    # dirname(mem['dir']) is data/<hash>; keep output under hash as well
     out_dir = os.path.join(os.path.dirname(mem["dir"]), "ontospecies_output")
     os.makedirs(out_dir, exist_ok=True)
     out = os.path.join(out_dir, f"{_slugify(ent)}.ttl")
@@ -428,6 +672,8 @@ if __name__ == "__main__":
     print(init_memory())
     sp = create_species("IRMOP-50", product_name="IRMOP-50")
     print("species:", sp)
+
+
 
     ses = add_characterization_session_to_species(sp, "IRMOP-50 Characterization")
     print("session:", ses)
@@ -452,16 +698,36 @@ if __name__ == "__main__":
         experimental_value_text="C 37.93, H 4.76, N 3.62",
         empirical_molecular_formula="C108H84N12O88S12",
     )
-    print("ea:", ea)
 
-    mf = add_molecular_formula_to_species(sp, "C108H84N12O88S12")
-    print("mf:", mf)
+    fake_sp = "https://www.theworldavatar.com/kg/OntoSpecies/instance/Species/6fcdccccea7cb8be72dbe8008ff2a2d27aa3b620-fake-one"
+    ea = add_elemental_analysis_data_to_species(fake_sp, "Fake Agent EA",
+        calculated_value_text="C 37.94, H 4.96, N 3.63",
+        experimental_value_text="C 37.93, H 4.76, N 3.62",
+        empirical_molecular_formula="C108H84N12O88S12",
+    )
 
-    cf = add_chemical_formula_to_species(sp, "[NH2(CH3)2]8[Fe12O4(SO4)12(BDC)6(py)12]·(DMF)15(py)2(H2O)30")
-    print("cf:", cf)
-
-    el = create_element("Carbon", "C")
-    aw = add_atomic_weight_to_element(el, 12.011)
-    print("element+aw:", el, aw)
+    print("fake ea:", ea)
 
     print("export:", export_memory())
+    # print("ea:", ea)
+
+    # mf = add_molecular_formula_to_species(sp, "C108H84N12O88S12")
+    # print("mf:", mf)
+
+    # cf = add_chemical_formula_to_species(sp, "[NH2(CH3)2]8[Fe12O4(SO4)12(BDC)6(py)12]·(DMF)15(py)2(H2O)30")
+    # print("cf:", cf)
+
+    # el = create_element("Carbon", "C")
+    # aw = add_atomic_weight_to_element(el, 12.011)
+    # print("element+aw:", el, aw)
+
+    # print("export:", export_memory())
+
+    # ccdc = add_ccdc_number_to_species(sp, "1234567")
+    # print("ccdc:", ccdc)
+
+    # ccdc_na = add_ccdc_number_to_species(sp, "N/A")
+    # print("ccdc_na:", ccdc_na)
+
+    # ccdc_invalid = add_ccdc_number_to_species(sp, "1234567-1234568")
+    # print("ccdc_invalid:", ccdc_invalid)

@@ -34,7 +34,7 @@ def instruction_prompt():
         "with their properties and relationships. All tools accept plain strings and numbers and return IRIs as strings. "
         "IRIs are minted to be readable and stable. "
         "The server uses entity-specific memory with global state management. The agent writes global state to ontomops_global_state.json, "
-        "and the MCP server reads it automatically. No need to pass DOI or entity parameters to tools. "
+        "and the MCP server reads it automatically. No need to pass hash or entity parameters to tools. "
         "Prefer to use paper exact wording for rdfs:label fields to preserve provenance. "
         "\n\n"
         "Recommended calling sequence to build a complete MOP knowledge graph: "
@@ -56,7 +56,7 @@ def instruction_prompt():
         "\n   - get_mop_cbus to get all ChemicalBuildingUnits in a MOP "
         "\n7. Inspect and export: "
         "\n   - inspect_memory to see a human readable summary "
-        "\n   - export_memory to persist a Turtle snapshot to data/<doi>/ontomops_output/ "
+        "\n   - export_memory to persist a Turtle snapshot to data/<hash>/ontomops_output/ "
         "\n8. Clean up if necessary: "
         "\n   - remove_cbu_from_mop to remove CBU-MOP relationships "
         "\n   - delete_triple to remove a specific link or delete_entity to remove an entire node "
@@ -69,17 +69,17 @@ def instruction_prompt():
 # =========================
 # Memory API
 # =========================
-@mcp.tool(name="init_memory", description="Initialize or resume the persistent graph. Reads from ontomops_global_state.json for DOI and entity information.")
+@mcp.tool(name="init_memory", description="Initialize or resume the persistent graph. Reads from ontomops_global_state.json for hash and entity information.")
 @mcp_tool_logger
-def init_memory(doi: str = None, top_level_entity_name: str = None) -> str:
-    return _init_memory(doi, top_level_entity_name)
+def init_memory(hash_value: str = None, top_level_entity_name: str = None) -> str:
+    return _init_memory(hash_value, top_level_entity_name)
 
 @mcp.tool(name="inspect_memory", description="Return a detailed summary of all individuals, types, labels, attributes, and connections in the current memory graph.")
 @mcp_tool_logger
 def inspect_memory() -> str:
     return _inspect_memory()
 
-@mcp.tool(name="export_memory", description="Serialize the entire memory graph to a Turtle file (.ttl) and return the absolute path. Saves to data/<doi>/ontomops_output/ directory with entity-specific filename.")
+@mcp.tool(name="export_memory", description="Serialize the entire memory graph to a Turtle file (.ttl) and return the absolute path. Saves to data/<hash>/ontomops_output/ directory with entity-specific filename.")
 @mcp_tool_logger
 def export_memory() -> str:
     return _export_memory()
@@ -87,10 +87,10 @@ def export_memory() -> str:
 # =========================
 # Core Classes
 # =========================
-@mcp.tool(name="add_chemical_building_unit", description="Add a ChemicalBuildingUnit with a human-readable name. Returns the IRI of the created CBU.")
+@mcp.tool(name="add_chemical_building_unit", description="Register an existing ChemicalBuildingUnit by full IRI (no minting) and a non-empty label. Returns the CBU IRI.")
 @mcp_tool_logger
-def add_chemical_building_unit(name: str) -> str:
-    return _add_chemical_building_unit(name)
+def add_chemical_building_unit(iri: str, label: str) -> str:
+    return _add_chemical_building_unit(iri, label)
 
 @mcp.tool(name="add_metal_organic_polyhedron", description="Add a MetalOrganicPolyhedron with optional CCDC number and MOP formula. Returns the IRI of the created MOP.")
 @mcp_tool_logger
