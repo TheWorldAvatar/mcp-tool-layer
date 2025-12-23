@@ -4,10 +4,53 @@ from typing import Any, Dict, List, Tuple
 
 
 def to_fingerprint(value: Any) -> str:
+    """Normalize a value for order-insensitive, robust comparison.
+    - Trim and collapse whitespace
+    - Lowercase for case-insensitive matching
+    - Convert Unicode subscript/superscript to regular characters
+    - Map common placeholders ("", "n/a", "na", "-1", "-1.0", "-1e+00") to empty string
+    - Normalize Unicode primes/quotes to ASCII to avoid spurious FP/FN
+    """
     s = "" if value is None else str(value)
     s = s.strip()
-    # normalize whitespace and case; keep chemical tokens as-is otherwise
-    return " ".join(s.split())
+    low = s.lower()
+    if low in ("", "n/a", "na", "-1", "-1.0", "-1e+00", "-1e+0", "-1.00"):
+        return ""
+
+    # Convert Unicode subscript/superscript characters to regular characters
+    # Subscripts: ₀₁₂₃₄₅₆₇₈₉ → 0123456789
+    # Superscripts: ⁰¹²³⁴⁵⁶⁷⁸⁹ → 0123456789
+    # Other Unicode chars: · → ., etc.
+    unicode_map = {
+        # Subscripts
+        '₀': '0', '₁': '1', '₂': '2', '₃': '3', '₄': '4',
+        '₅': '5', '₆': '6', '₇': '7', '₈': '8', '₉': '9',
+        # Superscripts
+        '⁰': '0', '¹': '1', '²': '2', '³': '3', '⁴': '4',
+        '⁵': '5', '⁶': '6', '⁷': '7', '⁸': '8', '⁹': '9',
+        # Other Unicode characters
+        '·': '.', '•': '.', '⋅': '.', '×': 'x', '÷': '/',
+        'α': 'alpha', 'β': 'beta', 'γ': 'gamma', 'δ': 'delta',
+        'ε': 'epsilon', 'μ': 'mu', 'ν': 'nu', 'π': 'pi',
+    }
+
+    for unicode_char, ascii_char in unicode_map.items():
+        s = s.replace(unicode_char, ascii_char)
+
+    # normalize unicode primes/quotes:
+    # ‴ (U+2034) → ″ (U+2033), then map primes to ASCII ' and double primes to ASCII "
+    try:
+        s = s.replace("\u2034", "\u2033")  # ‴ -> ″
+        s = s.replace("\u2032", "'")       # ′ -> '
+        s = s.replace("\u2033", '"')        # ″ -> "
+        # also handle curly quotes often used instead of primes
+        s = s.replace("\u2019", "'")       # ’ -> '
+        s = s.replace("\u201D", '"')        # " -> "
+    except Exception:
+        pass
+    # normalize whitespace and case
+    s = " ".join(s.split())
+    return s.lower()
 
 
 def precision_recall_f1(tp: int, fp: int, fn: int) -> Tuple[float, float, float]:

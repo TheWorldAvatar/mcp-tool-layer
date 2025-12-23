@@ -1,197 +1,470 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+"""
+Aggregate Scoring Runner
+
+Runs all evaluation scoring scripts (CBU, characterisation, steps, chemicals) with appropriate
+arguments and generates a comprehensive overall report aggregating F1 scores across all categories.
+
+Usage:
+    python -m evaluation.scoring_all                    # Score current work against earlier GT
+    python -m evaluation.scoring_all --full             # Score current work against full GT
+    python -m evaluation.scoring_all --previous         # Score previous work against earlier GT
+    python -m evaluation.scoring_all --full --previous  # Score previous work against full GT
+"""
+
 import argparse
+import subprocess
+import sys
+import io
+import re
 import json
 from pathlib import Path
-from typing import Dict, List, Tuple, Any
+from typing import Dict, List, Tuple, Optional, Any
+from datetime import datetime
 
-# Reuse existing per-category scorers for default (our results)
-from evaluation.scoring_cbu import main as score_cbu_current
-from evaluation.scoring_characterisation import main as score_char_current
-from evaluation.scoring_steps import main as score_steps_current
-from evaluation.scoring_chemicals import evaluate_current as score_chems_current, evaluate_previous as score_chems_previous
-
-# Reuse anchor mappers and report renderer
-from evaluation.merged_result_scoring import (
-    map_char_by_ccdc_gt,
-    map_steps_by_ccdc_gt,
-    render_report,
-)
+# Set stdout to UTF-8 encoding for Windows compatibility
+if sys.platform == 'win32':
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 
 
-def _canonicalize_json_load(path: Path) -> Any:
+def run_scoring_script(script_name: str, args: List[str]) -> bool:
+    """
+    Run a scoring script as a module with given arguments.
+    
+    Args:
+        script_name: Name of the scoring module (e.g., 'evaluation.scoring_cbu')
+        args: List of command-line arguments
+        
+    Returns:
+        True if successful, False otherwise
+    """
+    cmd = [sys.executable, "-m", script_name] + args
+    print(f"\n{'='*80}")
+    print(f"Running: {' '.join(cmd)}")
+    print(f"{'='*80}\n")
+    
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
+        result = subprocess.run(cmd, check=True, capture_output=False, text=True)
+        print(f"\n✓ Completed: {script_name}")
+        return True
+    except subprocess.CalledProcessError as e:
+        print(f"\n✗ Failed: {script_name} (exit code: {e.returncode})")
+        return False
+    except Exception as e:
+        print(f"\n✗ Error running {script_name}: {e}")
+        return False
+
+
+def extract_overall_metrics(overall_md_path: Path) -> Optional[Tuple[int, int, int, float, float, float]]:
+    """
+    Extract aggregate metrics from an _overall.md file.
+    
+    Looks for a summary line like:
+    "| **TOTAL** | 123 | 45 | 67 | 0.732 | 0.648 | 0.687 |"
+    
+    Returns:
+        Tuple of (TP, FP, FN, Precision, Recall, F1) or None if not found
+    """
+    if not overall_md_path.exists():
+        return None
+    
+    content = overall_md_path.read_text(encoding="utf-8")
+    
+    # Look for Overall/TOTAL row in markdown table
+    # Format: | **Overall** | **84** | **18** | **30** | **0.824** | **0.737** | **0.778** |
+    pattern = r'\|\s*\*\*(?:Overall|TOTAL)\*\*\s*\|\s*\*\*(\d+)\*\*\s*\|\s*\*\*(\d+)\*\*\s*\|\s*\*\*(\d+)\*\*\s*\|\s*\*\*([\d.]+)\*\*\s*\|\s*\*\*([\d.]+)\*\*\s*\|\s*\*\*([\d.]+)\*\*\s*\|'
+    match = re.search(pattern, content)
+    
+    if match:
+        tp = int(match.group(1))
+        fp = int(match.group(2))
+        fn = int(match.group(3))
+        prec = float(match.group(4))
+        rec = float(match.group(5))
+        f1 = float(match.group(6))
+        return (tp, fp, fn, prec, rec, f1)
+    
+    return None
+
+
+def extract_cbu_formula_only_overall_metrics(overall_md_path: Path) -> Optional[Tuple[int, int, int, float, float, float]]:
+    """
+    Extract formula-only aggregate CBU metrics from the CBU _overall.md file.
+    
+    Uses the 'Formula-only Scoring Summary' line written by evaluation.scoring_cbu.evaluate_full, e.g.:
+      **Formula-only Scoring Summary:** TP=128 FP=40 FN=36 | P=0.762 R=0.780 F1=0.771
+    """
+    if not overall_md_path.exists():
+        return None
+    
+    content = overall_md_path.read_text(encoding="utf-8")
+    pattern = r'\*\*Formula-only Scoring Summary:\*\*\s*TP=(\d+)\s+FP=(\d+)\s+FN=(\d+)\s*\|\s*P=([\d.]+)\s+R=([\d.]+)\s+F1=([\d.]+)'
+    match = re.search(pattern, content)
+    if not match:
+        return None
+    
+    tp = int(match.group(1))
+    fp = int(match.group(2))
+    fn = int(match.group(3))
+    prec = float(match.group(4))
+    rec = float(match.group(5))
+    f1 = float(match.group(6))
+    return (tp, fp, fn, prec, rec, f1)
+
+
+def extract_per_document_metrics(overall_md_path: Path, category: str = "") -> Dict[str, Dict[str, int]]:
+    """
+    Extract per-document metrics from an _overall.md file.
+
+    Parses markdown table to extract TP, FP, FN for each document/hash.
+
+    For CBU category, extracts from the "Formula-only Scoring" section.
+    For other categories, extracts from the main table.
+
+    Returns:
+        Dict mapping document identifier to {tp, fp, fn, precision, recall, f1}
+    """
+    if not overall_md_path.exists():
         return {}
 
+    content = overall_md_path.read_text(encoding="utf-8")
+    per_doc_metrics = {}
 
-def _score_anchor_maps(gt_map: Dict[str, Any], pred_map: Dict[str, Any], eq_fn=None) -> Tuple[int, int, int, int, int]:
-    keys = set(gt_map.keys()) | set(pred_map.keys())
-    matched = 0
-    for k in keys:
-        if k in gt_map and k in pred_map:
-            a, b = gt_map[k], pred_map[k]
-            if eq_fn is None:
-                matched += int(a == b)
-            else:
-                matched += int(eq_fn(a, b))
-    gt_total = len(gt_map)
-    res_total = len(pred_map)
-    gt_only = gt_total - matched
-    res_only = res_total - matched
-    return gt_total, res_total, matched, gt_only, res_only
+    # Pattern for document rows: [hash/doi] | TP | FP | FN | Precision | Recall | F1 |
+    # Handle both formats: with and without leading | (CBU uses no leading |, others use leading |)
+    # Exclude rows with ** (Overall/TOTAL) and header rows
+    pattern = r'(?:\|\s*)?([a-f0-9]{8}|10\.\S+)\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\|\s*([\d.]+)\s*\|\s*([\d.]+)\s*\|\s*([\d.]+)\s*(?:\|)?'
 
+    # For CBU, extract only from "Formula-only Scoring" section
+    if category.lower() == "cbu":
+        # Split content by sections and find the Formula-only Scoring section
+        sections = re.split(r'(?=^## )', content, flags=re.MULTILINE)
+        for section in sections:
+            if section.startswith('## Formula-only Scoring'):
+                # Extract just the table content (skip the header and separator)
+                lines = section.split('\n')
+                # Find the table content (skip header and separator lines)
+                table_start = -1
+                for i, line in enumerate(lines):
+                    if line.startswith('|------|'):  # Table separator
+                        table_start = i + 1
+                        break
+                if table_start > 0:
+                    # Extract table rows until we hit **Overall**
+                    table_lines = []
+                    for line in lines[table_start:]:
+                        line = line.strip()
+                        if not line or line.startswith('**Overall**'):
+                            break
+                        table_lines.append(line)
+                    content = '\n'.join(table_lines)
+                break
+        else:
+            # Fallback to extracting everything if pattern doesn't match
+            print(f"Warning: Could not find Combined Scoring section for CBU, using full content")
+            pass
 
-def _score_steps_order(gt_map: Dict[str, List[str]], pred_map: Dict[str, List[str]]) -> Tuple[int, int, int, int, int]:
-    tp = fp = fn = 0
-    keys = set(gt_map.keys()) | set(pred_map.keys())
-    for k in keys:
-        g = gt_map.get(k, [])
-        p = pred_map.get(k, [])
-        n = min(len(g), len(p))
-        eq = sum(1 for i in range(n) if g[i] == p[i])
-        tp += eq
-        fp += (len(p) - eq)
-        fn += (len(g) - eq)
-    # Map to (gt_total, res_total, matched, gt_only, res_only) for common report renderer
-    gt_total = tp + fn
-    res_total = tp + fp
-    matched = tp
-    gt_only = fn
-    res_only = fp
-    return gt_total, res_total, matched, gt_only, res_only
+    for match in re.finditer(pattern, content):
+        doc_id = match.group(1)
+        tp = int(match.group(2))
+        fp = int(match.group(3))
+        fn = int(match.group(4))
+        precision = float(match.group(5))
+        recall = float(match.group(6))
+        f1 = float(match.group(7))
 
+        per_doc_metrics[doc_id] = {
+            "tp": tp,
+            "fp": fp,
+            "fn": fn,
+            "precision": precision,
+            "recall": recall,
+            "f1": f1
+        }
 
-def run_previous_all() -> None:
-    GT_BASE = Path("earlier_ground_truth")
-    PREV_BASE = Path("previous_work")
-    OUT_BASE = Path("evaluation/data/result")
-    OUT_BASE.mkdir(parents=True, exist_ok=True)
-
-    # ---------- CBU (CCDC-anchored): cbuFormula1 equality and cbuSpeciesNames1 set-equality ----------
-    def _map_cbu_formula1_by_ccdc(data: Any) -> Dict[str, str]:
-        m: Dict[str, str] = {}
-        for proc in (data or {}).get("synthesisProcedures", []) or []:
-            ccdc = str((proc or {}).get("mopCCDCNumber") or (proc or {}).get("CCDCNumber") or (proc or {}).get("ccdc_number") or "").strip()
-            if not ccdc:
-                continue
-            f1 = str((proc or {}).get("cbuFormula1") or "").strip()
-            if f1:
-                m[ccdc] = f1
-        return m
-
-    def _normalize_name(s: str) -> str:
-        return str(s).strip().lower()
-
-    def _map_cbu_species1_by_ccdc(data: Any) -> Dict[str, List[str]]:
-        m: Dict[str, List[str]] = {}
-        for proc in (data or {}).get("synthesisProcedures", []) or []:
-            ccdc = str((proc or {}).get("mopCCDCNumber") or (proc or {}).get("CCDCNumber") or (proc or {}).get("ccdc_number") or "").strip()
-            if not ccdc:
-                continue
-            names = (proc or {}).get("cbuSpeciesNames1") or []
-            if isinstance(names, list):
-                vals = sorted({ _normalize_name(x) for x in names if str(x).strip() })
-                m[ccdc] = vals
-        return m
-
-    cbu_prev = PREV_BASE / "cbu"
-    cbu_gt = GT_BASE / "cbu"
-    cbu_out = OUT_BASE / "cbu_previous"
-    cbu_out.mkdir(parents=True, exist_ok=True)
-    cbu_rows_formula: List[Tuple[str, Tuple[int, int, int, int, int]]] = []
-    cbu_rows_species: List[Tuple[str, Tuple[int, int, int, int, int]]] = []
-    for jf in sorted(cbu_prev.glob("*.json")):
-        doi = jf.stem
-        gt_path = cbu_gt / f"{doi}.json"
-        if not gt_path.exists():
-            continue
-        gt_obj = _canonicalize_json_load(gt_path)
-        pred_obj = _canonicalize_json_load(jf)
-
-        gt_f1 = _map_cbu_formula1_by_ccdc(gt_obj)
-        pr_f1 = _map_cbu_formula1_by_ccdc(pred_obj)
-        row_f1 = (doi, _score_anchor_maps(gt_f1, pr_f1, eq_fn=lambda a, b: str(a).strip() == str(b).strip()))
-        cbu_rows_formula.append(row_f1)
-
-        gt_sp1 = _map_cbu_species1_by_ccdc(gt_obj)
-        pr_sp1 = _map_cbu_species1_by_ccdc(pred_obj)
-        def _eq_set(a: List[str], b: List[str]) -> bool:
-            return set(map(_normalize_name, a or [])) == set(map(_normalize_name, b or []))
-        row_sp1 = (doi, _score_anchor_maps(gt_sp1, pr_sp1, eq_fn=_eq_set))
-        cbu_rows_species.append(row_sp1)
-
-        # Per-DOI report combining both aspects
-        lines: List[str] = []
-        lines.append(render_report(f"CBU Previous Scoring - cbuFormula1 - {doi}", [(doi, row_f1[1])]))
-        lines.append("")
-        lines.append(render_report(f"CBU Previous Scoring - cbuSpeciesNames1 - {doi}", [(doi, row_sp1[1])]))
-        (cbu_out / f"{doi}.md").write_text("\n".join(lines), encoding="utf-8")
-
-    # Overall report with two sections
-    lines_overall: List[str] = []
-    lines_overall.append(render_report("CBU Previous Scoring - Overall (cbuFormula1)", cbu_rows_formula))
-    lines_overall.append("")
-    lines_overall.append(render_report("CBU Previous Scoring - Overall (cbuSpeciesNames1)", cbu_rows_species))
-    (cbu_out / "_overall.md").write_text("\n".join(lines_overall), encoding="utf-8")
-
-    # Characterisation
-    ch_prev = PREV_BASE / "characterisation"
-    ch_gt = GT_BASE / "characterisation"
-    ch_out = OUT_BASE / "characterisation_previous"
-    ch_out.mkdir(parents=True, exist_ok=True)
-    ch_rows: List[Tuple[str, Tuple[int, int, int, int, int]]] = []
-    for jf in sorted(ch_prev.glob("*.json")):
-        doi = jf.stem
-        gt_path = ch_gt / f"{doi}.json"
-        if not gt_path.exists():
-            continue
-        gt_map = map_char_by_ccdc_gt(_canonicalize_json_load(gt_path))
-        pred_map = map_char_by_ccdc_gt(_canonicalize_json_load(jf))
-        ch_rows.append((doi, _score_anchor_maps(gt_map, pred_map)))
-        (ch_out / f"{doi}.md").write_text(render_report(f"Characterisation Previous Scoring - {doi}", [(doi, ch_rows[-1][1])]), encoding="utf-8")
-    (ch_out / "_overall.md").write_text(render_report("Characterisation Previous Scoring - Overall", ch_rows), encoding="utf-8")
-
-    # Steps (order-sensitive by CCDC)
-    st_prev = PREV_BASE / "steps"
-    st_gt = GT_BASE / "steps"
-    st_out = OUT_BASE / "steps_previous"
-    st_out.mkdir(parents=True, exist_ok=True)
-    st_rows: List[Tuple[str, Tuple[int, int, int, int, int]]] = []
-    for jf in sorted(st_prev.glob("*.json")):
-        doi = jf.stem
-        gt_path = st_gt / f"{doi}.json"
-        if not gt_path.exists():
-            continue
-        gt_map = map_steps_by_ccdc_gt(_canonicalize_json_load(gt_path))
-        pred_map = map_steps_by_ccdc_gt(_canonicalize_json_load(jf))
-        st_rows.append((doi, _score_steps_order(gt_map, pred_map)))
-        (st_out / f"{doi}.md").write_text(render_report(f"Steps Previous Scoring (Order) - {doi}", [(doi, st_rows[-1][1])]), encoding="utf-8")
-    (st_out / "_overall.md").write_text(render_report("Steps Previous Scoring (Order) - Overall", st_rows), encoding="utf-8")
-
-    # Chemicals (delegate to existing previous evaluator)
-    score_chems_previous()
+    return per_doc_metrics
 
 
-def run_current_all() -> None:
-    # Use existing current evaluators that write reports under evaluation/data/result
-    score_cbu_current()
-    score_char_current()
-    score_steps_current()
-    score_chems_current()
+def load_doi_mapping() -> Dict[str, str]:
+    """Load DOI to hash mapping and return hash to DOI mapping."""
+    doi_mapping_path = Path("data/doi_to_hash.json")
+    hash_to_doi = {}
+
+    if doi_mapping_path.exists():
+        try:
+            import json
+            with open(doi_mapping_path, 'r', encoding='utf-8') as f:
+                doi_to_hash = json.load(f)
+            # Create reverse mapping
+            hash_to_doi = {hash_val: doi.replace("_", "/") for doi, hash_val in doi_to_hash.items()}
+        except Exception as e:
+            print(f"Warning: Could not load DOI mapping: {e}")
+
+    return hash_to_doi
+
+
+def generate_aggregate_report(output_dir: Path, use_full: bool, use_previous: bool) -> None:
+    """
+    Generate aggregate overall report combining metrics from all categories.
+
+    Args:
+        output_dir: Base output directory (e.g., evaluation/data/full_result)
+        use_full: Whether full GT was used
+        use_previous: Whether previous work was scored
+    """
+    print(f"\n{'='*80}")
+    print("Generating Aggregate Overall Report")
+    print(f"{'='*80}\n")
+
+    # Load DOI mapping for hash to DOI conversion
+    hash_to_doi = load_doi_mapping()
+    print(f"Loaded DOI mapping for {len(hash_to_doi)} documents")
+
+    # Determine subdirectories based on flags
+    suffix = "_previous" if use_previous else ""
+
+    categories = {
+        "CBU": output_dir / f"cbu{suffix}" / "_overall.md",
+        "Characterisation": output_dir / f"characterisation{suffix}" / "_overall.md",
+        "Steps": output_dir / f"steps{suffix}" / "_overall.md",
+        "Chemicals": output_dir / f"chemicals{suffix}" / "_overall.md",
+    }
+    
+    # Extract metrics from each category
+    metrics: Dict[str, Optional[Tuple[int, int, int, float, float, float]]] = {}
+    per_doc_data: Dict[str, Dict[str, Dict[str, Any]]] = {}
+    
+    for category, path in categories.items():
+        print(f"Reading {category}: {path}")
+        # For CBU, use formula-only metrics instead of combined+names
+        if category == "CBU":
+            metrics[category] = extract_cbu_formula_only_overall_metrics(path) or extract_overall_metrics(path)
+        else:
+            metrics[category] = extract_overall_metrics(path)
+        per_doc_data[category] = extract_per_document_metrics(path, category)
+        
+        if metrics[category]:
+            tp, fp, fn, prec, rec, f1 = metrics[category]
+            print(f"  ✓ Found: TP={tp}, FP={fp}, FN={fn}, F1={f1:.3f}")
+            print(f"    Per-doc entries: {len(per_doc_data[category])}")
+        else:
+            print(f"  ✗ No metrics found")
+    
+    # Calculate aggregate totals
+    total_tp = sum(m[0] for m in metrics.values() if m is not None)
+    total_fp = sum(m[1] for m in metrics.values() if m is not None)
+    total_fn = sum(m[2] for m in metrics.values() if m is not None)
+    
+    # Calculate aggregate precision, recall, F1
+    agg_precision = total_tp / (total_tp + total_fp) if (total_tp + total_fp) > 0 else 0.0
+    agg_recall = total_tp / (total_tp + total_fn) if (total_tp + total_fn) > 0 else 0.0
+    agg_f1 = 2 * agg_precision * agg_recall / (agg_precision + agg_recall) if (agg_precision + agg_recall) > 0 else 0.0
+    
+    # Generate report
+    lines = []
+    
+    # Header
+    gt_type = "Full Ground Truth" if use_full else "Earlier Ground Truth"
+    work_type = "Previous Work" if use_previous else "Current Work"
+    lines.append(f"# Overall Evaluation Report: {work_type} vs {gt_type}\n")
+    lines.append(f"**Generated**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+    lines.append("---\n")
+    
+    # Summary table
+    lines.append("## Summary by Category\n")
+    lines.append("| Category | TP | FP | FN | Precision | Recall | F1 |\n")
+    lines.append("| --- | ---: | ---: | ---: | ---: | ---: | ---: |\n")
+    
+    for category in ["CBU", "Characterisation", "Steps", "Chemicals"]:
+        m = metrics.get(category)
+        if m:
+            tp, fp, fn, prec, rec, f1 = m
+            lines.append(f"| {category} | {tp} | {fp} | {fn} | {prec:.3f} | {rec:.3f} | {f1:.3f} |\n")
+        else:
+            lines.append(f"| {category} | - | - | - | - | - | - |\n")
+    
+    lines.append(f"| **AGGREGATE** | **{total_tp}** | **{total_fp}** | **{total_fn}** | **{agg_precision:.3f}** | **{agg_recall:.3f}** | **{agg_f1:.3f}** |\n")
+    lines.append("\n")
+    
+    # Detailed breakdown
+    lines.append("## Aggregate Metrics\n")
+    lines.append(f"- **Total True Positives (TP)**: {total_tp}\n")
+    lines.append(f"- **Total False Positives (FP)**: {total_fp}\n")
+    lines.append(f"- **Total False Negatives (FN)**: {total_fn}\n")
+    lines.append(f"- **Aggregate Precision**: {agg_precision:.4f}\n")
+    lines.append(f"- **Aggregate Recall**: {agg_recall:.4f}\n")
+    lines.append(f"- **Aggregate F1 Score**: {agg_f1:.4f}\n")
+    lines.append("\n")
+    
+    # Category performance
+    lines.append("## Category Performance\n")
+    for category in ["CBU", "Characterisation", "Steps", "Chemicals"]:
+        m = metrics.get(category)
+        if m:
+            tp, fp, fn, prec, rec, f1 = m
+            lines.append(f"### {category}\n")
+            lines.append(f"- Precision: {prec:.4f}\n")
+            lines.append(f"- Recall: {rec:.4f}\n")
+            lines.append(f"- F1 Score: {f1:.4f}\n")
+            lines.append(f"- Details: TP={tp}, FP={fp}, FN={fn}\n")
+            lines.append("\n")
+
+            # Add per-DOI table for this category
+            category_docs = per_doc_data.get(category, {})
+            if category_docs:
+                lines.append(f"#### {category} - Per DOI Results\n")
+                lines.append("| # | DOI | TP | FP | FN | Precision | Recall | F1 |\n")
+                lines.append("| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |\n")
+
+                # Convert hashes to DOIs and sort for consistent ordering
+                doi_results = []
+                for hash_key, doc_metrics in category_docs.items():
+                    # Use DOI mapping if available, otherwise format the hash as DOI
+                    if hash_key in hash_to_doi:
+                        doi_formatted = hash_to_doi[hash_key]
+                    else:
+                        # Fallback: assume it's already a DOI or format as one
+                        doi_formatted = hash_key.replace("_", "/")
+
+                    doi_results.append((doi_formatted, doc_metrics))
+
+                # Sort by DOI for consistent ordering
+                doi_results.sort(key=lambda x: x[0])
+
+                for idx, (doi_formatted, doc_metrics) in enumerate(doi_results, 1):
+                    lines.append(f"| {idx} | {doi_formatted} | {doc_metrics['tp']} | {doc_metrics['fp']} | {doc_metrics['fn']} | {doc_metrics['precision']:.3f} | {doc_metrics['recall']:.3f} | {doc_metrics['f1']:.3f} |\n")
+
+                lines.append("\n")
+
+    # Configuration info
+    lines.append("---\n")
+    lines.append("## Configuration\n")
+    lines.append(f"- **Ground Truth**: {gt_type}\n")
+    lines.append(f"- **Work Type**: {work_type}\n")
+    lines.append(f"- **Output Directory**: `{output_dir}`\n")
+    
+    # Write markdown report with appropriate filename
+    filename = "_overall_previous.md" if use_previous else "_overall.md"
+    output_file = output_dir / filename
+    output_file.write_text("".join(lines), encoding="utf-8")
+    print(f"\n✓ Aggregate report written to: {output_file}")
+    
+    # Write structured JSON for significance testing
+    json_filename = "_overall_previous.json" if use_previous else "_overall.json"
+    json_output_file = output_dir / json_filename
+    
+    structured_data = {
+        "metadata": {
+            "generated": datetime.now().isoformat(),
+            "ground_truth": gt_type,
+            "work_type": work_type,
+            "output_directory": str(output_dir)
+        },
+        "aggregate": {
+            "tp": total_tp,
+            "fp": total_fp,
+            "fn": total_fn,
+            "precision": round(agg_precision, 4),
+            "recall": round(agg_recall, 4),
+            "f1": round(agg_f1, 4)
+        },
+        "by_category": {},
+        "per_document": {}
+    }
+    
+    # Add category-level metrics
+    for category in ["CBU", "Characterisation", "Steps", "Chemicals"]:
+        m = metrics.get(category)
+        if m:
+            tp, fp, fn, prec, rec, f1 = m
+            structured_data["by_category"][category.lower()] = {
+                "tp": tp,
+                "fp": fp,
+                "fn": fn,
+                "precision": round(prec, 4),
+                "recall": round(rec, 4),
+                "f1": round(f1, 4)
+            }
+    
+    # Add per-document metrics (organized by category)
+    for category, doc_metrics in per_doc_data.items():
+        structured_data["per_document"][category.lower()] = doc_metrics
+    
+    json_output_file.write_text(json.dumps(structured_data, indent=2, ensure_ascii=False), encoding="utf-8")
+    print(f"✓ Structured JSON written to: {json_output_file}")
+    
+    print(f"\n{'='*80}")
+    print(f"AGGREGATE F1 SCORE: {agg_f1:.4f}")
+    print(f"{'='*80}\n")
 
 
 def main() -> None:
-    p = argparse.ArgumentParser(description="Run scoring for all categories (current default or previous work)")
-    p.add_argument("--previous", action="store_true", help="Score previous_work/* against earlier_ground_truth using CCDC anchoring and order-sensitive steps")
-    args = p.parse_args()
-
+    """Main entry point."""
+    parser = argparse.ArgumentParser(
+        description="Run all evaluation scoring scripts and generate aggregate report"
+    )
+    parser.add_argument(
+        "--full",
+        action="store_true",
+        help="Use full_ground_truth instead of earlier_ground_truth"
+    )
+    parser.add_argument(
+        "--previous",
+        action="store_true",
+        help="Score previous_work instead of current results"
+    )
+    
+    args = parser.parse_args()
+    
+    # Prepare base arguments
+    base_args = []
+    if args.full:
+        base_args.append("--full")
     if args.previous:
-        run_previous_all()
+        base_args.append("--previous")
+    
+    # Determine output directory
+    base_dir = "full_result" if args.full else "result"
+    output_dir = Path("evaluation/data") / base_dir
+    
+    print("\n" + "="*80)
+    print("AGGREGATE EVALUATION RUNNER")
+    print("="*80)
+    print(f"Ground Truth: {'Full' if args.full else 'Earlier'}")
+    print(f"Work Type: {'Previous' if args.previous else 'Current'}")
+    print(f"Output Directory: {output_dir}")
+    print("="*80)
+    
+    # Run all scoring scripts with appropriate arguments
+    # For previous work:
+    # - CBU and characterisation need --anchor flag
+    # - Chemicals needs --fuzzy and --anchor flags
+    # - Steps always uses --skip-order and --ignore flags
+    scripts_config = [
+        ("evaluation.scoring_cbu", base_args + (["--anchor"] if args.previous else [])),
+        ("evaluation.scoring_characterisation", base_args + (["--anchor"] if args.previous else [])),
+        ("evaluation.scoring_steps", base_args + ["--skip-order", "--ignore"]),
+        ("evaluation.scoring_chemicals", base_args + (["--fuzzy", "--anchor"] if args.previous else [])),
+    ]
+    
+    success_count = 0
+    for script_name, script_args in scripts_config:
+        if run_scoring_script(script_name, script_args):
+            success_count += 1
+    
+    print(f"\n{'='*80}")
+    print(f"Completed: {success_count}/{len(scripts_config)} scripts succeeded")
+    print(f"{'='*80}\n")
+    
+    # Generate aggregate report
+    if success_count > 0:
+        generate_aggregate_report(output_dir, args.full, args.previous)
     else:
-        run_current_all()
+        print("✗ No scoring scripts succeeded, skipping aggregate report generation")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
     main()
-
-
