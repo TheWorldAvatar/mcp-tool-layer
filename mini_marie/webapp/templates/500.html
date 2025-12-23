@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block title %}500 - Server Error | MOP Extraction Agent{% endblock %}
+
+{% block content %}
+<div style="text-align: center; padding: 4rem 2rem; max-width: 600px; margin: 0 auto;">
+    <div style="width: 100px; height: 100px; background: linear-gradient(135deg, #ef4444, #dc2626); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 2rem; color: white; font-size: 3rem;">
+        <i class="fas fa-exclamation-triangle"></i>
+    </div>
+    
+    <h1 style="font-size: 2.5rem; font-weight: 700; color: var(--text-primary); margin-bottom: 1rem;">
+        Something Went Wrong
+    </h1>
+    
+    <p style="font-size: 1.125rem; color: var(--text-secondary); margin-bottom: 2rem; line-height: 1.6;">
+        We encountered an internal server error. Our team has been notified and is working to fix it.
+    </p>
+    
+    <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+        <a href="/" style="display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.875rem 1.75rem; background: var(--primary-color); color: white; text-decoration: none; border-radius: var(--radius-md); font-weight: 600; transition: all 0.2s;">
+            <i class="fas fa-home"></i>
+            Go Home
+        </a>
+        <a href="javascript:history.back()" style="display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.875rem 1.75rem; background: var(--bg-tertiary); color: var(--text-primary); text-decoration: none; border-radius: var(--radius-md); font-weight: 600; transition: all 0.2s;">
+            <i class="fas fa-arrow-left"></i>
+            Go Back
+        </a>
+    </div>
+</div>
+{% endblock %}
+
