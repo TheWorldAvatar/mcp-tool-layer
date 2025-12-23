@@ -47,9 +47,9 @@ async def build_react_agent(
     
     tools = await client.get_tools()
     if model_name in ["o4-mini", "o1-mini", "gpt-5"]:
-        llm = ChatOpenAI(model_name=model_name, base_url=base_url, api_key=api_key)
+        llm = ChatOpenAI(model_name=model_name, base_url=base_url, api_key=api_key, seed=42)
     else:
-        llm = ChatOpenAI(model_name=model_name, temperature=0, base_url=base_url, api_key=api_key)
+        llm = ChatOpenAI(model_name=model_name, temperature=0, base_url=base_url, api_key=api_key, seed=42)
     agent = create_react_agent(llm, tools)
     return client, agent
 

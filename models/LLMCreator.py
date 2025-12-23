@@ -40,23 +40,41 @@ class LLMCreator():
         Setup the LLM with the given model, base url, api key, and config.
         This function is here because in the
         """
-        if not self.structured_output:
-            return ChatOpenAI(
-                model=self.model,
-                base_url=self.base_url,
-                api_key=self.api_key,
-                cache=False,
-                **self.config.get_config(model_name=self.model)
-            )
+        # Prepare kwargs and inject a default deterministic seed if missing
+        cfg_kwargs = self.config.get_config(model_name=self.model) if self.config else {}
+
+        # For models that only support default temperature (gpt-5, gpt-4.1-mini, etc.), 
+        # don't set temperature (let them use default value of 1.0)
+        # For other models, set default temperature to 0 for determinism
+        models_without_temperature = ["gpt-5", "gpt-5-mini", "gpt-4.1-mini"]
+        if any(self.model.startswith(m) for m in models_without_temperature):
+            # Remove temperature if present for these models (let them use default)
+            cfg_kwargs.pop("temperature", None)
         else:
-            return ChatOpenAI(
-                model=self.model,
-                base_url=self.base_url,
-                api_key=self.api_key,
-                cache=False,
-                **self.config.get_config(model_name=self.model)
-            ).with_structured_output(self.structured_output_schema)
-    
+            cfg_kwargs.setdefault("temperature", 0)
+        
+        cfg_kwargs.pop("top_p", None)
+        cfg_kwargs.setdefault("n", 1)
+        cfg_kwargs.setdefault("max_retries", 0)
+
+        # 正确：显式 seed（不要放 model_kwargs）
+        cfg_kwargs.setdefault("seed", 42)
+
+        # 正确：LangChain 用 streaming，不是 stream
+        cfg_kwargs.pop("stream", None)
+        cfg_kwargs.setdefault("streaming", False)  # 需要流式则设 True
+
+        llm = ChatOpenAI(
+            model=self.model,
+            base_url=self.base_url,
+            api_key=self.api_key,
+            cache=False,
+            **cfg_kwargs
+        )
+
+        return llm if not self.structured_output else llm.with_structured_output(self.structured_output_schema)
+
+            
     def get_model_info(self):
         """
         Returns information about the model configuration without initializing an LLM instance.

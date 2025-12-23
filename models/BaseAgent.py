@@ -6,11 +6,14 @@ tools and keep their sessions alive for the whole run.
 from __future__ import annotations
 
 import asyncio
+from contextlib import AsyncExitStack
 from typing import Any, Dict, List, Tuple, Optional, Callable
 from langchain_core.messages import HumanMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langgraph.prebuilt import create_react_agent
 from langchain_mcp_adapters.client import MultiServerMCPClient
+from langchain_mcp_adapters.prompts import load_mcp_prompt
+from langchain_mcp_adapters.tools import load_mcp_tools
 
 from models.LLMCreator import LLMCreator
 from models.MCPConfig import MCPConfig
@@ -52,7 +55,9 @@ class BaseAgent:
         recursion_limit: int | None = None,
     ) -> Tuple[str, Dict[str, Any]]:
         """Execute *task_instruction* through a ReAct agent wired to MCP tools."""
-        self.logger.info(f"Starting BaseAgent run with task: {task_instruction}")
+        # Truncate task instruction for logging to avoid console spam
+        task_preview = task_instruction[:200] + "..." if len(task_instruction) > 200 else task_instruction
+        self.logger.info(f"Starting BaseAgent run with task: {task_preview}")
         
         # 1️⃣ MCP configs
         server_cfg = self.mcp_config.get_config(self.mcp_tools)
@@ -64,66 +69,80 @@ class BaseAgent:
             # raise RuntimeError("Docker is not running – MCP tools need it.")
 
         # 3️⃣ Multi-server MCP client
-        client = MultiServerMCPClient(server_cfg)
-        self.logger.info("Created MultiServerMCPClient")
+        #
+        # IMPORTANT: langchain-mcp-adapters 0.1.0 does NOT allow `async with MultiServerMCPClient(...)`.
+        # To ensure deterministic cleanup and avoid spawning a new stdio server process on every tool call,
+        # we open one session per configured MCP server for the duration of this run.
+        mcp_client = MultiServerMCPClient(server_cfg)
 
-        try:
-            tools = await client.get_tools()
-            self.logger.info(f"Loaded {len(tools)} MCP tools")
-
-            # optional instruction prompts
-            instruction_msgs = []
+        async with AsyncExitStack() as stack:
+            sessions: Dict[str, Any] = {}
             for server_name in self.mcp_tools:
                 try:
-                    msgs = await client.get_prompt(server_name, "instruction")
+                    session = await stack.enter_async_context(mcp_client.session(server_name))
+                    sessions[server_name] = session
+                except Exception as exc:
+                    self.logger.error(f"Could not open MCP session for '{server_name}': {exc}")
+                    raise RuntimeError(f"Could not open MCP session for '{server_name}': {exc}") from exc
+
+            # Load tools bound to the open sessions (so tool calls reuse the session)
+            tools = []
+            for server_name, session in sessions.items():
+                try:
+                    server_tools = await load_mcp_tools(session)
+                    tools.extend(server_tools)
+                    self.logger.info(f"Loaded {len(server_tools)} MCP tools from {server_name}")
+                except Exception as exc:
+                    self.logger.error(f"Could not load MCP tools from '{server_name}': {exc}")
+                    raise RuntimeError(f"Could not load MCP tools from '{server_name}': {exc}") from exc
+
+            if not tools:
+                self.logger.error("No MCP tools were successfully loaded.")
+                raise RuntimeError("No MCP tools were successfully loaded.")
+
+            # optional instruction prompts (fetch every time as they may change)
+            instruction_msgs = []
+            for server_name, session in sessions.items():
+                try:
+                    msgs = await load_mcp_prompt(session, "instruction")
                     instruction_msgs.extend(msgs)
                     self.logger.info(f"Loaded instruction prompt from {server_name}")
                 except Exception as e:
                     self.logger.warning(f"'{server_name}' lacks an 'instruction' prompt ({e})")
 
-        except Exception as exc:
-            self.logger.error(f"Could not load MCP tools or prompts: {exc}")
-            raise RuntimeError(
-                f"Could not load MCP tools or prompts: {exc}"
-            ) from exc
+            # 4️⃣ ReAct agent
+            if instruction_msgs:
+                system_text = "\n\n".join(m.content for m in instruction_msgs)
+                prompt = ChatPromptTemplate.from_messages(
+                    [
+                        ("system", system_text),
+                        MessagesPlaceholder("messages"),
+                    ]
+                )
+                agent = create_react_agent(self.llm, tools, prompt=prompt)
+                self.logger.info("Created ReAct agent with custom prompt")
+            else:
+                agent = create_react_agent(self.llm, tools)
+                self.logger.info("Created ReAct agent with default prompt")
 
-        if not tools:
-            self.logger.error("No MCP tools were successfully loaded.")
-            raise RuntimeError("No MCP tools were successfully loaded.")
+            # 5️⃣ Run with per-call + aggregated accounting
+            invoke_kwargs: Dict[str, Any] = {
+                "messages": [HumanMessage(content=task_instruction)]
+            }
+            self.logger.info("Starting agent execution")
 
-        # 4️⃣ ReAct agent
-        if instruction_msgs:
-            system_text = "\n\n".join(m.content for m in instruction_msgs)
-            prompt = ChatPromptTemplate.from_messages(
-                [
-                    ("system", system_text),
-                    MessagesPlaceholder("messages"),
-                ]
-            )
-            agent = create_react_agent(self.llm, tools, prompt=prompt)
-            self.logger.info("Created ReAct agent with custom prompt")
-        else:
-            agent = create_react_agent(self.llm, tools)
-            self.logger.info("Created ReAct agent with default prompt")
+            counter = TokenCounter(log_fn=self.logger.info)
+            config: Dict[str, Any] = {"callbacks": [counter]}
+            if recursion_limit is not None:
+                config["recursion_limit"] = recursion_limit
 
-        # 5️⃣ Run with per-call + aggregated accounting
-        invoke_kwargs: Dict[str, Any] = {
-            "messages": [HumanMessage(content=task_instruction)]
-        }
-        self.logger.info("Starting agent execution")
+            result = await agent.ainvoke(invoke_kwargs, config)
+            self.logger.info("Agent execution completed")
 
-        counter = TokenCounter(log_fn=self.logger.info)
-        config: Dict[str, Any] = {"callbacks": [counter]}
-        if recursion_limit is not None:
-            config["recursion_limit"] = recursion_limit
-
-        result = await agent.ainvoke(invoke_kwargs, config)
-        self.logger.info("Agent execution completed")
-
-        # 6️⃣ Final message + final-call meta (optional)
-        last_msg = result["messages"][-1]
-        meta = getattr(last_msg, "response_metadata", {}) or {}
-        final_call_token_usage = meta.get("token_usage", {})  # may be empty depending on provider
+            # 6️⃣ Final message + final-call meta (optional)
+            last_msg = result["messages"][-1]
+            meta = getattr(last_msg, "response_metadata", {}) or {}
+            final_call_token_usage = meta.get("token_usage", {})  # may be empty depending on provider
 
         # Aggregated totals
         aggregated = {
