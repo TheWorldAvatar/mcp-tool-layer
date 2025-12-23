@@ -20,7 +20,7 @@ def google_search(query: str, page: int = 1) -> str:
     """
     try:
         # Use hardcoded API key
-        api_key = "a6b91e8f487e465e6b84ad1711e00be5b0b75da2"
+        api_key = "ec6babd31f039ceb490f4e541a17b0b432b9adc9"
         
         # Collect results from page 1 through specified page
         all_results = {

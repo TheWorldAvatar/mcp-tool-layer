@@ -40,7 +40,10 @@ def create_arbitary_file(file_path: str, content: str) -> str:
 @mcp.tool(name="code_output", description=CODE_OUTPUT_DESCRIPTION, tags=["generic_file_operations"])
 @mcp_tool_logger
 def code_output_tool(code: str, task_meta_name: str, task_index: int, script_name: str) -> str:
-    return code_output(code, task_meta_name, task_index, script_name)
+    logger.info(f"[code_output] task_meta_name={task_meta_name}, task_index={task_index}, script_name={script_name}")
+    result = code_output(code, task_meta_name, task_index, script_name)
+    logger.info(f"[code_output] result={result}")
+    return result
 
 @mcp.tool(name="csv_file_summary", description=CSV_FILE_SUMMARY_DESCRIPTION, tags=["generic_file_operations"])
 @mcp_tool_logger
@@ -67,11 +70,15 @@ def text_file_truncate_tool(file_path: str) -> str:
 @mcp_tool_logger
 def report_output_tool(file_uri: str, file_content: str) -> str:
 
-    # reject .py files
+    # reject .py files unless explicitly targeting scripts/ (allowed destination for generated scripts)
     if file_uri.endswith(".py"):
-        return "You are not allowed to output .py files with this tool, use code_output tool instead.   "
-    
-    return report_output(file_uri, file_content)
+        normalized = file_uri.replace("\\", "/")
+        if "/scripts/" not in normalized:
+            return "You are not allowed to output .py files with this tool outside scripts/. Use code_output or write under scripts/<ontology>/.   "
+    logger.info(f"[report_output] target={file_uri}, size={len(file_content)} bytes")
+    result = report_output(file_uri, file_content)
+    logger.info(f"[report_output] result={result}")
+    return result
 
 @mcp.tool(name="output_data_sniffing_report", description="Use this tool to output the data sniffing report, only provide the content and the meta_task_name", tags=["generic_file_operations"])
 @mcp_tool_logger

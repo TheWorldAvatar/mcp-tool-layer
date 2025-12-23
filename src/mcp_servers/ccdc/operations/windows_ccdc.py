@@ -20,7 +20,7 @@ import os
 from typing import List, Tuple
 
 from ccdc.search import TextNumericSearch
-from ccdc.io import CrystalWriter
+from ccdc.io import CrystalWriter, EntryReader
 from models.locations import DATA_CCDC_DIR
 
 
@@ -83,6 +83,50 @@ def do_fetch(ccdc_number: str, outdir: str):
         w.write(crys)
 
     print(json.dumps({"res": res_path, "cif": cif_path}))
+def _normalize_doi_input(doi_like: str) -> str:
+    s = (doi_like or "").strip()
+    if not s:
+        raise SystemExit("Empty DOI input")
+    if s.startswith('@'):
+        s = s[1:]
+    low = s.lower()
+    if low.startswith('http://') or low.startswith('https://'):
+        i = s.find('/10.')
+        if i == -1:
+            raise SystemExit("Invalid DOI URL: missing /10.")
+        s = s[i+1:]
+    if '_' in s and '/' not in s:
+        s = s.replace('_', '/')
+    if not (s.startswith('10.') and '/' in s):
+        raise SystemExit(f"Unrecognized DOI format: {doi_like}")
+    return s
+
+
+def do_search_doi(doi_like: str):
+    doi = _normalize_doi_input(doi_like)
+    q = TextNumericSearch()
+    q.add_doi(doi)
+    hits = q.search()
+    rows = []
+    reader = EntryReader('CSD')
+    try:
+        for h in hits:
+            refcode = str(h.identifier)
+            e = reader.entry(refcode)
+            rows.append({
+                "refcode": e.identifier,
+                "chemical_name": str(getattr(e, 'chemical_name', '') or ''),
+                "formula": str(getattr(e, 'formula', '') or ''),
+                "ccdc_number": str(getattr(e, 'ccdc_number', '') or ''),
+                "doi": str(e.publication.doi) if getattr(e, 'publication', None) else ''
+            })
+    finally:
+        try:
+            reader.close()
+        except Exception:
+            pass
+    print(json.dumps(rows))
+
 
 
 def main():
@@ -98,11 +142,16 @@ def main():
     # outdir is optional and ignored; DATA_CCDC_DIR is always used
     fp.add_argument('--outdir', required=False, default=DATA_CCDC_DIR)
 
+    dp = sub.add_parser('search_doi')
+    dp.add_argument('--doi', required=True)
+
     args = ap.parse_args()
     if args.cmd == 'search':
         do_search(args.name, args.exact)
     elif args.cmd == 'fetch':
         do_fetch(args.ccdc, args.outdir)
+    elif args.cmd == 'search_doi':
+        do_search_doi(args.doi)
     else:
         ap.error('unknown command')
 

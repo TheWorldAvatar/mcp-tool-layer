@@ -83,9 +83,33 @@ def classify_section(section_index: int, option: str, doi: str) -> dict:
                 'message': error_msg
             }
 
-        # Save the updated data back to sections.json
+        # Save the updated data back to sections.json with validation
+        try:
+            # First serialize to string to validate
+            json_str = json.dumps(data, indent=4, ensure_ascii=False)
+        except Exception as e:
+            error_msg = f"Failed to serialize updated sections to JSON: {e}"
+            logger.error(error_msg)
+            return {
+                'success': False,
+                'message': error_msg
+            }
+        
+        # Write to file
         with open(sections_file, 'w', encoding='utf-8') as file:
-            json.dump(data, file, indent=4, ensure_ascii=False)
+            file.write(json_str)
+        
+        # Verify the file is valid JSON by reading it back
+        try:
+            with open(sections_file, 'r', encoding='utf-8') as file:
+                json.load(file)
+        except json.JSONDecodeError as e:
+            error_msg = f"Saved JSON file is invalid: {e}"
+            logger.error(error_msg)
+            return {
+                'success': False,
+                'message': error_msg
+            }
         
         success_msg = f"Successfully updated {section_key} with option: {option}"
         logger.info(f"Saved updated sections data to {sections_file}")
