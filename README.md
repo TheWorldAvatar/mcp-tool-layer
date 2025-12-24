@@ -116,4 +116,68 @@ The main pipeline entrypoint is `mop_main.py` (see its CLI help):
 python mop_main.py --help
 ```
 
+## Prompt + MCP script generation (no `.sh` wrappers)
+
+Use the following canonical Python entrypoints to generate plans, prompts, and MCP scripts.
+
+### 1) Generate a task division plan (writes `configs/task_division_plan.json`)
+
+```bash
+python -m src.agents.scripts_and_prompts_generation.task_division_agent \
+  --tbox data/ontologies/ontosynthesis.ttl \
+  --output configs/task_division_plan.json \
+  --model gpt-5
+```
+
+### 2) Generate KG-building iteration prompts (writes into `ai_generated_contents_candidate/prompts/…`)
+
+```bash
+python -m src.agents.scripts_and_prompts_generation.task_prompt_creation_agent \
+  --version 1 \
+  --plan configs/task_division_plan.json \
+  --tbox data/ontologies/ontosynthesis.ttl \
+  --model gpt-4.1 \
+  --parallel 3
+```
+
+### 3) Generate extraction-scope prompts (writes into `ai_generated_contents_candidate/prompts/…`)
+
+Legacy plan-driven mode (matches the old `run_extraction_prompt_creation.sh` intent):
+
+```bash
+python -m src.agents.scripts_and_prompts_generation.task_extraction_prompt_creation_agent \
+  --version 1 \
+  --plan configs/task_division_plan.json \
+  --tbox data/ontologies/ontosynthesis.ttl \
+  --model gpt-5 \
+  --parallel 3
+```
+
+Iterations-driven mode (uses ontology flags + `ai_generated_contents_candidate/iterations/**/iterations.json`):
+
+```bash
+python -m src.agents.scripts_and_prompts_generation.task_extraction_prompt_creation_agent \
+  --ontosynthesis \
+  --version 1 \
+  --model gpt-5 \
+  --parallel 3
+```
+
+### 4) Generate MCP underlying scripts from T-Box (writes into `ai_generated_contents_candidate/scripts/…`)
+
+All ontologies from `ape_generated_contents/meta_task_config.json`:
+
+```bash
+python -m src.agents.scripts_and_prompts_generation.mcp_underlying_script_creation_agent --all
+```
+
+Single ontology (by short name or by TTL path):
+
+```bash
+python -m src.agents.scripts_and_prompts_generation.mcp_underlying_script_creation_agent \
+  --ontology ontosynthesis \
+  --model gpt-5 \
+  --split
+```
+
 
