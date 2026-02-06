@@ -19,6 +19,7 @@ from filelock import FileLock
 
 from models.BaseAgent import BaseAgent
 from models.ModelConfig import ModelConfig
+from src.pipelines.utils.ttl_publisher import get_output_naming_config, load_meta_task_config
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(message)s')
@@ -75,7 +76,14 @@ def load_prompt(prompt_path: str, project_root: str = ".") -> str:
     return ""
 
 
-def load_entity_ttl(doi_hash: str, entity_safe: str, data_dir: str = "data", test_mode: bool = False, ontology_name: str = "ontosynthesis") -> str:
+def load_entity_ttl(
+    doi_hash: str,
+    entity_safe: str,
+    data_dir: str = "data",
+    test_mode: bool = False,
+    ontology_name: str = "ontosynthesis",
+    meta_cfg: Optional[dict] = None,
+) -> str:
     """
     Load entity-specific OntoSynthesis TTL file.
     
@@ -83,41 +91,77 @@ def load_entity_ttl(doi_hash: str, entity_safe: str, data_dir: str = "data", tes
         - Looks for: output_{entity_safe}.ttl in doi_hash root
     
     In test mode:
-        - Looks for: {entity_safe}.ttl in {ontology_name}_output/
+        - Looks for: {entity_safe}.ttl in the configured published output dir (defaults to `{ontology_name}_output/`)
     """
     doi_folder = os.path.join(data_dir, doi_hash)
-    
-    if test_mode:
-        # Test mode: Look in ontosynthesis_output/ directory
-        test_output_dir = os.path.join(doi_folder, f"{ontology_name}_output")
-        test_candidates = [
+
+    # Prefer the "published" deterministic output location first (config-driven).
+    # This avoids reliance on MCP server internal persistence conventions.
+    published_dir = os.path.join(doi_folder, f"{ontology_name}_output")
+    try:
+        meta_cfg = meta_cfg or load_meta_task_config()
+        naming = get_output_naming_config(meta_cfg=meta_cfg, ontology_name=ontology_name)
+        published_dir = os.path.join(doi_folder, naming.output_dir)
+        try:
+            primary_name = naming.entity_ttl_pattern.format(entity_safe=entity_safe, ontology_name=ontology_name)
+        except Exception:
+            primary_name = f"{entity_safe}.ttl"
+
+        published_candidates = [
+            primary_name,
             f"{entity_safe}.ttl",
             f"{entity_safe.lower()}.ttl",
             f"{entity_safe.replace('_', '-')}.ttl",
         ]
-        
-        for candidate in test_candidates:
-            ttl_path = os.path.join(test_output_dir, candidate)
+        for candidate in published_candidates:
+            ttl_path = os.path.join(published_dir, candidate)
             if os.path.exists(ttl_path):
-                try:
-                    with open(ttl_path, 'r', encoding='utf-8') as f:
-                        content = f.read()
-                    logger.info(f"    📄 [TEST MODE] Loaded entity TTL: {candidate}")
-                    return content
-                except Exception as e:
-                    logger.error(f"    ❌ Failed to read {candidate}: {e}")
-                    continue
-        
-        logger.error(f"[TEST MODE] Entity TTL not found for {entity_safe} in {test_output_dir}")
-        return ""
+                with open(ttl_path, "r", encoding="utf-8") as f:
+                    content = f.read()
+                if test_mode:
+                    logger.info(f"    📄 [TEST MODE] Loaded entity TTL from published output: {candidate}")
+                else:
+                    logger.info(f"    📄 Loaded entity TTL from published output: {candidate}")
+                return content
+    except Exception as e:
+        logger.debug(f"    Published TTL lookup failed: {e}")
     
-    # Normal mode: Try multiple naming conventions in root
+    # Normal mode: prefer the persisted MCP memory graph, then fall back to older conventions.
+    memory_ttl = os.path.join(doi_folder, "memory", f"{entity_safe}.ttl")
+    if os.path.exists(memory_ttl):
+        try:
+            with open(memory_ttl, "r", encoding="utf-8") as f:
+                content = f.read()
+            logger.info(f"    📄 Loaded entity TTL from memory: {os.path.basename(memory_ttl)}")
+            return content
+        except Exception as e:
+            logger.error(f"    ❌ Failed to read {memory_ttl}: {e}")
+
+    # Next: try latest exported snapshot (export_memory default location)
+    exports_dir = os.path.join(doi_folder, "exports")
+    try:
+        if os.path.isdir(exports_dir):
+            export_candidates = [
+                os.path.join(exports_dir, f)
+                for f in os.listdir(exports_dir)
+                if f.lower().startswith(entity_safe.lower() + "_") and f.lower().endswith(".ttl")
+            ]
+            if export_candidates:
+                export_candidates.sort(key=lambda p: os.path.getmtime(p), reverse=True)
+                latest = export_candidates[0]
+                with open(latest, "r", encoding="utf-8") as f:
+                    content = f.read()
+                logger.info(f"    📄 Loaded entity TTL from exports: {os.path.basename(latest)}")
+                return content
+    except Exception as e:
+        logger.warning(f"    ⚠️  Error scanning exports for entity TTL: {e}")
+
+    # Backward-compat: Try multiple naming conventions in root
     candidates = [
         f"output_{entity_safe}.ttl",
         f"output_{entity_safe.lower()}.ttl",
         f"output_{entity_safe.replace('_', '-')}.ttl",
     ]
-    
     for candidate in candidates:
         ttl_path = os.path.join(doi_folder, candidate)
         if os.path.exists(ttl_path):
@@ -144,6 +188,12 @@ def load_entity_ttl(doi_hash: str, entity_safe: str, data_dir: str = "data", tes
     except Exception as e:
         logger.warning(f"    ⚠️  Error scanning for TTL files: {e}")
     
+    if test_mode:
+        logger.error(
+            f"[TEST MODE] Entity TTL not found for {entity_safe} in {published_dir} or in memory/exports fallbacks"
+        )
+        return ""
+
     raise FileNotFoundError(f"Could not find OntoSynthesis TTL for entity {entity_safe}")
 
 
@@ -226,12 +276,109 @@ async def run_extension_agent(
     """Run extension agent for a single entity."""
     doi_folder = os.path.join(data_dir, doi_hash)
     output_ttl_path = os.path.join(doi_folder, output_ttl_name)
+
+    def _maybe_update_ontomops_mapping(final_path: str) -> None:
+        """
+        Ensure OntoMOPs has a label/IRI → filename mapping even when we did not
+        call the MCP server's `export_memory()` (e.g., when copying from memory/exports).
+        """
+        if ontology_name != "ontomops":
+            return
+        try:
+            out_dir = os.path.dirname(final_path)
+            if not out_dir:
+                return
+            os.makedirs(out_dir, exist_ok=True)
+            mapping_file = os.path.join(out_dir, "ontomops_output_mapping.json")
+            mapping = {}
+            if os.path.exists(mapping_file):
+                try:
+                    with open(mapping_file, "r", encoding="utf-8") as f:
+                        mapping = json.load(f) or {}
+                except Exception:
+                    mapping = {}
+            fn = os.path.basename(final_path)
+            if entity_label:
+                mapping[entity_label] = fn
+            if entity_uri:
+                mapping[entity_uri] = fn
+            with open(mapping_file, "w", encoding="utf-8") as f:
+                json.dump(mapping, f, indent=2, ensure_ascii=False)
+        except Exception:
+            return
     
     # Check if extension already exists
     if os.path.exists(output_ttl_path):
         logger.info(f"    ⏭️  Extension exists: {os.path.basename(output_ttl_path)}")
+        _maybe_update_ontomops_mapping(output_ttl_path)
         with open(output_ttl_path, 'r', encoding='utf-8') as f:
             return f.read()
+
+    # If the extension MCP server already persisted an entity TTL under memory_<ontology_name>,
+    # use it directly to avoid unnecessary agent reruns (and LLM costs).
+    if ontology_name:
+        try:
+            import shutil
+            safe_local = _safe_name(entity_label)
+            mem_dir = os.path.join(doi_folder, f"memory_{ontology_name}")
+            mem_candidates = [
+                os.path.join(mem_dir, f"{entity_label}.ttl"),
+                os.path.join(mem_dir, f"{safe_local}.ttl"),
+                os.path.join(mem_dir, f"{safe_local.lower()}.ttl"),
+            ]
+            for mem_path in mem_candidates:
+                if os.path.exists(mem_path):
+                    os.makedirs(os.path.dirname(output_ttl_path), exist_ok=True)
+                    shutil.copy2(mem_path, output_ttl_path)
+                    logger.info(
+                        f"    ✅ Extension completed: {os.path.basename(output_ttl_path)} (copied from {os.path.basename(mem_dir)})"
+                    )
+                    _maybe_update_ontomops_mapping(output_ttl_path)
+                    with open(output_ttl_path, "r", encoding="utf-8") as f:
+                        return f.read()
+
+            # Some MCP servers persist under the shared memory/ + exports/ conventions.
+            shared_mem_dir = os.path.join(doi_folder, "memory")
+            shared_mem_candidates = [
+                os.path.join(shared_mem_dir, f"{entity_label}.ttl"),
+                os.path.join(shared_mem_dir, f"{safe_local}.ttl"),
+                os.path.join(shared_mem_dir, f"{safe_local.lower()}.ttl"),
+            ]
+            for mem_path in shared_mem_candidates:
+                if os.path.exists(mem_path):
+                    os.makedirs(os.path.dirname(output_ttl_path), exist_ok=True)
+                    shutil.copy2(mem_path, output_ttl_path)
+                    logger.info(
+                        f"    ✅ Extension completed: {os.path.basename(output_ttl_path)} (copied from {os.path.basename(shared_mem_dir)})"
+                    )
+                    _maybe_update_ontomops_mapping(output_ttl_path)
+                    with open(output_ttl_path, "r", encoding="utf-8") as f:
+                        return f.read()
+
+            exports_dir = os.path.join(doi_folder, "exports")
+            if os.path.isdir(exports_dir):
+                import glob
+                # Prefer exact safe_local prefix, then raw label prefix
+                patterns = [
+                    os.path.join(exports_dir, f"{safe_local}_*.ttl"),
+                    os.path.join(exports_dir, f"{entity_label}_*.ttl"),
+                ]
+                export_matches = []
+                for pat in patterns:
+                    export_matches.extend(glob.glob(pat))
+                if export_matches:
+                    export_matches.sort(key=lambda p: os.path.getmtime(p), reverse=True)
+                    latest = export_matches[0]
+                    os.makedirs(os.path.dirname(output_ttl_path), exist_ok=True)
+                    shutil.copy2(latest, output_ttl_path)
+                    logger.info(
+                        f"    ✅ Extension completed: {os.path.basename(output_ttl_path)} (copied from exports/{os.path.basename(latest)})"
+                    )
+                    _maybe_update_ontomops_mapping(output_ttl_path)
+                    with open(output_ttl_path, "r", encoding="utf-8") as f:
+                        return f.read()
+        except Exception as e:
+            logger.debug(f"    Pre-run memory TTL shortcut failed: {e}")
     
     # Resolve DOI
     doi_us, doi_sl = resolve_doi_from_hash(doi_hash, data_dir)
@@ -300,6 +447,7 @@ async def run_extension_agent(
             # Check if it exists (exact path first, then try pattern matching for ontomops with hash)
             if os.path.exists(output_ttl_path):
                 logger.info(f"    ✅ Extension completed: {os.path.basename(output_ttl_path)}")
+                _maybe_update_ontomops_mapping(output_ttl_path)
                 with open(output_ttl_path, 'r', encoding='utf-8') as f:
                     return f.read()
             else:
@@ -334,6 +482,59 @@ async def run_extension_agent(
                             logger.info(f"    ✅ Extension completed: {os.path.basename(matched_file)} (found via pattern matching)")
                             with open(matched_file, 'r', encoding='utf-8') as f:
                                 return f.read()
+
+                # Final fallback (all extensions): use persisted entity-specific memory TTL even if export_memory
+                # wasn't called or the tool exports to a non-standard location.
+                #
+                # The generated extension MCP servers persist memory under:
+                #   data/<hash>/memory_<ontology_name>/<entity_label>.ttl
+                # (observed: memory_ontomops, memory_ontospecies)
+                try:
+                    import shutil
+                    safe_local = _safe_name(entity_label)
+                    mem_dirs = [
+                        os.path.join(doi_folder, f"memory_{ontology_name}"),
+                        os.path.join(doi_folder, "memory"),
+                    ]
+                    for mem_dir in mem_dirs:
+                        mem_candidates = [
+                            os.path.join(mem_dir, f"{entity_label}.ttl"),
+                            os.path.join(mem_dir, f"{safe_local}.ttl"),
+                            os.path.join(mem_dir, f"{safe_local.lower()}.ttl"),
+                        ]
+                        for mem_path in mem_candidates:
+                            if os.path.exists(mem_path):
+                                os.makedirs(os.path.dirname(output_ttl_path), exist_ok=True)
+                                shutil.copy2(mem_path, output_ttl_path)
+                                logger.info(
+                                    f"    ✅ Extension completed: {os.path.basename(output_ttl_path)} (copied from {os.path.basename(mem_dir)})"
+                                )
+                                with open(output_ttl_path, "r", encoding="utf-8") as f:
+                                    return f.read()
+
+                    # Last resort: use latest export snapshot
+                    exports_dir = os.path.join(doi_folder, "exports")
+                    if os.path.isdir(exports_dir):
+                        import glob
+                        patterns = [
+                            os.path.join(exports_dir, f"{safe_local}_*.ttl"),
+                            os.path.join(exports_dir, f"{entity_label}_*.ttl"),
+                        ]
+                        export_matches = []
+                        for pat in patterns:
+                            export_matches.extend(glob.glob(pat))
+                        if export_matches:
+                            export_matches.sort(key=lambda p: os.path.getmtime(p), reverse=True)
+                            latest = export_matches[0]
+                            os.makedirs(os.path.dirname(output_ttl_path), exist_ok=True)
+                            shutil.copy2(latest, output_ttl_path)
+                            logger.info(
+                                f"    ✅ Extension completed: {os.path.basename(output_ttl_path)} (copied from exports/{os.path.basename(latest)})"
+                            )
+                            with open(output_ttl_path, "r", encoding="utf-8") as f:
+                                return f.read()
+                except Exception as e:
+                    logger.debug(f"    Memory TTL fallback failed: {e}")
                 
                 logger.warning(f"    ⚠️  Extension TTL not found: {os.path.basename(output_ttl_path)}")
                 return str(response)
@@ -358,7 +559,9 @@ async def process_extension_kg(
     config: Dict,
     data_dir: str = "data",
     project_root: str = ".",
-    test_mcp_config: str = None
+    test_mcp_config: str = None,
+    main_ontology_name: str = "ontosynthesis",
+    meta_cfg: Optional[dict] = None,
 ):
     """Process KG building for a single extension entity."""
     entity_label = entity.get("label", "")
@@ -397,14 +600,23 @@ async def process_extension_kg(
     else:
         logger.info(f"    ℹ️  No 'extraction_file' in config - will use standard extension path")
     
-    # Override MCP config if test config is provided
-    if test_mcp_config:
-        iteration = iteration.copy()  # Don't modify original
-        iteration["mcp_set_name"] = test_mcp_config
+    # IMPORTANT:
+    # Do NOT override the extension MCP config with the "test main-ontology MCP" config.
+    # `test_mcp_config.json` is created to point `llm_created_mcp` at the generated main ontology server,
+    # but extension agents require `mops_extension` / `ontospecies_extension` servers from `extension.json`.
+    # Overriding here would remove those servers and cause:
+    #   "Couldn't find a server with name 'mops_extension', expected one of '[]'"
     
     # Load entity-specific OntoSynthesis TTL
     logger.info(f"    🔍 Loading main ontology TTL for entity: {safe}")
-    entity_ttl = load_entity_ttl(doi_hash, safe, data_dir, test_mode=test_mcp_config is not None, ontology_name="ontosynthesis")
+    entity_ttl = load_entity_ttl(
+        doi_hash,
+        safe,
+        data_dir,
+        test_mode=test_mcp_config is not None,
+        ontology_name=main_ontology_name,
+        meta_cfg=meta_cfg,
+    )
     if not entity_ttl:
         logger.error(f"  ❌ Failed to load main ontology TTL for {entity_label}")
         return
@@ -533,6 +745,12 @@ async def process_extension_kg(
     mcp_tools = iteration.get("mcp_tools", [])
     mcp_set_name = iteration.get("mcp_set_name", f"{ontology_name}_mcp")
     agent_model = iteration.get("agent_model", "gpt-4o")
+
+    # Portability: drop Docker/binary-dependent tools when present in configs.
+    # (CCDC tool commonly fails on Windows without external deps.)
+    if mcp_tools and "ccdc" in set(mcp_tools):
+        logger.warning(f"    ⚠️  Dropping 'ccdc' from extension MCP tools for portability: {mcp_tools}")
+        mcp_tools = [t for t in mcp_tools if t != "ccdc"]
     
     logger.info(f"    📋 Agent config: model={agent_model}, recursion_limit={recursion_limit}, mcp_set={mcp_set_name}")
     
@@ -596,6 +814,13 @@ def run_step(doi_hash: str, config: dict) -> bool:
     except Exception as e:
         logger.error(f"Failed to load meta task config: {e}")
         return False
+
+    # Determine main ontology name from meta config (do not hardcode).
+    main_ontology_name = (meta_config.get("ontologies", {}).get("main", {}) or {}).get("name") or "ontosynthesis"
+    try:
+        main_ontology_name = str(main_ontology_name).strip() or "ontosynthesis"
+    except Exception:
+        main_ontology_name = "ontosynthesis"
     
     # Get extension ontologies
     extensions = meta_config.get("ontologies", {}).get("extensions", [])
@@ -672,7 +897,9 @@ def run_step(doi_hash: str, config: dict) -> bool:
                         config=iterations_config,
                         data_dir=data_dir,
                         project_root=project_root,
-                        test_mcp_config=config.get("test_mcp_config")
+                        test_mcp_config=config.get("test_mcp_config"),
+                        main_ontology_name=main_ontology_name,
+                        meta_cfg=meta_config,
                     )
                     logger.info(f"  ✅ Completed entity {i+1}/{len(top_entities)}: {entity_label}")
                 except Exception as e:

@@ -6,5 +6,21 @@
             "ai_generated_contents_candidate.scripts.ontosynthesis.main"
         ],
         "transport": "stdio"
+    },
+    "ontomops_mcp": {
+        "command": "python",
+        "args": [
+            "-m",
+            "ai_generated_contents_candidate.scripts.ontomops.main"
+        ],
+        "transport": "stdio"
+    },
+    "ontospecies_mcp": {
+        "command": "python",
+        "args": [
+            "-m",
+            "ai_generated_contents_candidate.scripts.ontospecies.main"
+        ],
+        "transport": "stdio"
     }
 }

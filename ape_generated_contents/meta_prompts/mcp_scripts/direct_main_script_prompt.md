@@ -17,19 +17,8 @@ Generate a complete `main.py` file that exposes ALL functions from the underlyin
 {reference_main_snippet}
 ```
 
-**T-Box Ontology**:
-```turtle
-{ontology_ttl}
-```
-
-**Functions Extracted from Underlying Script**:
+**Functions Extracted from Underlying Script** (brief inventory; bodies omitted on purpose):
 {function_signatures}
-
-**Entity Classes** (from T-Box):
-{entity_classes}
-
-**Object Properties/Relationships** (from T-Box):
-{relationships}
 
 {architecture_note}
 
@@ -37,7 +26,30 @@ Generate a complete `main.py` file that exposes ALL functions from the underlyin
 
 ### 1. Import Structure
 
-Import FastMCP and **ALL** functions from the underlying script(s):
+Import FastMCP and **ALL** functions from the underlying script(s).
+
+**CRITICAL ALIAS RULE (to avoid NameError / infinite recursion):**
+- If you import a function as an underscored alias (recommended), e.g. `foo as _foo`, then **ALL call sites must call `_foo(...)`**.
+- Wrapper functions must **never** call themselves (e.g. inside `def create_SomeClass(...):` do **NOT** do `return create_SomeClass(...)`).
+
+**Example (BAD vs GOOD):**
+
+```python
+# BAD (will recurse forever)
+def create_SomeClass(...):
+    return create_SomeClass(...)
+
+# BAD (NameError if only _export_memory_wrapper is imported)
+def export_memory():
+    return export_memory_wrapper()
+
+# GOOD
+from .some_module import create_SomeClass as _create_SomeClass, export_memory_wrapper as _export_memory_wrapper
+def create_SomeClass(...):
+    return _create_SomeClass(...)
+def export_memory():
+    return _export_memory_wrapper()
+```
 
 ```python
 from fastmcp import FastMCP
@@ -79,7 +91,7 @@ Create a comprehensive instruction prompt that explains:
 
 **DO NOT use generic placeholder text.** Study the T-Box to understand the domain.
 
-**Pattern:**
+**Pattern (FastMCP 2.x safe):**
 ```python
 INSTRUCTION_PROMPT = f"""
 You are an expert assistant for knowledge graph construction using the {ontology_name} ontology.
@@ -115,7 +127,11 @@ You are an expert assistant for knowledge graph construction using the {ontology
 [Provide domain-specific workflow examples based on T-Box structure]
 """
 
-mcp.set_initial_instructions(INSTRUCTION_PROMPT)
+# IMPORTANT: Do NOT use `mcp.set_initial_instructions(...)`.
+# Always expose the instruction prompt via a FastMCP prompt:
+@mcp.prompt(name="instruction")
+def instruction_prompt():
+    return INSTRUCTION_PROMPT
 ```
 
 ### 4. Tool Wrappers
@@ -147,13 +163,12 @@ def check_existing_{{EntityClassName}}() -> str:
 def create_{{EntityClassName}}(
     # ⚠️ COPY THE EXACT SIGNATURE from underlying script!
     # Include EVERY parameter: label, all datatype properties, all aux_entity_label params
-    # Example for a synthesis step:
+    # Example (blurred):
     label: str,
-    hasOrder: Optional[int] = None,  # datatype property
-    isSealed: Optional[bool] = None,  # datatype property
-    vessel_label: Optional[str] = None,  # aux entity (auto-created)
-    vessel_type_label: Optional[str] = None,  # aux entity (auto-created)
-    heatchilldevice_label: Optional[str] = None,  # aux entity (auto-created)
+    order_index: Optional[int] = None,  # datatype property (order-like)
+    flag_bool: Optional[bool] = None,  # datatype property (boolean)
+    aux_entity_label: Optional[str] = None,  # auxiliary entity label (auto-created)
+    aux_entity_type_label: Optional[str] = None,  # auxiliary entity type label (auto-created)
     # ... EVERY parameter from the underlying create_* function
 ) -> str:
     """
@@ -163,23 +178,22 @@ def create_{{EntityClassName}}(
     
     Args:
         label: [Description]
-        hasOrder: [Description - workflow order]
-        isSealed: [Description - optional boolean]
-        vessel_label: [Vessel name - auto-created if needed]
-        vessel_type_label: [Vessel type - auto-created with vessel]
-        heatchilldevice_label: [Device name - auto-created if needed]
+        order_index: [Description - order/index in workflow]
+        flag_bool: [Description - optional boolean]
+        aux_entity_label: [Aux entity label - auto-created if needed]
+        aux_entity_type_label: [Aux entity type label - auto-created with aux entity]
         # ... document EVERY parameter
         
     Returns:
         JSON envelope with status, IRI, and creation details
     """
-    return create_{{EntityClassName}}(
+    # CRITICAL: delegate to the imported underscored alias, NOT the wrapper itself.
+    return _create_{{EntityClassName}}(
         label=label,
-        hasOrder=hasOrder,
-        isSealed=isSealed,
-        vessel_label=vessel_label,
-        vessel_type_label=vessel_type_label,
-        heatchilldevice_label=heatchilldevice_label,
+        order_index=order_index,
+        flag_bool=flag_bool,
+        aux_entity_label=aux_entity_label,
+        aux_entity_type_label=aux_entity_type_label,
         # ... pass EVERY parameter by name
     )
 ```
@@ -227,7 +241,8 @@ def init_memory(doi: Optional[str] = None, top_level_entity_name: Optional[str] 
     Returns:
         Status message
     """
-    return _init_memory(doi=doi, top_level_entity_name=top_level_entity_name)
+    # If underlying provides init_memory_wrapper, import it as _init_memory_wrapper and call it here.
+    return _init_memory_wrapper(doi=doi, top_level_entity_name=top_level_entity_name)
 
 @mcp.tool()
 def export_memory() -> str:
@@ -239,7 +254,8 @@ def export_memory() -> str:
     Returns:
         Export status message with file path
     """
-    return _export_memory()
+    # If underlying provides export_memory_wrapper, import it as _export_memory_wrapper and call it here.
+    return _export_memory_wrapper()
 ```
 
 ### 5. Signature Preservation
@@ -288,7 +304,8 @@ Start directly with the imports.
 
 1. **Complete Coverage**: Wrap ALL {total_functions} functions from the underlying script
 2. **No Omissions**: Every function must have a corresponding wrapper
-3. **Exact Signatures**: Match parameter names, types, and defaults exactly
+3. **Signatures**: Prefer matching parameter names and defaults when provided; do NOT add type hints unless explicitly listed.
+   Do NOT use `*args, **kwargs`. Always use the explicit parameters from the extracted signatures.
 4. **Comprehensive Docs**: Write detailed docstrings based on T-Box semantics
 5. **Domain-Specific**: Use T-Box information to make descriptions meaningful
 6. **No Assumptions**: Only wrap functions that actually exist in the underlying script

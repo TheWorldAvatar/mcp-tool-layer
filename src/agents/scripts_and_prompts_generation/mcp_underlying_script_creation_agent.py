@@ -22,16 +22,24 @@ import asyncio
 from typing import Optional, List, Dict
 from pathlib import Path
 import time
+import os
 
 
 def load_design_principles() -> str:
     """Load the universal design principles documentation."""
     design_principles_path = "src/agents/mops/prompts/universal_mcp_underlying_script_design_principles.md"
-    
-    with open(design_principles_path, 'r', encoding='utf-8') as f:
-        design_principles = f.read()
-    
-    return design_principles
+    try:
+        with open(design_principles_path, 'r', encoding='utf-8') as f:
+            return f.read()
+    except FileNotFoundError:
+        # Fallback for environments / branches where the file is missing.
+        return (
+            "Universal MCP underlying-script design principles (fallback):\n"
+            "- Validate inputs before side effects\n"
+            "- Prefer idempotent, small, composable tools\n"
+            "- Use find-or-create helpers to avoid duplicates\n"
+            "- Keep paths OS-agnostic (Path/os.path)\n"
+        )
 
 
 def load_prompt_template(prompt_name: str) -> str:
@@ -382,12 +390,15 @@ async def create_underlying_script(
         
         # Extract text response from tuple (response, metadata)
         text_response = response[0] if isinstance(response, tuple) else response
-        
-        print(f"\n{'='*60}")
-        print(f"AGENT RESPONSE:")
-        print(f"{'='*60}")
-        print(text_response)
-        print(f"{'='*60}\n")
+
+        # Keep console output concise by default. Opt-in to verbose printing with:
+        #   export GENERATION_VERBOSE=1
+        if os.environ.get("GENERATION_VERBOSE", "").strip() in ("1", "true", "TRUE", "yes", "YES"):
+            print(f"\n{'='*60}")
+            print("AGENT RESPONSE (verbose):")
+            print(f"{'='*60}")
+            print(text_response)
+            print(f"{'='*60}\n")
         
         print(f"\n✅ Successfully created: {script_name}")
         print(f"📁 Output directory: {output_dir}/")

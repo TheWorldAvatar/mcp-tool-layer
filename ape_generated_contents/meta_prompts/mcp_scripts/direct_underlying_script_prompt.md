@@ -92,6 +92,16 @@ RDF = RDF
 RDFS = RDFS
 ```
 
+### Unit Handling (OM-2) — IMPORTANT
+
+The T-Box may include OM-2 quantities/units (e.g., Temperature/Pressure/Duration/Volume and unit individuals).
+
+- **Enforce units**: do not accept arbitrary unit strings when creating quantities; validate against ontology-derived unit labels.
+- **Use label→IRI mapping**: map a user-facing unit label string to an OM-2 unit IRI for `om2:hasUnit`.
+- **Prefer strict schemas**: if unit label options are available as `Literal[...]` / Enum types derived from the OM-2 T-Box input, use them for tool parameters.
+
+Do NOT paste any unit tables into comments or prompts; rely on the ontology inputs and shared utilities.
+
 ### 2. Guard System (prevents repeated check_existing calls)
 
 Study the reference implementation and implement a guard system that:
@@ -223,7 +233,7 @@ You MUST generate a `create_*` function for **EVERY SINGLE class** listed in the
 - These numbers MUST be EQUAL
 - If they don't match, you have MISSED functions - go back and add them ALL
 
-**Example**: If there are 25 classes (Add, ChemicalInput, ChemicalOutput, ChemicalSynthesis, Crystallize, DocumentContext, Dry, Equipment, Evaporate, ExecutionPoint, Filter, HeatChill, HeatChillDevice, Separate, SeparationType, Sonicate, Stir, Supplier, SynthesisStep, Transfer, Vessel, VesselEnvironment, VesselType, Yield, MetalOrganicPolyhedron), you MUST have 25 `create_*` functions.
+**Example (blurred)**: If the extracted entity-class list contains **N** classes, you MUST generate **exactly N** `create_*` functions—one per class.
 
 **NO SHORTCUTS. NO "..." PLACEHOLDERS. GENERATE EVERY SINGLE FUNCTION.**
 

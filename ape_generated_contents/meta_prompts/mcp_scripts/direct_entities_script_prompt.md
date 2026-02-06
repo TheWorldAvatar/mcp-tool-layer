@@ -45,21 +45,58 @@ You MUST generate a `create_*` function for **EVERY SINGLE class** listed in the
 
 Main creation functions should accept parameters for auxiliary entities (NOT IRIs) and use `_find_or_create_*` helpers from the base script to handle them internally.
 
-**Example**: For a synthesis step that needs a vessel:
+**Example (blurred placeholders)**: For a step-like entity that needs an auxiliary entity:
 ```python
 def create_{{StepType}}(
     label: str,
     order: int,
     # Direct parameters for auxiliary entities (NOT IRIs):
-    vessel_label: Optional[str] = None,
-    vessel_type_label: Optional[str] = None,
+    aux_entity_label: Optional[str] = None,
+    aux_entity_type_label: Optional[str] = None,
     # ... other parameters
 ) -> str:
     # Inside the function, use the helper:
-    if vessel_label:
-        vessel_iri = _find_or_create_Vessel(g, vessel_label, vessel_type_label)
-        g.add((iri, NAMESPACE.hasVessel, vessel_iri))
+    if aux_entity_label:
+        aux_iri = _find_or_create_{{AuxEntityType}}(g, aux_entity_label, aux_entity_type_label)
+        g.add((iri, {{NAMESPACE}}["{{hasAuxEntityPredicate}}"], aux_iri))
 ```
+
+### Requirement 2.1: Class hierarchy typing (subclass + superclass)
+
+If an entity class **inherits from** one or more parent classes in the ontology structure:
+
+- You MUST add `rdf:type` triples for **both**:
+  - the concrete class (subclass), and
+  - each parent class (and any relevant ancestors when listed/known).
+
+**Do not rely on RDFS reasoning at runtime.** The runtime validation often checks for a parent type explicitly.
+
+Example:
+
+```python
+# If {{SubClass}} is a subclass of {{ParentClass}}:
+g.add((iri, RDF.type, {{NAMESPACE}}["{{SubClass}}"]))
+g.add((iri, RDF.type, {{NAMESPACE}}["{{ParentClass}}"]))
+```
+
+### Requirement 3: Unit Handling (OM-2) — do not ignore
+
+If an entity creation function involves quantities (e.g., Temperature/Pressure/Duration/Volume/TemperatureRate/AmountOfSubstanceFraction):
+
+- **Validate unit labels** against ontology-derived options (do not accept arbitrary units).
+- **Map unit label → OM-2 unit IRI** when adding `om2:hasUnit`.
+- **Prefer strict type hints** for unit labels (e.g., `Literal[...]` / Enum) derived from the OM-2 T-Box input when available.
+
+Do not hardcode or list unit tables inside the script; rely on ontology inputs + shared utilities.
+
+**STRICT REQUIREMENT (single source of truth for units)**:
+- DO NOT define per-file unit dictionaries like `_TEMPERATURE_UNITS`, `_PRESSURE_UNIT_MAP`, etc.
+- The base module MUST be the single source of truth (`OM2_UNIT_MAP`, `_resolve_om2_unit`, `_find_or_create_om2_quantity`).
+- Entity scripts MUST import and use those base helpers for all quantity creation/attachment.
+
+**OM-2 helper call style (IMPORTANT)**:
+- Call `_resolve_om2_unit` as `_resolve_om2_unit(unit_label)` (single argument). Do NOT pass a Graph as the first argument.
+- Call `_find_or_create_om2_quantity` with keyword args: `_find_or_create_om2_quantity(g, quantity_class=..., label=..., value=..., unit_label=...)`.
 
 ## Script Structure
 
@@ -81,8 +118,9 @@ from rdflib import Graph, URIRef, Literal as RDFLiteral, RDF, RDFS
 
 # Import from base script (all helpers, decorators, namespaces)
 from .{script_name}_base import (
-    # Namespaces (import ALL namespaces from base)
-    NAMESPACE, ONTOSYN, ONTOLAB, ONTOMOPS, MATERIAL, RDF, RDFS,
+    # Namespaces (import the namespaces exported by base; at minimum `NAMESPACE`)
+    # NOTE: do NOT hardcode ontology-specific namespace variable names in this meta-prompt.
+    NAMESPACE, RDF, RDFS,
     
     # Guard decorators
     _guard_noncheck,
@@ -227,6 +265,13 @@ Before finishing, verify:
 5. ✓ Each function uses auto-creation pattern for auxiliary entities
 6. ✓ Each function includes all datatype properties from T-Box
 7. ✓ Each function includes all object property connections from T-Box
+8. ✓ **OM-2 unit enforcement (if OM-2 quantities are referenced in ontology input)**:
+   - I did NOT define per-file unit maps like `_TEMPERATURE_UNIT_MAP` / `_PRESSURE_UNIT_MAP` / etc.
+   - I imported and used the shared `OM2_UNIT_MAP` and `_find_or_create_om2_quantity` (or equivalent) from `{script_name}_base.py`
+   - Quantity creation reuses existing quantities when value+unit match, and does not create duplicates
+9. ✓ **Ergonomic incremental updates (reference parity)**:
+   - If the reference behavior implies common “add/update” flows (e.g., appending additional measurement/annotation values to an existing entity),
+     I provided the relevant helper(s) in the appropriate module (typically relationships) rather than forcing users to recreate entities.
 
 ## Output
 

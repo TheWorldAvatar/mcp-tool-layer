@@ -49,16 +49,36 @@ def load_tbox(tbox_path: str) -> str:
 
 
 def load_prompt(prompt_path: str, project_root: str = ".") -> str:
-    """Load prompt template from markdown file."""
-    full_path = os.path.join(project_root, prompt_path)
-    try:
-        with open(full_path, 'r', encoding='utf-8') as f:
-            content = f.read()
-        logger.info(f"    📖 Loaded prompt: {os.path.basename(prompt_path)}")
-        return content
-    except Exception as e:
-        logger.error(f"    ❌ Failed to load prompt from {full_path}: {e}")
-        return ""
+    """Load prompt template from markdown file.
+
+    Tries candidate directory first, then production directory.
+    """
+    prompt_path = (prompt_path or "").replace("\\", "/")
+    candidate_path = prompt_path.replace("ai_generated_contents/", "ai_generated_contents_candidate/", 1)
+    production_path = prompt_path
+
+    paths_to_try = [
+        os.path.join(project_root, candidate_path),
+        os.path.join(project_root, production_path),
+    ]
+
+    for full_path in paths_to_try:
+        if os.path.exists(full_path):
+            try:
+                with open(full_path, "r", encoding="utf-8") as f:
+                    content = f.read()
+                logger.info(
+                    f"    📖 Loaded prompt: {os.path.basename(full_path)} (from {os.path.dirname(full_path)})"
+                )
+                return content
+            except Exception as e:
+                logger.error(f"    ❌ Failed to load prompt from {full_path}: {e}")
+                continue
+
+    logger.error(f"    ❌ Failed to load prompt. Tried:")
+    for p in paths_to_try:
+        logger.error(f"      - {p}")
+    return ""
 
 
 async def run_extraction(

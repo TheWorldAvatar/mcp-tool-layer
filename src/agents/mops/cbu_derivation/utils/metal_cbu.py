@@ -1,4 +1,7 @@
 import os
+import re
+import hashlib
+import unicodedata
 from typing import List, Dict
 from models.locations import DATA_DIR, DATA_CCDC_DIR
 from src.agents.mops.cbu_derivation.utils.io_utils import resolve_identifier_to_hash
@@ -23,9 +26,59 @@ def load_top_level_entities(hash_or_doi: str) -> List[Dict[str, str]]:
 
 def load_entity_extraction_content(hash_or_doi: str, entity_label: str) -> str:
     hv = resolve_identifier_to_hash(hash_or_doi)
-    p = os.path.join(DATA_DIR, hv, "mcp_run_ontomops", f"extraction_{safe_name(entity_label)}.txt")
-    with open(p, 'r', encoding='utf-8') as f:
-        return f.read()
+    run_dir = os.path.join(DATA_DIR, hv, "mcp_run_ontomops")
+
+    def _read(path: str) -> str:
+        with open(path, "r", encoding="utf-8") as f:
+            return f.read()
+
+    # Primary: expected naming convention
+    p = os.path.join(run_dir, f"extraction_{safe_name(entity_label)}.txt")
+    if os.path.exists(p):
+        return _read(p)
+
+    # Fallback: if entity_label is a slugified/hash identifier (e.g., "synthesis-umc-1_924a6c41"),
+    # resolve it back to the original label using iter1 entities + the same slug/hash logic as OntoMOPs.
+    try:
+        m = re.match(r"^(?P<slug>.+)_(?P<h>[0-9a-fA-F]{8})$", (entity_label or "").strip())
+        if m:
+            target = entity_label.strip().lower()
+
+            def _ontomops_slug(s: str) -> str:
+                t = unicodedata.normalize("NFKC", (s or "")).casefold()
+                t = re.sub(r"\s+", "-", t)
+                t = re.sub(r"[^a-z0-9\\-_]+", "-", t)
+                t = re.sub(r"-+", "-", t).strip("-") or "entity"
+                return t
+
+            entities = load_top_level_entities(hv)
+            for e in entities or []:
+                lbl = (e or {}).get("label") or ""
+                uri = (e or {}).get("uri") or ""
+                if not lbl or not uri:
+                    continue
+                hh = hashlib.sha256(uri.encode()).hexdigest()[:8]
+                cand = f"{_ontomops_slug(lbl)}_{hh}".lower()
+                if cand == target:
+                    p2 = os.path.join(run_dir, f"extraction_{safe_name(lbl)}.txt")
+                    if os.path.exists(p2):
+                        return _read(p2)
+    except Exception:
+        pass
+
+    # Last resort: scan for a close match on safe_name normalization
+    try:
+        wanted = safe_name(entity_label).lower().replace("-", "_")
+        for fname in os.listdir(run_dir):
+            if not (fname.startswith("extraction_") and fname.endswith(".txt")):
+                continue
+            inner = fname[len("extraction_"):-len(".txt")].lower().replace("-", "_")
+            if inner == wanted:
+                return _read(os.path.join(run_dir, fname))
+    except Exception:
+        pass
+
+    raise FileNotFoundError(f"Extraction file not found for entity '{entity_label}' under {run_dir}")
 
 
 def load_entity_ttl_content(hash_or_doi: str, entity_label: str) -> str:

@@ -1,27 +1,26 @@
 {
-
-    "mops_extension": {
-        "command": "python",
-        "args": [
-            "-m",
-            "src.ontomops_extension.main"
-        ],
-        "transport": "stdio"
-    },
-    "ontospecies_extension": {
-        "command": "python",
-        "args": [
-            "-m",
-            "src.ontospecies_extension.main"
-        ],
-        "transport": "stdio"
-    },
-    "ccdc": {
-        "command": "python",
-        "args": [
-            "-m",
-            "src.mcp_servers.ccdc.main"
-        ],
-        "transport": "stdio"
-    }
+  "mops_extension": {
+    "command": "python",
+    "args": [
+      "-m",
+      "ai_generated_contents_candidate.scripts.ontomops.main"
+    ],
+    "transport": "stdio"
+  },
+  "ontospecies_extension": {
+    "command": "python",
+    "args": [
+      "-m",
+      "ai_generated_contents_candidate.scripts.ontospecies.main"
+    ],
+    "transport": "stdio"
+  },
+  "ccdc": {
+    "command": "python",
+    "args": [
+      "-m",
+      "src.mcp_servers.ccdc.main"
+    ],
+    "transport": "stdio"
+  }
 }

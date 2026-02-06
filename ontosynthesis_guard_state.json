@@ -1,0 +1,173 @@
+{
+  "calls": [
+    {
+      "type": "noncheck"
+    },
+    {
+      "kind": "check_existing_ChemicalSynthesis",
+      "type": "check"
+    },
+    {
+      "kind": "check_existing_DocumentContext",
+      "type": "check"
+    },
+    {
+      "type": "noncheck"
+    },
+    {
+      "type": "noncheck"
+    },
+    {
+      "type": "noncheck"
+    },
+    {
+      "type": "noncheck"
+    },
+    {
+      "kind": "check_existing_ChemicalSynthesis",
+      "type": "check"
+    },
+    {
+      "kind": "check_existing_DocumentContext",
+      "type": "check"
+    },
+    {
+      "type": "noncheck"
+    },
+    {
+      "type": "noncheck"
+    },
+    {
+      "type": "noncheck"
+    },
+    {
+      "type": "noncheck"
+    },
+    {
+      "kind": "check_existing_ChemicalSynthesis",
+      "type": "check"
+    },
+    {
+      "kind": "check_existing_DocumentContext",
+      "type": "check"
+    },
+    {
+      "type": "noncheck"
+    },
+    {
+      "type": "noncheck"
+    },
+    {
+      "type": "noncheck"
+    }
+  ],
+  "check_calls_total": 157,
+  "checks": {
+    "check_existing_procedure": 18,
+    "check_existing_process": 3,
+    "check_existing_step": 59,
+    "check_existing_synthesis": 77
+  },
+  "checks_by_kind": {
+    "check_existing_actions": 4,
+    "check_existing_pipelines": 1,
+    "check_existing_sequences": 4,
+    "check_existing_steps": 7,
+    "check_existing_syntheses": 19
+  },
+  "checks_called": {
+    "check_existing_pipeline": 20,
+    "check_existing_steps": 38,
+    "check_existing_syntheses": 29
+  },
+  "checks_total": 35,
+  "created_at": 1770061411,
+  "last_check_kind": "check_existing_steps",
+  "last_check_ts": 1770382720.9662051,
+  "noncheck_called": 61,
+  "noncheck_calls_total": 486,
+  "nonchecks": {
+    "create_Add": 36,
+    "create_ChemicalInput": 63,
+    "create_ChemicalOutput": 11,
+    "create_ChemicalSynthesis": 78,
+    "create_DocumentContext": 21,
+    "create_Equipment": 9,
+    "create_HeatChill": 99,
+    "create_MetalOrganicPolyhedron": 10,
+    "create_Sonicate": 11,
+    "create_Supplier": 32,
+    "create_SynthesisStep": 1,
+    "create_Vessel": 1,
+    "create_Yield": 1,
+    "create_amount_of_substance_fraction": 1,
+    "create_duration": 3,
+    "create_temperature": 21,
+    "export_memory_wrapper": 49,
+    "init_memory_wrapper": 39
+  },
+  "nonchecks_by_name": {
+    "create_Add": 22,
+    "create_ChemicalInput": 36,
+    "create_ChemicalOutput": 4,
+    "create_ChemicalSynthesis": 26,
+    "create_DocumentContext": 1,
+    "create_Equipment": 1,
+    "create_HeatChill": 9,
+    "create_MetalOrganicPolyhedron": 4,
+    "create_Sonicate": 5,
+    "create_Supplier": 14,
+    "create_duration": 12,
+    "create_temperature": 5,
+    "export_memory_wrapper": 13,
+    "init_memory_wrapper": 15
+  },
+  "nonchecks_total": 167,
+  "pending_check": true,
+  "schema": 1,
+  "updated_at": 1770140266,
+  "updated_unix": 1770312119,
+  "version": 1,
+  "violations": [
+    {
+      "function": "create_ChemicalSynthesis",
+      "ts": 1770061411,
+      "type": "NONCHECK_BEFORE_ANY_CHECK"
+    },
+    {
+      "function": "create_Add",
+      "ts": 1770061411,
+      "type": "NONCHECK_BEFORE_ANY_CHECK"
+    },
+    {
+      "function": "create_Add",
+      "ts": 1770061411,
+      "type": "NONCHECK_BEFORE_ANY_CHECK"
+    },
+    {
+      "function": "create_ChemicalSynthesis",
+      "ts": 1770061412,
+      "type": "NONCHECK_BEFORE_ANY_CHECK"
+    },
+    {
+      "function": "create_Add",
+      "ts": 1770061412,
+      "type": "NONCHECK_BEFORE_ANY_CHECK"
+    },
+    {
+      "function": "create_Add",
+      "ts": 1770061412,
+      "type": "NONCHECK_BEFORE_ANY_CHECK"
+    },
+    {
+      "function": "init_memory_wrapper",
+      "ts": 1770136380,
+      "type": "NONCHECK_BEFORE_ANY_CHECK"
+    },
+    {
+      "kind": "init_memory_wrapper",
+      "message": "Non-check function called before any check function was recorded.",
+      "unix": 1770292068
+    }
+  ]
+}

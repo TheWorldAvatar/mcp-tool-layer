@@ -1,0 +1,18 @@
+{
+  "_comment": "Namespace configuration used by script/prompt generation. This file is an artefact under ape_generated_contents/ so namespaces are NOT hardcoded in generator code or meta-prompts.",
+  "kg_base_strip_suffixes": [
+    "OntoSyn/",
+    "OntoLab/",
+    "ontomops/"
+  ],
+  "external": {
+    "OM2": "http://www.ontology-of-units-of-measure.org/resource/om-2/",
+    "ONTOCAPE_MAT": "http://www.theworldavatar.com/ontology/ontocape/material/material.owl#"
+  },
+  "project_templates": {
+    "ONTOSYN": "{kg_base}OntoSyn/",
+    "ONTOLAB": "{kg_base}OntoLab/",
+    "ONTOMOPS": "{kg_base}ontomops/"
+  }
+}
+

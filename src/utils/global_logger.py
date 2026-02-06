@@ -9,6 +9,17 @@ import json
 from functools import wraps
 from models.locations import DATA_LOG_DIR
 
+# Ensure Windows consoles don't crash on emoji output (cp1252).
+def _configure_utf8_stdio() -> None:
+    for s in (sys.stdout, sys.stderr):
+        try:
+            s.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+
+
+_configure_utf8_stdio()
+
 # Global logger instance
 _global_logger = None
 _initialized = False

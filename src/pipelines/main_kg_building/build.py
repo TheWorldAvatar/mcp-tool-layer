@@ -18,8 +18,37 @@ from models.BaseAgent import BaseAgent
 from models.ModelConfig import ModelConfig
 from src.utils.global_logger import get_logger
 from src.utils.extraction_models import get_extraction_model
+from src.pipelines.utils.ttl_publisher import load_meta_task_config, publish_ttl
 
 logger = get_logger("pipeline", "MainKGBuilding")
+
+# Generated artifacts resolver (candidate-first)
+def resolve_generated_file(path: str, project_root: str = ".") -> str:
+    """
+    Resolve a generated artifact path.
+
+    Prefer `ai_generated_contents_candidate/` (where generation writes in this repo),
+    then fall back to `ai_generated_contents/` if present.
+
+    Returns an absolute-ish path joined with project_root, suitable for open().
+    """
+    rel = (path or "").replace("\\", "/")
+    candidates: list[str] = []
+    if rel.startswith("ai_generated_contents/"):
+        candidates.append(rel.replace("ai_generated_contents/", "ai_generated_contents_candidate/", 1))
+        candidates.append(rel)
+    elif rel.startswith("ai_generated_contents_candidate/"):
+        candidates.append(rel)
+        candidates.append(rel.replace("ai_generated_contents_candidate/", "ai_generated_contents/", 1))
+    else:
+        candidates.append(rel)
+
+    for c in candidates:
+        full = os.path.join(project_root, c)
+        if c and os.path.exists(full):
+            return full
+    # Default to the first candidate even if it doesn't exist (caller may log)
+    return os.path.join(project_root, candidates[0])
 
 # Global state management for MCP server
 GLOBAL_STATE_DIR = "data"
@@ -50,10 +79,63 @@ def _safe_name(label: str) -> str:
     """Convert entity label to safe filename."""
     return (label or "entity").replace(" ", "_").replace("/", "_").replace("\\", "_").replace(":", "_")
 
+def _try_copy_entity_ttl_to_intermediate(
+    *,
+    doi_folder: str,
+    entity_label: str,
+    entity_safe: str,
+    intermediate_ttl: str,
+) -> bool:
+    """
+    Copy the best-available per-entity OntoSynthesis TTL into `intermediate_ttl`.
+
+    The created ontosynthesis MCP server persists graphs under:
+      - data/<hash>/memory/<entity_safe>.ttl
+    and exports snapshots under:
+      - data/<hash>/exports/<entity_safe>_<timestamp>.ttl
+
+    Older pipelines used:
+      - data/<hash>/output.ttl
+    """
+    os.makedirs(os.path.dirname(intermediate_ttl), exist_ok=True)
+
+    memory_ttl = os.path.join(doi_folder, "memory", f"{entity_safe}.ttl")
+    if os.path.exists(memory_ttl):
+        shutil.copy2(memory_ttl, intermediate_ttl)
+        logger.info(f"    ✅ Saved intermediate TTL from memory: {os.path.basename(memory_ttl)}")
+        return True
+
+    exports_dir = os.path.join(doi_folder, "exports")
+    try:
+        if os.path.isdir(exports_dir):
+            export_candidates = [
+                os.path.join(exports_dir, f)
+                for f in os.listdir(exports_dir)
+                if f.lower().startswith(entity_safe.lower() + "_") and f.lower().endswith(".ttl")
+            ]
+            if export_candidates:
+                export_candidates.sort(key=lambda p: os.path.getmtime(p), reverse=True)
+                latest = export_candidates[0]
+                shutil.copy2(latest, intermediate_ttl)
+                logger.info(f"    ✅ Saved intermediate TTL from exports: {os.path.basename(latest)}")
+                return True
+    except Exception as e:
+        logger.warning(f"    ⚠️  Error scanning exports TTLs for {entity_label}: {e}")
+
+    # Backward-compat fallback (rarely produced by the created MCP server)
+    output_ttl = os.path.join(doi_folder, "output.ttl")
+    if os.path.exists(output_ttl):
+        shutil.copy2(output_ttl, intermediate_ttl)
+        logger.info(f"    ✅ Saved intermediate TTL from output.ttl")
+        return True
+
+    logger.warning(f"    ⚠️  No entity TTL found for {entity_label} (safe={entity_safe})")
+    return False
+
 
 def load_prompt(prompt_path: str, project_root: str = ".") -> str:
     """Load prompt from file."""
-    full_path = os.path.join(project_root, prompt_path)
+    full_path = resolve_generated_file(prompt_path, project_root=project_root)
     if not os.path.exists(full_path):
         logger.error(f"Prompt file not found: {full_path}")
         return ""
@@ -183,8 +265,10 @@ async def run_kg_building_agent(
 
 async def _process_iterations(doi_hash: str, config: dict, doi_folder: str, 
                               top_entities: list, iterations: list, 
-                              mcp_run_dir: str, data_dir: str, project_root: str) -> bool:
+                              mcp_run_dir: str, data_dir: str, project_root: str,
+                              ontology_name: str = "ontosynthesis") -> bool:
     """Async helper to process all iterations and entities."""
+    meta_cfg = load_meta_task_config()
     intermediate_ttl_dir = os.path.join(doi_folder, "intermediate_ttl_files")
     os.makedirs(intermediate_ttl_dir, exist_ok=True)
     
@@ -266,36 +350,76 @@ async def _process_iterations(doi_hash: str, config: dict, doi_folder: str,
                 test_mode = "test_mcp_config" in config
                 
                 if test_mode:
-                    # Test mode: Look in {ontology}_output/ for entity-specific TTL
-                    test_output_dir = os.path.join(doi_folder, f"{ontology_name}_output")
-                    # Try various naming conventions for the entity
-                    # Use simple slugification (lowercase with hyphens)
-                    entity_slug = entity_label.lower().replace(" ", "-").replace("_", "-")
-                    test_candidates = [
-                        os.path.join(test_output_dir, f"{entity_slug}.ttl"),
-                        os.path.join(test_output_dir, f"{safe}.ttl"),
-                        os.path.join(test_output_dir, f"{safe.lower()}.ttl"),
-                        os.path.join(test_output_dir, f"{entity_label}.ttl"),
-                    ]
-                    
+                    # Test mode MUST still prefer the canonical MCP persistence locations (memory/ + exports/)
+                    # over any previously-published {ontology}_output snapshots, otherwise we can "lock in"
+                    # an early (iter2) TTL that lacks later additions like steps.
                     found = False
-                    for candidate in test_candidates:
-                        if os.path.exists(candidate):
-                            shutil.copy2(candidate, intermediate_ttl)
-                            logger.info(f"    ✅ [TEST MODE] Saved from {os.path.basename(candidate)}")
+
+                    # 1) Prefer memory/ (canonical; should contain the latest merged graph)
+                    mem_dir = os.path.join(doi_folder, "memory")
+                    mem_candidates = [
+                        os.path.join(mem_dir, f"{safe}.ttl"),
+                        os.path.join(mem_dir, f"{safe.lower()}.ttl"),
+                        os.path.join(mem_dir, f"{entity_label}.ttl"),
+                    ]
+                    for mem_path in mem_candidates:
+                        if os.path.exists(mem_path):
+                            shutil.copy2(mem_path, intermediate_ttl)
+                            logger.info(f"    ✅ [TEST MODE] Saved from memory/{os.path.basename(mem_path)}")
                             found = True
                             break
-                    
+
+                    # 2) Fallback to latest exports snapshot (if any)
                     if not found:
-                        logger.warning(f"    ⚠️  [TEST MODE] No TTL found in {test_output_dir} for {entity_label}")
+                        if _try_copy_entity_ttl_to_intermediate(
+                            doi_folder=doi_folder,
+                            entity_label=entity_label,
+                            entity_safe=safe,
+                            intermediate_ttl=intermediate_ttl,
+                        ):
+                            found = True
+
+                    # 3) Last resort: previously published output dir (may be stale)
+                    if not found:
+                        test_output_dir = os.path.join(doi_folder, f"{ontology_name}_output")
+                        entity_slug = entity_label.lower().replace(" ", "-").replace("_", "-")
+                        test_candidates = [
+                            os.path.join(test_output_dir, f"{safe}.ttl"),
+                            os.path.join(test_output_dir, f"{entity_slug}.ttl"),
+                            os.path.join(test_output_dir, f"{safe.lower()}.ttl"),
+                            os.path.join(test_output_dir, f"{entity_label}.ttl"),
+                        ]
+                        for candidate in test_candidates:
+                            if os.path.exists(candidate):
+                                shutil.copy2(candidate, intermediate_ttl)
+                                logger.info(f"    ✅ [TEST MODE] Saved from {os.path.basename(candidate)} (stale fallback)")
+                                found = True
+                                break
+
+                    if not found:
+                        logger.warning(f"    ⚠️  [TEST MODE] No TTL found (memory/exports/output) for {entity_label}")
                 else:
-                    # Normal mode: Look for output.ttl in root
-                    output_ttl = os.path.join(doi_folder, "output.ttl")
-                    if os.path.exists(output_ttl):
-                        shutil.copy2(output_ttl, intermediate_ttl)
-                        logger.info(f"    ✅ Saved intermediate TTL to {intermediate_ttl}")
-                    else:
-                        logger.warning(f"    ⚠️  No output.ttl generated")
+                    _try_copy_entity_ttl_to_intermediate(
+                        doi_folder=doi_folder,
+                        entity_label=entity_label,
+                        entity_safe=safe,
+                        intermediate_ttl=intermediate_ttl,
+                    )
+
+                # Publish a deterministic per-entity TTL for downstream steps:
+                # data/<hash>/<output_dir_from_config>/{entity_safe}.ttl
+                published = publish_ttl(
+                    doi_hash=doi_hash,
+                    ontology_name=ontology_name,
+                    entity_safe=safe,
+                    data_dir=data_dir,
+                    meta_cfg=meta_cfg,
+                    src_candidates=[intermediate_ttl],
+                )
+                if published:
+                    logger.info(f"    ✅ Published entity TTL: {os.path.relpath(published, doi_folder)}")
+                else:
+                    logger.warning(f"    ⚠️  Failed to publish entity TTL for {entity_label}")
                 
             except Exception as e:
                 logger.error(f"    ❌ KG building failed for '{entity_label}': {e}")
@@ -361,7 +485,14 @@ def run_step(doi_hash: str, config: dict) -> bool:
     logger.info(f"Found {len(top_entities)} top entities")
     
     # Load iterations config
-    iterations_config_path = os.path.join(project_root, "ai_generated_contents/iterations/ontosynthesis/iterations.json")
+    # Determine ontology name (currently only main ontology supported here)
+    ontology_name = config.get("ontology_name", "ontosynthesis")
+
+    # Candidate-first resolution (supports repos without ai_generated_contents/)
+    iterations_config_path = resolve_generated_file(
+        f"ai_generated_contents/iterations/{ontology_name}/iterations.json",
+        project_root=project_root,
+    )
     if not os.path.exists(iterations_config_path):
         logger.error(f"Iterations config not found: {iterations_config_path}")
         return False
@@ -384,7 +515,8 @@ def run_step(doi_hash: str, config: dict) -> bool:
             iterations=iterations,
             mcp_run_dir=mcp_run_dir,
             data_dir=data_dir,
-            project_root=project_root
+            project_root=project_root,
+            ontology_name=ontology_name,
         ))
         
         if not success:

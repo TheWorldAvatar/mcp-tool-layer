@@ -18,8 +18,16 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-from docling.document_converter import DocumentConverter
-import pandas as pd
+try:
+    # Optional dependency: used only for table extraction.
+    from docling.document_converter import DocumentConverter  # type: ignore
+except Exception:  # pragma: no cover
+    DocumentConverter = None  # type: ignore
+
+try:
+    import pandas as pd  # noqa: F401
+except Exception:  # pragma: no cover
+    pd = None  # type: ignore
 
 
 def _load_simple_conversion_module():
@@ -70,8 +78,12 @@ def _extract_text_md(pdf_path: str, output_folder: str) -> str:
     return text_md
 
 
-def _extract_tables_md(pdf_path: str, output_folder: str) -> str:
+def _extract_tables_md(pdf_path: str, output_folder: str) -> Optional[str]:
     """Extract tables from PDF to <pdf>_tables.md using docling."""
+    if DocumentConverter is None:
+        # Allow pipeline to run without docling; tables will simply be absent.
+        return None
+
     base_name = os.path.splitext(os.path.basename(pdf_path))[0]
     tables_md = os.path.join(output_folder, f"{base_name}_tables.md")
 
@@ -136,9 +148,18 @@ def convert_pdf_to_markdown(pdf_path: str, output_folder: str) -> Optional[str]:
         text_md = _extract_text_md(pdf_path, output_folder)
         print(f"    ✓ Text extracted")
 
-        # 2) Table extraction
-        tables_md = _extract_tables_md(pdf_path, output_folder)
-        print(f"    ✓ Tables extracted")
+        # 2) Table extraction (optional)
+        tables_md = None
+        try:
+            tables_md = _extract_tables_md(pdf_path, output_folder)
+        except Exception as e:
+            print(f"    ⚠️  Tables extraction skipped: {e}")
+            tables_md = None
+        else:
+            if tables_md:
+                print(f"    ✓ Tables extracted")
+            else:
+                print(f"    ⚠️  No tables extracted (docling unavailable)")
 
         # 3) Combine
         final_md = _combine_text_and_tables(text_md, tables_md, combined_md)

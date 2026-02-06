@@ -1,0 +1,8 @@
+{
+  "external": {
+    "OM2": "http://www.ontology-of-units-of-measure.org/resource/om-2/",
+    "ONTOCAPE_MAT": "http://www.theworldavatar.com/ontology/ontocape/material/material.owl#"
+  },
+  "notes": "Project-local namespaces (e.g., OntoSyn/OntoLab/ontomops) are derived from concise ontology structure namespace_uri + observed path segments."
+}
+
