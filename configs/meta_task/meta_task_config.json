@@ -1,35 +1,43 @@
 {
-    "ontologies": 
-    {
-        "main": {
-            "name": "ontosynthesis",
-            "description": "The ontology for the synthesis of chemical compounds.",
-            "ttl_file": "data/ontologies/ontosynthesis.ttl",
-            "complex_pipeline": true,
-            "mcp_set_name": "run_created_mcp.json",
-            "mcp_list": ["llm_created_mcp"]
-        }, 
-
-        "extensions": [
-            {
-                "name": "ontomops",
-                "description": "The ontology for describing of metal-organic polyhedra.",
-                "ttl_file": "data/ontologies/ontomops-subgraph.ttl",
-                "complex_pipeline": false,
-                "mcp_set_name": "extension.json",
-                "mcp_list": ["mops_extension", "ccdc"],
-                "agent_model": "gpt-4o"
-            },
-
-            {
-                "name": "ontospecies",  
-                "description": "The ontology for describing the species of chemical compounds.",
-                "ttl_file": "data/ontologies/ontospecies-subgraph.ttl",
-                "complex_pipeline": false,
-                "mcp_set_name": "extension.json",
-                "mcp_list": ["ontospecies_extension", "ccdc"],
-                "agent_model": "gpt-4o"
-            }
-        ]
-    }
+  "ontologies": {
+    "main": {
+      "name": "ontosynthesis",
+      "description": "The ontology for the synthesis of chemical compounds.",
+      "ttl_file": "data/ontologies/ontosynthesis.ttl",
+      "complex_pipeline": true,
+      "output": {
+        "dir": "{ontology_name}_output",
+        "top_ttl_name": "top.ttl",
+        "entity_ttl_pattern": "{entity_safe}.ttl"
+      },
+      "mcp_set_name": "run_created_mcp.json",
+      "mcp_list": [
+        "llm_created_mcp"
+      ]
+    },
+    "extensions": [
+      {
+        "name": "ontomops",
+        "description": "The ontology for describing of metal-organic polyhedra.",
+        "ttl_file": "data/ontologies/ontomops-subgraph.ttl",
+        "complex_pipeline": false,
+        "mcp_set_name": "extension.json",
+        "mcp_list": [
+          "mops_extension"
+        ],
+        "agent_model": "gpt-4o"
+      },
+      {
+        "name": "ontospecies",
+        "description": "The ontology for describing the species of chemical compounds.",
+        "ttl_file": "data/ontologies/ontospecies-subgraph.ttl",
+        "complex_pipeline": false,
+        "mcp_set_name": "extension.json",
+        "mcp_list": [
+          "ontospecies_extension"
+        ],
+        "agent_model": "gpt-4o"
+      }
+    ]
+  }
 }

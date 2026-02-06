@@ -20,8 +20,32 @@ if project_root not in sys.path:
 from models.BaseAgent import BaseAgent
 from models.ModelConfig import ModelConfig
 from src.utils.global_logger import get_logger
+from src.pipelines.utils.ttl_publisher import publish_top_ttl
 
 logger = get_logger("pipeline", "top_entity_kg_building")
+
+def resolve_generated_file(path: str) -> str:
+    """
+    Resolve a generated artifact path.
+
+    Prefer `ai_generated_contents_candidate/` (where generation writes in this repo),
+    then fall back to `ai_generated_contents/` if present.
+    """
+    path = (path or "").replace("\\", "/")
+    candidates: list[str] = []
+    if path.startswith("ai_generated_contents/"):
+        candidates.append(path.replace("ai_generated_contents/", "ai_generated_contents_candidate/", 1))
+        candidates.append(path)
+    elif path.startswith("ai_generated_contents_candidate/"):
+        candidates.append(path)
+        candidates.append(path.replace("ai_generated_contents_candidate/", "ai_generated_contents/", 1))
+    else:
+        candidates.append(path)
+
+    for p in candidates:
+        if p and os.path.exists(p):
+            return p
+    return candidates[0]
 
 # -------------------- Global state writer --------------------
 GLOBAL_STATE_DIR = "data"
@@ -205,22 +229,90 @@ def copy_output_ttl(doi_hash: str, data_dir: str = "data", test_mode: bool = Fal
                     import shutil
                     shutil.copy2(candidate, iteration_1_ttl)
                     logger.info(f"✅ [TEST MODE] Saved iteration_1.ttl from {os.path.basename(candidate)}")
+                    _ = publish_top_ttl(
+                        doi_hash=doi_hash,
+                        ontology_name=ontology_name,
+                        data_dir=data_dir,
+                        meta_cfg=load_meta_config(),
+                        src_candidates=[iteration_1_ttl, candidate],
+                    )
                     return True
                 except Exception as e:
                     logger.error(f"Failed to copy {candidate}: {e}")
-        
-        logger.warning(f"⚠️  [TEST MODE] No top.ttl found in {test_output_dir}")
+
+        # Fallbacks: candidate-first MCP servers in this repo often persist the working graph under
+        # data/<hash>/memory/top.ttl and/or export snapshots under data/<hash>/exports/top_*.ttl.
+        memory_top_ttl = os.path.join(doi_folder, "memory", "top.ttl")
+        exports_dir = os.path.join(doi_folder, "exports")
+        if os.path.exists(memory_top_ttl):
+            try:
+                import shutil
+                shutil.copy2(memory_top_ttl, iteration_1_ttl)
+                logger.info("✅ [TEST MODE] Saved iteration_1.ttl from memory/top.ttl")
+                _ = publish_top_ttl(
+                    doi_hash=doi_hash,
+                    ontology_name=ontology_name,
+                    data_dir=data_dir,
+                    meta_cfg=load_meta_config(),
+                    src_candidates=[iteration_1_ttl, memory_top_ttl],
+                )
+                return True
+            except Exception as e:
+                logger.error(f"Failed to copy memory/top.ttl: {e}")
+                return False
+
+        try:
+            if os.path.isdir(exports_dir):
+                export_candidates = [
+                    os.path.join(exports_dir, f)
+                    for f in os.listdir(exports_dir)
+                    if f.lower().startswith("top_") and f.lower().endswith(".ttl")
+                ]
+                if export_candidates:
+                    export_candidates.sort(key=lambda p: os.path.getmtime(p), reverse=True)
+                    latest = export_candidates[0]
+                    import shutil
+                    shutil.copy2(latest, iteration_1_ttl)
+                    logger.info(
+                        f"✅ [TEST MODE] Saved iteration_1.ttl from latest export: {os.path.basename(latest)}"
+                    )
+                    _ = publish_top_ttl(
+                        doi_hash=doi_hash,
+                        ontology_name=ontology_name,
+                        data_dir=data_dir,
+                        meta_cfg=load_meta_config(),
+                        src_candidates=[iteration_1_ttl, latest],
+                    )
+                    return True
+        except Exception as e:
+            logger.warning(f"⚠️  [TEST MODE] Failed scanning exports fallback: {e}")
+
+        logger.warning(
+            f"⚠️  [TEST MODE] No top.ttl found in {test_output_dir} and no memory/export fallback found"
+        )
         return False
     else:
         # Normal mode: Look for output.ttl or output_top.ttl
         output_ttl = os.path.join(doi_folder, "output.ttl")
         output_top_ttl = os.path.join(doi_folder, "output_top.ttl")
+        # Candidate-first MCP servers in this repo persist the working graph under memory/
+        # and (optionally) export snapshots under exports/. They DO NOT necessarily write
+        # output.ttl/output_top.ttl into the DOI folder root.
+        memory_top_ttl = os.path.join(doi_folder, "memory", "top.ttl")
+        exports_dir = os.path.join(doi_folder, "exports")
         
         if os.path.exists(output_ttl):
             try:
                 import shutil
                 shutil.copy2(output_ttl, iteration_1_ttl)
                 logger.info(f"✅ Saved iteration_1.ttl from output.ttl")
+                _ = publish_top_ttl(
+                    doi_hash=doi_hash,
+                    ontology_name=ontology_name,
+                    data_dir=data_dir,
+                    meta_cfg=load_meta_config(),
+                    src_candidates=[iteration_1_ttl, output_ttl],
+                )
                 return True
             except Exception as e:
                 logger.error(f"Failed to copy output.ttl: {e}")
@@ -230,12 +322,61 @@ def copy_output_ttl(doi_hash: str, data_dir: str = "data", test_mode: bool = Fal
                 import shutil
                 shutil.copy2(output_top_ttl, iteration_1_ttl)
                 logger.info(f"✅ Saved iteration_1.ttl from output_top.ttl")
+                _ = publish_top_ttl(
+                    doi_hash=doi_hash,
+                    ontology_name=ontology_name,
+                    data_dir=data_dir,
+                    meta_cfg=load_meta_config(),
+                    src_candidates=[iteration_1_ttl, output_top_ttl],
+                )
                 return True
             except Exception as e:
                 logger.error(f"Failed to copy output_top.ttl: {e}")
                 return False
+        elif os.path.exists(memory_top_ttl):
+            # Fallback: use persisted memory graph (top-level iteration uses entity name "top")
+            try:
+                import shutil
+                shutil.copy2(memory_top_ttl, iteration_1_ttl)
+                logger.info("✅ Saved iteration_1.ttl from memory/top.ttl")
+                _ = publish_top_ttl(
+                    doi_hash=doi_hash,
+                    ontology_name=ontology_name,
+                    data_dir=data_dir,
+                    meta_cfg=load_meta_config(),
+                    src_candidates=[iteration_1_ttl, memory_top_ttl],
+                )
+                return True
+            except Exception as e:
+                logger.error(f"Failed to copy memory/top.ttl: {e}")
+                return False
         else:
-            logger.warning("⚠️  No output.ttl or output_top.ttl found")
+            # Last-resort fallback: try the latest exported snapshot for "top"
+            try:
+                if os.path.isdir(exports_dir):
+                    export_candidates = [
+                        os.path.join(exports_dir, f)
+                        for f in os.listdir(exports_dir)
+                        if f.lower().startswith("top_") and f.lower().endswith(".ttl")
+                    ]
+                    if export_candidates:
+                        export_candidates.sort(key=lambda p: os.path.getmtime(p), reverse=True)
+                        latest = export_candidates[0]
+                        import shutil
+                        shutil.copy2(latest, iteration_1_ttl)
+                        logger.info(f"✅ Saved iteration_1.ttl from latest export: {os.path.basename(latest)}")
+                        _ = publish_top_ttl(
+                            doi_hash=doi_hash,
+                            ontology_name=ontology_name,
+                            data_dir=data_dir,
+                            meta_cfg=load_meta_config(),
+                            src_candidates=[iteration_1_ttl, latest],
+                        )
+                        return True
+            except Exception as e:
+                logger.warning(f"⚠️  Failed scanning exports fallback: {e}")
+
+            logger.warning("⚠️  No output.ttl/output_top.ttl and no memory/export fallback found")
             return False
 
 
@@ -256,7 +397,9 @@ def parse_top_entities_from_ttl(doi_hash: str, ontology_name: str, data_dir: str
         
         doi_folder = os.path.join(data_dir, doi_hash)
         ttl_path = os.path.join(doi_folder, "iteration_1.ttl")
-        sparql_path = f"ai_generated_contents/sparqls/{ontology_name}/top_entity_parsing.sparql"
+        sparql_path = resolve_generated_file(
+            f"ai_generated_contents/sparqls/{ontology_name}/top_entity_parsing.sparql"
+        )
         output_json_path = os.path.join(doi_folder, "mcp_run", "iter1_top_entities.json")
         
         # Check if TTL exists
@@ -399,7 +542,9 @@ def run_step(doi_hash: str, config: dict) -> bool:
     logger.info(f"  ✓ Loaded extraction hints ({len(hints)} chars)")
     
     # Load KG building prompt
-    prompt_path = f"ai_generated_contents/prompts/{ontology_name}/KG_BUILDING_ITER_1.md"
+    prompt_path = resolve_generated_file(
+        f"ai_generated_contents/prompts/{ontology_name}/KG_BUILDING_ITER_1.md"
+    )
     prompt_template = load_extraction_prompt(prompt_path)
     if not prompt_template:
         logger.error(f"❌ Failed to load prompt from {prompt_path}")

@@ -30,6 +30,20 @@ class TokenCounter(BaseCallbackHandler):
       - Update PRICING as needed.
     """
 
+    # LangChain callback manager (newer langchain-core versions) expects handlers
+    # to expose a `run_inline` attribute. If absent, it may crash while filtering
+    # handlers (see AttributeError: 'TokenCounter' object has no attribute 'run_inline').
+    # This handler is lightweight and safe to run inline.
+    run_inline: bool = True
+    # Newer callback manager also checks these attributes during dispatch.
+    # Keep them explicit to avoid AttributeError in newer langchain-core.
+    raise_error: bool = False
+    ignore_chain: bool = False
+    ignore_agent: bool = False
+    ignore_llm: bool = False
+    ignore_chat_model: bool = False
+    ignore_retriever: bool = False
+
     # USD per 1 token = USD_per_1M / 1e6
     PRICING: Dict[str, Dict[str, float]] = {
         # flagship (keep if you use them)
@@ -222,12 +236,21 @@ class TokenCounter(BaseCallbackHandler):
         try:
             llm_out = getattr(response, "llm_output", None) or {}
             usage = llm_out.get("token_usage", {}) or {}
-            meta = {
-                "model_name": llm_out.get("model_name") or llm_out.get("model")
-            }
-            if any(k in usage for k in ("prompt_tokens", "completion_tokens", "total_tokens", "input_tokens", "output_tokens")):
+            meta = {"model_name": llm_out.get("model_name") or llm_out.get("model")}
+            if any(
+                k in usage
+                for k in (
+                    "prompt_tokens",
+                    "completion_tokens",
+                    "total_tokens",
+                    "input_tokens",
+                    "output_tokens",
+                )
+            ):
                 self._record_call(usage, meta)
+                return
         except Exception:
+            # fall through to the generation-metadata fallback
             pass
 
         # Fallback: inspect generations for per-call metadata
@@ -235,16 +258,52 @@ class TokenCounter(BaseCallbackHandler):
             gens = getattr(response, "generations", []) or []
             for gen_list in gens:
                 for gen in gen_list:
-                    gmeta = {}
+                    gmeta: Dict[str, Any] = {}
                     if hasattr(gen, "message") and hasattr(gen.message, "response_metadata"):
                         gmeta = gen.message.response_metadata or {}
                     gmeta = {**(getattr(gen, "generation_info", {}) or {}), **gmeta}
                     usage2 = gmeta.get("token_usage", {}) or {}
                     meta2 = {"model_name": gmeta.get("model_name") or gmeta.get("model")}
-                    if any(k in usage2 for k in ("prompt_tokens", "completion_tokens", "total_tokens", "input_tokens", "output_tokens")):
+                    if any(
+                        k in usage2
+                        for k in (
+                            "prompt_tokens",
+                            "completion_tokens",
+                            "total_tokens",
+                            "input_tokens",
+                            "output_tokens",
+                        )
+                    ):
                         self._record_call(usage2, meta2)
         except Exception:
             pass
+
+    # The callback manager may call these hooks; provide no-op implementations
+    # to prevent noisy "Error in TokenCounter.<hook>" logs when using newer
+    # langchain-core versions.
+    def on_chain_start(self, *args, **kwargs) -> None:
+        return None
+
+    def on_chain_end(self, *args, **kwargs) -> None:
+        return None
+
+    def on_chat_model_start(self, *args, **kwargs) -> None:
+        return None
+
+    def on_tool_start(self, *args, **kwargs) -> None:
+        return None
+
+    def on_tool_end(self, *args, **kwargs) -> None:
+        return None
+
+    def on_tool_error(self, *args, **kwargs) -> None:
+        return None
+
+    def on_llm_error(self, *args, **kwargs) -> None:
+        return None
+
+    def on_chain_error(self, *args, **kwargs) -> None:
+        return None
 
     # ----------------------------- output ------------------------------
 

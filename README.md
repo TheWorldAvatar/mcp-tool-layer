@@ -180,4 +180,101 @@ python -m src.agents.scripts_and_prompts_generation.mcp_underlying_script_creati
   --split
 ```
 
+## Repo maintenance scripts (`scripts/`)
+
+These convenience wrappers help you (a) regenerate the full “pipeline artefacts” and (b) reset the workspace back to a clean state.
+
+### 1) Regenerate *all* pipeline artefacts + promote to production
+
+- Generates **candidate** artefacts via `generation_main` (iterations, prompts, MCP scripts, generated MCP config)
+- Generates **top-entity parsing SPARQL** (writes into `ai_generated_contents/`)
+- Promotes candidate prompts + iterations into `ai_generated_contents/` (what the runtime pipeline reads by default)
+- Rewires runtime MCP configs to use the newly generated MCP servers
+
+```bash
+bash scripts/rebuild_pipeline_artifacts.sh
+```
+
+Optional flags:
+
+```bash
+bash scripts/rebuild_pipeline_artifacts.sh --model gpt-5
+bash scripts/rebuild_pipeline_artifacts.sh --direct --model gpt-4o
+bash scripts/rebuild_pipeline_artifacts.sh --model gpt-5.2 --test
+bash scripts/rebuild_pipeline_artifacts.sh --no-promote
+bash scripts/rebuild_pipeline_artifacts.sh --no-rewire-mcp
+```
+
+Main-only (reuse existing candidate scripts, regenerate only `main.py`):
+
+```bash
+bash scripts/rebuild_pipeline_artifacts.sh --test --ontology ontosynthesis --model gpt-4.1 --main-only
+```
+
+Notes:
+- Script generation is **direct-by-default** (no MCP/Docker required for code output). To force agent/MCP script generation (requires Docker), run the Python entrypoint with `--agent-scripts`.
+
+### 1.5) Rewire which MCP the pipeline uses (NO regeneration; cheap)
+
+If you already have a generated MCP server and want the KG construction pipeline to use it **without rerunning any LLM generation**, use:
+
+```bash
+# Use the already-generated *candidate* MCP server for ontosynthesis
+python scripts/rewire_pipeline_mcp.py \
+  --ontology ontosynthesis \
+  --tree candidate \
+  --mcp-set run_created_mcp.json \
+  --update-meta-task
+```
+
+To switch back to the **production** tree (`ai_generated_contents/`):
+
+```bash
+python scripts/rewire_pipeline_mcp.py \
+  --ontology ontosynthesis \
+  --tree production \
+  --mcp-set run_created_mcp.json \
+  --update-meta-task
+```
+
+Notes:
+- This updates `configs/run_created_mcp.json` (and optionally `configs/meta_task/meta_task_config.json`) and writes timestamped `.bak.*` backups.
+- This does **not** generate or modify any MCP code; it only changes which module is launched for `llm_created_mcp`.
+
+### 2) Clean run outputs + prune `raw_data/` (and clean evaluation artefacts)
+
+- **Dry-run first** (prints what would be deleted):
+
+```bash
+bash scripts/cleanup_results_and_raw_data.sh
+```
+
+- Actually delete (**irreversible**):
+
+```bash
+bash scripts/cleanup_results_and_raw_data.sh --real
+```
+
+By default it keeps only the DOI mapped to hash `0c57bac8` in `raw_data/`. You can override:
+
+```bash
+bash scripts/cleanup_results_and_raw_data.sh --keep-hash 0c57bac8 --real
+```
+
+### 3) Cheap “unit tests” for generation pipeline setup (no LLM calls)
+
+This is the recommended **pre-flight check** before running any expensive generation.
+
+```bash
+bash scripts/test_generation_pipeline.sh
+```
+
+### 4) Real LLM smoke test (1 cheap call)
+
+This makes **one** small LLM call to generate a tiny Python file and verifies it compiles.
+
+```bash
+bash scripts/test_llm_smoke.sh gpt-5.2
+```
+
 

@@ -22,6 +22,30 @@ import asyncio
 
 logger = get_logger("pipeline", "top_entity_extraction")
 
+def resolve_generated_file(path: str) -> str:
+    """
+    Resolve a generated artifact path.
+
+    Generation in this repo typically writes to `ai_generated_contents_candidate/`,
+    while older pipeline code may reference `ai_generated_contents/`.
+    This resolver prefers candidate if available, then falls back.
+    """
+    path = (path or "").replace("\\", "/")
+    candidates: list[str] = []
+    if path.startswith("ai_generated_contents/"):
+        candidates.append(path.replace("ai_generated_contents/", "ai_generated_contents_candidate/", 1))
+        candidates.append(path)
+    elif path.startswith("ai_generated_contents_candidate/"):
+        candidates.append(path)
+        candidates.append(path.replace("ai_generated_contents_candidate/", "ai_generated_contents/", 1))
+    else:
+        candidates.append(path)
+
+    for p in candidates:
+        if p and os.path.exists(p):
+            return p
+    return candidates[0]
+
 
 def load_meta_config(config_path: str = "configs/meta_task/meta_task_config.json") -> dict:
     """Load the meta task configuration."""
@@ -40,11 +64,13 @@ def load_extraction_prompt(ontology_name: str, iteration: int = 1) -> str:
     Returns:
         The prompt text
     """
-    prompt_path = f"ai_generated_contents/prompts/{ontology_name}/EXTRACTION_ITER_{iteration}.md"
-    
+    prompt_path = resolve_generated_file(
+        f"ai_generated_contents/prompts/{ontology_name}/EXTRACTION_ITER_{iteration}.md"
+    )
+
     if not os.path.exists(prompt_path):
         raise FileNotFoundError(f"Extraction prompt not found: {prompt_path}")
-    
+
     with open(prompt_path, 'r', encoding='utf-8') as f:
         return f.read()
 

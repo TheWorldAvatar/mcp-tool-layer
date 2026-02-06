@@ -66,7 +66,13 @@ RES file (SHELXL .res):
 
 async def cbu_grounding_agent(res_content: str, paper_content: str, ttl_content: str) -> str:
     model_config = ModelConfig(temperature=0.2, top_p=0.02)
+    # The `chemistry` MCP server depends on RDKit. On some Windows setups RDKit may be unavailable,
+    # which would otherwise hard-fail the whole organic derivation. Degrade gracefully by dropping it.
     mcp_tools = ["pubchem", "enhanced_websearch", "chemistry"]
+    try:
+        import rdkit  # type: ignore  # noqa: F401
+    except Exception:
+        mcp_tools = ["pubchem", "enhanced_websearch"]
     agent = BaseAgent(model_name="gpt-5", model_config=model_config, remote_model=True, mcp_tools=mcp_tools, mcp_set_name="chemistry.json")
 
     # Preserve RES content exactly as loaded (no trimming) to provide full content
@@ -132,6 +138,15 @@ def extract_formula_and_classify(agent_output: str) -> str:
         bracketed = m.group(0).strip() if m else formula_raw.strip()
     except Exception:
         bracketed = formula_raw.strip()
-    return bracketed if is_organic else "Ignore"
+    if not is_organic:
+        return "Ignore"
+    # Some agent outputs may return an unbracketed formula; normalize to [ ... ].
+    try:
+        b = (bracketed or "").strip()
+        if b and not b.startswith("["):
+            b = f"[{b}]"
+        return b
+    except Exception:
+        return bracketed
 
 

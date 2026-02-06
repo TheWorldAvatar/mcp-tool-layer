@@ -98,7 +98,16 @@ Single fenced code block. Structured bullet list. Use these fields and order. Us
 ChemicalInputs:
 - Name: <as written>
 - Alternative Names: <semicolon-separated aliases from text or N/A> **Spare no effort to find all aliases mentinoed in the paper (It may appears elsewhere too.), strictly use semicolon as the separator, never comma or any other character**, look up the alias, also look up via external sources. 
-- Amount: <as written, include units and mmol if given or N/A>
+- Amount: <as written, include units if given, include all amounts in different units>, make sure you include all the values representing the amount in all units. **Critial**: there might be a trace of "same as" for the description of the synthesis, you must make sure you make the correct trace and find the right amount. 
+In addition, if it is a mixture with ratio provided, you must must do the calculation and put the amount for each component in the mixture, 2 digits after the decimal point.
+Don't put the original amount in the amount field, put the calculated amount for each component in the mixture.
+
+If for a mixture of solvents, and not enough information is provided for calculating the amount, you should put the amounts as N/A.
+
+However, you are not allowed to derive amount in other units, only put the mentioned one/ones.  
+
+
+
 - Formula: <formula> (<as stated | looked up: <source or ID> | derived: <basis>>)
 - Description: <concise functional role such as metal cluster precursor or organic linker>
 - Purity: <as written or N/A>
@@ -132,11 +141,17 @@ EXTRACTION_SCOPE_3_1 = '''
 Goal
 Extract all operational step DETAILS for one specified ChemicalSynthesis, using the step types from iter3 as a guide. Preserve order. Output plain text only (no JSON, no code fences, no explanations).
 
+**CRITICAL CONSTRAINT**: You MUST use the EXACT step types and order from the iter3 results provided to you. 
+- DO NOT add new steps
+- DO NOT remove steps
+- DO NOT change step types (e.g., do not change "Add" to "Dissolve" or vice versa)
+- ONLY add details to the existing steps (vessel, environment, duration, equipment, parameters)
+- The number of steps in your output MUST exactly match the number in iter3 results
 
 Scope
 - Top entity: ChemicalSynthesis only. Exclude other syntheses, ligand prep, workups, characterization.
 - Steps are actions only. Names, yields, formulas, narrative are not steps.
-- Use the step types provided from iter3 as authoritative guidance for which steps to extract.
+- Use the step types provided from iter3 as ABSOLUTELY AUTHORITATIVE. Your task is ONLY to add details to these steps, not to re-extract or re-interpret them.
 
 Allowed step types
 Add, HeatChill, Evaporate, Sonicate, Dissolve, Crystallize, Transfer, Separate, Filter, Dry, Stir.
@@ -145,6 +160,14 @@ VESSEL TRACKING (critical)
 - Track which vessel each step uses. If the paper mentions named vessels (e.g., vial 1, Parr autoclave), maintain that assignment.
 - Every step MUST have a vessel_name. If not explicit, inherit from the previous step.
 - Transfers between containers increment vessel ids (Vessel 1 → Vessel 2, etc.). Do not renumber later.
+- Don't assume transfer unless the paper explicitly states it.
+
+Vessel Type rules:
+- If there is no vessel type explicity stated in other steps, but one step uses a specific vessel, you must confidently infer the vessel type from the step for **all steps** to be this vessel type.
+- Never ever put a vessel type that is not explicitly stated in the paper.
+- If steps have different vessel types, you should assign different vessel names to the steps.
+- Take the paper content as the authoritative source, do not make up any information.
+
 
 Atmosphere and agitation
 
@@ -153,29 +176,31 @@ Atmosphere and agitation
 - Gas stated → vessel_environment="<gas>", underVacuum=false.
 - Vacuum stated → vessel_environment="n/a", underVacuum=true.
 - If sealed and no internal gas is stated → vessel_environment="n/a", sealed_status=true, underVacuum=false. Ignore phrases like “cool the sealed vessel in air.”
-- Capped vial ≠ sealed. If only capped or otherwise open to lab air, and no gas is stated → vessel_environment="air", sealed_status=false, underVacuum=false.
-- When a sealed vessel is opened for workup, switch to vessel_environment="air".
 - Do not infer inert or vacuum unless explicit.
 - Stirring is modeled via stirring_status on the relevant step; do not create standalone Stir steps.
-- **Critical**: Don't put "air" unless it is explicitly stated, use "n/a" instead.
+- **Critical**: Don't put "air" unless it is explicitly stated, use "not stated" instead.
+
+Sealed or not: 
+
+- For teflon-lined stainless-steel vessel or reactors or autoclaves, it is always sealed for heating up but not sealed for cooling down.
+- For other vessels, only put sealed_status=true if it is explicitly stated in the paper.
+- Capped vial ≠ sealed. If only capped or otherwise open to lab air, and no gas is stated → vessel_environment="not stated", sealed_status=false, underVacuum=false.
+
+
 
 Required fields per step (emit all if stated; use "not stated" if missing)
 - step_type (one of the allowed step types, matching iter3 guidance)
 - order (1..N, contiguous, matching iter3 order)
 - synthesis_label (exact entity_label)
 - vessel_name (Vessel 1, Vessel 2, … or explicit name)
-- vessel_environment (Strictly only Air/Ar/Vacuum/not stated)
+- vessel_environment (Strictly only Air/Ar/Vacuum/not stated), don't use "air" unless it is explicitly stated, use "not stated" instead.
 - duration (e.g., "12 h" or "not stated")
-- equipment (device name/brand/model if given; else "not stated") **Critical**:
-You can actually derive the equipment used to some extend, if it is using the same equipment
-across the steps, you can use the same equipment for the steps. (e.g., Teflon-lined stainless-steel autoclave)
-
 - parameters (only schema keys for that step type; omit irrelevant keys)
 
 Parameter schema (only these keys under parameters)
-- HeatChill: target_temperature, temperature_rate, pressure_or_vacuum, sealed_status, stirring_status, device
+- HeatChill: target_temperature, temperature_rate, pressure_or_vacuum, sealed_status, stirring_status
 - Add: substance, amount_or_concentration, target_pH, layered_status, stirring_status
-- Evaporate: temperature, pressure, device, to_volume, removed_species
+- Evaporate: temperature, pressure, to_volume, removed_species
 - Dry: drying_agent, temperature, pressure, method
 - Filter: medium_or_method, washing_solvent, repeated_status, vacuum_filtration
 - Transfer: from_vessel, to_vessel, transferred_amount, layered_transfer
@@ -187,72 +212,106 @@ Parameter schema (only these keys under parameters)
 Output format (plain text; no JSON, no tables, no code fences)
 - First line: ChemicalSynthesis — <exact label of this procedure>
 - Then a section "Steps:" with one line per step as:
-  <order>) <step_type> | vessel_name: <...> | vessel_environment: <...> | duration: <...> | equipment: <...> | parameters: <key>=<value>; <key>=<value>
+  <order>) <step_type> | vessel_name: <...> | vessel_environment: <...> | duration: <...> | parameters: <key>=<value>; <key>=<value>
 - Keep the exact wording from the paper where applicable; normalize whitespace only.
 - Match the step count and order from iter3 guidance.
 '''
 
 
-EXTRACTION_SCOPE_4 = '''
-
+EXTRACTION_SCOPE_3_2 = '''
 Goal
-Extract information for one specified ChemicalSynthesis only.
+Update and enrich the iter3 step results (from iter3_results/iter3_hints_<entity>.txt) with additional details, specifically vessel types for each step. Use the iter3_hints file as the base and ONLY add missing information.
+
+**CRITICAL CONSTRAINT**: You MUST preserve the EXACT step types and order from the iter3_hints file provided to you.
+- DO NOT add new steps
+- DO NOT remove steps  
+- DO NOT change step types (e.g., do not change "Add" to "Dissolve" or "HeatChill" to "Stir")
+- ONLY add details to the existing steps (vessel_type, duration, atmosphere, etc.)
+- The number of steps in your output MUST exactly match the number in iter3_hints
+- This is an ENRICHMENT task, not a re-extraction task
+
+Input
+- You will receive the iter3_results/iter3_hints_<entity>.txt file content as the authoritative base
+- This file contains the step types and order that you MUST preserve
+- You will also receive the paper content to extract additional details
+
+Scope
+- Top entity: ChemicalSynthesis only (matching the entity in iter3_hints)
+- Update existing steps from iter3_hints ONLY; absolutely do not add or remove steps
+- Maintain the exact step order and step types from iter3_hints
+
+Vessel Type rules:
+- If there is no vessel type explicity stated in other steps, but one step uses a specific vessel, you must confidently infer the vessel type from the step for **all steps** to be this vessel type.
+- Never ever put a vessel type that is not explicitly stated in the paper.
+- If steps have different vessel types, you should assign different vessel names to the steps.
+- Take the paper content as the authoritative source, do not make up any information.
+
+
+Task: For each step in iter3_hints
+1) Identify the vessel type used for this step
+   - Common vessel types: round-bottom flask, vial, beaker, Teflon-lined stainless-steel autoclave, sealed tube, etc.
+   - If multiple steps use the same physical vessel, they should have the same vessel type
+   - If not explicitly stated, infer from context (e.g., "heated at 150°C" suggests autoclave or sealed tube)
+
+2) Add any other missing step-level details:
+   - Temperature specifics
+   - Duration if missed in iter3
+   - Atmosphere/environment details
+
+Evidence
+- Use only facts stated in this paper for this synthesis
+- Do not invent vessel types
+- Use "not stated" only if truly unmentioned and cannot be reasonably inferred
+
+Output format (plain text, no JSON, no code fences)
+- First line: ChemicalSynthesis — <exact label matching iter3_hints>
+- Then a section "Steps:" with one line per step:
+  <order>) <step_type> | vessel_type: <...> | vessel_name: <...> | vessel_environment: <...> | duration: <...> | other_details: <...>
+- Preserve all information from iter3_hints and ADD vessel_type and any other missing details
+- The step_type for each order MUST match exactly what is in iter3_hints
+- Match the exact step count and order from iter3_hints
+'''
+
+
+EXTRACTION_SCOPE_4 = '''
+Goal
+Extract ONLY the yield information for one specified ChemicalSynthesis.
 
 Top-level and scope
-- Top-level entity type: ChemicalSynthesis.
-- Work on this single procedure only. Do not include information from other procedures.
-- Strictly only extract information for the given entity_label. 
-
-Prior iteration context
-- If iter3 step hints for this entity are provided in the input context, treat them as authoritative for vessel assignment and step ordering. Do not re-derive steps; reuse vessels and atmospheres consistently.
-- Equipment-to-step mapping: When outputting Equipment, explicitly map each item to the vessel_name(s) and the iter3 step order(s) where it is used. Use the format "Vessel <N> — <equipment descriptor> (steps: <orders>)". If an item is not tied to a specific vessel (e.g., an oven for drying), omit the vessel prefix and include only the step order(s).
-- Vessel naming (usedVesselName / vessel_name)\n- Scope. Number vessels per ChemicalSynthesis. Do not carry numbers across different procedures.\n- Start. The first distinct physical container that holds the reaction is "Vessel 1".\n- New container. Each time a different physical container is introduced, assign the next integer ("Vessel 2", "Vessel 3", ...).\n- Transfers. In a Transfer step:\n - usedVesselName = the source container’s existing name.\n - targetVesselName = the destination’s existing name if previously created, else the next new vessel name.\n - After transfer, subsequent steps refer to the destination’s vessel name.\n- Reuse. If the text continues in the same container (e.g., "the vial/tube" or implied continuation), keep the same vessel name.\n- Nested liners. Treat a Teflon-lined autoclave as one vessel; name it once and reuse across heat/cool.\n- Aliquots. A moved aliquot placed into a new vial/tube is a new vessel number.\n- Unspecified workup container. If filtration/washing occurs in an unspecified device and no container is stated, set usedVesselName="n/a".\n- iter3 present. If iter3 vessel names exist, do not renumber; reuse exactly.
+- Top-level entity type: ChemicalSynthesis
+- Work on this single procedure only
+- Extract ONLY yield data; no equipment, no steps, no other information
 
 What to extract
-1) Yield
-   - Extract every explicit yield percentage reported for this procedure.
-   - Record the numeric value(s) as written and any explicit qualifiers (e.g., “isolated yield”, “crystalline yield”, “overall yield”, “based on <reagent>”) if present.
-   - If multiple yields are given for the same product run, list each with its qualifier.
-   - Do not calculate yields from masses or moles. If no percentage is stated, write “not stated”.
+Yield (REQUIRED):
+- Extract every explicit yield percentage reported for this procedure
+- Record the numeric value(s) as written and any explicit qualifiers
+  (e.g., "isolated yield", "crystalline yield", "overall yield", "based on <reagent>")
+- If multiple yields are given for the same product run, list each with its qualifier
+- Do not calculate yields from masses or moles
+- If no percentage is stated, write "not stated"
 
-2) Equipment
-   - Extract all process equipment explicitly used in this procedure, including vessels and heat/chill devices.
-   - Include exact names and descriptors as written (e.g., material, volume, model, brand).
-   - Include ancillary process equipment if explicitly used (e.g., autoclave, oven, ultrasonic bath, centrifuge, vacuum setup).
-   - Exclude analytical/characterization instruments not part of the synthesis operation (e.g., NMR, IR, PXRD).
-   - Use the vessel_name values and numbering from iter3 step hints (e.g., "Vessel 1", "Vessel 2"). Do not renumber vessels in iter4. If iter3 is absent, assign vessel names per the rules above.
-   - For each equipment entry, include the vessel_name (when applicable) and the iter3 step order(s) where it is used in the format: "(steps: <orders>)". Compress contiguous step ranges where appropriate (e.g., "1–3, 6").
-   - If an equipment item spans multiple vessels, emit separate lines per vessel with the corresponding step range(s).
-   - For non-vessel-bound devices (e.g., oven, vacuum setup) that operate across the procedure, omit vessel_name and include only step order(s).
-
-All fields are compulsory for every step.
-
-**Critical**: Vessel 1, 2 refers to the synthesis mentioned in the paper, e.g.,  for the first synthesis discussed in the paper, by 
-default, we use 'vessel 1' if this synthesis uses the same vessel across the steps, then for the second synthesis, we use 'vessel 2', etc.
-
-3) Source links
-   - Extract explicit links to the source document context for this procedure: section titles, subsection titles, paragraph labels or numbers, or other in-document anchors.
-   - If the document provides no explicit context labels, write “not stated”.
-
-Evidence and inheritance
-- Use only facts stated for this procedure in this paper.
-- If the text says same as / identical to / following / according to / similar to / akin to another procedure in this paper:
-  - You may inherit equipment only if the equipment is explicitly implied to be the same.
-  - Do not inherit yield unless a yield for this specific procedure is explicitly stated.
-  - Mark inherited equipment entries with “inherited from <label>”.
-  - Do not inherit across papers.
+Evidence
+- Use only facts explicitly stated for this procedure in this paper
+- Do not calculate or infer yields
+- If the text references another synthesis for yield (e.g., "same yield as X"), 
+  copy the yield value and note the reference
 
 Normalization
-- Preserve author wording; normalize whitespace; remove control characters.
-- Do not use LaTeX/TeX notation.
-- Do not use romanized Greek words; use Unicode Greek symbols and plain text only.
-- Do not invent or infer percentages, equipment, suppliers, or contexts.
+- Preserve author wording for qualifiers
+- Normalize whitespace; remove control characters
+- Do not use LaTeX/TeX notation
+- Keep percentage values exactly as written (e.g., "65%", "65 %", "65 percent")
 
-Output format (plain text, no JSON, no examples)
+Output format (plain text, no JSON, no code fences)
 - First line: ChemicalSynthesis — <exact label of this procedure>
-- Then a section “Yield:” listing the percentage value(s) with any qualifiers, or “not stated”.
-- Then a section “Equipment:” one item per line, mapping each item to vessel_name and step order(s) as available, using: "Vessel <N> — <descriptor> (steps: <orders>)" or "<descriptor> (steps: <orders>)" if no vessel applies; include vessels and heat/chill devices; mark inherited items as specified.
-- Then a section “Source links:” listing the exact section/paragraph labels or “not stated”.
+- Then a section "Yield:" listing the percentage value(s) with any qualifiers, or "not stated"
+- If multiple yields: list each on a separate line with its qualifier
+- Example:
+  ChemicalSynthesis — VMOP-18
+  
+  Yield:
+  65% (based on H3TATB)
 '''
  
 
@@ -262,14 +321,17 @@ Output format (plain text, no JSON, no examples)
 EXTRACTION_SCOPE_6_PRE_EXTRACTION = """
 Extract the ORIGINAL TEXT spans from the paper that describe the synthesis procedure for the specified entity only.
 - Strictly include only content relevant to the entity_label's procedure; exclude other entities or unrelated sections.
+- Include global experimental conditions, e.g., "The experiments were performed under xxx", you must include the global experimental conditions in the pre-extraction. Note that 
+this information might appear in other sections of the paper, you must include it in the pre-extraction. Read all contents carefully to find the global experimental conditions.
+
 - Aggregate all relevant snippets even if scattered across the paper; preserve original wording verbatim.
+
 - CRITICAL: If the text contains vague references (e.g., 'above-mentioned procedure', 'same method as', 'similar to the synthesis of', 'prepared as described for', 'following the procedure'), you MUST:
   1) First include the original sentence with the reference
   2) Then add a clear separator line: 'The "[referenced phrase]" refers to the following content:'
   3) Then include the FULL referenced synthesis text
   Example: If text says 'using the above-mentioned procedure', output:
     [Original sentence with reference]
-    
     The "above-mentioned procedure" refers to the following content:
     [Full text of the referenced procedure]
 - Preserve order as they appear in the paper; separate non-contiguous snippets with a blank line.
@@ -282,6 +344,8 @@ Extract the ORIGINAL TEXT spans from the paper that describe the synthesis proce
 EXTRACTION_SCOPE_6_PRE_EXTRACTION_TRANSFORMATION = """
 Extract the ORIGINAL TEXT spans from the paper that describe the TRANSFORMATION/POST-SYNTHETIC procedure for the specified entity only.
 - SPECIAL RULE FOR TRANSFORMATIONS: Extract ONLY the transformation procedure itself (the steps that convert material A to material B).
+- Include global experimental conditions, e.g., " The experiments were performed under xxx", you must include the global experimental conditions in the pre-extraction. Note that this information might appear in other sections of the paper, you must include it in the pre-extraction. Read all contents carefully to find the global experimental conditions.
+
 - DO NOT trace back to or include the original synthesis of the starting material.
 - Example: For 'transformation VMOP-α to VMOP-β', extract only the steps that transform VMOP-α into VMOP-β, NOT the synthesis of VMOP-α.
 - Strictly include only content relevant to the entity_label's procedure; exclude other entities or unrelated sections.

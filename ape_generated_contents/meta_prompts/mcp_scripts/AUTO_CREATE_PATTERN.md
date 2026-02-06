@@ -116,7 +116,7 @@ Updated section numbers:
 ✅ **No Domain-Specific Information**: All examples use generic placeholders like:
 - `{{AuxiliaryEntityType}}`, `{{MainEntity}}`, `{{Measurement}}`
 - `aux_entity_name`, `measurement_value`, `identifying_param1`
-- Never mentions specific domain terms like "vessel", "ChemicalInput", "step"
+- Never mentions specific domain terms (no concrete class/property/entity names)
 
 ✅ **Blurred but Explicit Examples**: Examples are detailed and show:
 - Exact function structure

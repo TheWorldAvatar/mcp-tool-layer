@@ -223,7 +223,7 @@ def generate_create_function(func_info: Dict[str, Any], ontology_name: str) -> s
     # Close function
     lines.extend([
         "        _export_snapshot_silent()",
-        '        return _format_success_json(iri, f"Created {class_name}", created=True)',
+        f'        return _format_success_json(iri, "Created {class_name}", created=True)',
         "    except Exception as e:",
         '        return _format_error(str(e), code="INTERNAL_ERROR")',
         ""
@@ -291,6 +291,7 @@ def generate_entity_script_from_template(
         'ONTOSYN = Namespace("https://www.theworldavatar.com/kg/OntoSyn/")',
         'ONTOLAB = Namespace("https://www.theworldavatar.com/kg/OntoLab/")',
         'ONTOMOPS = Namespace("https://www.theworldavatar.com/kg/ontomops/")',
+        'ONTOCAPE_MAT = Namespace("http://www.theworldavatar.com/ontology/ontocape/material/material.owl#")',
         '',
         '# ============================================================================',
         '# ENTITY CREATION FUNCTIONS',
@@ -369,6 +370,7 @@ def generate_checks_script_from_template(
         'ONTOSYN = Namespace("https://www.theworldavatar.com/kg/OntoSyn/")',
         'ONTOLAB = Namespace("https://www.theworldavatar.com/kg/OntoLab/")',
         'ONTOMOPS = Namespace("https://www.theworldavatar.com/kg/ontomops/")',
+        'OM2 = Namespace("http://www.ontology-of-units-of-measure.org/resource/om-2/")',
         '',
         '# ============================================================================',
         '# CHECK EXISTING FUNCTIONS (Parent-Class Based)',
@@ -411,6 +413,39 @@ def generate_checks_script_from_template(
             f'        return "\\n".join(_list_instances_with_label(g, {namespace}.{cls_name}))',
             ''
         ])
+
+    # ------------------------------------------------------------------------
+    # OM-2 quantities (external ontology) — include checks if referenced in object-property ranges
+    # ------------------------------------------------------------------------
+    external_targets = set()
+    for _, structure in class_structures.items():
+        for conn in structure.get("connects_to", []) or []:
+            for tgt in conn.get("target_classes", []) or []:
+                t = tgt.split("/")[-1] if "/" in tgt else tgt
+                external_targets.add(t)
+
+    om2_quantities = [
+        "Temperature",
+        "Pressure",
+        "Duration",
+        "Volume",
+        "TemperatureRate",
+        "AmountOfSubstanceFraction",
+    ]
+    for q in om2_quantities:
+        if q not in external_targets:
+            continue
+        lines.extend([
+            '@_guard_check',
+            f'def check_existing_{q}() -> str:',
+            f'    """',
+            f'    List existing OM-2 {q} instances.',
+            f'    Returns tab-separated list: IRI\\tlabel',
+            f'    """',
+            f'    with locked_graph() as g:',
+            f'        return "\\n".join(_list_instances_with_label(g, OM2.{q}))',
+            ''
+        ])
     
     # Write to file
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -435,6 +470,57 @@ def generate_relationships_script_from_template(
     # Extract all object properties
     object_properties = []
     class_structures = concise_structure['class_structures']
+
+    # Build simple parent map for lifting domains to a shared superclass where appropriate.
+    # Many OntoSyn object properties (e.g. hasVessel) are defined with a UNION domain listing many
+    # subclasses of a shared parent (e.g. SynthesisStep). Generating add_* per listed subclass is noisy;
+    # instead we lift such domains to their deepest common ancestor (DCA) within the ontology.
+    parent_map: Dict[str, List[str]] = {}
+    for cls_name, structure in class_structures.items():
+        child = cls_name.split('/')[-1] if '/' in cls_name else cls_name
+        parents = []
+        for parent_full in structure.get('parent_classes', []) or []:
+            parent = parent_full.split('/')[-1] if '/' in parent_full else parent_full
+            if parent:
+                parents.append(parent)
+        if parents:
+            parent_map[child] = parents
+
+    def _ancestors(cls: str) -> set:
+        out = {cls}
+        stack = list(parent_map.get(cls, []))
+        while stack:
+            p = stack.pop()
+            if p in out:
+                continue
+            out.add(p)
+            stack.extend(parent_map.get(p, []))
+        return out
+
+    depth_cache: Dict[str, int] = {}
+    def _depth(cls: str) -> int:
+        if cls in depth_cache:
+            return depth_cache[cls]
+        parents = parent_map.get(cls, [])
+        if not parents:
+            depth_cache[cls] = 0
+            return 0
+        d = 1 + max(_depth(p) for p in parents)
+        depth_cache[cls] = d
+        return d
+
+    def _deepest_common_ancestor(domains: List[str]) -> str:
+        if not domains:
+            return ""
+        common = _ancestors(domains[0])
+        for d in domains[1:]:
+            common &= _ancestors(d)
+        if not common:
+            return domains[0]
+        # Choose the deepest (most specific) common ancestor.
+        best_depth = max(_depth(c) for c in common)
+        best = sorted([c for c in common if _depth(c) == best_depth])[0]
+        return best
     
     for cls_name, structure in class_structures.items():
         for conn in structure.get('connects_to', []):
@@ -449,6 +535,18 @@ def generate_relationships_script_from_template(
                     'domain': domain_class,
                     'range': range_class
                 })
+
+    # Lift domains to deepest common ancestor per (property, range) group.
+    grouped: Dict[Tuple[str, str], List[str]] = {}
+    for p in object_properties:
+        grouped.setdefault((p['property'], p['range']), []).append(p['domain'])
+
+    lifted = []
+    for p in object_properties:
+        key = (p['property'], p['range'])
+        dca = _deepest_common_ancestor(grouped.get(key, []))
+        lifted.append({'property': p['property'], 'domain': dca or p['domain'], 'range': p['range']})
+    object_properties = lifted
     
     # Remove duplicates
     unique_props = []
@@ -485,6 +583,7 @@ def generate_relationships_script_from_template(
         'ONTOLAB = Namespace("https://www.theworldavatar.com/kg/OntoLab/")',
         'ONTOMOPS = Namespace("https://www.theworldavatar.com/kg/ontomops/")',
         'ONTOCAPE_MAT = Namespace("http://www.theworldavatar.com/ontology/ontocape/material/material.owl#")',
+        'OM2 = Namespace("http://www.ontology-of-units-of-measure.org/resource/om-2/")',
         '',
         '# ============================================================================',
         '# RELATIONSHIP FUNCTIONS (add_*_to_*)',
@@ -514,8 +613,11 @@ def generate_relationships_script_from_template(
         range_ns = 'ONTOMOPS' if 'Polyhedron' in range_cls or 'Cage' in range_cls else 'ONTOSYN'
         
         # Handle external ranges (from other ontologies)
-        if range_cls in ['Temperature', 'Duration', 'Pressure', 'Volume', 'TemperatureRate', 'AmountOfSubstanceFraction', 'Document']:
-            range_ns = 'ONTOSYN'  # Use ONTOSYN namespace as fallback
+        # OM-2 quantities must use the OM-2 namespace (NOT OntoSyn).
+        if range_cls in ['Temperature', 'Duration', 'Pressure', 'Volume', 'TemperatureRate', 'AmountOfSubstanceFraction']:
+            range_ns = 'OM2'
+        elif range_cls in ['Document']:
+            range_ns = 'ONTOSYN'  # fallback (no OM document mock currently wired)
         elif 'Material' in range_cls:
             range_ns = 'ONTOCAPE_MAT'
         elif 'LabEquipment' in range_cls:

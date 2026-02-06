@@ -70,7 +70,7 @@ For major concepts, create SHORT sections (2-5 bullets each) with HIGH-LEVEL gui
 - [Linking: "call [mcp_tool] with [parameter_iri]"]
 - [Critical requirement from T-Box if any]
 
-Vessels, Vessel Environments, Durations:
+Auxiliary context entities (examples blurred):
 - [Brief: create if mentioned, link to step]
  
 Ordering:

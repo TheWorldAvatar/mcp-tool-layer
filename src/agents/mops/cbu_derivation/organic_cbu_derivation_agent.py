@@ -53,8 +53,15 @@ async def run_for_hash(hash_value: str, test_mode: bool = False):
     # Skipping: if summary exists and not test_mode, skip
     summary_path = Path(output_dir) / "summary.md"
     if summary_path.exists() and not test_mode:
-        print(f"⏭️  Skipping CBU derivation (summary exists): {summary_path}")
-        return True
+        # Only skip if we also have some structured outputs; otherwise a previous failed run
+        # may have written a summary but produced no per-entity results.
+        structured_dir = Path(output_dir) / "structured"
+        has_structured = structured_dir.exists() and any(
+            p.suffix in (".json", ".txt") for p in structured_dir.iterdir()
+        )
+        if has_structured:
+            print(f"⏭️  Skipping CBU derivation (summary exists): {summary_path}")
+            return True
 
     # Load inputs: iterate top-level entities directly from ontomops_output TTL filenames
     ttl_dir = os.path.join(DATA_DIR, hash_value, "ontomops_output")

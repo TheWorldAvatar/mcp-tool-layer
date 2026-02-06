@@ -1,9 +1,22 @@
 import os
 import json
+import sys
 from typing import Dict, List, Optional, Tuple, Union
 from rdflib import Graph, Namespace, Literal
 from rdflib.namespace import RDF, RDFS
 from models.locations import DATA_DIR
+
+
+def _configure_utf8_stdio() -> None:
+    """Ensure Windows consoles don't crash on non-ASCII output."""
+    for s in (sys.stdout, sys.stderr):
+        try:
+            s.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+
+
+_configure_utf8_stdio()
 
 
 def _list_hashes() -> List[str]:
@@ -346,6 +359,8 @@ def integrate_hash(hash_value: str) -> List[Dict[str, str]]:
                 hash_value=hash_value,
             )
         except Exception as e:
+            # Ensure downstream logic does not crash if selection fails.
+            sel_m, sel_o = None, None
             # Save the exception details to debug file
             try:
                 debug_dir = os.path.join(DATA_DIR, hash_value, "cbu_derivation", "selection", "debug")
@@ -365,7 +380,7 @@ def integrate_hash(hash_value: str) -> List[Dict[str, str]]:
 
         # Check if IRI selection succeeded
         if sel_m is None or sel_o is None:
-            print(f"❌ IRI selection failed for entity {actual_entity_label}: Could not match CBU formulas to IRIs. "
+            print(f"[ERROR] IRI selection failed for entity {actual_entity_label}: Could not match CBU formulas to IRIs. "
                   f"Metal formula: '{m_formula}', Organic formula: '{o_formula}'. "
                   f"This usually indicates LLM failure or mismatched CBU formulas.")
             print(f"[INTEGRATION] Skipping {actual_entity_label} due to IRI selection failure, continuing with other entities")
@@ -376,7 +391,7 @@ def integrate_hash(hash_value: str) -> List[Dict[str, str]]:
 
         # Validate that we got actual IRIs, not empty strings
         if not sel_m or not sel_o:
-            print(f"❌ IRI selection returned empty IRIs for entity {actual_entity_label}. "
+            print(f"[ERROR] IRI selection returned empty IRIs for entity {actual_entity_label}. "
                   f"Selected metal IRI: '{sel_m}', organic IRI: '{sel_o}'. "
                   f"Check LLM responses and CBU formula matching.")
             print(f"[INTEGRATION] Skipping {actual_entity_label} due to empty IRI selection, continuing with other entities")

@@ -30,6 +30,29 @@ from src.utils.extraction_models import get_extraction_model
 
 logger = get_logger("pipeline", "main_ontology_extractions")
 
+def resolve_generated_file(path: str) -> str:
+    """
+    Resolve a generated artifact path.
+
+    Prefer `ai_generated_contents_candidate/` (where generation writes in this repo),
+    then fall back to `ai_generated_contents/` if present.
+    """
+    path = (path or "").replace("\\", "/")
+    candidates: list[str] = []
+    if path.startswith("ai_generated_contents/"):
+        candidates.append(path.replace("ai_generated_contents/", "ai_generated_contents_candidate/", 1))
+        candidates.append(path)
+    elif path.startswith("ai_generated_contents_candidate/"):
+        candidates.append(path)
+        candidates.append(path.replace("ai_generated_contents_candidate/", "ai_generated_contents/", 1))
+    else:
+        candidates.append(path)
+
+    for p in candidates:
+        if p and os.path.exists(p):
+            return p
+    return candidates[0]
+
 
 def _safe_name(label: str) -> str:
     """Convert entity label to safe filename."""
@@ -57,7 +80,9 @@ def resolve_file_path(path_template: str, doi_hash: str, entity_safe: str, data_
 
 def load_iterations_config(ontology_name: str) -> dict:
     """Load the iterations configuration for the ontology."""
-    config_path = f"ai_generated_contents/iterations/{ontology_name}/iterations.json"
+    config_path = resolve_generated_file(
+        f"ai_generated_contents/iterations/{ontology_name}/iterations.json"
+    )
     
     if not os.path.exists(config_path):
         logger.error(f"Iterations config not found: {config_path}")
@@ -89,6 +114,7 @@ def load_top_entities(doi_hash: str, data_dir: str = "data") -> List[Dict]:
 
 def load_prompt(prompt_path: str) -> str:
     """Load a prompt from a markdown file."""
+    prompt_path = resolve_generated_file(prompt_path)
     if not os.path.exists(prompt_path):
         logger.error(f"Prompt file not found: {prompt_path}")
         return ""
@@ -297,9 +323,27 @@ async def run_extraction(
     # Extract with retries (increased to 5 attempts)
     max_retries = 5
     agent = None  # Initialize agent once outside retry loop
+    allow_agent_fallback = True  # if MCP tool sessions fail, fall back to simple LLM
     
     for attempt in range(max_retries):
         try:
+            # If this extraction iteration was configured to use MCP tools but the toolchain
+            # is not viable in the current environment (e.g., Windows without Docker / missing binaries),
+            # we can pre-emptively fall back to simple LLM.
+            if (
+                allow_agent_fallback
+                and use_agent
+                and mcp_tools
+                and any(t in set(mcp_tools) for t in ("ccdc", "enhanced_websearch"))
+            ):
+                logger.warning(
+                    f"    ⚠️  iter{iter_num} extraction configured with external MCP tools "
+                    f"{mcp_tools}. Falling back to simple LLM for portability."
+                )
+                use_agent = False
+                agent = None
+                allow_agent_fallback = False
+
             if use_agent and mcp_tools and mcp_set_name:
                 # Use agent with MCP tools (e.g., for iter2)
                 # Create agent only once on first attempt, reuse for retries
@@ -369,6 +413,34 @@ async def run_extraction(
             return content
             
         except Exception as e:
+            # If MCP toolchain can't start (common on Windows without Docker / missing binaries),
+            # fall back to simple LLM so we still produce extraction hint files.
+            if (
+                allow_agent_fallback
+                and use_agent
+                and (mcp_tools and mcp_set_name)
+                and any(
+                    s in str(e)
+                    for s in (
+                        "Could not open MCP session",
+                        "unhandled errors in a TaskGroup",
+                        "FileNotFoundError",
+                        "WinError 2",
+                        "Docker is not running",
+                    )
+                )
+            ):
+                logger.warning(
+                    f"    ⚠️  MCP tools unavailable for iter{iter_num} extraction; "
+                    f"falling back to simple LLM for '{entity_label}'. Error was: {e}"
+                )
+                # Disable agent path for subsequent retries in this extraction
+                use_agent = False
+                agent = None
+                allow_agent_fallback = False
+                # Retry immediately (no backoff) using simple LLM branch
+                continue
+
             if attempt < max_retries - 1:
                 wait_time = 5 * (attempt + 1)  # Exponential backoff: 5s, 10s, 15s, 20s
                 logger.warning(f"    ⚠️  Extraction attempt {attempt + 1}/{max_retries} failed: {e}")

@@ -27,21 +27,39 @@ project_root = Path(__file__).resolve().parents[3]
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
+def _token_limit_kwargs(model_name: str, max_tokens: int) -> dict:
+    """
+    OpenAI API compatibility shim:
+    Some model endpoints (notably gpt-5.* / gpt-4.1.* on certain providers)
+    reject `max_tokens` and require `max_completion_tokens` instead.
+    """
+    mn = (model_name or "").lower()
+    if mn.startswith("gpt-5") or mn.startswith("gpt-4.1"):
+        return {"max_completion_tokens": max_tokens}
+    return {"max_tokens": max_tokens}
+
 
 def create_openai_client() -> OpenAI:
     """
     Create and return an OpenAI client using the same pattern as LLMCreator.
-    Uses REMOTE_API_KEY and REMOTE_BASE_URL from environment variables.
+    Uses REMOTE_API_KEY/REMOTE_BASE_URL primarily, with fallbacks for common repo env keys.
     """
     load_dotenv(override=True)
     
-    api_key = os.getenv("REMOTE_API_KEY")
-    base_url = os.getenv("REMOTE_BASE_URL")
+    api_key = (
+        os.getenv("REMOTE_API_KEY")
+        or os.getenv("API_KEY")
+        or os.getenv("OPENAI_API_KEY")
+    )
+    base_url = (
+        os.getenv("REMOTE_BASE_URL")
+        or os.getenv("BASE_URL")
+    )
     
     if not api_key:
         raise ValueError(
-            "REMOTE_API_KEY not found in environment variables. "
-            "Please set REMOTE_API_KEY in your .env file."
+            "No API key found in environment variables. "
+            "Set one of: REMOTE_API_KEY, API_KEY, or OPENAI_API_KEY."
         )
     
     if base_url:
@@ -383,7 +401,7 @@ async def generate_underlying_script_direct(
                     }
                 ],
                 temperature=0,
-                max_tokens=16000
+                **_token_limit_kwargs(model_name, 16000)
             )
             
             # Extract code from response
@@ -470,7 +488,7 @@ async def generate_main_script_direct(
                     }
                 ],
                 temperature=0,
-                max_tokens=16000
+                **_token_limit_kwargs(model_name, 16000)
             )
             
             # Extract code from response

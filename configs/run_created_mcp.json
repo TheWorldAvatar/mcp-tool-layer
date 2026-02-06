@@ -1,19 +1,18 @@
 {
-    "llm_created_mcp": {
-        "command": "python",
-        "args": [
-            "-m", 
-            "sandbox.code.mcp_creation.main"
-        ],
-        "transport": "stdio"
-    },
-
-    "enhanced_websearch": {
-        "command": "python",
-        "args": [
-            "-m", 
-            "src.mcp_servers.enhanced_websearch.main"
-        ],
-        "transport": "stdio"
-    }
+  "llm_created_mcp": {
+    "command": "python",
+    "args": [
+      "-m",
+      "ai_generated_contents_candidate.scripts.ontosynthesis.main"
+    ],
+    "transport": "stdio"
+  },
+  "enhanced_websearch": {
+    "command": "python",
+    "args": [
+      "-m",
+      "src.mcp_servers.enhanced_websearch.main"
+    ],
+    "transport": "stdio"
+  }
 }

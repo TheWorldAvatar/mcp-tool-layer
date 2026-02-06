@@ -62,6 +62,18 @@ class BaseAgent:
         # 1️⃣ MCP configs
         server_cfg = self.mcp_config.get_config(self.mcp_tools)
         self.logger.info(f"Loaded MCP tools: {self.mcp_tools}")
+        
+        # Compatibility: some MCP client stacks (depending on installed `mcp` version) do not accept a
+        # `description` kwarg when creating stdio sessions. Our config files sometimes include it
+        # (e.g., `configs/mops_mcp.json` for the `document` server). Strip it to avoid runtime errors.
+        try:
+            server_cfg = {
+                name: {k: v for k, v in (cfg or {}).items() if k != "description"}
+                for name, cfg in (server_cfg or {}).items()
+            }
+        except Exception:
+            # If sanitization fails for any reason, fall back to the raw config.
+            pass
 
         # 2️⃣ Docker check (non-fatal)
         if not await self.mcp_config.is_docker_running():
@@ -136,7 +148,20 @@ class BaseAgent:
             if recursion_limit is not None:
                 config["recursion_limit"] = recursion_limit
 
-            result = await agent.ainvoke(invoke_kwargs, config)
+            try:
+                result = await agent.ainvoke(invoke_kwargs, config)
+            except BaseException as e:
+                # Python 3.11+: langgraph can raise ExceptionGroup/TaskGroup errors.
+                # Surface the nested exceptions so pipeline logs are actionable.
+                sub_excs = getattr(e, "exceptions", None)
+                if sub_excs:
+                    try:
+                        self.logger.error(f"Agent raised an exception group with {len(sub_excs)} sub-exception(s):")
+                        for i, sub in enumerate(sub_excs, start=1):
+                            self.logger.error(f"  [{i}] {type(sub).__name__}: {sub}")
+                    except Exception:
+                        pass
+                raise
             self.logger.info("Agent execution completed")
 
             # 6️⃣ Final message + final-call meta (optional)

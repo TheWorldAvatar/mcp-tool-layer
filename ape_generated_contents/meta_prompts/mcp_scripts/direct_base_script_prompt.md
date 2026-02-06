@@ -6,7 +6,7 @@ You are generating the **BASE/FOUNDATION/INFRASTRUCTURE** script that provides O
 
 Generate a complete base script that implements **INFRASTRUCTURE ONLY**:
 - Guard system (`_guard_*`, `_guard_paths`, `_load_guard_state`, `_save_guard_state`)
-- Namespace definitions (ONTOSYN, ONTOLAB, ONTOMOPS, etc.)
+- Namespace definitions (primary `NAMESPACE` + any additional namespaces provided by configuration / ontology input)
 - JSON/Error formatting helpers (`_json_line`, `_format_error`, `_format_success_json`)
 - Auto-create helper functions (`_find_or_create_*`)
 - Memory management wrappers (`init_memory_wrapper`, `export_memory_wrapper`)
@@ -68,13 +68,12 @@ from ..universal_utils import (
 
 # Namespace definitions (CRITICAL - export ALL for entities script to import)
 NAMESPACE = Namespace("{namespace_uri}")
-# IMPORTANT: Define ALL ontology namespaces explicitly
-# For ontosynthesis, this includes:
-ONTOSYN = Namespace("{namespace_uri}OntoSyn/")
-ONTOLAB = Namespace("{namespace_uri}OntoLab/")
-ONTOMOPS = Namespace("{namespace_uri}ontomops/")
-MATERIAL = Namespace("http://www.theworldavatar.com/ontology/ontocape/material/material.owl#")
-# Add other namespaces as needed for your ontology
+# IMPORTANT: Define any additional namespaces that appear in the ontology structure,
+# including external ontologies (e.g., OM-2) or secondary namespaces under the same base URI.
+# Do NOT hardcode domain/ontology-specific namespace lists here; derive what you define from the provided ontology input.
+#
+# Example (external ontology, blurred):
+# EXTERNAL_NS = Namespace("<external_ontology_uri>")
 RDF = RDF
 RDFS = RDFS
 ```
@@ -89,6 +88,12 @@ Implement the complete guard system:
 - `_guard_note_noncheck()` - note non-check call
 - `_guard_check(func)` - decorator for check functions
 - `_guard_noncheck(func)` - decorator for create/modify functions
+
+**Reliability requirement (IMPORTANT):**
+- The guard system must be **non-fatal by default**. It must never crash MCP tool execution.
+- If you want to enforce guard rules, make it **opt-in** via an environment variable (e.g., `TWA_MCP_GUARD_ENFORCE=1`).
+- Even in enforcement mode, require **at least one check** before write-like operations, not a check before *every* mutation.
+- If enforcement fails, return a JSON error envelope via `_format_error(...)` instead of raising.
 
 ### 3. JSON/Error Formatting Helpers
 
@@ -127,11 +132,9 @@ def _format_success_json(iri: URIRef or str or None, message: str, *, created: b
 
 These enable the "auto-creation pattern" where main creation functions can accept auxiliary entity parameters and handle finding/creating them internally.
 
-**Generate helpers for commonly referenced auxiliary entities:**
-- Vessel, VesselType, VesselEnvironment
-- ChemicalInput, Supplier
-- Equipment, HeatChillDevice
-- Any other entities frequently used as auxiliary/supporting entities
+**Generate helpers for auxiliary/supporting entities:**
+- Derive which auxiliaries need `_find_or_create_*` from the provided ontology structure (do NOT rely on hardcoded example entity names).
+- Prioritize entities that are frequently referenced as object-property targets but have relatively few outgoing connections.
 
 **Pattern:**
 ```python
@@ -155,7 +158,7 @@ def _find_or_create_{{EntityType}}(g: Graph, label: str, **additional_params) ->
     g.add((iri, RDF.type, NAMESPACE.{{EntityType}}))
     _set_single_label(g, iri, sanitized_label)
     
-    # Handle additional parameters (e.g., vessel_type for Vessel)
+    # Handle additional parameters (when the ontology indicates auxiliary metadata fields)
     # Add triples for additional params
     
     return iri
@@ -190,6 +193,25 @@ def export_memory_wrapper() -> str:
 5. **Exportable**: All classes/functions must be importable by other scripts (guard decorators, namespaces, helpers)
 6. **Guard System**: Complete implementation (decorators, state management)
 7. **Error Handling**: Robust error handling with JSON envelopes
+
+8. **Unit enforcement awareness (OM-2)**: If the ontology uses OM-2 quantities, the overall system expects **strict unit handling** (label→IRI mapping and validation) driven by ontology inputs (e.g., OM-2 mock T-Box). Do not hardcode unit tables; derive any unit label options from the provided ontology input.
+
+9. **OM-2 quantity helpers (if OM-2 is mentioned in ontology input)**:
+   If the ontology structure mentions OM-2 quantities/units (e.g., Temperature/Pressure/Duration/Volume and an OM-2 unit inventory section),
+   this base script MUST include reusable helpers/constants to support unit-safe quantity creation in other modules:
+   - `OM2 = Namespace("<om2_namespace_uri>")` (use the configured namespace contract / inputs; do not hardcode URIs)
+   - `OM2_UNIT_MAP: Dict[str, URIRef]` constructed ONLY from the provided OM-2 unit inventory (label → OM2.<term>)
+   - Optional `Literal[...]` / Enum types for unit labels (do NOT list anything not present in the inventory)
+   - A small helper like `_resolve_om2_unit(unit_label: str) -> URIRef` (validates via OM2_UNIT_MAP)
+   - A small helper like `_find_or_create_om2_quantity(g, quantity_class: URIRef, label: str, value: float, unit_label: str) -> URIRef` that:
+     - validates unit_label via OM2_UNIT_MAP
+     - reuses an existing quantity instance if the graph already contains the SAME `quantity_class` with SAME numerical value and SAME unit
+     - otherwise creates a new instance and sets exactly one `om-2:hasNumericalValue` and one `om-2:hasUnit`
+     - uses a numeric datatype (e.g., XSD.double) for numerical values
+   - IMPORTANT: This module must be the single source of truth for unit mappings (do NOT duplicate per-file unit maps in entity scripts).
+   
+   These are infrastructure helpers (not ontology entity create_* functions), but they are required so entity/relationship scripts can handle
+   related concepts mentioned by the ontology (e.g., Temperature nodes).
 
 ## Output
 
