@@ -22,10 +22,10 @@ OUTPUT REQUIREMENTS:
 - List all constraints from the ontology rdfs:comment for the top-level entity class
 - Include clear termination conditions
 - Be concise and tool-oriented (this prompt is for an MCP agent using function calls)
-- Be completely domain-agnostic (no specific compound types, no domain-specific terminology)
+- Be completely domain-agnostic (no domain-specific entity types, no domain-specific terminology)
 
 Do NOT include:
-- Domain-specific examples (e.g., specific compound names, specific synthesis types)
+- Domain-specific examples (e.g., specific entity names, specific process categories)
 - Variable placeholders like {doi} or {paper_content} - these will be added programmatically
 - Verbose ontology explanations - focus on actionable rules
-- Any mention of specific chemical entities, materials, or domain-specific concepts
+- Any mention of specific domain entities, materials, or domain-specific concepts

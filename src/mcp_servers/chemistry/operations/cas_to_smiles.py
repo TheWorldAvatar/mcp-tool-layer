@@ -179,7 +179,11 @@ def cas_to_smiles(cas: str) -> dict:
         if exact_cids:
             logger.info(f"Found exact match in compound database: {len(exact_cids)} CIDs")
             properties = fetch_cid_properties(exact_cids)
-            smiles_list = [prop.get("CanonicalSMILES") for prop in properties if prop.get("CanonicalSMILES")]
+            smiles_list = [
+                prop.get("CanonicalSMILES") or prop.get("SMILES") or prop.get("ConnectivitySMILES")
+                for prop in properties
+                if prop.get("CanonicalSMILES") or prop.get("SMILES") or prop.get("ConnectivitySMILES")
+            ]
             
             return {
                 "cas": cas,
@@ -198,7 +202,11 @@ def cas_to_smiles(cas: str) -> dict:
     exact_sids = [sid for sid, syns in syns_map.items() if cas in syns]
     cids = cids_for_sids(exact_sids)
     properties = fetch_cid_properties(cids)
-    smiles_list = [prop.get("CanonicalSMILES") for prop in properties if prop.get("CanonicalSMILES")]
+    smiles_list = [
+        prop.get("CanonicalSMILES") or prop.get("SMILES") or prop.get("ConnectivitySMILES")
+        for prop in properties
+        if prop.get("CanonicalSMILES") or prop.get("SMILES") or prop.get("ConnectivitySMILES")
+    ]
     
     success = len(exact_sids) > 0 or len(cids) > 0
     if success:

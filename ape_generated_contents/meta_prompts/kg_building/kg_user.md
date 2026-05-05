@@ -95,15 +95,18 @@ Termination:
 **CRITICAL**: KG building prompts should be **CONCISE** and focus on:
 - **HOW to construct the KG** using MCP tools (linking, ordering, property setting)
 - **NOT on WHAT to extract** (entity definitions, trigger verbs, extraction rules - those are in EXTRACTION prompts)
+- The generated prompt must be operational, not explanatory. It should read like an execution checklist for graph construction, not like ontology documentation.
 
 1. **For ITER 2+ (when entity_uri is provided)**:
    - **CRITICAL**: Explicitly state to use the existing top entity IRI provided, do NOT create a new one
    - **CRITICAL**: Build the graph around that existing entity (link new entities to it)
+   - **CRITICAL**: Treat the provided scoped top-level entity as authoritative even if similarly named entities are discovered elsewhere; do NOT create or switch to a second top-level entity for the same scope
+   - **CRITICAL**: Before export, verify that every entity created or reused in this iteration is attached to that scoped top-level entity through the required ontology relations
    - Example instruction: "Link each [entity] to its parent [TopEntity] via [property]"
 
 2. **Keep it brief and focused**:
    - This is KG BUILDING, not extraction - assume information is already extracted
-   - Focus on: linking entities, setting properties, ordering rules, vessel continuity, MCP tool usage
+- Focus on: linking entities, setting properties, ordering rules, continuity of reused auxiliary entities, MCP tool usage
    - Do NOT include: entity type definitions, trigger verbs, extraction criteria, detailed step type explanations
    - Do NOT include: detailed procedural instructions like "For each X, create one instance per Y in the order in which they appear. Use the tool Z with values..."
    - Each section should be 2-5 bullet points maximum with HIGH-LEVEL guidance only
@@ -118,16 +121,20 @@ Termination:
    - Linking rules (e.g., "Link via [property_name]")
    - Property requirements (e.g., "Set [property_name]")
    - Ordering/continuity rules
+   - Exact canonical property names when the ontology distinguishes them from fallback or generic fields
+   - Mutual exclusivity / final-state rules when sibling properties cannot all remain true together
    - Do NOT extract: entity definitions, trigger verbs, extraction gates
 
 4. **Reference MCP tools for linking**:
-   - Focus on tool usage: "call add_chemical_to_add_step with chemical_input_iri"
+- Focus on tool usage: "call add_xxx_to_yyy with the relevant subject/object IRI arguments"
    - Focus on parameters: what IRIs/values to pass
    - Focus on sequencing: what to check first, what to create next
 
 5. **Be imperative and specific**: "Create an X for each Y" not "You should create X"
 
 6. **Use property names** from T-Box exactly as written (e.g., [namespace]:[property_name])
+   - If the upstream extracted hints already contain an exact canonical property, preserve that canonical property in the KG prompt instead of downgrading it to a weaker fallback field.
+   - If the ontology implies a canonical-marker-versus-free-text fallback distinction, tell the KG agent to keep the canonical marker whenever it is explicitly confirmed and use the fallback only for unmatched explicit content.
 
 7. **CRITICAL**: Do NOT include:
    - Generic MCP rules (IRI management, stop conditions, error handling) - already hardcoded
@@ -140,6 +147,11 @@ Termination:
    - "One X per Y" not "For each X, create one instance per Y in the order in which they appear"
    - "Link via property" not "Use the tool_name with parameter_name with extracted values"
    - "Set ordering" not "Set property explicitly on every entity; start from 1 and increment by 1 with no gaps"
+   - Still include high-level precedence rules when needed, such as "preserve only the final resolved marker among mutually exclusive siblings" or "do not attach provisional results as final authoritative outcomes"
+
+9. **Integrity over termination**:
+   - The generated prompt MUST remind the agent not to terminate just because creation calls succeeded; it must also ensure required links/attachments are complete
+   - If the iteration is scoped to an existing top-level entity, the prompt MUST say that exporting memory before those links are attached is invalid
 
 ## Output Format
 

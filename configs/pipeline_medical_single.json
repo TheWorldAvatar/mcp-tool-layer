@@ -1,0 +1,17 @@
+{
+  "mode": "per_doi",
+  "description": "Single-ontology pipeline (medical): PDF -> stitched -> extraction -> KG building",
+  "meta_task_config": "configs/meta_task/meta_task_config_medical_min.json",
+  "vision_pdf_conversion": true,
+  "vision_model": "gpt-4o",
+  "vision_dpi": 150,
+  "steps": [
+    "pdf_conversion",
+    "stitching",
+    "top_entity_extraction",
+    "top_entity_kg_building",
+    "main_ontology_extractions",
+    "main_kg_building"
+  ]
+}
+

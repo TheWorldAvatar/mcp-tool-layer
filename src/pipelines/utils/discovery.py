@@ -62,20 +62,39 @@ def discover_dois(input_dir: str, data_dir: str = "data") -> dict:
     
     print(f"📄 Found {len(pdf_files)} PDF files")
     
-    # Create mapping
-    mapping = {}
+    # Preserve any previously discovered mappings so running the pipeline on a
+    # smaller input directory does not silently discard unrelated DOI hashes.
+    mapping_path = os.path.join(data_dir, 'doi_to_hash.json')
+    existing_mapping = {}
+    if os.path.exists(mapping_path):
+        try:
+            with open(mapping_path, 'r', encoding='utf-8') as f:
+                loaded = json.load(f)
+            if isinstance(loaded, dict):
+                existing_mapping = loaded
+        except Exception:
+            existing_mapping = {}
+
+    # Create/update mapping from the current input directory.
+    # Return only the current input set so medical and OntoSynthesis runs do not
+    # accidentally process each other's previously discovered hashes.
+    mapping = dict(existing_mapping)
+    current_mapping = {}
     for pdf_file in pdf_files:
         doi = pdf_file[:-4]  # Remove .pdf extension
         doi_hash = generate_hash(doi)
         mapping[doi] = doi_hash
+        current_mapping[doi] = doi_hash
         print(f"  {doi} -> {doi_hash}")
     
     # Save mapping
     os.makedirs(data_dir, exist_ok=True)
-    mapping_path = os.path.join(data_dir, 'doi_to_hash.json')
     with open(mapping_path, 'w', encoding='utf-8') as f:
         json.dump(mapping, f, indent=2)
     
-    print(f"✅ Saved mapping to {mapping_path}")
-    return mapping
+    if existing_mapping:
+        print(f"✅ Saved merged mapping to {mapping_path} ({len(existing_mapping)} existing + {len(pdf_files)} scanned)")
+    else:
+        print(f"✅ Saved mapping to {mapping_path}")
+    return current_mapping
 

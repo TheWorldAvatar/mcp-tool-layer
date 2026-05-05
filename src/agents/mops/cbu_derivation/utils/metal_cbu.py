@@ -3,6 +3,8 @@ import re
 import hashlib
 import unicodedata
 from typing import List, Dict
+from rdflib import Graph, Namespace
+from rdflib.namespace import RDF, RDFS
 from models.locations import DATA_DIR, DATA_CCDC_DIR
 from src.agents.mops.cbu_derivation.utils.io_utils import resolve_identifier_to_hash
 from src.agents.mops.cbu_derivation.utils.cbu_sparql import extract_ccdc_from_ttl
@@ -10,6 +12,39 @@ from src.agents.mops.cbu_derivation.utils.cbu_sparql import extract_ccdc_from_tt
 
 def safe_name(label: str) -> str:
     return (label or "entity").replace(" ", "_").replace("/", "_")
+
+
+def _normalize_label(text: str) -> str:
+    return " ".join(str(text or "").casefold().replace("_", " ").replace("-", " ").split())
+
+
+def _score_ontomops_ttl(path: str, entity_label: str) -> tuple[int, int]:
+    try:
+        g = Graph()
+        g.parse(path, format="turtle")
+    except Exception:
+        return (-1, -1)
+
+    ontosyn = Namespace("https://www.theworldavatar.com/kg/OntoSyn/")
+    ontomops = Namespace("https://www.theworldavatar.com/kg/ontomops/")
+
+    label_matches = 0
+    for synth in g.subjects(RDF.type, ontosyn.ChemicalSynthesis):
+        labels = [str(v) for v in g.objects(synth, RDFS.label)]
+        if any(_normalize_label(v) == _normalize_label(entity_label) for v in labels):
+            label_matches += 1
+    if label_matches == 0:
+        for synth, _, lbl in g.triples((None, RDFS.label, None)):
+            if "ChemicalSynthesis/" in str(synth) and _normalize_label(str(lbl)) == _normalize_label(entity_label):
+                label_matches += 1
+
+    mop_facts = 0
+    for subj in g.subjects(RDF.type, ontomops.MetalOrganicPolyhedron):
+        mop_facts += 3 + len(list(g.triples((subj, None, None))))
+    for pred in (ontomops.hasCCDCNumber, ontomops.hasMOPFormula, ontomops.hasChemicalBuildingUnit):
+        mop_facts += sum(1 for _ in g.triples((None, pred, None)))
+
+    return (label_matches, mop_facts)
 
 
 def load_top_level_entities(hash_or_doi: str) -> List[Dict[str, str]]:
@@ -89,6 +124,12 @@ def load_entity_ttl_content(hash_or_doi: str, entity_label: str) -> str:
     ontomops_dir = os.path.join(hash_dir, "ontomops_output")
     if os.path.isdir(ontomops_dir):
         try:
+            ttl_files = [
+                fname for fname in os.listdir(ontomops_dir)
+                if fname.startswith('ontomops_extension_') and fname.endswith('.ttl')
+            ]
+            candidate_paths = []
+
             # First try to use the mapping file for exact matches
             mapping_file = os.path.join(ontomops_dir, "ontomops_output_mapping.json")
             if os.path.exists(mapping_file):
@@ -101,37 +142,43 @@ def load_entity_ttl_content(hash_or_doi: str, entity_label: str) -> str:
                         ttl_filename = mapping[entity_label]
                         p = os.path.join(ontomops_dir, ttl_filename)
                         if os.path.exists(p):
-                            with open(p, 'r', encoding='utf-8') as f:
-                                return f.read()
+                            score = _score_ontomops_ttl(p, entity_label)
+                            if score[1] > 0:
+                                with open(p, 'r', encoding='utf-8') as f:
+                                    return f.read()
+                            candidate_paths.append(p)
                     # Check for IRI match (some mappings use IRIs as keys)
                     for key, ttl_filename in mapping.items():
                         if key.startswith('http') and entity_label in key:
                             p = os.path.join(ontomops_dir, ttl_filename)
                             if os.path.exists(p):
-                                with open(p, 'r', encoding='utf-8') as f:
-                                    return f.read()
+                                candidate_paths.append(p)
                 except Exception:
                     pass  # Fall back to fuzzy matching
 
             # Fall back to fuzzy matching if mapping doesn't work
-            for fname in os.listdir(ontomops_dir):
-                if not fname.endswith('.ttl'):
-                    continue
+            for fname in ttl_files:
                 # Normalize both strings for comparison: replace both _ and space with a common character
                 # This ensures "Ni12(iPr-cdc)12_cage" matches "Ni12(iPr-cdc)12 cage.ttl"
                 fname_normalized = fname.replace('_', ' ').replace('-', ' ').lower()
                 safe_normalized = safe.replace('_', ' ').replace('-', ' ').lower()
 
                 if safe_normalized in fname_normalized:
-                    p = os.path.join(ontomops_dir, fname)
-                    with open(p, 'r', encoding='utf-8') as f:
-                        return f.read()
-            # Only use fallback if no specific match found
-            for fname in os.listdir(ontomops_dir):
-                if fname.startswith('ontomops_extension_') and fname.endswith('.ttl'):
-                    p = os.path.join(ontomops_dir, fname)
-                    with open(p, 'r', encoding='utf-8') as f:
-                        return f.read()
+                    candidate_paths.append(os.path.join(ontomops_dir, fname))
+            # Only use broad fallback if no specific match found
+            if not candidate_paths:
+                candidate_paths.extend(os.path.join(ontomops_dir, fname) for fname in ttl_files)
+
+            best_path = None
+            best_score = (-1, -1)
+            for candidate in dict.fromkeys(candidate_paths):
+                score = _score_ontomops_ttl(candidate, entity_label)
+                if score > best_score:
+                    best_score = score
+                    best_path = candidate
+            if best_path and best_score[0] > 0:
+                with open(best_path, 'r', encoding='utf-8') as f:
+                    return f.read()
         except Exception:
             pass
     # fallback legacy output_*.ttl

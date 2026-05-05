@@ -14,6 +14,28 @@ class TestGenerationPipelineSanity(unittest.TestCase):
         self.assertIn("main", cfg["ontologies"])
         self.assertIn("extensions", cfg["ontologies"])
 
+    def test_extension_meta_task_configs_keep_ccdc_enabled(self):
+        p = Path("configs/meta_task/meta_task_config.json")
+        cfg = json.loads(p.read_text(encoding="utf-8"))
+        extensions = {
+            ext["name"]: ext
+            for ext in cfg.get("ontologies", {}).get("extensions", [])
+            if isinstance(ext, dict) and ext.get("name")
+        }
+        self.assertIn("ccdc", extensions["ontomops"].get("mcp_list", []))
+        self.assertIn("ccdc", extensions["ontospecies"].get("mcp_list", []))
+
+    def test_candidate_extension_iterations_keep_ccdc_enabled(self):
+        for ontology in ("ontomops", "ontospecies"):
+            p = Path(f"ai_generated_contents_candidate/iterations/{ontology}/iterations.json")
+            self.assertTrue(p.exists(), f"Missing {p}")
+            cfg = json.loads(p.read_text(encoding="utf-8"))
+            iterations = cfg.get("iterations") or []
+            self.assertTrue(iterations, f"No iterations in {p}")
+            first = iterations[0]
+            self.assertIn("ccdc", first.get("mcp_tools", []))
+            self.assertIn("ccdc", first.get("extraction_mcp_tools", []))
+
     def test_runtime_prompts_and_iterations_exist_for_main_ontology(self):
         # Runtime pipeline consumes from ai_generated_contents/
         prompts_dir = Path("ai_generated_contents/prompts/ontosynthesis")

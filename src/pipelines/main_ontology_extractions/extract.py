@@ -15,20 +15,53 @@ import os
 import sys
 import json
 import asyncio
-from typing import List, Dict
+import re
+import unicodedata
+from difflib import get_close_matches
+from pathlib import Path
+from typing import Any, List, Dict, TYPE_CHECKING, Tuple
 
 # Add project root to path for imports
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-from models.BaseAgent import BaseAgent
 from models.ModelConfig import ModelConfig
 from models.LLMCreator import LLMCreator
 from src.utils.global_logger import get_logger
 from src.utils.extraction_models import get_extraction_model
+from src.pipelines.structured_extraction import (
+    is_marker_only_optional_output,
+    validate_hint_payload,
+)
+from src.pipelines.utils.ttl_publisher import load_meta_task_config, get_main_ontology_name
+
+if TYPE_CHECKING:
+    from models.BaseAgent import BaseAgent
 
 logger = get_logger("pipeline", "main_ontology_extractions")
+
+# Yield-only / single-predicate hints are often one short TTL line (< 50 chars) but still valid.
+_MIN_EXTRACTION_CHARS = 20
+
+
+def _get_base_agent():
+    """Import BaseAgent lazily so simple-LLM runs do not require agent dependencies."""
+    from models.BaseAgent import BaseAgent
+
+    return BaseAgent
+
+
+def _normalize_llm_content(content_or_message: object) -> str:
+    """
+    Normalize LangChain message / raw content (``str | list | dict``) to a plain string.
+
+    Avoids ``str([]) -> \"[]\"`` and similar pitfalls when the provider returns block lists.
+    """
+    from models.BaseAgent import _normalize_ai_message_content
+
+    raw = content_or_message.content if hasattr(content_or_message, "content") else content_or_message
+    return _normalize_ai_message_content(raw)
 
 def resolve_generated_file(path: str) -> str:
     """
@@ -56,7 +89,32 @@ def resolve_generated_file(path: str) -> str:
 
 def _safe_name(label: str) -> str:
     """Convert entity label to safe filename."""
-    return (label or "entity").replace(" ", "_").replace("/", "_")
+    s = unicodedata.normalize("NFKC", label or "entity")
+    # Normalize common colon variants (including private-use glyphs seen in some PDFs)
+    for ch in [":", "：", "﹕", "∶", "꞉", "︰", "\uf03a"]:
+        s = s.replace(ch, ":")
+    # German transliteration for stable ASCII filenames
+    s = (
+        s.replace("Ä", "Ae")
+        .replace("Ö", "Oe")
+        .replace("Ü", "Ue")
+        .replace("ä", "ae")
+        .replace("ö", "oe")
+        .replace("ü", "ue")
+        .replace("ß", "ss")
+        .replace("α", "alpha")
+        .replace("β", "beta")
+        .replace("γ", "gamma")
+        .replace("δ", "delta")
+        .replace("Α", "Alpha")
+        .replace("Β", "Beta")
+        .replace("Γ", "Gamma")
+        .replace("Δ", "Delta")
+    )
+    # Keep only filename-safe ASCII chars
+    s = re.sub(r"[^A-Za-z0-9._-]+", "_", s)
+    s = re.sub(r"_+", "_", s).strip("_")
+    return s or "entity"
 
 
 def resolve_file_path(path_template: str, doi_hash: str, entity_safe: str, data_dir: str = "data") -> str:
@@ -78,11 +136,80 @@ def resolve_file_path(path_template: str, doi_hash: str, entity_safe: str, data_
     return os.path.join(data_dir, doi_hash, resolved)
 
 
+def _strip_code_fences_block(text: str) -> str:
+    stripped = (text or "").strip()
+    if stripped.startswith("```") and stripped.endswith("```"):
+        stripped = re.sub(r"^```[a-zA-Z0-9_-]*\s*", "", stripped, count=1)
+        stripped = re.sub(r"\s*```$", "", stripped, count=1)
+    return stripped.strip()
+
+
+def _parse_structured_hint_payload(text: str):
+    cleaned = _strip_code_fences_block(text)
+    if not cleaned:
+        return None
+    try:
+        return json.loads(cleaned)
+    except Exception:
+        pass
+    try:
+        import yaml  # type: ignore
+
+        return yaml.safe_load(cleaned)
+    except Exception:
+        return None
+
+
+def _merge_structured_hint_payloads(base, update):
+    if isinstance(base, dict) and isinstance(update, dict):
+        merged = dict(base)
+        for key, value in update.items():
+            if key in merged:
+                merged[key] = _merge_structured_hint_payloads(merged[key], value)
+            else:
+                merged[key] = value
+        return merged
+    return update
+
+
+def _merge_structured_hint_text(base_text: str, update_text: str) -> str | None:
+    base_payload = _parse_structured_hint_payload(base_text)
+    update_payload = _parse_structured_hint_payload(update_text)
+    if not isinstance(base_payload, dict) or not isinstance(update_payload, dict):
+        return None
+    merged_payload = _merge_structured_hint_payloads(base_payload, update_payload)
+    return json.dumps(merged_payload, ensure_ascii=False, indent=2)
+
+
+def _looks_like_patch_enrichment_output(text: str) -> bool:
+    low = (text or "").strip().lower()
+    if not low:
+        return False
+    return (
+        "patch_triples" in low
+        or "kg_patch_triples" in low
+        or "done_marker=true" in low
+        or "done_marker: true" in low
+    )
+
+
+def _iter_base_hint_snapshot_path(base_hint_file: str, *, enriches: int | str, entity_safe: str) -> str:
+    return os.path.join(
+        os.path.dirname(base_hint_file),
+        f"iter{enriches}_base_hints_{entity_safe}.txt",
+    )
+
+
+def _sub_iteration_patch_output_path(base_hint_file: str, *, enriches: int | str, sub_iter_num: int | str, entity_safe: str) -> str:
+    return os.path.join(
+        os.path.dirname(base_hint_file),
+        f"iter{enriches}_{sub_iter_num}_patch_{entity_safe}.txt",
+    )
+
+
 def load_iterations_config(ontology_name: str) -> dict:
     """Load the iterations configuration for the ontology."""
-    config_path = resolve_generated_file(
-        f"ai_generated_contents/iterations/{ontology_name}/iterations.json"
-    )
+    config_path = get_iterations_config_path(ontology_name)
     
     if not os.path.exists(config_path):
         logger.error(f"Iterations config not found: {config_path}")
@@ -94,6 +221,13 @@ def load_iterations_config(ontology_name: str) -> dict:
     except Exception as e:
         logger.error(f"Failed to load iterations config: {e}")
         return {}
+
+
+def get_iterations_config_path(ontology_name: str) -> str:
+    """Resolve the iterations.json path for an ontology."""
+    return resolve_generated_file(
+        f"ai_generated_contents/iterations/{ontology_name}/iterations.json"
+    )
 
 
 def load_top_entities(doi_hash: str, data_dir: str = "data") -> List[Dict]:
@@ -112,6 +246,64 @@ def load_top_entities(doi_hash: str, data_dir: str = "data") -> List[Dict]:
         return []
 
 
+def _artifact_is_current(path: str, dependency_paths: List[str] | None = None) -> bool:
+    """Return True if artifact exists, is non-empty, and is not older than dependencies."""
+    if not os.path.exists(path):
+        return False
+    try:
+        if os.path.getsize(path) <= 0:
+            return False
+        artifact_mtime = os.path.getmtime(path)
+    except Exception:
+        return False
+
+    dep_mtimes: list[float] = []
+    for dep in dependency_paths or []:
+        if not dep:
+            continue
+        dep_resolved = dep if os.path.exists(dep) else resolve_generated_file(dep)
+        if os.path.exists(dep_resolved):
+            try:
+                dep_mtimes.append(os.path.getmtime(dep_resolved))
+            except Exception:
+                pass
+    if dep_mtimes and artifact_mtime < max(dep_mtimes):
+        return False
+    return True
+
+
+def _expected_hint_files_exist(
+    doi_hash: str,
+    iterations: List[Dict],
+    top_entities: List[Dict],
+    data_dir: str = "data",
+    iterations_config_path: str | None = None,
+) -> bool:
+    """
+    Return True only if every per-entity iteration that should emit hints has
+    produced a non-empty hints file for every top entity.
+    """
+    for iteration in iterations:
+        if not isinstance(iteration, dict):
+            continue
+        if not iteration.get("per_entity", False):
+            continue
+        iter_num = iteration.get("iteration_number")
+        outputs = iteration.get("outputs", {}) or {}
+        hint_file_template = outputs.get("hints_file", f"mcp_run/iter{iter_num}_hints_{{entity_safe}}.txt")
+        for entity in top_entities:
+            entity_label = entity.get("label", "")
+            safe = _safe_name(entity_label)
+            hint_file = resolve_file_path(hint_file_template, doi_hash, safe, data_dir)
+            freshness_deps = [iterations_config_path or ""]
+            freshness_deps.append(iteration.get("extraction_prompt", ""))
+            if iteration.get("has_pre_extraction"):
+                freshness_deps.append(iteration.get("pre_extraction_prompt", ""))
+            if not _artifact_is_current(hint_file, freshness_deps):
+                return False
+    return True
+
+
 def load_prompt(prompt_path: str) -> str:
     """Load a prompt from a markdown file."""
     prompt_path = resolve_generated_file(prompt_path)
@@ -127,20 +319,71 @@ def load_prompt(prompt_path: str) -> str:
         return ""
 
 
+def load_paper_content_with_sources(doi_hash: str, data_dir: str = "data") -> Tuple[str, List[str]]:
+    """Load the best-available paper content and supplemental context.
+
+    Priority order:
+      1. {hash}_vision.md  — vision LLM transcription (highest fidelity for medical PDFs)
+      2. {hash}_stitched.md — section-filtered / stitched content
+      3. {hash}_text.md    — plain text extraction
+      4. {hash}.md         — raw combined output
+
+    If supporting-information markdown exists, append it after the selected main
+    paper text. OntoSynthesis procedures are often only fully specified in SI,
+    while the main paper uses labels such as VMOP-α/VMOP-β narratively.
+    """
+    doi_dir = os.path.join(data_dir, doi_hash)
+    vision_md = os.path.join(doi_dir, f"{doi_hash}_vision.md")
+    stitched = os.path.join(doi_dir, f"{doi_hash}_stitched.md")
+    text_md = os.path.join(doi_dir, f"{doi_hash}_text.md")
+    raw_md = os.path.join(doi_dir, f"{doi_hash}.md")
+
+    main_text = ""
+    source_paths: List[str] = []
+    for p in (vision_md, stitched, text_md, raw_md):
+        if not os.path.exists(p):
+            continue
+        try:
+            txt = Path(p).read_text(encoding="utf-8")
+        except Exception as e:
+            logger.warning(f"Failed to read {p}: {e}")
+            continue
+        if txt and txt.strip():
+            main_text = txt
+            source_paths.append(p)
+            break
+
+    if main_text:
+        parts = [main_text]
+        for si_name in (
+            f"{doi_hash}_si_text.md",
+            f"{doi_hash}_si_vision.md",
+            f"{doi_hash}_si.md",
+            f"{doi_hash}_si_tables.md",
+        ):
+            si_path = os.path.join(doi_dir, si_name)
+            if not os.path.exists(si_path):
+                continue
+            try:
+                si_txt = Path(si_path).read_text(encoding="utf-8")
+            except Exception as e:
+                logger.warning(f"Failed to read {si_path}: {e}")
+                continue
+            if si_txt and si_txt.strip():
+                parts.append(f"\n\n# Supporting Information: {si_name}\n\n{si_txt}")
+                source_paths.append(si_path)
+        return "".join(parts), source_paths
+
+    logger.error(
+        f"No usable paper content found for {doi_hash}. Tried stitched/text/raw markdown."
+    )
+    return "", []
+
+
 def load_paper_content(doi_hash: str, data_dir: str = "data") -> str:
-    """Load the stitched markdown paper content."""
-    md_path = os.path.join(data_dir, doi_hash, f"{doi_hash}_stitched.md")
-    
-    if not os.path.exists(md_path):
-        logger.error(f"Stitched markdown not found: {md_path}")
-        return ""
-    
-    try:
-        with open(md_path, 'r', encoding='utf-8') as f:
-            return f.read()
-    except Exception as e:
-        logger.error(f"Failed to load paper content: {e}")
-        return ""
+    """Load paper content for callers that do not need source dependency paths."""
+    content, _ = load_paper_content_with_sources(doi_hash, data_dir)
+    return content
 
 
 async def run_pre_extraction(
@@ -151,7 +394,8 @@ async def run_pre_extraction(
     prompt_template: str,
     model_key: str,
     iter_num: int,
-    data_dir: str = "data"
+    data_dir: str = "data",
+    freshness_paths: List[str] | None = None,
 ) -> str:
     """
     Run pre-extraction for an entity (e.g., iteration 3 pre-extraction).
@@ -165,10 +409,12 @@ async def run_pre_extraction(
     output_path = os.path.join(output_dir, f"entity_text_{safe}.txt")
     
     # Check if already exists
-    if os.path.exists(output_path):
+    if _artifact_is_current(output_path, freshness_paths):
         logger.info(f"    ⏭️  Pre-extraction already exists for '{entity_label}'")
         with open(output_path, 'r', encoding='utf-8') as f:
             return f.read()
+    if os.path.exists(output_path):
+        logger.info(f"    🔁 Pre-extraction is stale for '{entity_label}', regenerating")
     
     logger.info(f"    🔍 Running pre-extraction for '{entity_label}'...")
     
@@ -208,14 +454,22 @@ async def run_pre_extraction(
         try:
             logger.info(f"    🔍 Running pre-extraction (attempt {attempt + 1}/{max_retries})")
             result = await llm.ainvoke(prompt)
-            content = result.content if hasattr(result, 'content') else str(result)
+            content = _normalize_llm_content(result)
             
             # CRITICAL VALIDATION: Check if content is meaningful
             if not content or not content.strip():
                 raise ValueError(f"LLM returned empty content for pre-extraction of '{entity_label}'")
             
-            if len(content.strip()) < 50:  # Minimum reasonable content length
-                raise ValueError(f"LLM returned suspiciously short content ({len(content)} chars) for pre-extraction of '{entity_label}'")
+            if len(content.strip()) < _MIN_EXTRACTION_CHARS:
+                logger.error(
+                    "    Pre-extraction too short: type=%s len(raw)=%s repr=%s",
+                    type(content).__name__,
+                    len(content) if content is not None else None,
+                    repr(content)[:500],
+                )
+                raise ValueError(
+                    f"LLM returned suspiciously short content ({len(content)} chars) for pre-extraction of '{entity_label}'"
+                )
             
             # Save result to pre_extraction folder
             with open(output_path, 'w', encoding='utf-8') as f:
@@ -270,7 +524,9 @@ async def run_extraction(
     iter_num: int,
     use_agent: bool = False,
     mcp_tools: list = None,
-    mcp_set_name: str = None
+    mcp_set_name: str = None,
+    freshness_paths: List[str] | None = None,
+    extraction_validation: dict | None = None,
 ) -> str:
     """
     Run extraction (hints generation) for an entity.
@@ -279,11 +535,16 @@ async def run_extraction(
     Returns:
         Extracted hints content
     """
+    freshness_inputs = list(freshness_paths or [])
+    freshness_inputs.append(__file__)
+
     # Check if already exists
-    if os.path.exists(hints_file):
+    if _artifact_is_current(hints_file, freshness_inputs):
         logger.info(f"    ⏭️  Extraction already exists for '{entity_label}'")
         with open(hints_file, 'r', encoding='utf-8') as f:
             return f.read()
+    if os.path.exists(hints_file):
+        logger.info(f"    🔁 Existing extraction is stale for '{entity_label}', regenerating")
     
     logger.info(f"    🔍 Running extraction for '{entity_label}'...")
     
@@ -319,14 +580,547 @@ async def run_extraction(
     
     # Get model
     model_name = get_extraction_model(model_key)
+
+    def _build_revision_prompt(*, original_prompt: str, original_source: str, draft_output: str) -> str:
+        return (
+            "You are revising an extraction draft so it strictly complies with the original extraction prompt.\n\n"
+            "Requirements:\n"
+            "- Follow the ORIGINAL EXTRACTION PROMPT exactly.\n"
+            "- Use ONLY the ORIGINAL SOURCE TEXT and the ORIGINAL EXTRACTION PROMPT as authority.\n"
+            "- Keep only fields/assertions that are explicitly supported by the source text or explicitly allowed as derived values by the original prompt.\n"
+            "- Remove weak guesses, speculative inferences, prophylactic/preventive interpretations, and any field not clearly justified by the prompt + source.\n"
+            "- If the source text presents mutually exclusive alternatives (for example, branches joined by 'or', 'alternatively', 'either', or similar wording), do NOT serialize those alternatives as consecutive events in one linear output unless the ORIGINAL EXTRACTION PROMPT explicitly asks for branching.\n"
+            "- When a mutually exclusive alternative must be reduced to one linear path and the ORIGINAL EXTRACTION PROMPT gives no tie-breaker, keep the first explicit branch and drop later alternative branches.\n"
+            "- Treat exclusion rules, NOT/ONLY conditions, and conflict-resolution rules in the original prompt as higher priority than tentative positive matches in the draft.\n"
+            "- If a field is mentioned only in prevention/risk/avoidance, setup/closure, historical/background, or otherwise excluded context, DROP that field unless the original prompt explicitly allows it.\n"
+            "- If the original prompt provides allowed concrete instance types, do NOT keep generic parent/container labels as emitted instance types when a concrete type can be selected from the prompt.\n"
+            "- Output ONLY the final extraction hints, with no explanations, no reasoning, no summary, no markdown code fences, and no missing-value commentary.\n"
+            "- Preserve the exact field/property names and exact marker tokens required by the original prompt.\n"
+            "- If the draft contains narrative sections, convert them into the strict final hint format required by the original prompt.\n"
+            "- Omit unsupported fields entirely unless the original prompt explicitly requires a fixed negative/positive marker token.\n\n"
+            "ORIGINAL EXTRACTION PROMPT:\n"
+            "<<<PROMPT\n"
+            f"{original_prompt}\n"
+            "PROMPT\n>>>\n\n"
+            "ORIGINAL SOURCE TEXT:\n"
+            "<<<SOURCE\n"
+            f"{original_source}\n"
+            "SOURCE\n>>>\n\n"
+            "DRAFT OUTPUT TO REVISE:\n"
+            "<<<DRAFT\n"
+            f"{draft_output}\n"
+            "DRAFT\n>>>\n\n"
+            "Return ONLY the revised final hints.\n"
+        )
+
+    def _build_support_audit_prompt(*, original_prompt: str, original_source: str, candidate_output: str) -> str:
+        return (
+            "You are auditing extraction hints for strict evidential support.\n\n"
+            "Task:\n"
+            "- Review EVERY field currently present in the CANDIDATE OUTPUT.\n"
+            "- Keep a field ONLY if it is directly supported by the ORIGINAL SOURCE TEXT or explicitly allowed as a derived value by the ORIGINAL EXTRACTION PROMPT.\n"
+            "- If the CANDIDATE OUTPUT linearizes mutually exclusive alternatives from the source into multiple simultaneous fields/events, reduce it to ONE canonical branch unless the ORIGINAL EXTRACTION PROMPT explicitly requests branching.\n"
+            "- When reducing mutually exclusive alternatives to one canonical branch and the ORIGINAL EXTRACTION PROMPT gives no tie-breaker, keep the first explicit branch from the source and drop later alternatives.\n"
+            "- If exclusion rules in the ORIGINAL EXTRACTION PROMPT conflict with a positive-looking mention, the exclusion rule wins.\n"
+            "- Be conservative: if support is ambiguous, indirect, preventive, prophylactic, historical, setup-related, or otherwise excluded, DROP the field.\n"
+            "- Return valid JSON with exactly two top-level keys: `supported_output` and `dropped_fields`.\n"
+            "- `supported_output` must contain only the final supported extraction structure.\n"
+            "- `dropped_fields` must be a list of objects with keys `field` and `reason`.\n"
+            "- Do not include markdown fences, explanations, or any extra keys.\n\n"
+            "ORIGINAL EXTRACTION PROMPT:\n"
+            "<<<PROMPT\n"
+            f"{original_prompt}\n"
+            "PROMPT\n>>>\n\n"
+            "ORIGINAL SOURCE TEXT:\n"
+            "<<<SOURCE\n"
+            f"{original_source}\n"
+            "SOURCE\n>>>\n\n"
+            "CANDIDATE OUTPUT:\n"
+            "<<<CANDIDATE\n"
+            f"{candidate_output}\n"
+            "CANDIDATE\n>>>\n"
+        )
+
+    def _strip_code_fences(text: str) -> str:
+        stripped = (text or "").strip()
+        if stripped.startswith("```") and stripped.endswith("```"):
+            stripped = re.sub(r"^```[a-zA-Z0-9_-]*\s*", "", stripped, count=1)
+            stripped = re.sub(r"\s*```$", "", stripped, count=1)
+        return stripped.strip()
+
+    def _extract_expected_leaf_property_names(prompt_text: str) -> set[str]:
+        """
+        Best-effort extraction of canonical leaf property names from the generated prompt.
+
+        We only validate leaf keys (actual emitted properties), not container section names
+        like `PatientInfo` or `Procedure`.
+        """
+        expected: set[str] = set()
+        for match in re.finditer(r"^- ([A-Za-z0-9_]+)\s+\(xsd:[^)]+\):", prompt_text or "", re.MULTILINE):
+            expected.add(match.group(1))
+        return expected
+
+    def _iter_leaf_json_keys(value) -> list[str]:
+        keys: list[str] = []
+        if isinstance(value, dict):
+            for key, child in value.items():
+                if isinstance(child, (dict, list)):
+                    keys.extend(_iter_leaf_json_keys(child))
+                else:
+                    keys.append(str(key))
+        elif isinstance(value, list):
+            for item in value:
+                keys.extend(_iter_leaf_json_keys(item))
+        return keys
+
+    def _parse_structured_output(text: str):
+        cleaned = _strip_code_fences(text)
+        if not cleaned:
+            return None
+        try:
+            return json.loads(cleaned)
+        except Exception:
+            pass
+        try:
+            import yaml  # type: ignore
+
+            return yaml.safe_load(cleaned)
+        except Exception:
+            return None
+
+    def _generic_ordered_member_type_errors(text: str, validation_cfg: dict | None) -> list[str]:
+        """Detect configured ordered-member outputs that used generic container labels."""
+        cfg = validation_cfg or {}
+        rule = cfg.get("forbid_generic_ordered_member_types", {}) if isinstance(cfg, dict) else {}
+        if not isinstance(rule, dict) or not bool(rule.get("enabled")):
+            return []
+        payload = _parse_structured_output(text)
+        if payload is None:
+            return []
+        generic_labels = {
+            re.sub(r"[^a-z]", "", str(label or "").strip().lower())
+            for label in (rule.get("generic_labels") or [])
+        }
+        generic_labels = {label for label in generic_labels if label}
+        if not generic_labels:
+            return []
+        generic_key_patterns = [
+            re.compile(str(pattern), flags=re.IGNORECASE)
+            for pattern in (rule.get("generic_key_patterns") or [])
+            if str(pattern or "").strip()
+        ]
+        type_keys = set(rule.get("type_keys") or ["rdf:type", "type", "class"])
+        errors: list[str] = []
+
+        def has_concrete_step_type(item: Any) -> bool:
+            if not isinstance(item, dict):
+                return False
+            for type_key in type_keys:
+                raw_type = item.get(type_key)
+                if raw_type is None:
+                    continue
+                type_norm = re.sub(r"[^a-z]", "", str(raw_type).split(":")[-1].lower())
+                return bool(type_norm and type_norm not in generic_labels)
+            return False
+
+        def visit(value, path: str = "$") -> None:
+            if isinstance(value, dict):
+                for key, child in value.items():
+                    key_text = str(key or "").strip()
+                    key_norm = re.sub(r"[^a-z]", "", key_text.lower())
+                    key_matches_pattern = any(pattern.match(key_text) for pattern in generic_key_patterns)
+                    if (key_norm in generic_labels or key_matches_pattern) and isinstance(child, dict) and not has_concrete_step_type(child):
+                        errors.append(f"{path}.{key_text}: generic step key")
+                    if key_text in type_keys:
+                        child_norm = re.sub(r"[^a-z]", "", str(child or "").strip().lower())
+                        if child_norm in generic_labels:
+                            errors.append(f"{path}.{key_text}: generic step type `{child}`")
+                    visit(child, f"{path}.{key_text}")
+            elif isinstance(value, list):
+                for idx, item in enumerate(value):
+                    visit(item, f"{path}[{idx}]")
+
+        visit(payload)
+        return errors
+
+    def _configured_required_member_errors(text: str, source: str, validation_cfg: dict | None) -> list[str]:
+        """Validate configured source-triggered required member types/properties."""
+        cfg = validation_cfg or {}
+        rules = cfg.get("require_members_when_source_matches", []) if isinstance(cfg, dict) else []
+        if not isinstance(rules, list) or not rules:
+            return []
+        payload = _parse_structured_output(text)
+        if payload is None:
+            return []
+        errors: list[str] = []
+
+        def _type_locals(item: Any) -> set[str]:
+            if not isinstance(item, dict):
+                return set()
+            raw = item.get("rdf:type") or item.get("type") or item.get("class") or []
+            values = raw if isinstance(raw, list) else [raw]
+            return {
+                re.sub(r"[^a-z]", "", str(value).split(":")[-1].lower())
+                for value in values
+                if str(value or "").strip()
+            }
+
+        for idx, raw_rule in enumerate(rules):
+            if not isinstance(raw_rule, dict) or not bool(raw_rule.get("enabled", True)):
+                continue
+            patterns = [str(p) for p in raw_rule.get("source_patterns", []) or [] if str(p or "").strip()]
+            if patterns and not any(re.search(pattern, source or "", flags=re.IGNORECASE | re.DOTALL) for pattern in patterns):
+                continue
+            section_name = str(raw_rule.get("section_name") or "SynthesisStepList").strip()
+            members = payload.get(section_name) if isinstance(payload, dict) else None
+            if not isinstance(members, list):
+                errors.append(f"configured required member rule {idx}: missing list section `{section_name}`")
+                continue
+            expected_type = re.sub(r"[^a-z]", "", str(raw_rule.get("expected_type") or "").split(":")[-1].lower())
+            required_properties = [
+                str(prop).strip()
+                for prop in raw_rule.get("required_properties", []) or []
+                if str(prop or "").strip()
+            ]
+            matching_members = [
+                member
+                for member in members
+                if not expected_type or expected_type in _type_locals(member)
+            ]
+            if not matching_members:
+                errors.append(
+                    f"configured required member rule {idx}: source evidence requires `{raw_rule.get('expected_type')}`"
+                )
+                continue
+            missing_props = [
+                prop
+                for prop in required_properties
+                if not any(isinstance(member, dict) and prop in member for member in matching_members)
+            ]
+            if missing_props:
+                errors.append(
+                    f"configured required member rule {idx}: `{raw_rule.get('expected_type')}` missing properties {missing_props}"
+                )
+        return errors
+
+    def _iter_dicts(value):
+        if isinstance(value, dict):
+            yield value
+            for child in value.values():
+                yield from _iter_dicts(child)
+        elif isinstance(value, list):
+            for item in value:
+                yield from _iter_dicts(item)
+
+    def _has_supported_amount(value) -> bool:
+        if isinstance(value, dict):
+            for key, child in value.items():
+                key_text = str(key or "").lower()
+                if "amount" in key_text:
+                    child_text = str(child or "").strip().lower()
+                    if child_text and child_text not in {"n/a", "na", "none", "null"}:
+                        return True
+                if _has_supported_amount(child):
+                    return True
+        elif isinstance(value, list):
+            return any(_has_supported_amount(item) for item in value)
+        return False
+
+    def _candidate_input_labels(label: str) -> list[str]:
+        text = re.sub(r"^ChemicalInput::", "", str(label or "").strip())
+        if not text:
+            return []
+        candidates = [text]
+        head = re.split(r"\s*\(", text, maxsplit=1)[0].strip()
+        if head and head != text:
+            candidates.append(head)
+        for token in re.findall(r"[A-Za-z][A-Za-z0-9]*(?:[-_][A-Za-z0-9]+)*", text):
+            if len(token) >= 3:
+                candidates.append(token)
+        out: list[str] = []
+        seen: set[str] = set()
+        for candidate in candidates:
+            key = candidate.lower()
+            if key not in seen:
+                seen.add(key)
+                out.append(candidate)
+        return out
+
+    def _source_has_amount_near_label(source: str, label: str) -> bool:
+        source_text = str(source or "")
+        if not source_text.strip():
+            return False
+        amount_re = re.compile(
+            r"\b\d+(?:\.\d+)?\s*(?:mg|g|kg|µg|μg|ug|mmol|mol|µmol|μmol|umol|mL|ml|L|l|drops?)\b",
+            re.IGNORECASE,
+        )
+        for candidate in _candidate_input_labels(label):
+            if len(candidate) < 2:
+                continue
+            try:
+                pattern = re.compile(re.escape(candidate), re.IGNORECASE)
+            except re.error:
+                continue
+            for match in pattern.finditer(source_text):
+                start = max(0, match.start() - 90)
+                end = min(len(source_text), match.end() + 120)
+                if amount_re.search(source_text[start:end]):
+                    return True
+        return False
+
+    def _contains_amount_text(text: str) -> bool:
+        return bool(
+            re.search(
+                r"\b\d+(?:\.\d+)?\s*(?:mg|g|kg|µg|μg|ug|mmol|mol|µmol|μmol|umol|mL|ml|L|l|drops?)\b",
+                str(text or ""),
+                re.IGNORECASE,
+            )
+        )
+
+    def _add_input_amount_errors(text: str, source: str) -> list[str]:
+        """Detect Add-step ChemicalInput amounts that are explicit in source but missing in hints."""
+        payload = _parse_structured_output(text)
+        if payload is None:
+            return []
+
+        errors: list[str] = []
+        for item in _iter_dicts(payload):
+            rdf_type = str(item.get("rdf:type") or item.get("type") or item.get("class") or "").strip()
+            if rdf_type not in {"ontosyn:Add", "Add"}:
+                continue
+            input_label = ""
+            for key, child in item.items():
+                if str(key).endswith("hasAddedChemicalInput"):
+                    input_label = str(child or "").strip()
+                    break
+            if not input_label or _has_supported_amount(item):
+                continue
+            if _source_has_amount_near_label(source, input_label):
+                order = item.get("ontosyn:hasOrder") or item.get("hasOrder") or item.get("order") or "?"
+                if _contains_amount_text(input_label):
+                    errors.append(
+                        f"Add order {order} puts the amount inside `ontosyn:hasAddedChemicalInput` as `{input_label}`. "
+                        "Split it into two fields exactly like "
+                        '`"ontosyn:hasAddedChemicalInput": "<chemical name only>", '
+                        '`"ChemicalInput.ontosyn:hasAmount": "<amount exactly as written>"`.'
+                    )
+                    continue
+                errors.append(
+                    f"Add order {order} for `{input_label}` is missing ChemicalInput.ontosyn:hasAmount "
+                    "although an explicit amount appears near that material in the source text. "
+                    "Use the exact sibling field "
+                    '`"ChemicalInput.ontosyn:hasAmount": "<amount exactly as written>"` '
+                    "on that Add object; do not put the amount inside the chemical label."
+                )
+        return errors
+
+    def _truthy_hint_value(value: Any) -> bool:
+        if isinstance(value, bool):
+            return value
+        return str(value or "").strip().lower() in {"true", "1", "yes", "y"}
+
+    def _has_hint_key(item: dict, local_name: str) -> bool:
+        wanted = str(local_name or "").lower()
+        return any(str(key or "").lower().endswith(wanted) for key in item.keys())
+
+    def _hint_value(item: dict, local_name: str) -> Any:
+        wanted = str(local_name or "").lower()
+        for key, value in item.items():
+            if str(key or "").lower().endswith(wanted):
+                return value
+        return None
+
+    def _heat_chill_sealing_inheritance_errors(text: str) -> list[str]:
+        """Require explicit inherited sealing for cooling HeatChill steps in iter3 hints."""
+        payload = _parse_structured_output(text)
+        if not isinstance(payload, dict):
+            return []
+        steps = payload.get("SynthesisStepList")
+        if not isinstance(steps, list):
+            return []
+
+        ordered: list[dict[str, Any]] = []
+        for item in steps:
+            if not isinstance(item, dict):
+                continue
+            rdf_type = str(item.get("rdf:type") or item.get("type") or item.get("class") or "").strip()
+            if rdf_type not in {"ontosyn:HeatChill", "HeatChill"}:
+                continue
+            raw_order = item.get("ontosyn:hasOrder") or item.get("hasOrder") or item.get("order")
+            try:
+                order = int(raw_order)
+            except Exception:
+                continue
+            ordered.append({"order": order, "item": item})
+        ordered.sort(key=lambda entry: entry["order"])
+
+        errors: list[str] = []
+        previous_heat: dict[str, Any] | None = None
+        for entry in ordered:
+            item = entry["item"]
+            temp = str(_hint_value(item, "hasTargetTemperature") or "").strip().lower()
+            is_cooling = "room temperature" in temp or re.search(r"\b25\s*(?:°c|c|degree)", temp)
+            if (
+                is_cooling
+                and previous_heat is not None
+                and _truthy_hint_value(_hint_value(previous_heat, "isSealed"))
+                and not _has_hint_key(item, "isSealed")
+            ):
+                errors.append(
+                    f"HeatChill order {entry['order']} cools after a sealed HeatChill step but omits `ontosyn:isSealed`. "
+                    "The T-Box sealing rule says cooling inherits the preceding heating step's sealed status; "
+                    "emit `ontosyn:isSealed: true` on this cooling step unless the source explicitly says it was unsealed."
+                )
+            previous_heat = item
+        return errors
+
+    def _canonical_iter3_property_name(key: str) -> str | None:
+        raw = str(key or "").strip()
+        if not raw or raw.upper() == "STEP":
+            return None
+        lower = raw.lower()
+        if lower in {"rdf:type", "type", "class", "step_type", "steptype"}:
+            return "rdf:type"
+        if lower in {"ontosyn:hasorder", "hasorder", "order"}:
+            return "ontosyn:hasOrder"
+
+        linked_property_map = {
+            "hasaddedchemicalinput.name": "ontosyn:hasAddedChemicalInput",
+            "hasaddedchemicalinput.hasamount": "ChemicalInput.ontosyn:hasAmount",
+            "chemicalinput.ontosyn:hasamount": "ChemicalInput.ontosyn:hasAmount",
+            "haswashingsolvent.name": "ontosyn:hasWashingSolvent",
+            "haswashingsolvent.hasamount": "WashingSolvent.ontosyn:hasAmount",
+        }
+        if lower in linked_property_map:
+            return linked_property_map[lower]
+
+        known_ontosyn_properties = {
+            "hasaddedchemicalinput",
+            "hasstepduration",
+            "hastargettemperature",
+            "issealed",
+            "hasvessel",
+            "istransferedto",
+            "haswashingsolvent",
+            "heatingcoolingrate",
+            "undervacuum",
+            "stir",
+        }
+        local = re.sub(r"[^a-z]", "", lower.split(":")[-1])
+        if raw.startswith("ontosyn:") or local in known_ontosyn_properties:
+            return raw if raw.startswith("ontosyn:") else f"ontosyn:{raw}"
+        return raw
+
+    def _canonicalize_iter3_hints(text: str) -> str:
+        """Normalize common LLM step-list variants into the expected SynthesisStepList contract."""
+        payload = _parse_structured_output(text)
+        if not isinstance(payload, dict) or isinstance(payload.get("SynthesisStepList"), list):
+            return text
+
+        candidate_steps = None
+        for key in ("SECTION: STEPS", "STEPS", "steps", "SynthesisSteps"):
+            value = payload.get(key)
+            if isinstance(value, list):
+                candidate_steps = value
+                break
+        if not isinstance(candidate_steps, list):
+            return text
+
+        canonical_steps: list[dict[str, Any]] = []
+        for raw_step in candidate_steps:
+            if not isinstance(raw_step, dict):
+                continue
+            canonical: dict[str, Any] = {}
+            raw_order = (
+                raw_step.get("ontosyn:hasOrder")
+                or raw_step.get("hasOrder")
+                or raw_step.get("order")
+                or raw_step.get("STEP")
+            )
+            if raw_order is not None:
+                canonical["ontosyn:hasOrder"] = raw_order
+            for key, value in raw_step.items():
+                canonical_key = _canonical_iter3_property_name(str(key))
+                if canonical_key is None:
+                    continue
+                canonical[canonical_key] = value
+            if "rdf:type" in canonical and "ontosyn:hasOrder" in canonical:
+                canonical_steps.append(canonical)
+        if not canonical_steps:
+            return text
+
+        normalized = dict(payload)
+        normalized.pop("SECTION: STEPS", None)
+        normalized.pop("STEPS", None)
+        normalized.pop("steps", None)
+        normalized.pop("SynthesisSteps", None)
+        normalized["SynthesisStepList"] = canonical_steps
+        return _dump_json_compact(normalized)
+
+    def _dump_json_compact(value) -> str:
+        return json.dumps(value, ensure_ascii=False, indent=2)
+
+    def _has_near_miss_property_names(text: str, prompt_text: str) -> bool:
+        """
+        Detect JSON drafts whose leaf property names are suspiciously close to, but not
+        exactly equal to, canonical property names from the prompt. These often look valid
+        at a glance but silently break downstream KG materialization.
+        """
+        expected = _extract_expected_leaf_property_names(prompt_text)
+        if not expected or "{" not in (text or ""):
+            return False
+
+        try:
+            parsed = json.loads(_strip_code_fences(text))
+        except Exception:
+            return False
+
+        for key in _iter_leaf_json_keys(parsed):
+            if key in expected:
+                continue
+            close = get_close_matches(key, list(expected), n=1, cutoff=0.9)
+            if close:
+                logger.info(
+                    "    🧭 Detected near-miss extraction property '%s' (closest canonical: '%s')",
+                    key,
+                    close[0],
+                )
+                return True
+        return False
+
+    def _needs_revision(text: str) -> bool:
+        lowered = (text or "").lower()
+        markers = [
+            "### ",
+            "summary",
+            "to extract",
+            "here's the extracted information",
+            "these extractions adhere",
+            "```json",
+            "\"medicalcase-1\"",
+            "therefore",
+            "we will",
+            "the operation",
+        ]
+        return any(marker in lowered for marker in markers)
     
     # Extract with retries (increased to 5 attempts)
     max_retries = 5
     agent = None  # Initialize agent once outside retry loop
     allow_agent_fallback = True  # if MCP tool sessions fail, fall back to simple LLM
+    llm = None
     
+    last_validation_error = ""
     for attempt in range(max_retries):
         try:
+            effective_prompt = prompt
+            if last_validation_error:
+                effective_prompt = (
+                    prompt
+                    + "\n\nVALIDATION FEEDBACK FROM PREVIOUS ATTEMPT:\n"
+                    + last_validation_error
+                    + "\nReturn corrected extraction hints only. Preserve all source-supported fields required by the feedback.\n"
+                )
             # If this extraction iteration was configured to use MCP tools but the toolchain
             # is not viable in the current environment (e.g., Windows without Docker / missing binaries),
             # we can pre-emptively fall back to simple LLM.
@@ -349,6 +1143,7 @@ async def run_extraction(
                 # Create agent only once on first attempt, reuse for retries
                 if agent is None:
                     logger.info(f"    🤖 Initializing agent with MCP tools: {mcp_tools}")
+                    BaseAgent = _get_base_agent()
                     agent = BaseAgent(
                         model_name=model_name,
                         model_config=ModelConfig(temperature=0, top_p=1.0),
@@ -358,25 +1153,128 @@ async def run_extraction(
                     )
                 
                 logger.info(f"    🔍 Running agent extraction (attempt {attempt + 1}/{max_retries})")
-                result, _meta = await agent.run(prompt, recursion_limit=600)
-                content = str(result or "")
+                result, _meta = await agent.run(effective_prompt, recursion_limit=600)
+                content = _normalize_llm_content(result)
             else:
                 # Use simple LLM (e.g., for iter3, iter4)
                 logger.info(f"    🔍 Running simple LLM extraction (attempt {attempt + 1}/{max_retries})")
-                llm = LLMCreator(
-                    model=model_name,
-                    model_config=ModelConfig(temperature=0, top_p=1.0),
-                    remote_model=True,
-                ).setup_llm()
-                result = await llm.ainvoke(prompt)
-                content = result.content if hasattr(result, 'content') else str(result)
+                if llm is None:
+                    llm = LLMCreator(
+                        model=model_name,
+                        model_config=ModelConfig(temperature=0, top_p=1.0),
+                        remote_model=True,
+                    ).setup_llm()
+                result = await llm.ainvoke(effective_prompt)
+                content = _normalize_llm_content(result)
+                needs_revision = _needs_revision(content)
+                near_miss_properties = _has_near_miss_property_names(content, prompt)
+                generic_step_types = bool(_generic_ordered_member_type_errors(content, extraction_validation))
+                missing_required_members = bool(_configured_required_member_errors(content, source_text, extraction_validation))
+                revision_reasons: list[str] = ["strict compliance pass"]
+                if needs_revision:
+                    revision_reasons.append("draft formatting drift")
+                if near_miss_properties:
+                    revision_reasons.append("near-miss property names")
+                if generic_step_types:
+                    revision_reasons.append("generic parent step labels")
+                if missing_required_members:
+                    revision_reasons.append("configured required member evidence")
+                logger.info(
+                    "    🧹 Revising extraction draft into strict hints for '%s' (%s)",
+                    entity_label,
+                    ", ".join(revision_reasons),
+                )
+                revision_prompt = _build_revision_prompt(
+                    original_prompt=effective_prompt,
+                    original_source=source_text,
+                    draft_output=content,
+                )
+                revised = await llm.ainvoke(revision_prompt)
+                revised_content = _normalize_llm_content(revised)
+                if revised_content and revised_content.strip():
+                    content = revised_content
+                audit_prompt = _build_support_audit_prompt(
+                    original_prompt=effective_prompt,
+                    original_source=source_text,
+                    candidate_output=content,
+                )
+                audited = await llm.ainvoke(audit_prompt)
+                audited_content = _normalize_llm_content(audited)
+                audited_payload = _parse_structured_output(audited_content)
+                if isinstance(audited_payload, dict) and "supported_output" in audited_payload:
+                    supported_output = audited_payload.get("supported_output")
+                    if isinstance(supported_output, (dict, list)):
+                        is_empty = (
+                            isinstance(supported_output, dict) and len(supported_output) == 0
+                        ) or (
+                            isinstance(supported_output, list) and len(supported_output) == 0
+                        )
+                        if is_empty:
+                            logger.warning(
+                                "    Audit returned empty supported_output; keeping pre-audit content for '%s'",
+                                entity_label,
+                            )
+                        else:
+                            content = _dump_json_compact(supported_output)
+                if iter_num == 3:
+                    content = _canonicalize_iter3_hints(content)
+                generic_step_errors = _generic_ordered_member_type_errors(content, extraction_validation)
+                if generic_step_errors:
+                    raise ValueError(
+                        "Extraction used configured generic parent/container labels instead of concrete member types: "
+                        + "; ".join(generic_step_errors[:5])
+                    )
+                required_member_errors = _configured_required_member_errors(content, source_text, extraction_validation)
+                if required_member_errors:
+                    raise ValueError(
+                        "Extraction missed configured source-supported required members: "
+                        + "; ".join(required_member_errors[:5])
+                    )
+                amount_errors = _add_input_amount_errors(content, source_text) if iter_num == 3 else []
+                if amount_errors:
+                    raise ValueError(
+                        "Iter3 extraction omitted explicit ChemicalInput amounts on Add steps: "
+                        + "; ".join(amount_errors[:5])
+                    )
+                sealing_errors = _heat_chill_sealing_inheritance_errors(content) if iter_num == 3 else []
+                if sealing_errors:
+                    raise ValueError(
+                        "Iter3 extraction omitted inherited HeatChill sealing fields: "
+                        + "; ".join(sealing_errors[:5])
+                    )
             
             # CRITICAL VALIDATION: Check if content is meaningful
             if not content or not content.strip():
                 raise ValueError(f"LLM returned empty content for entity '{entity_label}'")
+
+            short_marker = is_marker_only_optional_output(content)
+            marker_only_empty = False
+            if short_marker:
+                logger.warning(
+                    "    Extraction returned marker-only output %r; treating as empty optional hints for '%s'",
+                    content.strip(),
+                    entity_label,
+                )
+                content = "{}"
+                marker_only_empty = True
             
-            if len(content.strip()) < 50:  # Minimum reasonable content length
-                raise ValueError(f"LLM returned suspiciously short content ({len(content)} chars) for entity '{entity_label}'")
+            if len(content.strip()) < _MIN_EXTRACTION_CHARS and not marker_only_empty:
+                logger.error(
+                    "    Extraction too short: type=%s len(raw)=%s repr=%s",
+                    type(content).__name__,
+                    len(content) if content is not None else None,
+                    repr(content)[:500],
+                )
+                raise ValueError(
+                    f"LLM returned suspiciously short content ({len(content)} chars) for entity '{entity_label}'"
+                )
+
+            ok_hint_payload, hint_errors = validate_hint_payload(content, allow_empty=marker_only_empty)
+            if not ok_hint_payload:
+                raise ValueError(
+                    f"Extraction payload failed structured validation for entity '{entity_label}': "
+                    + "; ".join(hint_errors[:3])
+                )
             
             # Save result to hints file
             os.makedirs(os.path.dirname(hints_file), exist_ok=True)
@@ -413,6 +1311,7 @@ async def run_extraction(
             return content
             
         except Exception as e:
+            last_validation_error = str(e)
             # If MCP toolchain can't start (common on Windows without Docker / missing binaries),
             # fall back to simple LLM so we still produce extraction hint files.
             if (
@@ -476,23 +1375,11 @@ def run_step(doi_hash: str, config: dict) -> bool:
     
     logger.info(f"▶️  Main Ontology Extractions for {doi_hash}")
     
-    # Check if step is already completed
-    marker_file = os.path.join(doi_folder, ".main_ontology_extractions_done")
-    if os.path.exists(marker_file):
-        logger.info(f"  ⏭️  Main ontology extractions already completed (marker exists)")
-        return True
-    
-    # Load meta config to get ontology info
-    try:
-        from src.pipelines.top_entity_kg_building.build import load_meta_config
-        meta_config = load_meta_config()
-        main_ontology = meta_config.get("ontologies", {}).get("main", {})
-        ontology_name = main_ontology.get("name", "ontosynthesis")
-        mcp_set_name = main_ontology.get("mcp_set_name", "run_created_mcp.json")
-        mcp_tools = main_ontology.get("mcp_list", ["llm_created_mcp"])
-    except Exception as e:
-        logger.error(f"❌ Failed to load meta config: {e}")
-        return False
+    meta_config = load_meta_task_config(config.get("meta_task_config", "configs/meta_task/meta_task_config.json"))
+    main_ontology = meta_config.get("ontologies", {}).get("main", {})
+    ontology_name = get_main_ontology_name(meta_config, default="ontosynthesis")
+    mcp_set_name = main_ontology.get("mcp_set_name", "run_created_mcp.json")
+    mcp_tools = main_ontology.get("mcp_list", ["llm_created_mcp"])
     
     # Override with test MCP config if provided
     if "test_mcp_config" in config:
@@ -504,6 +1391,7 @@ def run_step(doi_hash: str, config: dict) -> bool:
     logger.info(f"  🔧 MCP Config: {mcp_set_name}")
     
     # Load iterations config
+    iterations_config_path = get_iterations_config_path(ontology_name)
     iterations_config = load_iterations_config(ontology_name)
     if not iterations_config:
         logger.error("❌ Failed to load iterations configuration")
@@ -519,9 +1407,18 @@ def run_step(doi_hash: str, config: dict) -> bool:
         return False
     
     logger.info(f"  🎯 Processing {len(top_entities)} top-level entities")
+
+    # Check if step is already completed. Marker is only trusted if the current
+    # per-entity iteration set has actually produced all expected hints files.
+    marker_file = os.path.join(doi_folder, ".main_ontology_extractions_done")
+    if os.path.exists(marker_file):
+        if _expected_hint_files_exist(doi_hash, iterations, top_entities, data_dir, iterations_config_path):
+            logger.info(f"  ⏭️  Main ontology extractions already completed (marker exists)")
+            return True
+        logger.warning("  🔁 Marker exists but required hints are missing; re-running main ontology extractions")
     
     # Load paper content
-    paper_content = load_paper_content(doi_hash, data_dir)
+    paper_content, paper_source_paths = load_paper_content_with_sources(doi_hash, data_dir)
     if not paper_content:
         logger.error("❌ Failed to load paper content")
         return False
@@ -530,6 +1427,7 @@ def run_step(doi_hash: str, config: dict) -> bool:
     skip_iter2 = config.get("skip_iter2_extraction", False)
     skip_iter3 = config.get("skip_iter3_extraction", False)
     skip_iter4 = config.get("skip_iter4_extraction", False)
+    successful_hint_writes = 0
     
     # Process each iteration
     for iteration in iterations:
@@ -585,9 +1483,16 @@ def run_step(doi_hash: str, config: dict) -> bool:
                 pre_extraction_prompt = load_prompt(pre_extraction_prompt_path)
                 if pre_extraction_prompt:
                     try:
+                        pre_freshness = [
+                            iterations_config_path,
+                            pre_extraction_prompt_path,
+                            __file__,
+                            *paper_source_paths,
+                        ]
                         pre_extracted_text = asyncio.run(run_pre_extraction(
                             doi_hash, entity_label, entity_uri, paper_content,
-                            pre_extraction_prompt, pre_extraction_model_key, iter_num, data_dir
+                            pre_extraction_prompt, pre_extraction_model_key, iter_num, data_dir,
+                            freshness_paths=pre_freshness,
                         ))
                         if pre_extracted_text:
                             source_text = pre_extracted_text
@@ -613,22 +1518,42 @@ def run_step(doi_hash: str, config: dict) -> bool:
                     extraction_mcp_set = iteration.get("extraction_mcp_set_name") or iteration.get("mcp_set_name") if extraction_uses_agent else None
                     extraction_mcp_tools = iteration.get("extraction_mcp_tools") or iteration.get("mcp_tools") if extraction_uses_agent else None
                     
-                    # If test MCP config is provided, override the set name for generated tools
-                    # (but keep extraction-specific tools like pubchem, websearch unchanged)
-                    if "test_mcp_config" in config and extraction_mcp_tools and "llm_created_mcp" in extraction_mcp_tools:
+                    # If test MCP config is provided, override the set name for generated
+                    # ontology tools while leaving external extraction tools unchanged.
+                    if (
+                        "test_mcp_config" in config
+                        and extraction_mcp_tools
+                        and set(extraction_mcp_tools).issubset(set(mcp_tools or []))
+                    ):
                         extraction_mcp_set = config["test_mcp_config"]
                     
                     try:
+                        hint_freshness = [
+                            iterations_config_path,
+                            extraction_prompt_path,
+                            __file__,
+                            *paper_source_paths,
+                        ]
+                        if has_pre_extraction and pre_extraction_prompt_path:
+                            hint_freshness.append(pre_extraction_prompt_path)
                         hints = asyncio.run(run_extraction(
                             doi_hash, entity_label, entity_uri, source_text,
                             extraction_prompt, model_key, hint_file, iter_num,
                             use_agent=extraction_uses_agent,
                             mcp_tools=extraction_mcp_tools,
-                            mcp_set_name=extraction_mcp_set
+                            mcp_set_name=extraction_mcp_set,
+                            freshness_paths=hint_freshness,
+                            extraction_validation=iteration.get("extraction_validation") or {},
                         ))
                     except Exception as e:
                         logger.error(f"    ❌ Extraction failed: {e}")
                         continue
+                    if hints and str(hints).strip() and os.path.exists(hint_file):
+                        try:
+                            if os.path.getsize(hint_file) > 0:
+                                successful_hint_writes += 1
+                        except Exception:
+                            successful_hint_writes += 1
         
         # Handle sub-iterations (enrichment steps like 3.1, 3.2)
         sub_iterations = iteration.get("sub_iterations", [])
@@ -677,9 +1602,36 @@ def run_step(doi_hash: str, config: dict) -> bool:
                     logger.warning(f"    ⚠️  Base hints file not found: {base_hint_file}")
                     continue
                 
-                # Read base hints
-                with open(base_hint_file, 'r', encoding='utf-8') as f:
-                    base_hints = f.read()
+                base_hint_snapshot_file = _iter_base_hint_snapshot_path(
+                    base_hint_file,
+                    enriches=enriches,
+                    entity_safe=safe,
+                )
+                refresh_snapshot = not os.path.exists(base_hint_snapshot_file)
+                if not refresh_snapshot:
+                    try:
+                        refresh_snapshot = os.path.getmtime(base_hint_snapshot_file) < os.path.getmtime(base_hint_file)
+                    except Exception:
+                        refresh_snapshot = True
+
+                # Keep a stable copy of the authoritative base iter hints so later
+                # enrichment passes never read their own patch-style output as input.
+                if refresh_snapshot:
+                    try:
+                        with open(base_hint_file, 'r', encoding='utf-8') as src:
+                            base_hints = src.read()
+                        with open(base_hint_snapshot_file, 'w', encoding='utf-8') as dst:
+                            dst.write(base_hints)
+                    except Exception as e:
+                        logger.warning(f"    ⚠️  Failed to refresh base hint snapshot: {e}")
+                        base_hints = ""
+                else:
+                    with open(base_hint_snapshot_file, 'r', encoding='utf-8') as f:
+                        base_hints = f.read()
+
+                if not base_hints.strip():
+                    logger.warning(f"    ⚠️  Base hints snapshot is empty: {base_hint_snapshot_file}")
+                    continue
                 
                 # Resolve pre-extracted text path
                 pre_extracted_template = sub_inputs.get("pre_extracted_text", f"llm_based_results/entity_text_{{entity_safe}}.txt")
@@ -729,7 +1681,7 @@ def run_step(doi_hash: str, config: dict) -> bool:
                             ).setup_llm()
                             
                             result = await llm.ainvoke(enrichment_prompt)
-                            enriched_content = result.content if hasattr(result, 'content') else str(result)
+                            enriched_content = _normalize_llm_content(result)
                             return enriched_content
                         
                         logger.info(f"    Enrichment attempt {attempt + 1}/{max_retries}")
@@ -759,15 +1711,50 @@ def run_step(doi_hash: str, config: dict) -> bool:
                     logger.error(f"    ❌ Enrichment returned empty content after {max_retries} attempts")
                     continue
                 
-                # Write enriched hints
-                # Get output hints file path (usually same as input to overwrite)
+                # Get output hints file path (legacy configs often point this back to
+                # the base iter hints file; in that case we preserve the base JSON and
+                # store patch-style enrichments separately instead of overwriting it).
                 output_hints_template = sub_outputs.get("hints_file", base_hints_template)
                 output_hints_file = resolve_file_path(output_hints_template, doi_hash, safe, data_dir)
-                
-                # Write enriched hints
-                os.makedirs(os.path.dirname(output_hints_file), exist_ok=True)
-                with open(output_hints_file, 'w', encoding='utf-8') as f:
-                    f.write(enriched_content)
+                patch_output_file = _sub_iteration_patch_output_path(
+                    base_hint_file,
+                    enriches=enriches,
+                    sub_iter_num=sub_iter_num,
+                    entity_safe=safe,
+                )
+
+                merged_hint_text = _merge_structured_hint_text(base_hints, enriched_content)
+                wrote_hint_artifact = False
+
+                if merged_hint_text is not None:
+                    os.makedirs(os.path.dirname(output_hints_file), exist_ok=True)
+                    with open(output_hints_file, 'w', encoding='utf-8') as f:
+                        f.write(merged_hint_text)
+                    wrote_hint_artifact = True
+                    logger.info(
+                        "    ✅ Merged structured enrichment into iter%s hints for '%s'",
+                        enriches,
+                        entity_label,
+                    )
+                else:
+                    os.makedirs(os.path.dirname(patch_output_file), exist_ok=True)
+                    with open(patch_output_file, 'w', encoding='utf-8') as f:
+                        f.write(enriched_content)
+                    wrote_hint_artifact = True
+                    if output_hints_file == base_hint_file and _looks_like_patch_enrichment_output(enriched_content):
+                        logger.info(
+                            "    💾 Preserved authoritative iter%s hints and saved patch-style enrichment to: %s",
+                            enriches,
+                            os.path.basename(patch_output_file),
+                        )
+                    else:
+                        logger.info(
+                            "    💾 Saved non-mergeable enrichment output to: %s",
+                            os.path.basename(patch_output_file),
+                        )
+
+                if wrote_hint_artifact:
+                    successful_hint_writes += 1
                 
                 # Save response in responses folder for tracking
                 responses_dir = os.path.join(data_dir, doi_hash, "responses", f"iter{sub_iter_num}_enrichment")
@@ -788,6 +1775,10 @@ def run_step(doi_hash: str, config: dict) -> bool:
                 
                 logger.info(f"    ✅ Enrichment completed for sub-iteration {sub_iter_num}")
     
+    if successful_hint_writes <= 0:
+        logger.error("❌ Main ontology extractions produced no hints files; refusing to create completion marker")
+        return False
+
     # Create completion marker
     try:
         with open(marker_file, 'w') as f:

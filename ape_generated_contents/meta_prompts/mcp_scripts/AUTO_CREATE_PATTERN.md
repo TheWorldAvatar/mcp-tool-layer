@@ -8,26 +8,26 @@ Updated the meta-prompt to emphasize the **auto-create pattern** where main enti
 
 **BAD UX** (old pattern - user must create everything separately):
 ```python
-# User must create vessel first
-vessel_iri = create_vessel(name="round bottom flask", type="glass")
+# User must create an auxiliary entity first
+aux_a_iri = create_aux_entity_a(name="label_a", category="type_a")
 
-# User must create duration first  
-duration_iri = create_duration(value=24, unit="hour")
+# User must create a quantity/context entity first
+aux_b_iri = create_aux_entity_b(value=24, unit="unit_x")
 
 # Then user can create the main entity
-create_step(name="heating", order=1, vessel_iri=vessel_iri, duration_iri=duration_iri)
+create_main_entity(label="entity_1", order=1, aux_a_iri=aux_a_iri, aux_b_iri=aux_b_iri)
 ```
 
 **GOOD UX** (new pattern - one call does everything):
 ```python
 # User provides all parameters, function handles internal creation/reuse
-create_step(
-    name="heating",
+create_main_entity(
+    label="entity_1",
     order=1,
-    vessel_name="round bottom flask",  # Auto-find or create
-    vessel_type="glass",                # Auto-find or create
-    duration_value=24,                  # Auto-find or create
-    duration_unit="hour"                # Auto-find or create
+    aux_a_name="label_a",     # Auto-find or create
+    aux_a_type="type_a",      # Auto-find or create
+    aux_b_value=24,           # Auto-find or create
+    aux_b_unit="unit_x"       # Auto-find or create
 )
 ```
 
@@ -66,7 +66,7 @@ def _find_or_create_{{AuxiliaryEntityType}}(
 ```
 
 **Guidance includes:**
-- Which entity types need helpers (measurements, equipment, conditions)
+- Which entity types need helpers (auxiliary entities, quantity-like entities, context entities)
 - How to search for existing entities to avoid duplication
 - How to create new entities when not found
 - Integration example showing three-phase pattern
@@ -139,14 +139,14 @@ Updated section numbers:
 When regenerating scripts with this updated meta-prompt:
 
 **Expected Result:**
-- Main creation functions accept auxiliary entity parameters directly (e.g., `vessel_name`, `vessel_type_name`, `duration_value`, `duration_unit`)
+- Main creation functions accept auxiliary entity parameters directly (e.g., `aux_a_name`, `aux_a_type`, `aux_b_value`, `aux_b_unit`)
 - Internal `_find_or_create_*` helper functions handle finding/creating auxiliary entities
 - Three-phase pattern: validate → auto-create → create main entity
 - User experience matches the reference `mcp_creation.py` implementation
 
 **To Verify:**
 ```bash
-python -m src.agents.scripts_and_prompts_generation.generation_main --direct --ontosynthesis
+python -m src.agents.scripts_and_prompts_generation.generation_main --direct --ontology <ontology_name>
 ```
 
 Then check:

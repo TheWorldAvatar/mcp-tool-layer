@@ -7,6 +7,7 @@ to extract synthesis step data and convert it to the steps JSON format.
 """
 
 import json
+import re
 from rdflib import Graph, Namespace, URIRef
 from rdflib.plugins.sparql import prepareQuery
 from typing import Dict, List, Any, Optional
@@ -172,6 +173,50 @@ def query_syntheses_via_steps(graph: Graph, namespaces: Dict[str, Namespace]) ->
 ## Local query_synthesis_inputs removed; using implementation from step/chemicalinput_query.py
 
 
+def _is_internal_quantity_label(label: str) -> bool:
+    """True if rdfs:label on an OM2 quantity is a pipeline placeholder, not human text.
+
+    KG builders often set labels like 'Step_7 target temperature' while also populating
+    om-2:hasNumericalValue / hasUnit. Prefer the numeric form for scoring compatibility.
+    """
+    s = (label or "").strip()
+    if not s:
+        return False
+    if s.lower() in {"step duration", "duration", "target temperature", "stirring temperature"}:
+        return True
+    return bool(
+        re.match(r"^Step_\d+\s+(target\s+temperature|duration)\s*$", s, re.IGNORECASE)
+    )
+
+
+def _format_quantity_value(value: float) -> str:
+    """Return integer-looking floats without a trailing decimal."""
+    return str(int(value)) if float(value).is_integer() else str(value)
+
+
+def _om2_unit_label(unit_iri: str, *, quantity_kind: str = "") -> str:
+    """Convert common OM-2 unit IRIs to the labels used by the evaluator."""
+    local = str(unit_iri or "").rstrip("/#").rsplit("/", 1)[-1].rsplit("#", 1)[-1]
+    compact = re.sub(r"[^A-Za-z0-9]", "", local).lower()
+    aliases = {
+        "hour": "h",
+        "minute": "min",
+        "second": "s",
+        "day": "day",
+        "degreecelsius": "degree celsius",
+        "degreefahrenheit": "degree fahrenheit",
+        "kelvin": "kelvin",
+    }
+    if compact in aliases:
+        return aliases[compact]
+    # Split simple CamelCase locals as a readable fallback.
+    return re.sub(r"(?<!^)(?=[A-Z])", " ", local).strip().lower() or str(unit_iri)
+
+
+def _format_om2_quantity(value: float, unit_iri: str, *, quantity_kind: str = "") -> str:
+    return f"{_format_quantity_value(value)} {_om2_unit_label(unit_iri, quantity_kind=quantity_kind)}"
+
+
 def extract_duration(graph: Graph, namespaces: Dict[str, Namespace], step_uri: str) -> str:
     """Extract duration information from a step URI using SPARQL and return clean format."""
     ontosyn = namespaces.get('ontosyn')
@@ -204,13 +249,17 @@ def extract_duration(graph: Graph, namespaces: Dict[str, Namespace], step_uri: s
                 duration_value = float(row.durationValue)
                 duration_unit = str(row.durationUnit)
                 duration_label = str(row.durationLabel) if row.durationLabel else ""
-                
-                # Use label if available and clean
-                if duration_label and duration_label != "N/A" and not duration_label.startswith("http"):
+
+                # Prefer human-readable label only when it is not an internal Step_* placeholder.
+                if (
+                    duration_label
+                    and duration_label != "N/A"
+                    and not duration_label.startswith("http")
+                    and not _is_internal_quantity_label(duration_label)
+                ):
                     return duration_label
-                
-                # Return duration with value and unit as-is
-                return f"{duration_value} {duration_unit}"
+
+                return _format_om2_quantity(duration_value, duration_unit, quantity_kind="duration")
                 
             except (ValueError, TypeError):
                 continue
@@ -250,13 +299,16 @@ def extract_temperature(graph: Graph, namespaces: Dict[str, Namespace], step_uri
                 temp_value = float(row.tempValue)
                 temp_unit = str(row.tempUnit)
                 temp_label = str(row.tempLabel) if row.tempLabel else ""
-                
-                # Use label if present and not a URL
-                if temp_label and temp_label != "N/A" and not temp_label.startswith("http"):
+
+                if (
+                    temp_label
+                    and temp_label != "N/A"
+                    and not temp_label.startswith("http")
+                    and not _is_internal_quantity_label(temp_label)
+                ):
                     return temp_label
-                
-                # Return temperature with value and unit as-is
-                return f"{temp_value} {temp_unit}"
+
+                return _format_om2_quantity(temp_value, temp_unit, quantity_kind="temperature")
                 
             except (ValueError, TypeError):
                 continue
@@ -479,6 +531,27 @@ def query_step_details(graph: Graph, namespaces: Dict[str, Namespace], step_uri:
     if row is None:
         # No data
         return {}
+
+    def _literal_to_bool(value: Any) -> Optional[bool]:
+        if value is None:
+            return None
+        text = str(value).strip().lower()
+        if text in ("true", "1"):
+            return True
+        if text in ("false", "0"):
+            return False
+        return None
+
+    def _literal_to_repeat_count(value: Any) -> Optional[int]:
+        if value is None:
+            return None
+        text = str(value).strip().lower()
+        if text in ("true", "false"):
+            return 2 if text == "true" else 1
+        try:
+            return int(float(text))
+        except Exception:
+            return None
     
     label = str(row.label) if row.label else ""
     order = int(row.order) if row.order else 0
@@ -503,15 +576,15 @@ def query_step_details(graph: Graph, namespaces: Dict[str, Namespace], step_uri:
     
     vessel_environment = str(row.vesselEnvironment) if row.vesselEnvironment else "N/A"
     device_label = str(row.deviceLabel) if row.deviceLabel else "N/A"
-    is_stirred = (str(row.isStirred) == "true") if row.isStirred else None
-    is_layered = (str(row.isLayered) == "true") if row.isLayered else None
-    is_sealed = (str(row.isSealed) == "true") if row.isSealed else None
-    is_vacuum = (str(row.isVacuum) == "true") if row.isVacuum else None
-    is_repeated = int(row.isRepeated) if row.isRepeated else None
-    is_vacuum_filtration = (str(row.isVacuumFiltration) == "true") if row.isVacuumFiltration else None
+    is_stirred = _literal_to_bool(row.isStirred)
+    is_layered = _literal_to_bool(row.isLayered)
+    is_sealed = _literal_to_bool(row.isSealed)
+    is_vacuum = _literal_to_bool(row.isVacuum)
+    is_repeated = _literal_to_repeat_count(row.isRepeated)
+    is_vacuum_filtration = _literal_to_bool(row.isVacuumFiltration)
     target_ph = float(row.targetPh) if row.targetPh else None
-    is_layered_transfer = (str(row.isLayeredTransfer) == "true") if row.isLayeredTransfer else None
-    is_wait = (str(row.isWait) == "true") if row.isWait else None
+    is_layered_transfer = _literal_to_bool(row.isLayeredTransfer)
+    is_wait = _literal_to_bool(row.isWait)
     
     # Extract duration and temperature separately
     duration = extract_duration(graph, namespaces, step_uri)

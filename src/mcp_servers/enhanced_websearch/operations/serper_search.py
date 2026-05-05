@@ -4,7 +4,38 @@ Simple Serper-based Google search operations.
 
 import http.client
 import json
+import os
+from pathlib import Path
 from typing import Optional
+
+_DOTENV_LOADED = False
+
+
+def _ensure_dotenv_loaded() -> None:
+    """Load repository ``.env`` once so MCP subprocesses see ``SERPER_API_KEY``."""
+    global _DOTENV_LOADED
+    if _DOTENV_LOADED:
+        return
+    _DOTENV_LOADED = True
+    try:
+        from dotenv import load_dotenv
+    except Exception:
+        return
+    try:
+        root = Path(__file__).resolve().parents[4]
+        env_path = root / ".env"
+        if env_path.is_file():
+            load_dotenv(env_path, override=False)
+        else:
+            load_dotenv(override=False)
+    except Exception:
+        pass
+
+
+def _serper_api_key() -> Optional[str]:
+    _ensure_dotenv_loaded()
+    key = (os.environ.get("SERPER_API_KEY") or os.environ.get("GOOGLE_API_KEY") or "").strip()
+    return key or None
 
 
 def google_search(query: str, page: int = 1) -> str:
@@ -19,9 +50,17 @@ def google_search(query: str, page: int = 1) -> str:
         JSON string containing the search results (combined if multiple pages)
     """
     try:
-        # Use hardcoded API key
-        api_key = "ec6babd31f039ceb490f4e541a17b0b432b9adc9"
-        
+        api_key = _serper_api_key()
+        if not api_key:
+            return json.dumps(
+                {
+                    "error": (
+                        "Serper API key missing. Set SERPER_API_KEY in the project .env "
+                        "or in the process environment."
+                    )
+                }
+            )
+
         # Collect results from page 1 through specified page
         all_results = {
             "organic": [],

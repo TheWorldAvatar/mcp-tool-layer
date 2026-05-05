@@ -6,12 +6,22 @@ Creates three files per PDF:
   - <name>_text.md (text extraction)
   - <name>_tables.md (table extraction)
   - <name>.md (combined)
+
+For medical pipeline with vision_pdf_conversion=true:
+  - Uses a vision LLM to transcribe each page from its rendered image.
+  - Produces <name>_vision.md (canonical source for all downstream steps).
+  - Also copies result to <name>.md and <name>_text.md for backward compat.
+
+For medical pipeline without vision:
+  - Uses layout-aware basic_segmentation.py for better extraction.
 """
 
 import os
 import sys
+import json
 import importlib.util
 from typing import Optional
+from pathlib import Path
 
 # Add project root to path for imports
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
@@ -28,6 +38,28 @@ try:
     import pandas as pd  # noqa: F401
 except Exception:  # pragma: no cover
     pd = None  # type: ignore
+
+
+def _is_medical_pipeline(config: dict) -> bool:
+    """Check if this is the medical pipeline based on meta_task_config."""
+    meta_task_config_path = config.get("meta_task_config")
+    if not meta_task_config_path:
+        return False
+    
+    try:
+        abs_path = os.path.join(project_root, meta_task_config_path)
+        if not os.path.exists(abs_path):
+            return False
+        
+        with open(abs_path, "r", encoding="utf-8") as f:
+            meta_cfg = json.load(f)
+        
+        main_ontology = meta_cfg.get("ontologies", {}).get("main", {})
+        ontology_name = main_ontology.get("name", "")
+        
+        return ontology_name == "medical"
+    except Exception:
+        return False
 
 
 def _load_simple_conversion_module():
@@ -47,12 +79,79 @@ def _load_simple_conversion_module():
     return module
 
 
-def _extract_text_md(pdf_path: str, output_folder: str) -> str:
-    """Extract text from PDF to <pdf>_text.md using simple_conversion."""
-    sc = _load_simple_conversion_module()
-    
+def _is_vision_pdf_enabled(config: dict) -> bool:
+    """Return True when vision LLM PDF conversion is requested via config."""
+    return bool(config.get("vision_pdf_conversion", False))
+
+
+def _load_vision_conversion_module():
+    """Load scripts/advanced_pdf_conversion.py/vision_llm_pdf_to_markdown.py."""
+    vision_path = os.path.join(
+        project_root, "scripts", "advanced_pdf_conversion.py", "vision_llm_pdf_to_markdown.py"
+    )
+    if not os.path.exists(vision_path):
+        raise ImportError(f"vision_llm_pdf_to_markdown.py not found at {vision_path}")
+
+    spec = importlib.util.spec_from_file_location("vision_llm_pdf_to_markdown", vision_path)
+    if spec is None or spec.loader is None:
+        raise ImportError("Unable to load vision_llm_pdf_to_markdown.py")
+
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def _load_basic_segmentation_module():
+    """
+    Load the medical PDF segmentation module for layout-aware extraction.
+
+    Preference order (first existing wins):
+      1. scripts/advanced_pdf_conversion.py/pymupdf_segmentation.py
+      2. scripts/advanced_pdf_conversion.py/basic_segmentation.py
+    """
+    base_dir = os.path.join(project_root, "scripts", "advanced_pdf_conversion.py")
+    candidates = [
+        ("pymupdf_segmentation", os.path.join(base_dir, "pymupdf_segmentation.py")),
+        ("basic_segmentation", os.path.join(base_dir, "basic_segmentation.py")),
+    ]
+
+    for mod_name, seg_path in candidates:
+        if not os.path.exists(seg_path):
+            continue
+
+        spec = importlib.util.spec_from_file_location(mod_name, seg_path)
+        if spec is None or spec.loader is None:
+            continue
+
+        module = importlib.util.module_from_spec(spec)
+        # Register module in sys.modules before exec to fix dataclass decorator issue
+        sys.modules[spec.name] = module
+        spec.loader.exec_module(module)
+        return module
+
+    raise ImportError(
+        "No medical segmentation module found. "
+        "Expected either pymupdf_segmentation.py or basic_segmentation.py "
+        "under scripts/advanced_pdf_conversion.py/."
+    )
+
+
+def _extract_text_md(pdf_path: str, output_folder: str, config: dict) -> str:
+    """
+    Extract text from PDF to <pdf>_text.md.
+
+    Medical pipeline + vision_pdf_conversion=true:
+        Calls the vision LLM script; writes <pdf>_vision.md, <pdf>_text.md, <pdf>.md.
+    Medical pipeline (no vision):
+        Uses layout-aware basic_segmentation / pymupdf_segmentation.
+    Other pipelines:
+        Uses simple_conversion.py.
+
+    Returns the path to <pdf>_text.md in all cases.
+    """
     try:
-        import fitz  # PyMuPDF
+        import fitz  # noqa: F401  (required for non-vision path; vision module imports it itself)
     except ImportError as e:
         raise RuntimeError(
             "PyMuPDF (fitz) is required for text extraction. Install with: pip install PyMuPDF"
@@ -60,6 +159,49 @@ def _extract_text_md(pdf_path: str, output_folder: str) -> str:
 
     base_name = os.path.splitext(os.path.basename(pdf_path))[0]
     text_md = os.path.join(output_folder, f"{base_name}_text.md")
+    combined_md = os.path.join(output_folder, f"{base_name}.md")
+    vision_md = os.path.join(output_folder, f"{base_name}_vision.md")
+
+    if _is_medical_pipeline(config) and _is_vision_pdf_enabled(config):
+        print(f"    [MEDICAL VISION] Using vision LLM transcription")
+        try:
+            vm = _load_vision_conversion_module()
+            model = config.get("vision_model", "gpt-4o")
+            dpi = int(config.get("vision_dpi", 150))
+            md_content = vm.convert_pdf_to_markdown(pdf_path, model=model, dpi=dpi)
+
+            for dest in (vision_md, text_md, combined_md):
+                with open(dest, "w", encoding="utf-8") as f:
+                    f.write(md_content)
+
+            print(f"    [OK] Vision transcription written → {os.path.basename(vision_md)}")
+            return text_md
+        except Exception as e:
+            print(f"    [WARN] Vision extraction failed ({e}), falling back to layout-aware extraction")
+
+    if _is_medical_pipeline(config):
+        print(f"    [MEDICAL MODE] Using layout-aware extraction")
+        try:
+            bs = _load_basic_segmentation_module()
+            try:
+                seg_file = getattr(bs, "__file__", "") or ""
+                seg_name = Path(seg_file).name if seg_file else getattr(bs, "__name__", "unknown")
+                print(f"    [MEDICAL MODE] Segmentation module: {seg_name}")
+            except Exception:
+                pass
+            md_content = bs.convert_pdf_to_markdown(pdf_path)
+
+            for dest in (text_md, combined_md):
+                with open(dest, "w", encoding="utf-8") as f:
+                    f.write(md_content)
+
+            return text_md
+        except Exception as e:
+            print(f"    [WARN] Layout-aware extraction failed ({e}), falling back to simple conversion")
+
+    # Standard extraction for non-medical pipelines
+    import fitz  # noqa: F811
+    sc = _load_simple_conversion_module()
 
     parts = []
     with fitz.open(pdf_path) as doc:
@@ -67,14 +209,13 @@ def _extract_text_md(pdf_path: str, output_folder: str) -> str:
             page = doc.load_page(i)
             md = sc.page_to_markdown(page)
             if not md:
-                # Fallback to raw text normalized by simple_conversion
                 md = sc._norm_whitespace(page.get_text()) or ""
             parts.append(md)
 
     text_content = "\n\n".join(p for p in parts if p is not None)
     with open(text_md, "w", encoding="utf-8") as f:
         f.write(text_content)
-    
+
     return text_md
 
 
@@ -127,13 +268,14 @@ def _combine_text_and_tables(text_md: str, tables_md: Optional[str], combined_md
     return combined_md
 
 
-def convert_pdf_to_markdown(pdf_path: str, output_folder: str) -> Optional[str]:
+def convert_pdf_to_markdown(pdf_path: str, output_folder: str, config: dict) -> Optional[str]:
     """
     Convert a single PDF to markdown format.
     
     Args:
         pdf_path: Path to the PDF file
         output_folder: Directory to save markdown files
+        config: Pipeline configuration (used to detect medical mode)
         
     Returns:
         Path to combined markdown file, or None if conversion failed
@@ -144,41 +286,49 @@ def convert_pdf_to_markdown(pdf_path: str, output_folder: str) -> Optional[str]:
         base_name = os.path.splitext(os.path.basename(pdf_path))[0]
         combined_md = os.path.join(output_folder, f"{base_name}.md")
 
-        # 1) Text extraction
-        text_md = _extract_text_md(pdf_path, output_folder)
-        print(f"    ✓ Text extracted")
+        # 1) Text extraction (layout-aware for medical, simple for others)
+        text_md = _extract_text_md(pdf_path, output_folder, config)
+        print(f"    [OK] Text extracted")
 
-        # 2) Table extraction (optional)
+        # Skip table extraction for medical pipeline (already included in basic_segmentation output)
+        if _is_medical_pipeline(config):
+            # Medical extraction already wrote the combined .md file
+            if os.path.exists(combined_md):
+                return combined_md
+            return text_md
+
+        # 2) Table extraction (optional, for non-medical pipelines)
         tables_md = None
         try:
             tables_md = _extract_tables_md(pdf_path, output_folder)
         except Exception as e:
-            print(f"    ⚠️  Tables extraction skipped: {e}")
+            print(f"    [WARN] Tables extraction skipped: {e}")
             tables_md = None
         else:
             if tables_md:
-                print(f"    ✓ Tables extracted")
+                print(f"    [OK] Tables extracted")
             else:
-                print(f"    ⚠️  No tables extracted (docling unavailable)")
+                print(f"    [WARN] No tables extracted (docling unavailable)")
 
         # 3) Combine
         final_md = _combine_text_and_tables(text_md, tables_md, combined_md)
-        print(f"    ✓ Combined markdown created: {os.path.basename(final_md)}")
+        print(f"    [OK] Combined markdown created: {os.path.basename(final_md)}")
         
         return final_md
 
     except Exception as e:
-        print(f"    ✗ Error converting {pdf_path}: {str(e)}")
+        print(f"    [ERROR] Error converting {pdf_path}: {str(e)}")
         return None
 
 
-def convert_doi_pdfs(doi_hash: str, data_dir: str) -> bool:
+def convert_doi_pdfs(doi_hash: str, data_dir: str, config: dict) -> bool:
     """
     Convert PDFs for a specific DOI hash.
     
     Args:
         doi_hash: The DOI hash identifier
         data_dir: Base data directory (e.g., 'data')
+        config: Pipeline configuration
         
     Returns:
         True if at least one PDF was successfully converted or already exists
@@ -186,7 +336,7 @@ def convert_doi_pdfs(doi_hash: str, data_dir: str) -> bool:
     doi_folder = os.path.join(data_dir, doi_hash)
     
     if not os.path.exists(doi_folder):
-        print(f"  ✗ DOI folder not found: {doi_folder}")
+        print(f"  [ERROR] DOI folder not found: {doi_folder}")
         return False
     
     # Files to convert
@@ -195,36 +345,73 @@ def convert_doi_pdfs(doi_hash: str, data_dir: str) -> bool:
     success_count = 0
     skipped_count = 0
     
+    force_reconvert = bool(config.get("force_reconvert", False))
+    medical_mode = _is_medical_pipeline(config)
+    vision_mode = medical_mode and _is_vision_pdf_enabled(config)
+
     for pdf_file in pdf_files:
         pdf_path = os.path.join(doi_folder, pdf_file)
-        markdown_file = os.path.join(doi_folder, f"{os.path.splitext(pdf_file)[0]}.md")
-        
+        base_stem = os.path.splitext(pdf_file)[0]
+        markdown_file = os.path.join(doi_folder, f"{base_stem}.md")
+        vision_file = os.path.join(doi_folder, f"{base_stem}_vision.md")
+
         if not os.path.exists(pdf_path):
-            # SI PDF is optional
             if "_si.pdf" in pdf_file:
-                print(f"  ⏭️  SI PDF not found (optional): {pdf_file}")
+                print(f"  [SKIP] SI PDF not found (optional): {pdf_file}")
                 continue
             else:
-                print(f"  ✗ PDF not found: {pdf_file}")
+                print(f"  [ERROR] PDF not found: {pdf_file}")
                 continue
-        
-        # Check if markdown already exists
-        if os.path.exists(markdown_file):
-            print(f"  ⏭️  Markdown already exists: {os.path.basename(markdown_file)}")
-            skipped_count += 1
-            success_count += 1
-        else:
-            output_file = convert_pdf_to_markdown(pdf_path, doi_folder)
+
+        # Vision mode: skip if _vision.md already exists and is non-empty.
+        if vision_mode and not force_reconvert:
+            if os.path.exists(vision_file):
+                try:
+                    if Path(vision_file).stat().st_size > 0:
+                        print(f"  [SKIP] Vision markdown already exists: {os.path.basename(vision_file)}")
+                        skipped_count += 1
+                        success_count += 1
+                        continue
+                except Exception:
+                    pass
+
+        # Non-vision medical mode: regenerate if the existing .md lacks layout/KV metadata.
+        needs_regen = False
+        if not vision_mode and os.path.exists(markdown_file) and not force_reconvert:
+            if medical_mode:
+                try:
+                    existing = Path(markdown_file).read_text(encoding="utf-8", errors="replace")
+                    if ("bbox=(" not in existing) or ("Inferred key/value pairs" not in existing):
+                        needs_regen = True
+                        print(
+                            f"  [REGEN] Medical markdown missing layout/KV metadata: "
+                            f"{os.path.basename(markdown_file)}"
+                        )
+                except Exception:
+                    needs_regen = True
+                    print(f"  [REGEN] Unable to read existing markdown; regenerating: {os.path.basename(markdown_file)}")
+
+            if not needs_regen:
+                print(f"  [SKIP] Markdown already exists: {os.path.basename(markdown_file)}")
+                skipped_count += 1
+                success_count += 1
+                continue
+
+        missing = (vision_mode and not os.path.exists(vision_file)) or (
+            not vision_mode and not os.path.exists(markdown_file)
+        )
+        if force_reconvert or needs_regen or missing:
+            output_file = convert_pdf_to_markdown(pdf_path, doi_folder, config)
             if output_file:
                 success_count += 1
             else:
-                print(f"  ✗ Conversion failed: {pdf_file}")
+                print(f"  [ERROR] Conversion failed: {pdf_file}")
     
     if success_count > 0:
         if skipped_count > 0:
-            print(f"  ✅ PDF conversion: {success_count} files ready ({skipped_count} skipped, {success_count - skipped_count} converted)")
+            print(f"  [OK] PDF conversion: {success_count} files ready ({skipped_count} skipped, {success_count - skipped_count} converted)")
         else:
-            print(f"  ✅ PDF conversion: {success_count} files converted")
+            print(f"  [OK] PDF conversion: {success_count} files converted")
         return True
     
     return False
@@ -243,13 +430,13 @@ def run_step(doi_hash: str, config: dict) -> bool:
     """
     data_dir = config.get("data_dir", "data")
     
-    print(f"▶️  PDF Conversion: {doi_hash}")
-    success = convert_doi_pdfs(doi_hash, data_dir)
+    print(f">> PDF Conversion: {doi_hash}")
+    success = convert_doi_pdfs(doi_hash, data_dir, config)
     
     if success:
-        print(f"✅ PDF Conversion completed: {doi_hash}")
+        print(f"[OK] PDF Conversion completed: {doi_hash}")
     else:
-        print(f"❌ PDF Conversion failed: {doi_hash}")
+        print(f"[FAIL] PDF Conversion failed: {doi_hash}")
     
     return success
 

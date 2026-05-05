@@ -1,0 +1,10 @@
+{
+  "mode": "per_doi",
+  "description": "Run only extension extraction + extension KG building (OntoMOPs / OntoSpecies)",
+  "data_dir": "data",
+  "meta_task_config": "configs/meta_task/meta_task_config.json",
+  "steps": [
+    "extensions_extractions",
+    "extensions_kg_building"
+  ]
+}

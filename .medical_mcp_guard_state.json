@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "checks_called": 0,
+  "nonchecks_called": 266,
+  "last_check": {
+    "kind": "check_existing_instances_with_label"
+  },
+  "last_noncheck": "export_memory_wrapper"
+}

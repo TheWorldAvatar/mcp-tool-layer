@@ -1,3 +1,7 @@
+# Local Python environments (pipeline / dev)
+.venv-pipeline/
+.venv/
+
 /data
 configs/mcp_configs.json
 .env
@@ -73,3 +77,5 @@ configs/run_created_mcp.json.bak.20260114_141836
 /.guard
 /.memory
 guard_state.json
+/medical_case
+/raw_data_mop

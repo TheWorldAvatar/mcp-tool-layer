@@ -108,16 +108,46 @@ def _normalize_cbu_formula(s: str) -> str:
     return val
 
 
+def _is_cbu_prediction_format(data: Any) -> bool:
+    procedures = (data or {}).get("synthesisProcedures")
+    return isinstance(procedures, list)
+
+
+def _get_list_field(proc: Dict[str, Any], *keys: str) -> List[str]:
+    for key in keys:
+        values = (proc or {}).get(key)
+        if isinstance(values, list):
+            return [str(x) for x in values if str(x).strip()]
+    return []
+
+
+def _load_cbu_gt_for_doi(doi: str, preferred_root: Path) -> tuple[Dict[str, Any], Path]:
+    primary = preferred_root / f"{doi}.json"
+    if primary.exists():
+        data = json.loads(primary.read_text(encoding="utf-8"))
+        if _is_cbu_prediction_format(data):
+            return data, primary
+
+    fallback = Path("earlier_ground_truth/cbu") / f"{doi}.json"
+    if fallback.exists():
+        data = json.loads(fallback.read_text(encoding="utf-8"))
+        if _is_cbu_prediction_format(data):
+            return data, fallback
+
+    if primary.exists():
+        return json.loads(primary.read_text(encoding="utf-8")), primary
+    raise FileNotFoundError(f"CBU ground truth not found for DOI: {doi}")
+
+
 def _map_cbu_species1_by_ccdc(data: Any) -> Dict[str, List[str]]:
     m: Dict[str, List[str]] = {}
     for proc in (data or {}).get("synthesisProcedures", []) or []:
         ccdc = str((proc or {}).get("mopCCDCNumber") or (proc or {}).get("CCDCNumber") or (proc or {}).get("ccdc_number") or "").strip()
         if not ccdc:
             continue
-        names = (proc or {}).get("cbuSpeciesNames1") or []
-        if isinstance(names, list):
-            vals = sorted({ _normalize_name(x) for x in names if str(x).strip() })
-            m[ccdc] = vals
+        names = _get_list_field(proc, "cbuSpeciesNames1", "chemicalName", "chemicalNames")
+        vals = sorted({_normalize_name(x) for x in names if str(x).strip()})
+        m[ccdc] = vals
     return m
 
 
@@ -127,10 +157,9 @@ def _map_cbu_species2_by_ccdc(data: Any) -> Dict[str, List[str]]:
         ccdc = str((proc or {}).get("mopCCDCNumber") or (proc or {}).get("CCDCNumber") or (proc or {}).get("ccdc_number") or "").strip()
         if not ccdc:
             continue
-        names = (proc or {}).get("cbuSpeciesNames2") or []
-        if isinstance(names, list):
-            vals = sorted({ _normalize_name(x) for x in names if str(x).strip() })
-            m[ccdc] = vals
+        names = _get_list_field(proc, "cbuSpeciesNames2")
+        vals = sorted({_normalize_name(x) for x in names if str(x).strip()})
+        m[ccdc] = vals
     return m
 
 
@@ -172,17 +201,11 @@ def _extract_procedures(data: Any) -> List[Dict[str, Any]]:
         f2 = _normalize_cbu_formula(str((proc or {}).get("cbuFormula2") or "").strip())
 
         # Extract names
-        names1 = (proc or {}).get("cbuSpeciesNames1") or []
-        if isinstance(names1, list):
-            names1_norm = sorted({_normalize_name(x) for x in names1 if str(x).strip()})
-        else:
-            names1_norm = []
+        names1 = _get_list_field(proc, "cbuSpeciesNames1", "chemicalName", "chemicalNames")
+        names1_norm = sorted({_normalize_name(x) for x in names1 if str(x).strip()})
 
-        names2 = (proc or {}).get("cbuSpeciesNames2") or []
-        if isinstance(names2, list):
-            names2_norm = sorted({_normalize_name(x) for x in names2 if str(x).strip()})
-        else:
-            names2_norm = []
+        names2 = _get_list_field(proc, "cbuSpeciesNames2")
+        names2_norm = sorted({_normalize_name(x) for x in names2 if str(x).strip()})
 
         procedures.append({
             'ccdc': ccdc,
@@ -426,6 +449,7 @@ def evaluate_current(use_full_gt: bool = False) -> None:
             "10.1039_D3QI01501G.json"
         }
     OUT_ROOT.mkdir(parents=True, exist_ok=True)
+    RES_ROOT = Path("evaluation/data/merged_tll")
 
     hash_to_doi = hash_map_reverse(Path("data/doi_to_hash.json"))
     hashes = sorted([p.name for p in RES_ROOT.iterdir() if p.is_dir()])
@@ -441,11 +465,10 @@ def evaluate_current(use_full_gt: bool = False) -> None:
         if allowed_files is not None and f"{doi}.json" not in allowed_files:
             continue
 
-        gt_path = GT_ROOT / f"{doi}.json"
-        if not gt_path.exists():
-            # Skip if ground truth missing
+        try:
+            gt, gt_path = _load_cbu_gt_for_doi(doi, GT_ROOT)
+        except FileNotFoundError:
             continue
-        gt = json.loads(gt_path.read_text(encoding="utf-8"))
         res = json.loads(res_path.read_text(encoding="utf-8"))
 
         # Extract procedures
@@ -579,10 +602,10 @@ def evaluate_full() -> None:
         res_path = RES_ROOT / hv / "cbu.json"
         if not doi or not res_path.exists():
             continue
-        gt_path = GT_ROOT / f"{doi}.json"
-        if not gt_path.exists():
+        try:
+            gt, gt_path = _load_cbu_gt_for_doi(doi, GT_ROOT)
+        except FileNotFoundError:
             continue
-        gt = json.loads(gt_path.read_text(encoding="utf-8"))
         res = json.loads(res_path.read_text(encoding="utf-8"))
 
         # Extract procedures
@@ -729,7 +752,7 @@ def evaluate_previous(use_anchored: bool = False, *, use_full_gt: bool = False) 
         prev_path = PREV_ROOT / f"{doi}.json"
 
         try:
-            gt = json.loads(gt_path.read_text(encoding="utf-8"))
+            gt, gt_path = _load_cbu_gt_for_doi(doi, GT_ROOT)
         except Exception:
             continue
 

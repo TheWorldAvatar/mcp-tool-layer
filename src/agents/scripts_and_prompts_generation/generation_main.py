@@ -97,7 +97,10 @@ from src.agents.scripts_and_prompts_generation.direct_script_generation import (
     generate_base_script_direct,
     generate_checks_script_direct,
     generate_relationships_script_direct,
-    generate_entities_script_direct
+    generate_entities_script_direct,
+    patch_super_flat_base_script,
+    patch_super_flat_entity_scripts,
+    patch_super_flat_main_script,
 )
 
 
@@ -221,14 +224,14 @@ def clean_candidate_outputs(selected_ontologies: List[Dict[str, Any]], args) -> 
     print(f"\n✅ Cleanup done. Deleted {total_deleted} file(s).\n")
 
 
-def load_meta_task_config() -> Dict[str, Any]:
-    """Load meta task configuration."""
-    config_path = Path("configs/meta_task/meta_task_config.json")
+def load_meta_task_config(config_path: str | Path = "configs/meta_task/meta_task_config.json") -> Dict[str, Any]:
+    """Load meta task configuration from a given path."""
+    config_path = Path(config_path)
     try:
         if config_path.exists():
             return json.loads(config_path.read_text(encoding="utf-8"))
     except Exception as e:
-        print(f"⚠️  Warning: Could not load meta_task_config.json: {e}")
+        print(f"⚠️  Warning: Could not load meta task config at {config_path}: {e}")
     return {}
 
 
@@ -238,20 +241,24 @@ def get_ontologies_from_config(config: Dict[str, Any]) -> List[Dict[str, Any]]:
     
     # Add main ontology
     main = config.get("ontologies", {}).get("main", {})
-    if main:
+    if isinstance(main, dict) and main.get("name") and main.get("ttl_file"):
+        main_name = main.get("name")
+        default_main_model = main.get("agent_model") or "gpt-5.2"
         ontologies.append({
-            "name": main.get("name", "ontosynthesis"),
-            "ttl_file": main.get("ttl_file", "data/ontologies/ontosynthesis.ttl"),
-            "model": "gpt-4o",  # Default model for main
+            "name": main_name,
+            "ttl_file": main.get("ttl_file"),
+            "model": default_main_model,
             "role": "main"
         })
     
     # Add extension ontologies
     for ext in config.get("ontologies", {}).get("extensions", []) or []:
+        if not isinstance(ext, dict) or not ext.get("name") or not ext.get("ttl_file"):
+            continue
         ontologies.append({
             "name": ext.get("name"),
             "ttl_file": ext.get("ttl_file"),
-            "model": ext.get("agent_model", "gpt-4o"),
+            "model": ext.get("agent_model", "gpt-5.2"),
             "role": "extension"
         })
     
@@ -264,6 +271,11 @@ def filter_ontologies(ontologies: List[Dict[str, Any]], args) -> List[Dict[str, 
         return ontologies
     
     selected = []
+    # New: allow selecting arbitrary ontology names defined in meta_task_config.json
+    # (repeatable: --ontology foo --ontology bar)
+    if getattr(args, "ontology", None):
+        wanted = {str(x).strip() for x in (args.ontology or []) if str(x).strip()}
+        selected.extend([o for o in ontologies if o.get("name") in wanted])
     if args.ontosynthesis:
         selected.extend([o for o in ontologies if o["name"] == "ontosynthesis"])
     if args.ontomops:
@@ -290,6 +302,47 @@ def _docker_is_available() -> bool:
         return r.returncode == 0
     except Exception:
         return False
+
+
+def _smoke_import_generated_module(module_name: str) -> tuple[bool, str]:
+    """
+    Import a generated module in a subprocess to catch runtime import errors.
+    Returns (ok, message). Never raises.
+    """
+    try:
+        result = subprocess.run(
+            [sys.executable, "-c", f"import importlib; importlib.import_module('{module_name}')"],
+            cwd=str(project_root),
+            capture_output=True,
+            text=True,
+            timeout=20,
+            check=False,
+        )
+    except Exception as e:
+        return False, f"{module_name}: smoke import exception: {e}"
+
+    if result.returncode == 0:
+        return True, f"{module_name}: OK"
+
+    stderr = (result.stderr or "").strip()
+    stdout = (result.stdout or "").strip()
+    details = stderr or stdout or f"exit_code={result.returncode}"
+    return False, f"{module_name}: {details}"
+
+
+def _smoke_test_generated_ontology_modules(ontology_name: str, module_stems: list[str]) -> tuple[bool, list[str]]:
+    """
+    Smoke-import generated modules for a given ontology.
+    """
+    messages: list[str] = []
+    ok_all = True
+    for stem in module_stems:
+        module_name = f"ai_generated_contents_candidate.scripts.{ontology_name}.{stem}"
+        ok, msg = _smoke_import_generated_module(module_name)
+        messages.append(msg)
+        if not ok:
+            ok_all = False
+    return ok_all, messages
 
 
 def ensure_package_structure():
@@ -496,6 +549,21 @@ async def generate_iterations(ontologies: List[Dict[str, Any]], meta_cfg: Dict[s
                 
                 _require_optional("iteration_creation_agent", create_iterations_json)
                 result_path = create_iterations_json([ttl_path], output_dir, meta_cfg=meta_cfg)
+
+                # Ensure the output is stored under output_dir/<requested_name>/iterations.json.
+                # The iteration_creation_agent may infer a generic ontology name (e.g., "ontology")
+                # when the TTL does not include a recognizable prefix marker. We treat the orchestrator's
+                # selected ontology name as authoritative for folder placement.
+                try:
+                    desired = output_dir / name / "iterations.json"
+                    if Path(result_path) != desired:
+                        desired.parent.mkdir(parents=True, exist_ok=True)
+                        import shutil
+                        shutil.copy2(result_path, desired)
+                        result_path = desired
+                except Exception:
+                    pass
+
                 print(f"✅ Generated: {result_path}")
             except Exception as e:
                 print(f"❌ Failed to generate iterations for {name}: {e}")
@@ -512,6 +580,7 @@ async def generate_underlying_scripts(
     use_direct: bool = False,
     *,
     max_retries: int = 3,
+    meta_cfg: Dict[str, Any] | None = None,
 ):
     """Generate MCP underlying scripts for all ontologies."""
     print("\n" + "="*60)
@@ -565,22 +634,28 @@ async def generate_underlying_scripts(
                         max_retries=max_retries,
                     )
 
-                    print(f"\n   [2/4] Generating relationship functions (direct LLM)...")
+                    print(f"\n   [2/4] Generating base utilities (direct LLM)...")
+                    await generate_base_script_direct(
+                        ontology_path=ttl_file,
+                        ontology_name=name,
+                        output_dir=output_dir,
+                        model_name=model,
+                        max_retries=max_retries,
+                        meta_cfg=meta_cfg,
+                    )
+                    patch_super_flat_base_script(
+                        ontology_path=ttl_file,
+                        ontology_name=name,
+                        base_script_path=str(Path(output_dir) / f"{name}_creation_base.py"),
+                    )
+
+                    print(f"\n   [3/4] Generating relationship functions (direct LLM)...")
                     await generate_relationships_script_direct(
                         ontology_path=ttl_file,
                         ontology_name=name,
                         output_dir=output_dir,
                         model_name=model,
                         max_retries=max_retries,
-                    )
-
-                    print(f"\n   [3/4] Generating base utilities (direct LLM)...")
-                    await generate_base_script_direct(
-                        ontology_path=ttl_file,
-                        ontology_name=name,
-                        output_dir=output_dir,
-                        model_name=model,
-                        max_retries=max_retries
                     )
                     
                     # Step 2: Generate entity creation scripts (DIRECT LLM)
@@ -601,6 +676,12 @@ async def generate_underlying_scripts(
                         relationships_script_path=relationships_script_path,
                         model_name=model,
                         max_retries=max_retries,
+                        meta_cfg=meta_cfg,
+                    )
+                    entity_scripts = patch_super_flat_entity_scripts(
+                        ontology_path=ttl_file,
+                        ontology_name=name,
+                        entity_script_paths=entity_scripts,
                     )
                     print(f"   ✅ Generated {len(entity_scripts)} entity creation scripts (direct LLM)")
                 else:
@@ -633,6 +714,7 @@ async def generate_main_scripts(
     use_direct: bool = False,
     *,
     max_retries: int = 3,
+    meta_cfg: Dict[str, Any] | None = None,
 ):
     """Generate MCP main interface scripts for all ontologies."""
     print("\n" + "="*60)
@@ -700,6 +782,22 @@ async def generate_main_scripts(
                     success = False
                     pbar.update(1)
                     continue
+
+                # Smoke-test underlying modules before generating main.py so we fail early
+                # on import-contract mismatches (e.g. relationships importing missing base helpers).
+                underlying_stems = [
+                    f"{name}_creation_checks",
+                    f"{name}_creation_base",
+                    f"{name}_creation_relationships",
+                ] + [Path(p).stem for p in entity_scripts]
+                ok_underlying, msgs = _smoke_test_generated_ontology_modules(name, underlying_stems)
+                if not ok_underlying:
+                    print("❌ Underlying generated modules failed import smoke test:")
+                    for m in msgs:
+                        print(f"   - {m}")
+                    success = False
+                    pbar.update(1)
+                    continue
             else:
                 # Agent mode: single file
                 candidate_path = f"ai_generated_contents_candidate/scripts/{name}/{name}_creation.py"
@@ -734,6 +832,12 @@ async def generate_main_scripts(
                         output_dir=output_dir,
                         model_name=model,
                         max_retries=max_retries,
+                        meta_cfg=meta_cfg,
+                    )
+                    patch_super_flat_main_script(
+                        ontology_path=ttl_file,
+                        ontology_name=name,
+                        main_script_path=str(Path(output_dir) / "main.py"),
                     )
                 else:
                     # Agent-based generation (with MCP tools)
@@ -745,6 +849,17 @@ async def generate_main_scripts(
                         ontology_short=name,
                         max_retries=max_retries,
                         retry_delay=5
+                    )
+                    patch_super_flat_main_script(
+                        ontology_path=ttl_file,
+                        ontology_name=name,
+                        main_script_path=str(Path(f"ai_generated_contents_candidate/scripts/{name}/main.py")),
+                    )
+
+                ok_main, main_msgs = _smoke_test_generated_ontology_modules(name, ["main"])
+                if not ok_main:
+                    raise RuntimeError(
+                        "Generated main.py failed import smoke test:\n" + "\n".join(main_msgs)
                     )
                 print(f"✅ Generated main script for {name}")
             except Exception as e:
@@ -772,6 +887,7 @@ async def generate_extraction_prompts(ontologies: List[Dict[str, Any]], iteratio
     print("="*60)
     
     ontology_names = [ont["name"] for ont in ontologies]
+    tbox_path_map = {ont["name"]: (ont.get("ttl_file") or "") for ont in ontologies}
     
     if pre_extraction_only:
         print(f"\n📝 Generating PRE-EXTRACTION prompts only for: {', '.join(ontology_names)}")
@@ -784,7 +900,12 @@ async def generate_extraction_prompts(ontologies: List[Dict[str, Any]], iteratio
     
     try:
         _require_optional("task_extraction_prompt_creation_agent", generate_prompts_from_iterations)
-        success = generate_prompts_from_iterations(ontology_names, iteration_filter=iteration_filter, pre_extraction_only=pre_extraction_only)
+        success = generate_prompts_from_iterations(
+            ontology_names,
+            iteration_filter=iteration_filter,
+            pre_extraction_only=pre_extraction_only,
+            tbox_path_map=tbox_path_map,
+        )
         if success:
             if pre_extraction_only:
                 print(f"✅ Generated pre-extraction prompts")
@@ -809,6 +930,7 @@ async def generate_kg_prompts(ontologies: List[Dict[str, Any]]):
     with tqdm(total=len(ontologies), desc="Generating KG prompts", unit="ontology") as pbar:
         for ont in ontologies:
             name = ont["name"]
+            ttl_file = ont.get("ttl_file")
             
             pbar.set_description(f"Generating KG prompts for {name}")
             
@@ -816,7 +938,7 @@ async def generate_kg_prompts(ontologies: List[Dict[str, Any]]):
             
             try:
                 _require_optional("task_prompt_creation_agent", generate_kg_prompts_from_iterations)
-                result = generate_kg_prompts_from_iterations(name)
+                result = generate_kg_prompts_from_iterations(name, tbox_path=ttl_file)
                 if result:
                     print(f"✅ Generated KG prompts for {name}")
                 else:
@@ -839,7 +961,7 @@ async def main_async(args):
     print("="*80)
     
     # Load configuration
-    meta_cfg = load_meta_task_config()
+    meta_cfg = load_meta_task_config(getattr(args, "meta_task_config", "configs/meta_task/meta_task_config.json"))
     all_ontologies = get_ontologies_from_config(meta_cfg)
     selected_ontologies = filter_ontologies(all_ontologies, args)
     
@@ -886,11 +1008,12 @@ async def main_async(args):
     sparql_success = True
     for ont in selected_ontologies:
         ont_name = ont["name"]
-        model = args.model if args.model else ont.get("model", "gpt-4o")
+        ttl_file = ont.get("ttl_file")
+        model = args.model if args.model else ont.get("model", "gpt-5.2")
         try:
             _require_optional("top_entity_sparql_generation_agent", generate_top_entity_sparql_for_ontology)
             print(f"🧾 Generating top-entity SPARQL for {ont_name} (model: {model})")
-            generate_top_entity_sparql_for_ontology(ont_name, model=model)
+            generate_top_entity_sparql_for_ontology(ont_name, model=model, tbox_path=ttl_file)
         except Exception as e:
             print(f"⚠️  Failed to generate top-entity SPARQL for {ont_name}: {e}")
             # Fallback: if a production SPARQL already exists, copy it into candidate tree
@@ -924,7 +1047,26 @@ async def main_async(args):
             model_override=args.model,
             use_direct=args.direct,
             max_retries=max(1, int(args.max_retries)),
+            meta_cfg=meta_cfg,
         )
+        if success and args.direct:
+            smoke_success = True
+            for ont in selected_ontologies:
+                name = ont["name"]
+                scripts_dir = Path("ai_generated_contents_candidate") / "scripts" / name
+                module_stems = [
+                    f"{name}_creation_checks",
+                    f"{name}_creation_base",
+                    f"{name}_creation_relationships",
+                ]
+                module_stems.extend(sorted(p.stem for p in scripts_dir.glob(f"{name}_creation_entities_*.py")))
+                ok_modules, msgs = _smoke_test_generated_ontology_modules(name, module_stems)
+                if not ok_modules:
+                    smoke_success = False
+                    print(f"❌ Underlying smoke test failed for {name}:")
+                    for m in msgs:
+                        print(f"   - {m}")
+            success = success and smoke_success
         all_success = all_success and success
     else:
         print("\n⏭️  Skipping underlying script generation (--skip-underlying)")
@@ -936,6 +1078,7 @@ async def main_async(args):
             model_override=args.model,
             use_direct=args.direct,
             max_retries=max(1, int(args.max_retries)),
+            meta_cfg=meta_cfg,
         )
         all_success = all_success and success
     else:
@@ -1040,9 +1183,26 @@ Examples:
     parser.add_argument("--ontosynthesis", action="store_true", help="Generate for OntoSynthesis")
     parser.add_argument("--ontomops", action="store_true", help="Generate for OntoMOPs")
     parser.add_argument("--ontospecies", action="store_true", help="Generate for OntoSpecies")
+    parser.add_argument(
+        "--ontology",
+        action="append",
+        help="Generate for a specific ontology name from meta_task_config.json (repeatable). "
+             "Example: --ontology my_ontology",
+    )
     
     # Model selection
-    parser.add_argument("--model", type=str, default=None, help="Override LLM model for all ontologies (e.g., gpt-4o, gpt-5)")
+    parser.add_argument(
+        "--model",
+        type=str,
+        default=None,
+        help="Override LLM model for all ontologies (default: agent_model in meta_task_config, else gpt-5.2)",
+    )
+    parser.add_argument(
+        "--meta-task-config",
+        type=str,
+        default="configs/meta_task/meta_task_config.json",
+        help="Path to meta task config JSON (default: configs/meta_task/meta_task_config.json).",
+    )
 
     # Retry control
     parser.add_argument(
@@ -1128,9 +1288,12 @@ Examples:
         sys.exit(2)
     
     # Validate arguments
-    if not (args.all or args.ontosynthesis or args.ontomops or args.ontospecies):
+    if not (args.all or args.ontosynthesis or args.ontomops or args.ontospecies or (args.ontology and any(args.ontology))):
         parser.print_help()
-        print("\n❌ Error: Please specify --all or at least one ontology (--ontosynthesis, --ontomops, --ontospecies)")
+        print(
+            "\n❌ Error: Please specify --all, --ontology <name>, or at least one built-in ontology "
+            "(--ontosynthesis, --ontomops, --ontospecies)"
+        )
         sys.exit(1)
     
     try:

@@ -39,7 +39,7 @@ REQUIREMENTS:
 4. Be concise and actionable - this is for an MCP agent making function calls
 
 5. Be completely domain-agnostic:
-   - Do NOT mention specific compound types, materials, or chemical entities
+   - Do NOT mention specific entity types, materials, or domain-bound examples
    - Use generic terminology that applies to any domain
    - Adapt wording from the ontology to be domain-neutral where possible
 

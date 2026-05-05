@@ -95,7 +95,7 @@ def get_all_ontologies_from_config() -> list:
     ontologies.append((
         main["name"],
         main["ttl_file"],
-        "gpt-4.1"  # Default model for main
+        "gpt-5.2"  # Default model for main
     ))
     
     # Add extension ontologies
@@ -103,7 +103,7 @@ def get_all_ontologies_from_config() -> list:
         ontologies.append((
             ext["name"],
             ext["ttl_file"],
-            ext.get("agent_model", "gpt-4.1")  # Use specified model or default
+            ext.get("agent_model", "gpt-5.2")  # Use specified model or default
         ))
     
     return ontologies
@@ -116,7 +116,7 @@ def get_all_ontologies_from_config() -> list:
 async def create_main_script_with_retry(
     ontology_path: str,
     underlying_script_path: str,
-    model_name: str = "gpt-4.1",
+    model_name: str = "gpt-5.2",
     ontology_short: str | None = None,
     max_retries: int = 3,
     retry_delay: int = 5
@@ -127,7 +127,7 @@ async def create_main_script_with_retry(
     Args:
         ontology_path: Path to the T-Box TTL file
         underlying_script_path: Path to the underlying MCP script
-        model_name: LLM model to use (default: gpt-4.1)
+        model_name: LLM model to use (default: gpt-5.2)
         ontology_short: Short name of ontology (e.g., 'ontospecies')
         max_retries: Maximum number of retry attempts (default: 3)
         retry_delay: Delay in seconds between retries (default: 5)
@@ -179,7 +179,7 @@ async def create_main_script_with_retry(
 async def create_main_script(
     ontology_path: str,
     underlying_script_path: str,
-    model_name: str = "gpt-4o",
+    model_name: str = "gpt-5.2",
     ontology_short: str | None = None
 ) -> str:
     """
@@ -188,7 +188,7 @@ async def create_main_script(
     Args:
         ontology_path: Path to the T-Box TTL file
         underlying_script_path: Path to the underlying MCP script
-        model_name: LLM model to use (default: gpt-4o)
+        model_name: LLM model to use (default: gpt-5.2)
         ontology_short: Short name of ontology (e.g., 'ontospecies')
     
     Returns:
@@ -272,7 +272,7 @@ def main():
     import argparse
     
     parser = argparse.ArgumentParser(description="Create MCP main interface scripts from underlying scripts")
-    parser.add_argument("--model", default=None, help="LLM model to use (default: gpt-4.1 or from meta_task_config.json)")
+    parser.add_argument("--model", default=None, help="LLM model to use (default: gpt-5.2 or from meta_task_config.json)")
     parser.add_argument("--ontology", default=None, help="Ontology short name (ontosynthesis, ontomops, ontospecies). If not provided, generates for all ontologies.")
     parser.add_argument("--underlying-script", help="Path to underlying script (auto-detected if not provided)")
     parser.add_argument("--all", action="store_true", help="Generate main.py for all ontologies from meta_task_config.json")
@@ -357,7 +357,7 @@ def main():
         ont_key = args.ontology
         
         # Use specified model or default
-        model_to_use = args.model if args.model else "gpt-4.1"
+        model_to_use = args.model if args.model else "gpt-5.2"
         
         # Resolve ontology short name to actual TTL path
         resolved_ontology = _ontology_tbox_path(ont_key)

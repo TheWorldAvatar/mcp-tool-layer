@@ -1,0 +1,8 @@
+{
+  "checks_total": 127,
+  "nonchecks_total": 276,
+  "last_check_ts": 1777481718.3670762,
+  "last_noncheck_ts": 1777481725.035456,
+  "last_check_name": "check_orphan_entities",
+  "last_noncheck_name": "export_memory_wrapper"
+}

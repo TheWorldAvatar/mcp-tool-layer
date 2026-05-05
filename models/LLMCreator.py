@@ -55,7 +55,14 @@ class LLMCreator():
         
         cfg_kwargs.pop("top_p", None)
         cfg_kwargs.setdefault("n", 1)
-        cfg_kwargs.setdefault("max_retries", 0)
+        # Avoid flaky runs on transient network failures.
+        # Can be overridden by ModelConfig or by setting LLM_MAX_RETRIES.
+        try:
+            env_retries = os.environ.get("LLM_MAX_RETRIES", "").strip()
+            env_retries_int = int(env_retries) if env_retries else None
+        except Exception:
+            env_retries_int = None
+        cfg_kwargs.setdefault("max_retries", env_retries_int if env_retries_int is not None else 3)
 
         # 正确：显式 seed（不要放 model_kwargs）
         cfg_kwargs.setdefault("seed", 42)

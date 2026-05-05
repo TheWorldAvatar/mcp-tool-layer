@@ -1,0 +1,14 @@
+{
+  "mode": "per_doi",
+  "description": "Temporary fresh one-case OntoSyn main pipeline run",
+  "meta_task_config": "configs/meta_task/meta_task_config.json",
+  "steps": [
+    "pdf_conversion",
+    "section_classification",
+    "stitching",
+    "top_entity_extraction",
+    "top_entity_kg_building",
+    "main_ontology_extractions",
+    "main_kg_building"
+  ]
+}

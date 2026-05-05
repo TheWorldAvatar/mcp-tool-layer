@@ -1,0 +1,86 @@
+{
+  "iterations": [
+    {
+      "iteration_number": 2,
+      "name": "Case core: patient, timeline, and team",
+      "description": "Extract the case anchor and core administrative context. Populate the patient, timeline, and surgical-team subgraphs, then link them to the top-level case entity.",
+      "has_pre_extraction": false,
+      "model_config_key": "extraction_balanced",
+      "use_agent": false,
+      "per_entity": true,
+      "inputs": {
+        "source": "stitched_paper"
+      },
+      "outputs": {
+        "hints_file": "mcp_run/iter2_hints_{entity_safe}.txt",
+        "prompt_file": "prompts/iter2_extraction/{entity_safe}.md",
+        "response_file": "responses/iter2_extraction/{entity_safe}.md"
+      },
+      "kg": {
+        "datatype_property_handling": {
+          "emit_only_when_supported": true,
+          "null_representation": "omit",
+          "boolean_as_string_one": "1"
+        }
+      }
+    },
+    {
+      "iteration_number": 3,
+      "name": "Operative details: access route and procedures",
+      "description": "Extract the operative subgraph with focused pre-extraction. Populate the access-route, procedure, and related operative fields, then link them to the top-level case entity.",
+      "has_pre_extraction": true,
+      "pre_extraction_prompt": "ai_generated_contents/prompts/medical/PRE_EXTRACTION_ITER_3.md",
+      "pre_extraction_model_key": "advanced_model",
+      "model_config_key": "extraction_balanced",
+      "use_agent": false,
+      "per_entity": true,
+      "pre_extraction": {
+        "strategy": "targeted_span_collection",
+        "deduplicate_by_text": true
+      },
+      "inputs": {
+        "pre_extraction_source": "stitched_paper"
+      },
+      "outputs": {
+        "hints_file": "mcp_run/iter3_hints_{entity_safe}.txt",
+        "prompt_file": "prompts/iter3_extraction/{entity_safe}.md",
+        "response_file": "responses/iter3_extraction/{entity_safe}.md",
+        "pre_extraction_file": "pre_extraction/entity_text_{entity_safe}.txt",
+        "pre_extraction_prompt_file": "prompts/iter3_pre_extraction/{entity_safe}.md",
+        "pre_extraction_response_file": "responses/iter3_pre_extraction/{entity_safe}.md"
+      },
+      "kg": {
+        "datatype_property_handling": {
+          "emit_only_when_supported": true,
+          "null_representation": "omit",
+          "boolean_as_string_one": "1",
+          "free_text_minimal_phrase": true
+        }
+      }
+    },
+    {
+      "iteration_number": 4,
+      "name": "Clinical interpretation: diagnoses, complications, and outcomes",
+      "description": "Extract the clinical interpretation subgraph. Populate diagnosis, complication, and outcome fields only when supported by the source and link the resulting sub-entities to the top-level case entity.",
+      "has_pre_extraction": false,
+      "model_config_key": "extraction_balanced",
+      "use_agent": false,
+      "per_entity": true,
+      "inputs": {
+        "source": "stitched_paper"
+      },
+      "outputs": {
+        "hints_file": "mcp_run/iter4_hints_{entity_safe}.txt",
+        "prompt_file": "prompts/iter4_extraction/{entity_safe}.md",
+        "response_file": "responses/iter4_extraction/{entity_safe}.md"
+      },
+      "kg": {
+        "datatype_property_handling": {
+          "emit_only_when_supported": true,
+          "null_representation": "omit",
+          "boolean_as_string_one": "1"
+        }
+      }
+    }
+  ]
+}

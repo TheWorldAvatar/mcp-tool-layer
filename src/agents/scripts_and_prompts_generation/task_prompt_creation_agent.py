@@ -14,11 +14,17 @@ import json
 import argparse
 import asyncio
 from pathlib import Path
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 from dotenv import load_dotenv
+from rdflib import Graph, OWL, RDF, RDFS, URIRef
 
 from models.LLMCreator import LLMCreator
 from models.ModelConfig import ModelConfig
+from src.agents.scripts_and_prompts_generation.ttl_parser import (
+    detect_super_flat_ontology,
+    extract_ontology_integrity_profile,
+    format_ontology_integrity_guidance,
+)
 
 # -------- Meta-Prompt Loader --------
 def load_meta_prompt(prompt_path: str) -> str:
@@ -32,7 +38,7 @@ def load_meta_prompt(prompt_path: str) -> str:
 PLAN_PATH = "configs/task_division_plan.json"
 TBOX_PATH = "data/ontologies/ontosynthesis.ttl"
 OUTPUT_DIR_BASE = "sandbox/prompts"
-MODEL = os.environ.get("PROMPT_CREATION_MODEL", "gpt-4.1")
+MODEL = os.environ.get("PROMPT_CREATION_MODEL", "gpt-5.2")
 MAX_RETRIES = 3
 ITERATIONS_BASE = "ai_generated_contents_candidate/iterations"
 PROMPTS_CANDIDATE_BASE = "ai_generated_contents_candidate/prompts"
@@ -110,6 +116,32 @@ def _candidate_prompt_path_from(iter_prompt_path: str) -> Path:
     return Path(PROMPTS_CANDIDATE_BASE) / iter_prompt_path
 
 
+def _load_meta_task_config(config_path: str = "configs/meta_task/meta_task_config.json") -> Dict[str, Any]:
+    try:
+        cfg_path = Path(config_path)
+        if cfg_path.exists():
+            return json.loads(cfg_path.read_text(encoding="utf-8"))
+    except Exception:
+        pass
+    return {}
+
+
+def _ontology_role(ontology_name: str, config_path: str = "configs/meta_task/meta_task_config.json") -> str:
+    cfg = _load_meta_task_config(config_path)
+    ontologies = (cfg.get("ontologies", {}) or {})
+    main = ontologies.get("main", {})
+    if isinstance(main, dict) and main.get("name") == ontology_name:
+        return "main"
+    for ext in ontologies.get("extensions", []) or []:
+        if isinstance(ext, dict) and ext.get("name") == ontology_name:
+            return "extension"
+    return "main"
+
+
+def _is_extension_ontology(ontology_name: str, config_path: str = "configs/meta_task/meta_task_config.json") -> bool:
+    return _ontology_role(ontology_name, config_path=config_path) == "extension"
+
+
 def _ontology_tbox_path(name: str) -> str:
     """Map ontology short names to TTL file paths."""
     if name == "ontosynthesis":
@@ -171,6 +203,148 @@ def format_extraction_summary(extractions: List[str]) -> str:
 def format_constraints_summary(constraints: List[str]) -> str:
     """Format constraints for prompt."""
     return "\n".join(f"   - {item}" for item in constraints)
+
+
+def _resolve_kg_generation_model(ontology: str) -> str:
+    """Resolve KG-prompt generation model without ontology-specific fallbacks."""
+    return os.environ.get("PROMPT_CREATION_MODEL", MODEL)
+
+
+def _load_ontology_integrity_guidance(tbox_path: Path) -> str:
+    """Build generic ontology-derived integrity guidance for prompt assembly."""
+    try:
+        profile = extract_ontology_integrity_profile(str(tbox_path))
+        return format_ontology_integrity_guidance(profile, include_machine_readable=True)
+    except Exception:
+        return ""
+
+
+def _rdf_list_items(graph: Graph, node: Any) -> List[Any]:
+    items: List[Any] = []
+    current = node
+    while current and current != RDF.nil:
+        first = graph.value(current, RDF.first)
+        if first is not None:
+            items.append(first)
+        current = graph.value(current, RDF.rest)
+    return items
+
+
+def _domain_iris(graph: Graph, domain: Any) -> List[str]:
+    if isinstance(domain, URIRef):
+        return [str(domain)]
+    out: List[str] = []
+    for union_node in graph.objects(domain, OWL.unionOf):
+        out.extend(str(x) for x in _rdf_list_items(graph, union_node) if isinstance(x, URIRef))
+    return out
+
+
+def _local_name(iri: Any) -> str:
+    text = str(iri or "").strip()
+    if not text:
+        return ""
+    return text.rstrip("/#").rsplit("/", 1)[-1].rsplit("#", 1)[-1]
+
+
+def _step_scoped_object_property_guidance(tbox_path: Path) -> str:
+    """
+    Derive construction rules for object properties whose domain is an ordered
+    synthesis step class. These are not publish-time repairs: the prompt tells
+    the KG agent which relationship tools must be used during graph construction.
+    """
+    try:
+        profile = extract_ontology_integrity_profile(str(tbox_path))
+        ordered_classes = {
+            str(x).strip()
+            for x in (profile.get("ordered_member_classes") or [])
+            if str(x).strip()
+        }
+        if not ordered_classes:
+            return ""
+        graph = Graph()
+        graph.parse(str(tbox_path), format="turtle")
+    except Exception:
+        return ""
+
+    rows: List[tuple[str, str, str]] = []
+    for prop in graph.subjects(RDF.type, OWL.ObjectProperty):
+        if not isinstance(prop, URIRef):
+            continue
+        domains: List[str] = []
+        for domain in graph.objects(prop, RDFS.domain):
+            domains.extend(_domain_iris(graph, domain))
+        ranges = [str(r) for r in graph.objects(prop, RDFS.range) if isinstance(r, URIRef)]
+        for domain_iri in domains:
+            domain_local = _local_name(domain_iri)
+            if domain_local not in ordered_classes:
+                continue
+            for range_iri in ranges:
+                if "ontology-of-units-of-measure.org" in range_iri:
+                    continue
+                rows.append((domain_local, _local_name(prop), _local_name(range_iri)))
+
+    if not rows:
+        return ""
+
+    lines = [
+        "Step-scoped object-property contract (ontology-derived):",
+        "- For every ordered step individual, materialize step-scoped object properties during the same KG-building iteration; do not leave them only as synthesis-level links.",
+        "- When the MCP constructor exposes a matching label/IRI argument for a step-scoped object, pass it when creating the step. Otherwise call the matching relationship tool before export.",
+        "- Export is invalid if an extracted step-scoped relation is represented only by a parent-level relation.",
+    ]
+    for domain_local, prop_local, range_local in sorted(set(rows)):
+        lines.append(
+            f"- `{domain_local}` -> `{prop_local}` -> `{range_local}`: "
+            f"when a `{domain_local}` step is created from hints that identify a `{range_local}`, "
+            f"attach that `{range_local}` to the step via `{prop_local}` before export."
+        )
+    return "\n".join(lines)
+
+
+def _ordered_member_placeholder_guidance(tbox_path: Path) -> str:
+    """Add generic one-placeholder-to-one-individual guidance for ordered members."""
+    try:
+        profile = extract_ontology_integrity_profile(str(tbox_path))
+    except Exception:
+        return ""
+
+    if not (profile.get("ordered_member_classes") and profile.get("individually_linked_object_properties")):
+        return ""
+
+    return (
+        "Ordered-member placeholder mapping:\n"
+        "- When extracted hints use placeholder member tokens such as `<member1>`, `<member2>`, `<step1>`, or similar IDs, keep a stable one-to-one mapping from each distinct placeholder token to exactly one created individual IRI.\n"
+        "- Never merge two different placeholder tokens into the same individual, even if they share a class, vessel, duration, or similar labels.\n"
+        "- Apply every triple attached to a placeholder token only to that placeholder's own individual.\n"
+        "- If a placeholder needs a concrete subclass, infer the narrowest compatible class from its attached properties while preserving one individual per placeholder token.\n"
+    )
+
+
+def _ordered_member_workflow_example_guidance(tbox_path: Path) -> str:
+    """Add a generic create-parse-attach example for ordered members."""
+    try:
+        profile = extract_ontology_integrity_profile(str(tbox_path))
+    except Exception:
+        return ""
+
+    if not (profile.get("ordered_member_classes") and profile.get("individually_linked_object_properties")):
+        return ""
+
+    return (
+        "Generic ordered-member workflow example:\n"
+        "- Create one ordered member at a time, parse the returned JSON, capture its `iri`, and attach it immediately before moving to the next member.\n"
+        "- Example pattern (replace placeholder tool names with the actual ontology tools available in this server):\n"
+        "  1. call `create_<ConcreteOrderedMember>(label=\"member 1\", hasOrder=1, ...)`\n"
+        "  2. parse the JSON result and capture `member_iri`\n"
+        "  3. call `add_<ParentMembershipRelation>(<scoped_top_entity_iri>, member_iri)` immediately\n"
+        "  4. repeat for order 2, 3, ... in strict sequence\n"
+        "- Do not create a batch of ordered members first and postpone all parent links until later.\n"
+        "- When the extracted hints give properties for an ordered member, materialize those properties on that same member before export; do not stop after creating only the ordered member type and order.\n"
+        "- For quantity-like property tools, pass the extracted numeric value and the closest supported unit label from the available tool schema; do not omit the property only because the source used an abbreviation.\n"
+        "- If `check_orphan_entities` is available and it reports orphan ordered members, attach those members before export.\n"
+        "- Do not create placeholder, dummy, sample, or example ordered members to satisfy required links; only create members supported by source content.\n"
+        "- Export only after the ordered members are both created and linked back to the scoped top-level entity.\n"
+    )
 
 
 async def generate_prompt_for_step(
@@ -345,14 +519,89 @@ def _generate_kg_input_variables_section(iter_number: int) -> str:
         return "\n\n" + FOOTER_WITH_ENTITY
 
 
-def _generate_and_write_kg_iter1_prompt(llm, tbox_text: str, out_path: Path, ontology: str = "ontosynthesis") -> None:
+def _scoped_top_entity_integrity_rules() -> str:
+    """
+    Append generic scoped-entity integrity rules for iterations that already operate
+    on a provided top-level entity. This stays domain-agnostic while preventing the
+    LLM from drifting into duplicate top-entity creation or incomplete linking.
+    """
+    return (
+        "Scoped top-level entity integrity:\n"
+        "- Treat the provided top-level entity IRI as authoritative for this iteration and reuse it exactly.\n"
+        "- Do not create, switch to, or export around a second top-level entity for the same scope.\n"
+        "- Every entity created or reused in this iteration must be linked back to the scoped top-level entity through the required ontology relations before export.\n"
+        "- Do not terminate or export memory until those required links are complete.\n"
+    )
+
+
+def _super_flat_prompt_rules(shape_info: Dict[str, Any], iter_number: int) -> str:
+    if not shape_info.get("is_super_flat"):
+        return ""
+
+    top_class = shape_info.get("top_level_class")
+    if not top_class:
+        return ""
+
+    if iter_number == 1:
+        return (
+            "\n\nSuper-flat ontology rules:\n"
+            f"- The ontology has a single main class `{top_class}` with datatype fields only.\n"
+            f"- For this iteration, use ONLY `create_{top_class}_top_only` to create the top entity.\n"
+            "- Pass only the minimal identifier/label needed to create the entity.\n"
+            "- Do NOT pass detailed datatype fields during iteration 1.\n"
+            "- Do NOT create duplicate top entities if one with the same label already exists.\n"
+        )
+
+    return (
+        "\n\nSuper-flat ontology rules:\n"
+        f"- The scoped top-level `{top_class}` entity already exists for this iteration.\n"
+        f"- Do NOT create another `{top_class}` instance.\n"
+        "- First call `init_memory` with the DOI and the provided entity label so you work in the correct entity-scoped memory.\n"
+        "- The `paper_content` for this iteration contains human-readable extracted fields (key/value + evidence).\n"
+        f"- For each extracted field, call the matching atomic setter tool `set_{top_class}_<PropertyName>(entity_iri, value)` — one tool call per property.\n"
+        f"  Example: to set a field, call `set_{top_class}_<ExactPropertyName>(entity_iri=<iri>, value='<encoded_or_text_value>')`.\n"
+        "- Every available setter is named exactly `set_{TopClass}_{ExactPropertyName}` — use the exact ontology property name as the suffix.\n"
+        "- Use the provided `entity_uri` as the `entity_iri` argument for every setter call.\n"
+        "- If the extracted hints contain any non-empty values, at least one successful setter call is mandatory before termination.\n"
+        "- After all setters have been called, call `export_memory` before emitting `run_status: done`.\n"
+        "- Do NOT terminate immediately after reading the hints; initialization, setter calls, and export are the required sequence for this iteration.\n"
+    )
+
+
+def _extension_iter_specific_rules(ontology: str, iter_number: int) -> str:
+    """Return concrete runtime guidance for extension ontologies in entity-scoped iterations."""
+    if iter_number not in [2, 3, 4]:
+        return ""
+
+    return (
+        "\n\nExtension ontology rules (entity-scoped iterations):\n"
+        "- Call `init_memory` with the provided DOI and entity label so writes go to the correct scoped graph.\n"
+        "- Treat the provided `entity_uri` as the only scoped top-level root for this iteration; do not mint a second root for the same scope.\n"
+        "- Use only tools whose names appear in the bundled MCP main script; call existing-instance checks when such tools exist before creating new individuals.\n"
+        "- Add at most one new individual for each explicitly evidenced scoped fact unless the ontology or extracted hints require multiple individuals.\n"
+        "- Map structured fields in `paper_content` to the constructors and relationship tools that appear in the MCP script, using only values supported by the text.\n"
+        "- Do not pull in optional external resources or heavy tool calls unless the task explicitly requires them.\n"
+        "- Avoid duplicate individuals for the same fact: use stable human-readable labels, and do not append decorative or instruction-like suffixes to labels.\n"
+        "- If a technique or value is not evidenced in `paper_content`, omit that node; do not fill gaps with placeholder values.\n"
+        "- Do not loop on repeated checks: when a check shows a required node is missing, create it in the next tool call.\n"
+        "- After the required graph updates, call `export_memory()` and terminate with `{{\"run_status\":\"done\"}}`.\n"
+    )
+
+
+def _generate_and_write_kg_iter1_prompt(
+    llm,
+    tbox_text: str,
+    out_path: Path,
+    ontology: str = "",
+    shape_info: Optional[Dict[str, Any]] = None,
+    integrity_guidance: str = "",
+) -> None:
     """Generate ITER1 KG building prompt.
     
     For extension ontologies: generates comprehensive A-Box building prompts
     For main ontology: generates ITER1-specific prompts
     """
-    # Detect if this is an extension ontology
-    is_extension = ontology in ["ontomops", "ontospecies"]
+    is_extension = _is_extension_ontology(ontology)
     
     # Load MCP main script for this ontology
     mcp_main_script = _load_mcp_main_script(ontology)
@@ -380,12 +629,21 @@ def _generate_and_write_kg_iter1_prompt(llm, tbox_text: str, out_path: Path, ont
     # For extension ontologies, the meta-prompt already includes paper_content placeholder
     # Don't append footer (which would duplicate paper_content)
     # For main ontology ITER1, append footer with paper_content
+    super_flat_rules = _super_flat_prompt_rules(shape_info or {}, 1)
+
+    parts: List[str] = [text]
+    if integrity_guidance:
+        parts.append(integrity_guidance.strip())
+
     if is_extension:
-        final_text = text
+        final_text = "\n\n".join(part for part in parts if part)
     else:
         # Programmatically append input variables section for ITER1 (main ontology)
         input_vars_section = _generate_kg_input_variables_section(1)
-        final_text = text + input_vars_section
+        if super_flat_rules:
+            parts.append(super_flat_rules.strip())
+        parts.append(input_vars_section.strip())
+        final_text = "\n\n".join(part for part in parts if part)
     
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with open(out_path, "w", encoding="utf-8") as f:
@@ -394,15 +652,25 @@ def _generate_and_write_kg_iter1_prompt(llm, tbox_text: str, out_path: Path, ont
     print(f"   (using {'extension' if is_extension else 'main ontology'} meta-prompts)")
 
 
-def _generate_and_write_kg_prompt(llm, tbox_text: str, iter_meta: Dict[str, Any], out_path: Path, ontology: str = "ontosynthesis") -> None:
+def _generate_and_write_kg_prompt(
+    llm,
+    tbox_text: str,
+    iter_meta: Dict[str, Any],
+    out_path: Path,
+    ontology: str = "ontosynthesis",
+    shape_info: Optional[Dict[str, Any]] = None,
+    integrity_guidance: str = "",
+) -> None:
     """Generate KG building prompt using hardcoded template for ITER 2, 3, 4.
     
     For ITER 2, 3, 4: Uses hardcoded template directly (no LLM generation).
     For other iterations: Falls back to LLM generation (if needed in future).
     """
     iter_number = iter_meta.get("iteration_number", 1)
+    super_flat_rules = _super_flat_prompt_rules(shape_info or {}, iter_number)
+    extension_rules = _extension_iter_specific_rules(ontology, iter_number)
     
-    # For ITER 2, 3, 4: Use hardcoded template directly (no domain-specific info)
+    # For ITER 2, 3, 4: Use the shared hardcoded template directly.
     if iter_number in [2, 3, 4]:
         # Load and format the hardcoded template
         template_text = KG_BUILDING_ITER_TEMPLATE
@@ -410,7 +678,16 @@ def _generate_and_write_kg_prompt(llm, tbox_text: str, iter_meta: Dict[str, Any]
         # Replace template placeholders
         final_text = template_text.replace("{PROMPT_CORE}", PROMPT_CORE_TEMPLATE)
         final_text = final_text.replace("{IDENTIFICATION_HEADER}", IDENTIFICATION_HEADER)
-        final_text = final_text.replace("{FOOTER_WITH_ENTITY}", FOOTER_WITH_ENTITY)
+        footer_parts = []
+        if extension_rules:
+            footer_parts.append(extension_rules.strip())
+        if integrity_guidance:
+            footer_parts.append(integrity_guidance.strip())
+        if super_flat_rules:
+            footer_parts.append(super_flat_rules.strip())
+        footer_parts.append(FOOTER_WITH_ENTITY)
+        footer_text = "\n\n".join(part for part in footer_parts if part)
+        final_text = final_text.replace("{FOOTER_WITH_ENTITY}", footer_text)
         
         # The template already has {entity_label}, {entity_uri}, {doi}, {paper_content} placeholders
         # These will be filled at runtime by the pipeline
@@ -456,14 +733,20 @@ def _generate_and_write_kg_prompt(llm, tbox_text: str, iter_meta: Dict[str, Any]
         
         # Programmatically append input variables section
         input_vars_section = _generate_kg_input_variables_section(iter_number)
-        final_text = text + "\n\n" + input_vars_section
+        trailing_parts = []
+        if integrity_guidance:
+            trailing_parts.append(integrity_guidance.strip())
+        if super_flat_rules:
+            trailing_parts.append(super_flat_rules.strip())
+        trailing_parts.append(input_vars_section.strip())
+        final_text = text + "\n\n" + "\n\n".join(part for part in trailing_parts if part)
     
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with open(out_path, "w", encoding="utf-8") as f:
         f.write(final_text)
 
 
-def generate_kg_prompts_from_iterations(ontology: str) -> bool:
+def generate_kg_prompts_from_iterations(ontology: str, *, tbox_path: str | Path | None = None) -> bool:
     """Generate KG building prompts for an ontology.
     
     ITER1 is handled separately (not from iterations.json), similar to EXTRACTION_ITER_1.
@@ -475,15 +758,31 @@ def generate_kg_prompts_from_iterations(ontology: str) -> bool:
         return False
     try:
         iterations_obj = json.loads(iterations_path.read_text(encoding="utf-8"))
-        tbox_path = Path(_ontology_tbox_path(ontology))
-        tbox_text = load_tbox(tbox_path)
+        resolved_tbox = Path(tbox_path) if tbox_path else Path(_ontology_tbox_path(ontology))
+        tbox_text = load_tbox(resolved_tbox)
+        shape_info = detect_super_flat_ontology(str(resolved_tbox))
+        integrity_guidance = _load_ontology_integrity_guidance(resolved_tbox)
+        placeholder_guidance = _ordered_member_placeholder_guidance(resolved_tbox)
+        workflow_example_guidance = _ordered_member_workflow_example_guidance(resolved_tbox)
+        step_scoped_property_guidance = _step_scoped_object_property_guidance(resolved_tbox)
+        if placeholder_guidance or workflow_example_guidance or step_scoped_property_guidance:
+            integrity_guidance = "\n\n".join(
+                part
+                for part in [
+                    integrity_guidance.strip(),
+                    placeholder_guidance.strip(),
+                    workflow_example_guidance.strip(),
+                    step_scoped_property_guidance.strip(),
+                ]
+                if part
+            )
         
         print(f"\n=== Generating KG prompts for ontology: {ontology} ===")
         print(f"Iterations file: {iterations_path}")
-        print(f"T-Box: {tbox_path}")
+        print(f"T-Box: {resolved_tbox}")
         
         llm = LLMCreator(
-            model=MODEL,
+            model=_resolve_kg_generation_model(ontology),
             remote_model=True,
             model_config=ModelConfig(temperature=0, top_p=1.0),
             structured_output=False,
@@ -493,7 +792,14 @@ def generate_kg_prompts_from_iterations(ontology: str) -> bool:
         iter1_path = _candidate_prompt_path_from(f"ai_generated_contents/prompts/{ontology}/KG_BUILDING_ITER_1.md")
         print(f"  -> [{ontology}] ITER 1 KG prompt (generated separately)")
         print(f"     output path: {iter1_path}")
-        _generate_and_write_kg_iter1_prompt(llm, tbox_text, iter1_path, ontology)
+        _generate_and_write_kg_iter1_prompt(
+            llm,
+            tbox_text,
+            iter1_path,
+            ontology,
+            shape_info,
+            integrity_guidance,
+        )
         print(f"✅ Wrote KG prompt: {iter1_path}")
         
         # Generate KG prompts for iterations 2+ from iterations.json
@@ -516,7 +822,15 @@ def generate_kg_prompts_from_iterations(ontology: str) -> bool:
                     print(f"     output path: {target}")
                     if iter_num in [2, 3, 4]:
                         print(f"     (using hardcoded template, no LLM generation)")
-                    _generate_and_write_kg_prompt(llm, tbox_text, it, target, ontology)
+                    _generate_and_write_kg_prompt(
+                        llm,
+                        tbox_text,
+                        it,
+                        target,
+                        ontology,
+                        shape_info,
+                        integrity_guidance,
+                    )
                     print(f"✅ Wrote KG prompt: {target}")
         else:
             print(f"No additional kg_building_prompt paths found in {iterations_path}")

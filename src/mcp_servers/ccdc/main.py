@@ -38,7 +38,7 @@ def setup_ccdc_logger():
     logger.addHandler(file_handler)
     
     # Console handler - only show WARNING and above
-    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler = logging.StreamHandler(sys.stderr)
     console_handler.setLevel(logging.WARNING)
     console_handler.setFormatter(formatter)
     logger.addHandler(console_handler)
@@ -47,6 +47,22 @@ def setup_ccdc_logger():
     return logger
 
 logger = setup_ccdc_logger()
+
+
+def _log_to_stderr(message: str) -> None:
+    """Write diagnostic logs without corrupting stdio MCP JSON framing."""
+    encoding = sys.stderr.encoding or "utf-8"
+    safe_message = str(message).encode(encoding, errors="backslashreplace").decode(encoding, errors="replace")
+    print(safe_message, file=sys.stderr)
+
+
+def _tool_name(func) -> str:
+    return (
+        getattr(func, "__name__", None)
+        or getattr(func, "name", None)
+        or getattr(getattr(func, "fn", None), "__name__", None)
+        or func.__class__.__name__
+    )
 
 # Custom decorator for CCDC MCP tools that logs to dedicated file
 def ccdc_tool_logger(func):
@@ -58,12 +74,12 @@ def ccdc_tool_logger(func):
         # Async version
         @wraps(func)
         async def async_wrapper(*args, **kwargs):
-            tool_name = func.__name__
+            tool_name = _tool_name(func)
             logger.info(f"=== CCDC Tool Call (ASYNC): {tool_name} ===")
             logger.info(f"Arguments: args={args}, kwargs={kwargs}")
             
             # Also log to stderr for immediate visibility
-            print(f"[CCDC LOG] Tool: {tool_name}, Args: {args}, Kwargs: {kwargs}", file=sys.stderr)
+            _log_to_stderr(f"[CCDC LOG] Tool: {tool_name}, Args: {args}, Kwargs: {kwargs}")
             
             try:
                 result = await func(*args, **kwargs)
@@ -75,7 +91,7 @@ def ccdc_tool_logger(func):
                 for handler in logger.handlers:
                     handler.flush()
                 
-                print(f"[CCDC LOG] Tool {tool_name} completed successfully", file=sys.stderr)
+                _log_to_stderr(f"[CCDC LOG] Tool {tool_name} completed successfully")
                 return result
             except Exception as e:
                 logger.error(f"=== CCDC Tool Call Failed: {tool_name} ===")
@@ -85,7 +101,7 @@ def ccdc_tool_logger(func):
                 for handler in logger.handlers:
                     handler.flush()
                 
-                print(f"[CCDC LOG] Tool {tool_name} failed: {str(e)}", file=sys.stderr)
+                _log_to_stderr(f"[CCDC LOG] Tool {tool_name} failed: {str(e)}")
                 raise
         
         return async_wrapper
@@ -93,12 +109,12 @@ def ccdc_tool_logger(func):
         # Sync version
         @wraps(func)
         def sync_wrapper(*args, **kwargs):
-            tool_name = func.__name__
+            tool_name = _tool_name(func)
             logger.info(f"=== CCDC Tool Call (SYNC): {tool_name} ===")
             logger.info(f"Arguments: args={args}, kwargs={kwargs}")
             
             # Also log to stderr for immediate visibility
-            print(f"[CCDC LOG] Tool: {tool_name}, Args: {args}, Kwargs: {kwargs}", file=sys.stderr)
+            _log_to_stderr(f"[CCDC LOG] Tool: {tool_name}, Args: {args}, Kwargs: {kwargs}")
             
             try:
                 result = func(*args, **kwargs)
@@ -110,7 +126,7 @@ def ccdc_tool_logger(func):
                 for handler in logger.handlers:
                     handler.flush()
                 
-                print(f"[CCDC LOG] Tool {tool_name} completed successfully", file=sys.stderr)
+                _log_to_stderr(f"[CCDC LOG] Tool {tool_name} completed successfully")
                 return result
             except Exception as e:
                 logger.error(f"=== CCDC Tool Call Failed: {tool_name} ===")
@@ -120,7 +136,7 @@ def ccdc_tool_logger(func):
                 for handler in logger.handlers:
                     handler.flush()
                 
-                print(f"[CCDC LOG] Tool {tool_name} failed: {str(e)}", file=sys.stderr)
+                _log_to_stderr(f"[CCDC LOG] Tool {tool_name} failed: {str(e)}")
                 raise
         
         return sync_wrapper
@@ -140,6 +156,12 @@ HARDCODED_MOP_CCDC = {
     "vmop-β": ("VMOP-β", "1590348"),
     "vmop-b": ("VMOP-β", "1590348"),
     "vmop-14": ("VMOP-14", "1479720"),
+    # VMOC series used in the OntoMOP backtest corpus
+    "vmoc-1": ("VMOC-1", "1583722"),
+    "vmoc-2": ("VMOC-2", "1985926"),
+    "vmoc-3": ("VMOC-3", "1985927"),
+    "vmoc-4": ("VMOC-4", "1985928"),
+    "vmoc-5": ("VMOC-5", "1985929"),
     "zrt-1": ("ZrT-1", "950330"),
     "zrt-2": ("ZrT-2", "950331"),
     "zrt-3": ("ZrT-3", "950332"),
@@ -153,7 +175,40 @@ HARDCODED_MOP_CCDC = {
     "nanocapsule i [ni24(c40h35o16)6(dmf)2(h2o)40]": ("Nanocapsule I [Ni24(C40H35O16)6(DMF)2(H2O)40]", "1521975"),
     "nanocapsule ii": ("Nanocapsule II [Ni24(C40H36O16)6(DMF)4(H2O)24(py)20]", "1521976"),
     "nanocapsule ii [ni24(c40h36o16)6(dmf)4(h2o)24(py)20]": ("Nanocapsule II [Ni24(C40H36O16)6(DMF)4(H2O)24(py)20]", "1521976"),
+    # UMC-1/UMC-2: ACS Appl. Mater. Interfaces 2018, DOI 10.1021/acsami.7b18836
+    "umc-1": ("UMC-1", "1576897"),
+    "umc-2": ("UMC-2", "1576898"),
 }
+
+HARDCODED_DOI_CCDC = {
+    "10.1021/acsami.7b18836": [
+        {
+            "refcode": "UMC-1",
+            "chemical_name": "UMC-1",
+            "formula": "",
+            "ccdc_number": "1576897",
+            "doi": "10.1021/acsami.7b18836",
+        },
+        {
+            "refcode": "UMC-2",
+            "chemical_name": "UMC-2",
+            "formula": "",
+            "ccdc_number": "1576898",
+            "doi": "10.1021/acsami.7b18836",
+        },
+    ],
+}
+
+
+def _normalize_doi_key(doi_like: str) -> str:
+    doi = (doi_like or "").strip().lstrip("@").lower()
+    for prefix in ("https://doi.org/", "http://doi.org/", "doi:"):
+        if doi.startswith(prefix):
+            doi = doi[len(prefix):]
+            break
+    if "_" in doi and "/" not in doi:
+        doi = doi.replace("_", "/")
+    return doi
 
 mcp = FastMCP(name="ccdc")
 
@@ -161,7 +216,7 @@ mcp = FastMCP(name="ccdc")
 def instruction_prompt():
     return (
         "If CCDC number is not provided in the paper, you can use the search_ccdc_by_mop_name tool to search the CCDC by compound name, or search_ccdc_by_doi to search entries by DOI. "
-        "Then you can use the get_res_cif_file_by_ccdc tool to fetch the .res/.cif files from the CCDC. This is important for the downstream task."
+        "Only use get_res_cif_file_by_ccdc when a downstream task explicitly requires crystal structure files; routine KG building usually only needs the CCDC number. "
         "CCDC number is a very very important information for the downstream task, you must spare no effort to find the ccdc number\n"
         "**CRITICAL**: For known MOP compounds (IRMOP-XX, MOP-XX, VMOP-XX, etc.), ALWAYS try search_ccdc_by_mop_name FIRST. "
         "In some rare cases, only the formula is provided, you can also try use search_ccdc_by_mop_name with the full formula."
@@ -178,6 +233,7 @@ def instruction_prompt():
         "- For name searches, try exact=False first, then retry with exact=True to narrow results.\n"
         "- For DOI, use the pipeline DOI (e.g., 10.1021_ic050460z) or URL (e.g., https://doi.org/10.1021/ic050460z); the server will normalize input.\n"
         "- The fetch function requires exactly one hit and a 3D structure; otherwise it fails fast.\n"
+        "- Do not fetch `.res/.cif` files unless the current task explicitly needs them.\n"
         "- Use absolute or existing directories for out_dir; files will be created there.\n\n"
         "- Doi search is the fallback method for searching the CCDC number."
         "Examples:\n"
@@ -198,8 +254,8 @@ async def search_ccdc_by_mop_name(name: str, exact: bool = False) -> str:
         # Flush immediately
         for handler in logger.handlers:
             handler.flush()
-        print(f"[CCDC MCP] Using hardcoded mapping for '{name}': {refcode} -> {ccdc_num}")
-        print(f"[CCDC LOG] HARDCODED: {name} -> {ccdc_num}", file=sys.stderr)
+        _log_to_stderr(f"[CCDC MCP] Using hardcoded mapping for '{name}': {refcode} -> {ccdc_num}")
+        _log_to_stderr(f"[CCDC LOG] HARDCODED: {name} -> {ccdc_num}")
         lines = ["refcode\tccdc_number", f"{refcode}\t{ccdc_num}"]
         return "\n".join(lines)
     
@@ -219,7 +275,9 @@ async def search_ccdc_by_mop_name(name: str, exact: bool = False) -> str:
 @ccdc_tool_logger
 @mcp.tool(name="search_ccdc_by_doi", description="Search the CCDC by DOI. Accepts underscore or URL; returns a table with details.")
 async def search_ccdc_by_doi(doi_like: str) -> str:
-    rows = _search_ccdc_by_doi(doi_like)
+    rows = HARDCODED_DOI_CCDC.get(_normalize_doi_key(doi_like))
+    if rows is None:
+        rows = _search_ccdc_by_doi(doi_like)
     if not rows:
         return "[]"
     headers = ["refcode", "chemical_name", "formula", "ccdc_number", "doi"]

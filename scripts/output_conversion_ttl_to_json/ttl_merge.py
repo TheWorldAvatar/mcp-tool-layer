@@ -35,33 +35,93 @@ def _list_ttl_files(path: str) -> List[str]:
     ]
 
 
-def _gather_files_for_hash(hash_dir: str) -> Tuple[List[str], List[str], List[str]]:
+def _gather_files_for_hash(hash_dir: str) -> Tuple[List[str], List[str], List[str], List[str]]:
     """
-    Return (root_output_ttls, ontospecies_ttls, integrated_ttls) for a given hash directory.
-    - root_output_ttls: files in hash root starting with "output_" excluding "output_top.ttl"
+    Return (main_ontology_ttls, ontospecies_ttls, ontomops_ttls, integrated_ttls) for a given hash directory.
+    - main_ontology_ttls: prefer files under `ontosynthesis_output/` excluding `top.ttl`,
+      then also include legacy hash-root `output_*.ttl` excluding `output_top.ttl`
     - ontospecies_ttls: files under ontospecies_output
+    - ontomops_ttls: files under ontomops_output
     - integrated_ttls: files under cbu_derivation/integrated
     """
     root_files = _list_ttl_files(hash_dir)
-    root_output = [
+    legacy_root_output = [
         f
         for f in root_files
         if os.path.basename(f).startswith("output_")
         and os.path.basename(f) != "output_top.ttl"
     ]
 
+    ontosynthesis_dir = os.path.join(hash_dir, "ontosynthesis_output")
+    ontosynthesis_files = [
+        f
+        for f in _list_ttl_files(ontosynthesis_dir)
+        if os.path.basename(f).lower() != "top.ttl"
+    ]
+
+    main_ontology_files = ontosynthesis_files + [
+        f for f in legacy_root_output if f not in ontosynthesis_files
+    ]
+
     ontospecies_dir = os.path.join(hash_dir, "ontospecies_output")
     ontospecies_files = _list_ttl_files(ontospecies_dir)
+
+    ontomops_dir = os.path.join(hash_dir, "ontomops_output")
+    ontomops_files = _list_ttl_files(ontomops_dir)
 
     integrated_dir = os.path.join(hash_dir, "cbu_derivation", "integrated")
     integrated_files = _list_ttl_files(integrated_dir)
 
-    return root_output, ontospecies_files, integrated_files
+    return main_ontology_files, ontospecies_files, ontomops_files, integrated_files
 
 
 def _parse_into_graph(graph: Graph, ttl_files: Iterable[str]) -> None:
     for path in ttl_files:
         graph.parse(path, format="turtle")
+
+
+def _merge_ontospecies_files_without_step_subgraph(
+    graph: Graph,
+    ttl_files: Iterable[str],
+) -> None:
+    """
+    Merge extension TTLs while excluding their procedural step subgraph.
+
+    `ontosynthesis_output/*.ttl` is the canonical source for synthesis procedure structure.
+    Extension outputs may repeat an alternative step graph for the same synthesis URI; if we
+    union those graphs directly, the merged TTL ends up with duplicate `hasSynthesisStep`
+    members and duplicated `hasOrder` sequences.
+
+    We therefore keep non-step extension data (Species, formulas, outputs, etc.) but strip:
+    - all `ontosyn:hasSynthesisStep` edges
+    - all triples whose subject or object is a step node typed as `ontosyn:SynthesisStep`
+    """
+    for path in ttl_files:
+        fg = Graph()
+        fg.parse(path, format="turtle")
+
+        step_nodes: Set[URIRef] = {
+            step
+            for step in fg.subjects(RDF_NS.type, ONTOSYN.SynthesisStep)
+            if isinstance(step, URIRef)
+        }
+
+        cleaned = Graph()
+        _bind_prefixes(cleaned)
+        for prefix, ns in fg.namespaces():
+            cleaned.bind(prefix, ns)
+
+        for s, p, o in fg:
+            if p == ONTOSYN.hasSynthesisStep:
+                continue
+            if isinstance(s, URIRef) and s in step_nodes:
+                continue
+            if isinstance(o, URIRef) and o in step_nodes:
+                continue
+            cleaned.add((s, p, o))
+
+        for triple in cleaned:
+            graph.add(triple)
 
 
 def _normalize_synthesis_label_from_filename(base_name: str) -> str:
@@ -113,6 +173,139 @@ def _bind_prefixes(g: Graph) -> None:
     g.bind("ontospecies", str(ONTOSPECIES))
 
 
+def _choose_preferred_node(g: Graph, nodes: List[URIRef]) -> URIRef | None:
+    if not nodes:
+        return None
+
+    def _score(node: URIRef) -> Tuple[int, str]:
+        outgoing = sum(1 for _ in g.triples((node, None, None)))
+        incoming = sum(1 for _ in g.triples((None, None, node)))
+        return (outgoing + incoming, str(node))
+
+    return sorted(nodes, key=_score, reverse=True)[0]
+
+
+def _remap_nodes(g: Graph, remap: Dict[URIRef, URIRef]) -> Graph:
+    if not remap:
+        return g
+
+    rewritten = Graph()
+    _bind_prefixes(rewritten)
+    for s, p, o in g:
+        new_s = remap.get(s, s) if isinstance(s, URIRef) else s
+        new_o = remap.get(o, o) if isinstance(o, URIRef) else o
+        rewritten.add((new_s, p, new_o))
+    return rewritten
+
+
+def _dedupe_synthesis_nodes_by_label(g: Graph) -> Graph:
+    """Collapse duplicate ChemicalSynthesis nodes that only differ by URI."""
+    by_label: Dict[str, List[URIRef]] = {}
+    for synth in g.subjects(RDF_NS.type, ONTOSYN.ChemicalSynthesis):
+        if not isinstance(synth, URIRef):
+            continue
+        labels = [str(v) for v in g.objects(synth, RDFS_NS.label)]
+        for label in labels:
+            norm = _normalize_label_for_match(label)
+            if norm:
+                by_label.setdefault(norm, []).append(synth)
+
+    remap: Dict[URIRef, URIRef] = {}
+    for nodes in by_label.values():
+        unique_nodes = sorted(set(nodes), key=str)
+        if len(unique_nodes) < 2:
+            continue
+        canonical = _choose_preferred_node(g, unique_nodes)
+        if canonical is None:
+            continue
+        for node in unique_nodes:
+            if node != canonical:
+                remap[node] = canonical
+
+    return _remap_nodes(g, remap)
+
+
+def _synthesis_label_map(g: Graph) -> Dict[str, URIRef]:
+    mapping: Dict[str, URIRef] = {}
+    for synth in g.subjects(RDF_NS.type, ONTOSYN.ChemicalSynthesis):
+        if not isinstance(synth, URIRef):
+            continue
+        labels = [str(v) for v in g.objects(synth, RDFS_NS.label)]
+        for label in labels:
+            norm = _normalize_label_for_match(label)
+            if norm and norm not in mapping:
+                mapping[norm] = synth
+    return mapping
+
+
+def _attach_steps_from_ontospecies_files(g: Graph, ontospecies_files: Iterable[str]) -> None:
+    """
+    Reattach detailed step nodes from `ontospecies_output/*.ttl` onto the canonical synthesis URI.
+
+    These extension TTLs may contain rich `Add`/`HeatChill`/`Transfer` nodes, but we only
+    trust step members that are already explicitly linked from a source synthesis via
+    `ontosyn:hasSynthesisStep`. This avoids reattaching stale/orphan step nodes that merely
+    happen to be typed as `ontosyn:SynthesisStep`.
+    """
+    label_map = _synthesis_label_map(g)
+    if not label_map:
+        return
+
+    for path in ontospecies_files:
+        fg = Graph()
+        try:
+            fg.parse(path, format="turtle")
+        except Exception:
+            continue
+
+        source_synths: list[URIRef] = []
+        typed_synths = [
+            synth
+            for synth in fg.subjects(RDF_NS.type, ONTOSYN.ChemicalSynthesis)
+            if isinstance(synth, URIRef)
+        ]
+        for synth in typed_synths:
+            labels = [str(v) for v in fg.objects(synth, RDFS_NS.label)]
+            if not labels and "ChemicalSynthesis/" in str(synth):
+                labels = [str(v) for _, _, v in fg.triples((synth, RDFS_NS.label, None))]
+            if any(label_map.get(_normalize_label_for_match(label)) is not None for label in labels):
+                source_synths.append(synth)
+
+        if not source_synths:
+            unlabeled_synths = [
+                synth
+                for synth in fg.subjects(None, ONTOSYN.hasSynthesisStep)
+                if isinstance(synth, URIRef) and "ChemicalSynthesis/" in str(synth)
+            ]
+            for synth in unlabeled_synths:
+                labels = [str(v) for v in fg.objects(synth, RDFS_NS.label)]
+                if any(label_map.get(_normalize_label_for_match(label)) is not None for label in labels):
+                    source_synths.append(synth)
+
+        for source_synth in source_synths:
+            canonical_synth: URIRef | None = None
+            for label in [str(v) for v in fg.objects(source_synth, RDFS_NS.label)]:
+                canonical_synth = label_map.get(_normalize_label_for_match(label))
+                if canonical_synth is not None:
+                    break
+            if canonical_synth is None:
+                continue
+            if any(True for _ in g.objects(canonical_synth, ONTOSYN.hasSynthesisStep)):
+                # Main ontosynthesis output is canonical when it already provides steps.
+                continue
+
+            step_nodes = sorted(
+                {
+                    step
+                    for step in fg.objects(source_synth, ONTOSYN.hasSynthesisStep)
+                    if isinstance(step, URIRef)
+                },
+                key=str,
+            )
+            for step in step_nodes:
+                g.add((canonical_synth, ONTOSYN.hasSynthesisStep, step))
+
+
 def merge_for_hash(
     hash_value: str,
     data_root: str,
@@ -138,15 +331,18 @@ def merge_for_hash(
     """
     hash_dir = os.path.join(data_root, hash_value)
 
-    root_output, ontospecies_files, integrated_files = _gather_files_for_hash(hash_dir)
+    main_ontology_files, ontospecies_files, ontomops_files, integrated_files = _gather_files_for_hash(hash_dir)
 
     g = Graph()
     _bind_prefixes(g)
 
     # Parse and merge all files without any additional alignment/linking
-    _parse_into_graph(g, root_output)
-    _parse_into_graph(g, ontospecies_files)
+    _parse_into_graph(g, main_ontology_files)
+    _merge_ontospecies_files_without_step_subgraph(g, ontospecies_files)
+    _merge_ontospecies_files_without_step_subgraph(g, ontomops_files)
     _parse_into_graph(g, integrated_files)
+    g = _dedupe_synthesis_nodes_by_label(g)
+    _attach_steps_from_ontospecies_files(g, ontospecies_files)
 
     return g
 

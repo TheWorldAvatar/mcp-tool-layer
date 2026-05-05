@@ -146,6 +146,8 @@ from .{script_name}_base import (
 
 **IMPORTANT**: Import ONLY the functions listed above. Do NOT import functions that don't exist!
 
+**Import layout (line length)**: Do not put a very long `from <module> import a, b, c, ...` on a **single** line. Follow the **parenthesized** pattern above: one symbol per line inside `import ( ... )`. Overlong one-line imports are error-prone and may truncate mid-identifier in generated output. The build step may reformat, but the model should still prefer this shape.
+
 ### 2. Entity Creation Functions
 
 ⚠️ **CRITICAL**: The ontology structure includes a "Detailed Create Function Signatures" section. This shows EXACTLY what parameters each `create_*` function needs. **Use these signatures - do NOT skip parameters!**

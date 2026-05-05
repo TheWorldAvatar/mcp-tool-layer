@@ -8,7 +8,7 @@ from __future__ import annotations
 import asyncio
 from contextlib import AsyncExitStack
 from typing import Any, Dict, List, Tuple, Optional, Callable
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langgraph.prebuilt import create_react_agent
 from langchain_mcp_adapters.client import MultiServerMCPClient
@@ -20,6 +20,118 @@ from models.MCPConfig import MCPConfig
 from models.ModelConfig import ModelConfig
 from models.TokenCalculator import TokenCounter
 from src.utils.global_logger import get_logger
+
+
+def _normalize_ai_message_content(content: Any) -> str:
+    """
+    Turn LangChain AIMessage.content into a plain string.
+
+    ReAct runs may end with ``content=[]`` (tool-only / multimodal blocks with no text).
+    Calling ``str([])`` would yield ``\"[]\"`` (2 chars) and break downstream checks — avoid that.
+    """
+    if content is None:
+        return ""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, dict):
+        if content.get("type") == "text" and "text" in content:
+            return str(content["text"])
+        if "text" in content:
+            return str(content["text"])
+        return ""
+    if isinstance(content, list):
+        parts: List[str] = []
+        for block in content:
+            if isinstance(block, str):
+                parts.append(block)
+            elif isinstance(block, dict):
+                if block.get("type") == "text" and "text" in block:
+                    parts.append(str(block["text"]))
+                elif "text" in block:
+                    parts.append(str(block["text"]))
+            else:
+                parts.append(str(block))
+        return "".join(parts)
+    return str(content)
+
+
+def _is_trivial_agent_reply(text: str) -> bool:
+    """
+    True if the model reply is an empty / placeholder token we should not treat as final output.
+
+    ReAct often ends with ``{}`` / ``[]`` or ``str([])``-style noise; the real JSON may appear
+    on an earlier AIMessage turn.
+    """
+    t = (text or "").strip()
+    if not t:
+        return True
+    if t in ("{}", "[]"):
+        return True
+    if len(t) <= 3 and t.lower().rstrip(".") in ("ok", "yes", "no"):
+        return True
+    return False
+
+
+def _best_text_and_meta_from_react_messages(messages: List[Any]) -> Tuple[str, Dict[str, Any]]:
+    """
+    Prefer the **last** AIMessage whose normalized text is substantive (non-trivial).
+
+    If the graph ends with an empty AIMessage (``content=[]``) or a placeholder ``{}``/``[]``,
+    walk backwards so we still return the model's last useful reply.
+    """
+    if not messages:
+        return "", {}
+
+    ai_messages: List[AIMessage] = [m for m in messages if isinstance(m, AIMessage)]
+    if not ai_messages:
+        last = messages[-1]
+        meta = getattr(last, "response_metadata", {}) or {}
+        return _normalize_ai_message_content(getattr(last, "content", None)), meta
+
+    for msg in reversed(ai_messages):
+        text = _normalize_ai_message_content(msg.content)
+        if text.strip() and not _is_trivial_agent_reply(text):
+            meta = getattr(msg, "response_metadata", {}) or {}
+            return text, meta
+
+    last_ai = ai_messages[-1]
+    meta = getattr(last_ai, "response_metadata", {}) or {}
+    return _normalize_ai_message_content(last_ai.content), meta
+
+
+def _summarize_react_tool_activity(messages: List[Any]) -> Dict[str, Any]:
+    """
+    Summarize actual tool activity observed in a ReAct run.
+
+    This inspects both:
+    - `AIMessage.tool_calls` planned by the model
+    - `ToolMessage` objects emitted after tool execution
+    """
+    ai_messages: List[AIMessage] = [m for m in messages if isinstance(m, AIMessage)]
+    tool_messages: List[ToolMessage] = [m for m in messages if isinstance(m, ToolMessage)]
+
+    tool_call_names: List[str] = []
+    for msg in ai_messages:
+        for call in getattr(msg, "tool_calls", []) or []:
+            name = str((call or {}).get("name") or "").strip()
+            if name:
+                tool_call_names.append(name)
+
+    executed_tool_names: List[str] = []
+    for msg in tool_messages:
+        name = str(getattr(msg, "name", "") or "").strip()
+        if name:
+            executed_tool_names.append(name)
+
+    return {
+        "ai_message_count": len(ai_messages),
+        "tool_message_count": len(tool_messages),
+        "planned_tool_call_count": len(tool_call_names),
+        "planned_tool_names": tool_call_names,
+        "executed_tool_names": executed_tool_names,
+        "executed_tool_name_set": sorted(set(executed_tool_names)),
+    }
+
 
 class BaseAgent:
     # ──────────────────────────── init ────────────────────────────
@@ -76,9 +188,14 @@ class BaseAgent:
             pass
 
         # 2️⃣ Docker check (non-fatal)
+        #
+        # Many MCP servers in this repo are pure local stdio Python servers and do NOT require Docker.
+        # Some optional external MCP servers do. Keep this as a warning to avoid confusion/noise.
         if not await self.mcp_config.is_docker_running():
-            self.logger.error("Docker is not running – MCP tools need it.")
-            # raise RuntimeError("Docker is not running – MCP tools need it.")
+            self.logger.warning(
+                "Docker is not running (this is OK for local stdio MCP servers; "
+                "only Docker-based MCP servers require it)."
+            )
 
         # 3️⃣ Multi-server MCP client
         #
@@ -86,6 +203,10 @@ class BaseAgent:
         # To ensure deterministic cleanup and avoid spawning a new stdio server process on every tool call,
         # we open one session per configured MCP server for the duration of this run.
         mcp_client = MultiServerMCPClient(server_cfg)
+
+        reply_text = ""
+        meta: Dict[str, Any] = {}
+        final_call_token_usage: Dict[str, Any] = {}
 
         async with AsyncExitStack() as stack:
             sessions: Dict[str, Any] = {}
@@ -164,9 +285,25 @@ class BaseAgent:
                 raise
             self.logger.info("Agent execution completed")
 
-            # 6️⃣ Final message + final-call meta (optional)
-            last_msg = result["messages"][-1]
-            meta = getattr(last_msg, "response_metadata", {}) or {}
+            tool_activity = _summarize_react_tool_activity(result["messages"])
+            self.logger.info(
+                "ReAct tool activity: planned_tool_calls=%s, tool_messages=%s, executed_tools=%s",
+                tool_activity["planned_tool_call_count"],
+                tool_activity["tool_message_count"],
+                tool_activity["executed_tool_name_set"],
+            )
+
+            # 6️⃣ Final substantive AI reply + meta (last AIMessage may be empty: content=[])
+            reply_text, meta = _best_text_and_meta_from_react_messages(result["messages"])
+            if not reply_text.strip():
+                _aim = [m for m in result["messages"] if isinstance(m, AIMessage)]
+                _last_len = (
+                    len(_normalize_ai_message_content(_aim[-1].content)) if _aim else 0
+                )
+                self.logger.warning(
+                    "ReAct run ended with no non-empty AIMessage text; last normalized AIMessage length=%s.",
+                    _last_len,
+                )
             final_call_token_usage = meta.get("token_usage", {})  # may be empty depending on provider
 
         # Aggregated totals
@@ -184,17 +321,45 @@ class BaseAgent:
             "final_call_token_usage": final_call_token_usage,  # last LLM call only
             "aggregated_usage": aggregated,                    # run-level totals
             "per_call_usage": counter.calls_detail,            # list of per-call dicts
+            "tool_activity": tool_activity,
         }
 
         self.logger.info(
             f"Agent tokens (run-level): {aggregated['total_tokens']} "
             f"over {aggregated['calls']} calls"
         )
-        return last_msg.content, metadata
+        return reply_text, metadata
 
 
 # ─────────────────────────── demo ───────────────────────────
 if __name__ == "__main__":
+
+    def _self_test_best_text() -> None:
+        """Reproduce str([])->\"[]\" failure: last AIMessage empty, earlier has body."""
+        from langchain_core.messages import ToolMessage
+
+        long_body = "x" * 80
+        msgs = [
+            HumanMessage(content="task"),
+            AIMessage(content=long_body),
+            ToolMessage(content="{}", tool_call_id="a"),
+            AIMessage(content=[]),
+        ]
+        text, _meta = _best_text_and_meta_from_react_messages(msgs)
+        assert text == long_body, (text, len(text))
+        assert str([]) == "[]" and len("[]") == 2  # document the old pitfall
+
+        json_prev = '{"entities": [' + '"x",' * 40 + '"z"]}'
+        msgs2 = [
+            HumanMessage(content="task"),
+            AIMessage(content=json_prev),
+            AIMessage(content="{}"),
+        ]
+        text2, _ = _best_text_and_meta_from_react_messages(msgs2)
+        assert text2 == json_prev, text2
+
+    _self_test_best_text()
+    print("BaseAgent: _best_text self-test OK")
 
     async def _demo() -> None:
         agent = BaseAgent(mcp_tools=["pubchem", "enhanced_websearch"], mcp_set_name="chemistry.json")
@@ -206,4 +371,9 @@ if __name__ == "__main__":
 
         print(reply)
         print(meta["aggregated_usage"])
-    asyncio.run(_demo())
+
+    # Full MCP demo is opt-in (needs servers / keys).
+    import os
+
+    if os.environ.get("BASE_AGENT_RUN_MCP_DEMO") == "1":
+        asyncio.run(_demo())

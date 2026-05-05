@@ -95,7 +95,8 @@ def query_synthesis_inputs(graph: Graph, namespaces: Dict[str, Namespace], synth
     if not ontosyn or not rdfs:
         return []
     
-    # SPARQL query to get chemical inputs with all labels, alternative names, and CBU formula
+    # SPARQL query to get chemical inputs with all labels, alternative names, and CBU formula.
+    # Current TTLs may link inputs either directly from the synthesis or via Add steps.
     query = """
     PREFIX ontosyn: <https://www.theworldavatar.com/kg/OntoSyn/>
     PREFIX ontomops: <https://www.theworldavatar.com/kg/ontomops/>
@@ -103,7 +104,14 @@ def query_synthesis_inputs(graph: Graph, namespaces: Dict[str, Namespace], synth
     
     SELECT DISTINCT ?chemical ?chemicalLabel ?altName ?amount ?formula ?purity ?supplierName ?cbuFormula
     WHERE {
-        ?synthesis ontosyn:hasChemicalInput ?chemical .
+        {
+            ?synthesis ontosyn:hasChemicalInput ?chemical .
+        }
+        UNION
+        {
+            ?synthesis ontosyn:hasSynthesisStep ?step .
+            ?step ontosyn:hasAddedChemicalInput ?chemical .
+        }
         OPTIONAL { ?chemical rdfs:label ?chemicalLabel }
         OPTIONAL { ?chemical ontosyn:hasAlternativeNames ?altName }
         OPTIONAL { ?chemical ontosyn:hasAmount ?amount }

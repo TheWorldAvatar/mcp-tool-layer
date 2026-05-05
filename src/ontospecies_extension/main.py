@@ -79,7 +79,7 @@ def instruction_prompt():
     ),
 )
 @mcp_tool_logger
-def init_memory() -> str:
+def init_memory(doi: str = None, top_level_entity_name: str = None) -> str:
     return _init_memory()
 
 @mcp.tool(

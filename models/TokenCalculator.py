@@ -2,6 +2,7 @@
 # Standalone cost + token aggregator for LLM calls (OpenAI-style metadata).
 from __future__ import annotations
 
+import json
 import re
 from typing import Optional, Callable, Any, Dict, List
 
@@ -77,6 +78,11 @@ class TokenCounter(BaseCallbackHandler):
         # cost aggregates (USD)
         self.input_cost_usd = 0.0
         self.output_cost_usd = 0.0
+
+        # tool activity
+        self.tool_start_count = 0
+        self.tool_end_count = 0
+        self.tool_names: List[str] = []
 
         self._log = log_fn or (lambda s: None)
 
@@ -291,9 +297,31 @@ class TokenCounter(BaseCallbackHandler):
         return None
 
     def on_tool_start(self, *args, **kwargs) -> None:
+        self.tool_start_count += 1
+        serialized = args[0] if len(args) > 0 else {}
+        input_str = args[1] if len(args) > 1 else ""
+        name = ""
+        if isinstance(serialized, dict):
+            name = str(serialized.get("name") or serialized.get("id") or "").strip()
+        if name:
+            self.tool_names.append(name)
+        preview = str(input_str or "").strip()
+        if len(preview) > 180:
+            preview = preview[:180] + "..."
+        self._log(f"[Tool start {self.tool_start_count}] name={name or '?'} input={preview}")
         return None
 
     def on_tool_end(self, *args, **kwargs) -> None:
+        self.tool_end_count += 1
+        output = args[0] if len(args) > 0 else ""
+        if isinstance(output, (dict, list)):
+            preview = json.dumps(output, ensure_ascii=False)
+        else:
+            preview = str(output or "")
+        preview = preview.strip()
+        if len(preview) > 180:
+            preview = preview[:180] + "..."
+        self._log(f"[Tool end {self.tool_end_count}] output={preview}")
         return None
 
     def on_tool_error(self, *args, **kwargs) -> None:
@@ -321,6 +349,12 @@ class TokenCounter(BaseCallbackHandler):
                 "calls": self.calls,
             },
             "aggregated_total_cost_usd": round(total_cost, 6),
+            "tool_activity": {
+                "tool_start_count": self.tool_start_count,
+                "tool_end_count": self.tool_end_count,
+                "tool_names": list(self.tool_names),
+                "unique_tool_names": sorted(set(self.tool_names)),
+            },
             "calls_detail": self.calls_detail,
             "pricing_version": "2025-10-01",
         }

@@ -1,0 +1,749 @@
+{
+  "checks_called": 75,
+  "counts": {
+    "check": 0,
+    "noncheck": 167
+  },
+  "has_check": false,
+  "history": [
+    {
+      "kind": "noncheck",
+      "name": "init_memory_wrapper",
+      "ts": 1777990534
+    },
+    {
+      "kind": "check",
+      "name": "check_existing_patient_infos",
+      "ts": 1777990535
+    },
+    {
+      "kind": "check",
+      "name": "check_existing_case_timelines",
+      "ts": 1777990535
+    },
+    {
+      "kind": "check",
+      "name": "check_existing_surgical_teams",
+      "ts": 1777990535
+    },
+    {
+      "kind": "noncheck",
+      "name": "create_PatientInfo",
+      "ts": 1777990538
+    },
+    {
+      "kind": "noncheck",
+      "name": "create_CaseTimeline",
+      "ts": 1777990538
+    },
+    {
+      "kind": "noncheck",
+      "name": "create_SurgicalTeam",
+      "ts": 1777990538
+    },
+    {
+      "kind": "check",
+      "name": "check_existing_procedures",
+      "ts": 1777990543
+    },
+    {
+      "kind": "noncheck",
+      "name": "create_Procedure",
+      "ts": 1777990544
+    },
+    {
+      "kind": "check",
+      "name": "check_existing_surgical_approaches",
+      "ts": 1777990546
+    },
+    {
+      "kind": "noncheck",
+      "name": "create_SurgicalApproach",
+      "ts": 1777990548
+    },
+    {
+      "kind": "check",
+      "name": "check_orphan_entities",
+      "ts": 1777990551
+    },
+    {
+      "kind": "noncheck",
+      "name": "export_memory_wrapper",
+      "ts": 1777990552
+    },
+    {
+      "kind": "noncheck",
+      "name": "init_memory_wrapper",
+      "ts": 1777990560
+    },
+    {
+      "kind": "check",
+      "name": "check_existing_surgical_approaches",
+      "ts": 1777990561
+    },
+    {
+      "kind": "check",
+      "name": "check_existing_procedures",
+      "ts": 1777990561
+    },
+    {
+      "kind": "noncheck",
+      "name": "create_SurgicalApproach",
+      "ts": 1777990562
+    },
+    {
+      "kind": "noncheck",
+      "name": "create_Procedure",
+      "ts": 1777990562
+    },
+    {
+      "kind": "check",
+      "name": "check_orphan_entities",
+      "ts": 1777990565
+    },
+    {
+      "kind": "noncheck",
+      "name": "export_memory_wrapper",
+      "ts": 1777990568
+    },
+    {
+      "kind": "noncheck",
+      "name": "init_memory_wrapper",
+      "ts": 1777990575
+    },
+    {
+      "kind": "check",
+      "name": "check_existing_diagnoses",
+      "ts": 1777990576
+    },
+    {
+      "kind": "check",
+      "name": "check_existing_pathology_outcomes",
+      "ts": 1777990576
+    },
+    {
+      "kind": "noncheck",
+      "name": "create_Diagnosis",
+      "ts": 1777990577
+    },
+    {
+      "kind": "noncheck",
+      "name": "create_PathologyOutcome",
+      "ts": 1777990577
+    },
+    {
+      "kind": "check",
+      "name": "check_orphan_entities",
+      "ts": 1777990581
+    },
+    {
+      "kind": "noncheck",
+      "name": "export_memory_wrapper",
+      "ts": 1777990581
+    },
+    {
+      "kind": "noncheck",
+      "name": "init_memory_wrapper",
+      "ts": 1777990614
+    },
+    {
+      "kind": "check",
+      "name": "check_existing_patient_infos",
+      "ts": 1777990615
+    },
+    {
+      "kind": "check",
+      "name": "check_existing_case_timelines",
+      "ts": 1777990615
+    },
+    {
+      "kind": "check",
+      "name": "check_existing_surgical_teams",
+      "ts": 1777990615
+    },
+    {
+      "kind": "noncheck",
+      "name": "create_PatientInfo",
+      "ts": 1777990617
+    },
+    {
+      "kind": "noncheck",
+      "name": "create_CaseTimeline",
+      "ts": 1777990617
+    },
+    {
+      "kind": "noncheck",
+      "name": "create_SurgicalTeam",
+      "ts": 1777990617
+    },
+    {
+      "kind": "check",
+      "name": "check_existing_procedures",
+      "ts": 1777990621
+    },
+    {
+      "kind": "noncheck",
+      "name": "create_Procedure",
+      "ts": 1777990622
+    },
+    {
+      "kind": "check",
+      "name": "check_existing_surgical_approaches",
+      "ts": 1777990624
+    },
+    {
+      "kind": "noncheck",
+      "name": "create_SurgicalApproach",
+      "ts": 1777990626
+    },
+    {
+      "kind": "check",
+      "name": "check_orphan_entities",
+      "ts": 1777990629
+    },
+    {
+      "kind": "noncheck",
+      "name": "export_memory_wrapper",
+      "ts": 1777990630
+    },
+    {
+      "kind": "noncheck",
+      "name": "init_memory_wrapper",
+      "ts": 1777990644
+    },
+    {
+      "kind": "check",
+      "name": "check_existing_surgical_approaches",
+      "ts": 1777990645
+    },
+    {
+      "kind": "check",
+      "name": "check_existing_procedures",
+      "ts": 1777990645
+    },
+    {
+      "kind": "noncheck",
+      "name": "create_SurgicalApproach",
+      "ts": 1777990646
+    },
+    {
+      "kind": "noncheck",
+      "name": "create_Procedure",
+      "ts": 1777990646
+    },
+    {
+      "kind": "check",
+      "name": "check_orphan_entities",
+      "ts": 1777990650
+    },
+    {
+      "kind": "noncheck",
+      "name": "export_memory_wrapper",
+      "ts": 1777990651
+    },
+    {
+      "kind": "noncheck",
+      "name": "init_memory_wrapper",
+      "ts": 1777990658
+    },
+    {
+      "kind": "check",
+      "name": "check_existing_diagnoses",
+      "ts": 1777990660
+    },
+    {
+      "kind": "noncheck",
+      "name": "create_Diagnosis",
+      "ts": 1777990661
+    },
+    {
+      "kind": "check",
+      "name": "check_existing_case_timelines",
+      "ts": 1777990665
+    },
+    {
+      "kind": "check",
+      "name": "check_existing_surgical_approaches",
+      "ts": 1777990665
+    },
+    {
+      "kind": "check",
+      "name": "check_existing_patient_infos",
+      "ts": 1777990665
+    },
+    {
+      "kind": "check",
+      "name": "check_existing_surgical_teams",
+      "ts": 1777990665
+    },
+    {
+      "kind": "check",
+      "name": "check_existing_procedures",
+      "ts": 1777990665
+    },
+    {
+      "kind": "check",
+      "name": "check_orphan_entities",
+      "ts": 1777990670
+    },
+    {
+      "kind": "noncheck",
+      "name": "export_memory_wrapper",
+      "ts": 1777990671
+    },
+    {
+      "kind": "noncheck",
+      "name": "init_memory_wrapper",
+      "ts": 1777990705
+    },
+    {
+      "kind": "check",
+      "name": "check_existing_patient_infos",
+      "ts": 1777990707
+    },
+    {
+      "kind": "check",
+      "name": "check_existing_case_timelines",
+      "ts": 1777990707
+    },
+    {
+      "kind": "check",
+      "name": "check_existing_surgical_teams",
+      "ts": 1777990707
+    },
+    {
+      "kind": "noncheck",
+      "name": "create_PatientInfo",
+      "ts": 1777990709
+    },
+    {
+      "kind": "noncheck",
+      "name": "create_CaseTimeline",
+      "ts": 1777990709
+    },
+    {
+      "kind": "noncheck",
+      "name": "create_SurgicalTeam",
+      "ts": 1777990709
+    },
+    {
+      "kind": "check",
+      "name": "check_existing_procedures",
+      "ts": 1777990713
+    },
+    {
+      "kind": "noncheck",
+      "name": "create_Procedure",
+      "ts": 1777990714
+    },
+    {
+      "kind": "check",
+      "name": "check_existing_surgical_approaches",
+      "ts": 1777990717
+    },
+    {
+      "kind": "noncheck",
+      "name": "create_SurgicalApproach",
+      "ts": 1777990718
+    },
+    {
+      "kind": "check",
+      "name": "check_orphan_entities",
+      "ts": 1777990721
+    },
+    {
+      "kind": "noncheck",
+      "name": "export_memory_wrapper",
+      "ts": 1777990722
+    },
+    {
+      "kind": "noncheck",
+      "name": "init_memory_wrapper",
+      "ts": 1777990729
+    },
+    {
+      "kind": "check",
+      "name": "check_existing_surgical_approaches",
+      "ts": 1777990730
+    },
+    {
+      "kind": "check",
+      "name": "check_existing_procedures",
+      "ts": 1777990730
+    },
+    {
+      "kind": "noncheck",
+      "name": "create_SurgicalApproach",
+      "ts": 1777990732
+    },
+    {
+      "kind": "noncheck",
+      "name": "create_Procedure",
+      "ts": 1777990732
+    },
+    {
+      "kind": "check",
+      "name": "check_existing_case_timelines",
+      "ts": 1777990735
+    },
+    {
+      "kind": "check",
+      "name": "check_existing_patient_infos",
+      "ts": 1777990735
+    },
+    {
+      "kind": "check",
+      "name": "check_existing_surgical_teams",
+      "ts": 1777990735
+    },
+    {
+      "kind": "check",
+      "name": "check_orphan_entities",
+      "ts": 1777990739
+    },
+    {
+      "kind": "noncheck",
+      "name": "export_memory_wrapper",
+      "ts": 1777990740
+    },
+    {
+      "kind": "noncheck",
+      "name": "init_memory_wrapper",
+      "ts": 1777990748
+    },
+    {
+      "kind": "check",
+      "name": "check_existing_diagnoses",
+      "ts": 1777990749
+    },
+    {
+      "kind": "noncheck",
+      "name": "create_Diagnosis",
+      "ts": 1777990750
+    },
+    {
+      "kind": "check",
+      "name": "check_existing_case_timelines",
+      "ts": 1777990752
+    },
+    {
+      "kind": "check",
+      "name": "check_existing_surgical_approaches",
+      "ts": 1777990752
+    },
+    {
+      "kind": "check",
+      "name": "check_existing_patient_infos",
+      "ts": 1777990752
+    },
+    {
+      "kind": "check",
+      "name": "check_existing_surgical_teams",
+      "ts": 1777990752
+    },
+    {
+      "kind": "check",
+      "name": "check_existing_procedures",
+      "ts": 1777990752
+    },
+    {
+      "kind": "check",
+      "name": "check_orphan_entities",
+      "ts": 1777990758
+    },
+    {
+      "kind": "noncheck",
+      "name": "export_memory_wrapper",
+      "ts": 1777990759
+    },
+    {
+      "kind": "noncheck",
+      "name": "init_memory_wrapper",
+      "ts": 1777990794
+    },
+    {
+      "kind": "check",
+      "name": "check_existing_patient_infos",
+      "ts": 1777990796
+    },
+    {
+      "kind": "check",
+      "name": "check_existing_case_timelines",
+      "ts": 1777990796
+    },
+    {
+      "kind": "check",
+      "name": "check_existing_surgical_teams",
+      "ts": 1777990796
+    },
+    {
+      "kind": "noncheck",
+      "name": "create_PatientInfo",
+      "ts": 1777990797
+    },
+    {
+      "kind": "noncheck",
+      "name": "create_CaseTimeline",
+      "ts": 1777990797
+    },
+    {
+      "kind": "noncheck",
+      "name": "create_SurgicalTeam",
+      "ts": 1777990797
+    },
+    {
+      "kind": "check",
+      "name": "check_existing_surgical_approaches",
+      "ts": 1777990801
+    },
+    {
+      "kind": "noncheck",
+      "name": "create_SurgicalApproach",
+      "ts": 1777990802
+    },
+    {
+      "kind": "check",
+      "name": "check_existing_procedures",
+      "ts": 1777990804
+    },
+    {
+      "kind": "noncheck",
+      "name": "create_Procedure",
+      "ts": 1777990805
+    },
+    {
+      "kind": "check",
+      "name": "check_orphan_entities",
+      "ts": 1777990807
+    },
+    {
+      "kind": "noncheck",
+      "name": "export_memory_wrapper",
+      "ts": 1777990808
+    },
+    {
+      "kind": "noncheck",
+      "name": "init_memory_wrapper",
+      "ts": 1777990816
+    },
+    {
+      "kind": "check",
+      "name": "check_existing_surgical_approaches",
+      "ts": 1777990817
+    },
+    {
+      "kind": "check",
+      "name": "check_existing_procedures",
+      "ts": 1777990817
+    },
+    {
+      "kind": "noncheck",
+      "name": "create_SurgicalApproach",
+      "ts": 1777990818
+    },
+    {
+      "kind": "noncheck",
+      "name": "create_Procedure",
+      "ts": 1777990818
+    },
+    {
+      "kind": "check",
+      "name": "check_orphan_entities",
+      "ts": 1777990821
+    },
+    {
+      "kind": "noncheck",
+      "name": "export_memory_wrapper",
+      "ts": 1777990822
+    },
+    {
+      "kind": "noncheck",
+      "name": "init_memory_wrapper",
+      "ts": 1777990829
+    },
+    {
+      "kind": "check",
+      "name": "check_existing_diagnoses",
+      "ts": 1777990831
+    },
+    {
+      "kind": "noncheck",
+      "name": "create_Diagnosis",
+      "ts": 1777990833
+    },
+    {
+      "kind": "check",
+      "name": "check_existing_case_timelines",
+      "ts": 1777990836
+    },
+    {
+      "kind": "check",
+      "name": "check_existing_surgical_approaches",
+      "ts": 1777990836
+    },
+    {
+      "kind": "check",
+      "name": "check_existing_patient_infos",
+      "ts": 1777990836
+    },
+    {
+      "kind": "check",
+      "name": "check_existing_surgical_teams",
+      "ts": 1777990836
+    },
+    {
+      "kind": "check",
+      "name": "check_existing_procedures",
+      "ts": 1777990836
+    },
+    {
+      "kind": "check",
+      "name": "check_orphan_entities",
+      "ts": 1777990842
+    },
+    {
+      "kind": "noncheck",
+      "name": "export_memory_wrapper",
+      "ts": 1777990843
+    },
+    {
+      "kind": "noncheck",
+      "name": "init_memory_wrapper",
+      "ts": 1777990875
+    },
+    {
+      "kind": "check",
+      "name": "check_existing_patient_infos",
+      "ts": 1777990876
+    },
+    {
+      "kind": "check",
+      "name": "check_existing_case_timelines",
+      "ts": 1777990876
+    },
+    {
+      "kind": "check",
+      "name": "check_existing_surgical_teams",
+      "ts": 1777990876
+    },
+    {
+      "kind": "noncheck",
+      "name": "create_PatientInfo",
+      "ts": 1777990878
+    },
+    {
+      "kind": "noncheck",
+      "name": "create_CaseTimeline",
+      "ts": 1777990878
+    },
+    {
+      "kind": "noncheck",
+      "name": "create_SurgicalTeam",
+      "ts": 1777990878
+    },
+    {
+      "kind": "check",
+      "name": "check_existing_procedures",
+      "ts": 1777990882
+    },
+    {
+      "kind": "noncheck",
+      "name": "create_Procedure",
+      "ts": 1777990885
+    },
+    {
+      "kind": "check",
+      "name": "check_existing_surgical_approaches",
+      "ts": 1777990890
+    },
+    {
+      "kind": "noncheck",
+      "name": "create_SurgicalApproach",
+      "ts": 1777990891
+    },
+    {
+      "kind": "check",
+      "name": "check_orphan_entities",
+      "ts": 1777990893
+    },
+    {
+      "kind": "noncheck",
+      "name": "export_memory_wrapper",
+      "ts": 1777990894
+    },
+    {
+      "kind": "noncheck",
+      "name": "init_memory_wrapper",
+      "ts": 1777990901
+    },
+    {
+      "kind": "check",
+      "name": "check_existing_surgical_approaches",
+      "ts": 1777990903
+    },
+    {
+      "kind": "check",
+      "name": "check_existing_procedures",
+      "ts": 1777990903
+    },
+    {
+      "kind": "noncheck",
+      "name": "create_SurgicalApproach",
+      "ts": 1777990904
+    },
+    {
+      "kind": "noncheck",
+      "name": "create_Procedure",
+      "ts": 1777990904
+    },
+    {
+      "kind": "check",
+      "name": "check_orphan_entities",
+      "ts": 1777990907
+    },
+    {
+      "kind": "noncheck",
+      "name": "export_memory_wrapper",
+      "ts": 1777990909
+    },
+    {
+      "kind": "noncheck",
+      "name": "init_memory_wrapper",
+      "ts": 1777990916
+    },
+    {
+      "kind": "check",
+      "name": "check_existing_diagnoses",
+      "ts": 1777990917
+    },
+    {
+      "kind": "check",
+      "name": "check_existing_pathology_outcomes",
+      "ts": 1777990917
+    },
+    {
+      "kind": "noncheck",
+      "name": "create_Diagnosis",
+      "ts": 1777990919
+    },
+    {
+      "kind": "noncheck",
+      "name": "create_PathologyOutcome",
+      "ts": 1777990919
+    },
+    {
+      "kind": "check",
+      "name": "check_orphan_entities",
+      "ts": 1777990924
+    },
+    {
+      "kind": "noncheck",
+      "name": "export_memory_wrapper",
+      "ts": 1777990925
+    }
+  ],
+  "last_check": "check_orphan_entities",
+  "last_noncheck": "export_memory_wrapper",
+  "nonchecks_called": 72,
+  "version": 1
+}

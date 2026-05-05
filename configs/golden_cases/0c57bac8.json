@@ -1,0 +1,57 @@
+{
+  "hash": "0c57bac8",
+  "ttl_paths": [
+    "data/0c57bac8/ontosynthesis_output/UMC-1.ttl",
+    "data/0c57bac8/ontosynthesis_output/UMC-2.ttl"
+  ],
+  "expected_syntheses": [
+    {
+      "label": "UMC-1",
+      "min_steps": 6,
+      "max_orphan_steps": 0,
+      "required_step_types": {
+        "Add": 4,
+        "Sonicate": 1,
+        "HeatChill": 1
+      },
+      "required_quantities": [
+        {
+          "step_type": "HeatChill",
+          "predicate": "hasStepDuration",
+          "value": 8.0,
+          "unit_local": "hour"
+        },
+        {
+          "step_type": "HeatChill",
+          "predicate": "hasTargetTemperature",
+          "value": 60.0,
+          "unit_local": "degreeCelsius"
+        }
+      ]
+    },
+    {
+      "label": "UMC-2",
+      "min_steps": 6,
+      "max_orphan_steps": 0,
+      "required_step_types": {
+        "Add": 4,
+        "Sonicate": 1,
+        "HeatChill": 1
+      },
+      "required_quantities": [
+        {
+          "step_type": "HeatChill",
+          "predicate": "hasStepDuration",
+          "value": 8.0,
+          "unit_local": "hour"
+        },
+        {
+          "step_type": "HeatChill",
+          "predicate": "hasTargetTemperature",
+          "value": 60.0,
+          "unit_local": "degreeCelsius"
+        }
+      ]
+    }
+  ]
+}

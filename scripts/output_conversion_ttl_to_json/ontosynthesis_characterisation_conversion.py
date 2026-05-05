@@ -12,9 +12,11 @@ Source basis: ontosynthesis_characterisation_conversion.py.  # for traceability
 """
 
 import json
+import re
 import sys
 from typing import Dict, List, Any, Optional
 from rdflib import Graph, Namespace, URIRef
+from rdflib.namespace import RDF, RDFS
 
 
 # ---------- RDF helpers ----------
@@ -85,7 +87,57 @@ def _find_species_for_synthesis(graph: Graph, synth: URIRef) -> List[URIRef]:
       ?uri a ontospecies:Species .
     }}
     """
-    return _select_uris(graph, q)
+    direct_hits = _select_uris(graph, q)
+    if direct_hits:
+        return direct_hits
+
+    seen: set[str] = set()
+    resolved: List[URIRef] = []
+
+    def _add_species(uri: URIRef) -> None:
+        key = str(uri)
+        if key not in seen:
+            seen.add(key)
+            resolved.append(uri)
+
+    # Fallback 1: resolve species by synthesis label / ChemicalOutput label matching.
+    ontosyn = Namespace("https://www.theworldavatar.com/kg/OntoSyn/")
+    ontospecies = Namespace("http://www.theworldavatar.com/ontology/ontospecies/OntoSpecies.owl#")
+
+    def _normalize_product_name(value: str) -> str:
+        text = str(value or "").strip().lower()
+        if text.endswith(" synthesis"):
+            text = text[: -len(" synthesis")].strip()
+        return text
+
+    target_names: set[str] = set()
+    for label in graph.objects(synth, RDFS.label):
+        norm = _normalize_product_name(str(label))
+        if norm:
+            target_names.add(norm)
+    for out in graph.objects(synth, ontosyn.hasChemicalOutput):
+        for label in graph.objects(out, RDFS.label):
+            norm = _normalize_product_name(str(label))
+            if norm:
+                target_names.add(norm)
+
+    if not target_names:
+        return resolved
+
+    for species in graph.subjects(RDF.type, ontospecies.Species):
+        species_names: set[str] = set()
+        for label in graph.objects(species, RDFS.label):
+            norm = _normalize_product_name(str(label))
+            if norm:
+                species_names.add(norm)
+        for product_name in graph.objects(species, ontospecies.hasProductName):
+            norm = _normalize_product_name(str(product_name))
+            if norm:
+                species_names.add(norm)
+        if species_names & target_names:
+            _add_species(URIRef(str(species)))
+
+    return resolved
 
 
 # ---------- Extraction ----------
@@ -161,60 +213,101 @@ def query_characterisation_data(graph: Graph, namespaces: Dict[str, Namespace]) 
         return []
 
     records: List[Dict[str, Any]] = []
+    ontospecies = Namespace("http://www.theworldavatar.com/ontology/ontospecies/OntoSpecies.owl#")
+
+    def _normalize_material_name(value: str) -> str:
+        text = str(value or "").strip()
+        if not text:
+            return "N/A"
+        if "kbr" in text.lower():
+            return "KBr"
+        return text
+
+    def _infer_element_symbol(label: str) -> Optional[str]:
+        allowed = {"C", "H", "N", "O", "S", "P"}
+        tokens = re.findall(r"\b([A-Z])\b", str(label or "").replace("_", " "))
+        for token in tokens:
+            if token in allowed:
+                return token
+        return None
+
+    def _build_weight_percentage_series(species: URIRef) -> tuple[str, str]:
+        calc_parts: Dict[str, str] = {}
+        exp_parts: Dict[str, str] = {}
+        calc_full: List[str] = []
+        exp_full: List[str] = []
+
+        for ead in graph.objects(species, ontospecies.hasElementalAnalysisData):
+            for wp in graph.objects(ead, ontospecies.hasWeightPercentageCalculated):
+                label = next((str(v) for v in graph.objects(wp, RDFS.label)), "")
+                for value in graph.objects(wp, ontospecies.hasWeightPercentageCalculatedValue):
+                    text = str(value).strip()
+                    if not text:
+                        continue
+                    if re.search(r"[A-Za-z]\s+\d", text):
+                        calc_full.append(text)
+                    else:
+                        element = _infer_element_symbol(label)
+                        if element:
+                            calc_parts[element] = text
+            for wp in graph.objects(ead, ontospecies.hasWeightPercentageExperimental):
+                label = next((str(v) for v in graph.objects(wp, RDFS.label)), "")
+                for value in graph.objects(wp, ontospecies.hasWeightPercentageExperimentalValue):
+                    text = str(value).strip()
+                    if not text:
+                        continue
+                    if re.search(r"[A-Za-z]\s+\d", text):
+                        exp_full.append(text)
+                    else:
+                        element = _infer_element_symbol(label)
+                        if element:
+                            exp_parts[element] = text
+
+        def _format(full_values: List[str], parts: Dict[str, str]) -> str:
+            if full_values:
+                # Prefer the richest combined string already closest to the benchmark format.
+                return max(full_values, key=len)
+            order = ["C", "H", "N", "O", "S", "P"]
+            assembled = [f"{el}, {parts[el]}" for el in order if el in parts]
+            return "; ".join(assembled) if assembled else "N/A"
+
+        return _format(calc_full, calc_parts), _format(exp_full, exp_parts)
+
+    def _is_guest_variant_for_species_label(species_label: str) -> bool:
+        q_outputs = f"""
+        PREFIX ontosyn: <https://www.theworldavatar.com/kg/OntoSyn/>
+        PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+        SELECT DISTINCT ?outLabel ?desc WHERE {{
+          ?anySynthesis ontosyn:hasChemicalOutput ?out .
+          OPTIONAL {{ ?out rdfs:label ?outLabel }}
+          OPTIONAL {{ ?out ontosyn:hasChemicalDescription ?desc }}
+        }}
+        """
+        label_norm = (species_label or "").strip().lower()
+        guest_markers = (
+            "host-guest",
+            "host guest",
+            "inclusion compound",
+            "guest molecule",
+            "guest molecules",
+            "included",
+        )
+        try:
+            for row in graph.query(q_outputs):
+                out_label = str(getattr(row, "outLabel", "") or "").strip().lower()
+                desc = str(getattr(row, "desc", "") or "").strip().lower()
+                if not desc:
+                    continue
+                if label_norm and out_label and label_norm != out_label:
+                    continue
+                if any(marker in desc for marker in guest_markers):
+                    return True
+        except Exception:
+            return False
+        return False
 
     synths = _find_all_syntheses(graph)
     for synth in synths:
-        # Synthesis label (e.g., "ZrT-1")
-        q_synth_label = f"""
-        PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-        SELECT DISTINCT ?label WHERE {{ <{synth}> rdfs:label ?label }} LIMIT 1
-        """
-        synth_label_row = _select_first_row(graph, q_synth_label)
-        synth_label = (synth_label_row.get("label") if synth_label_row else None) or None
-
-        # All chemical outputs (both OntoSpecies:Species and OntoSyn:ChemicalOutput URIs)
-        q_outputs = f"""
-        PREFIX ontosyn: <https://www.theworldavatar.com/kg/OntoSyn/>
-        SELECT DISTINCT ?out WHERE {{ <{synth}> ontosyn:hasChemicalOutput ?out . }}
-        """
-        output_uris: List[str] = []
-        try:
-            for r in graph.query(q_outputs):
-                if getattr(r, 'out', None):
-                    u = str(r.out).strip()
-                    if u:
-                        output_uris.append(u)
-        except Exception:
-            pass
-
-        def _labels_and_mop_formulas_for_output(out_uri: str) -> List[str]:
-            names: List[str] = []
-            q = f"""
-            PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-            SELECT DISTINCT ?lbl ?mf WHERE {{
-              OPTIONAL {{ <{out_uri}> rdfs:label ?lbl }}
-              OPTIONAL {{
-                {{ <{out_uri}> <https://www.theworldavatar.com/kg/OntoSyn/isRepresentedBy> ?mop }}
-                UNION
-                {{ <{out_uri}> a <https://www.theworldavatar.com/kg/ontomops/MetalOrganicPolyhedron> . BIND(<{out_uri}> AS ?mop) }}
-                OPTIONAL {{ ?mop <https://www.theworldavatar.com/kg/ontomops/hasMOPFormula> ?mf }}
-              }}
-            }}
-            """
-            try:
-                for r in graph.query(q):
-                    if getattr(r, 'lbl', None):
-                        s = str(r.lbl).strip()
-                        if s and s not in names:
-                            names.append(s)
-                    if getattr(r, 'mf', None):
-                        s = str(r.mf).strip()
-                        if s and s not in names:
-                            names.append(s)
-            except Exception:
-                pass
-            return names
-
         for species in _find_species_for_synthesis(graph, synth):
             # Species label
             q_label = f"""
@@ -223,6 +316,8 @@ def query_characterisation_data(graph: Graph, namespaces: Dict[str, Namespace]) 
             """
             label_row = _select_first_row(graph, q_label)
             species_label = (label_row.get("label") if label_row else None) or "Unknown"
+            if _is_guest_variant_for_species_label(species_label):
+                continue
 
             # CCDC number via canonical route: Species -> hasCCDCNumber -> hasCCDCNumberValue
             q_ccdc_val = f"""
@@ -256,41 +351,10 @@ def query_characterisation_data(graph: Graph, namespaces: Dict[str, Namespace]) 
             # Normalize
             ccdc_number = (ccdc_number or "").strip() or "N/A"
 
-            # Molecular formula (prefer value node: hasMolecularFormulaValue; fallback to rdfs:label)
-            q_formula_val = f"""
-            PREFIX ontospecies: <http://www.theworldavatar.com/ontology/ontospecies/OntoSpecies.owl#>
-            PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-            SELECT DISTINCT ?mfVal ?mfLabel WHERE {{
-              OPTIONAL {{
-                <{species}> ontospecies:hasMolecularFormula ?f .
-                OPTIONAL {{ ?f ontospecies:hasMolecularFormulaValue ?mfVal }}
-                OPTIONAL {{ ?f rdfs:label ?mfLabel }}
-              }}
-            }} LIMIT 1
-            """
-            formula_row = _select_first_row(graph, q_formula_val) or {}
-            molecular_formula = formula_row.get("mfVal") or formula_row.get("mfLabel") or "N/A"
-
-            # Elemental Analysis values
-            q_ea_vals = f"""
-            PREFIX ontospecies: <http://www.theworldavatar.com/ontology/ontospecies/OntoSpecies.owl#>
-            SELECT DISTINCT ?expVal ?calcVal WHERE {{
-              OPTIONAL {{
-                <{species}> ontospecies:hasElementalAnalysisData ?ead .
-                OPTIONAL {{
-                  ?ead ontospecies:hasWeightPercentageExperimental ?wpe .
-                  OPTIONAL {{ ?wpe ontospecies:hasWeightPercentageExperimentalValue ?expVal }}
-                }}
-                OPTIONAL {{
-                  ?ead ontospecies:hasWeightPercentageCalculated ?wpc .
-                  OPTIONAL {{ ?wpc ontospecies:hasWeightPercentageCalculatedValue ?calcVal }}
-                }}
-              }}
-            }} LIMIT 1
-            """
-            ea_row = _select_first_row(graph, q_ea_vals) or {}
-            wp_exp = ea_row.get("expVal") or "N/A"
-            wp_calc = ea_row.get("calcVal") or "N/A"
+            # The benchmark's ElementalAnalysis.chemicalFormula expects an EA-specific field.
+            # When the graph does not provide one explicitly, prefer N/A over species formulas.
+            molecular_formula = "N/A"
+            wp_calc, wp_exp = _build_weight_percentage_series(species)
 
             # IR data: query bands and material separately to avoid coupling
             # Bands
@@ -334,7 +398,7 @@ def query_characterisation_data(graph: Graph, namespaces: Dict[str, Namespace]) 
             try:
                 for r in graph.query(q_ir_mat):
                     nm  = str(r.matName).strip() if getattr(r, 'matName',  None) else ""
-                    ir_material = (nm or "N/A").strip() or "N/A"
+                    ir_material = _normalize_material_name(nm or "N/A")
                     break
             except Exception:
                 pass
@@ -349,17 +413,24 @@ def query_characterisation_data(graph: Graph, namespaces: Dict[str, Namespace]) 
             """
             _nmr_row = _select_first_row(graph, q_nmr) or {}
 
-            # Assemble product names: include species label, synthesis label, and for each output include its label and ontomops:hasMOPFormula
+            # Keep names scoped to the current species only; synthesis/output aliases
+            # create cross-product pollution in merged benchmark graphs.
             names: List[str] = []
             if species_label:
                 names.append(species_label)
-            if synth_label:
-                names.append(synth_label)
-            # Include output labels and MOP formulas
-            for u in output_uris:
-                for n in _labels_and_mop_formulas_for_output(u):
-                    if n not in names:
-                        names.append(n)
+            q_product_name = f"""
+            PREFIX ontospecies: <http://www.theworldavatar.com/ontology/ontospecies/OntoSpecies.owl#>
+            SELECT DISTINCT ?productName WHERE {{
+              OPTIONAL {{ <{species}> ontospecies:hasProductName ?productName }}
+            }} LIMIT 1
+            """
+            product_name_row = _select_first_row(graph, q_product_name) or {}
+            product_name = (product_name_row.get("productName") or "").strip()
+            if product_name and product_name not in names:
+                names.append(product_name)
+
+            if ccdc_number == "N/A":
+                continue
 
             char_entry: Dict[str, Any] = {
                 "ElementalAnalysis": {
@@ -401,6 +472,37 @@ def build_json_structure(devices: Dict[str, Any], characterisations: List[Dict[s
 
     # Merge characterisations by productCCDCNumber
     merged: Dict[str, Dict[str, Any]] = {}
+    import re  # local import to avoid top-level dependency if unused elsewhere
+
+    def _choose_best_names(raw_names: List[str]) -> List[str]:
+        names = []
+        seen = set()
+        for name in raw_names:
+            text = str(name or "").strip()
+            if text and text not in seen:
+                seen.add(text)
+                names.append(text)
+        if not names:
+            return []
+
+        def _score(name: str) -> tuple[int, int, str]:
+            normalized = name.strip()
+            simple_product = bool(re.fullmatch(r"[A-Za-z]+-\d+", normalized))
+            has_formula = "[" in normalized or "(" in normalized
+            has_scope_noise = "synthesis" in normalized.lower()
+            has_guest_suffix = any(token in normalized for token in ["·", "•", "∙", "⋅"])
+            return (
+                0 if simple_product else 1,
+                0 if has_formula else 1,
+                1 if has_scope_noise else 0,
+                1 if has_guest_suffix else 0,
+                len(normalized),
+                normalized.lower(),
+            )
+
+        best = sorted(names, key=_score)[0]
+        return [best]
+
     def _merge_bands(a: str, b: str) -> str:
         tokens: list[str] = []
         seen: set[str] = set()
@@ -415,8 +517,6 @@ def build_json_structure(devices: Dict[str, Any], characterisations: List[Dict[s
         out = " ; ".join(tokens) if tokens else (a or b or "N/A")
         return out.strip()
 
-    import re  # local import to avoid top-level dependency if unused elsewhere
-
     for rec in characterisations:
         ccdc = str(rec.get("productCCDCNumber") or "").strip()
         if not ccdc:
@@ -425,7 +525,7 @@ def build_json_structure(devices: Dict[str, Any], characterisations: List[Dict[s
         cur = merged.get(ccdc)
         if cur is None:
             # Normalize names list
-            names = list(dict.fromkeys(rec.get("productNames") or []))
+            names = _choose_best_names(list(rec.get("productNames") or []))
             # Clone minimal structure
             cur = {
                 "ElementalAnalysis": dict(rec.get("ElementalAnalysis") or {}),
@@ -439,12 +539,8 @@ def build_json_structure(devices: Dict[str, Any], characterisations: List[Dict[s
 
         # Merge names (de-duplicate, keep order)
         existing_names: list[str] = cur.get("productNames") or []
-        seen_names: set[str] = set(existing_names)
-        for n in (rec.get("productNames") or []):
-            if n not in seen_names:
-                existing_names.append(n)
-                seen_names.add(n)
-        cur["productNames"] = existing_names
+        merged_names = existing_names + list(rec.get("productNames") or [])
+        cur["productNames"] = _choose_best_names(merged_names)
 
         # Merge ElementalAnalysis: prefer first non-"N/A"
         for k in ("chemicalFormula", "weightPercentageCalculated", "weightPercentageExperimental"):

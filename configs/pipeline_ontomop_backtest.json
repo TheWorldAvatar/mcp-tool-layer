@@ -1,0 +1,17 @@
+{
+  "mode": "per_doi",
+  "description": "OntoMOP backtest pipeline via generic runner",
+  "meta_task_config": "configs/meta_task/meta_task_config.json",
+  "steps": [
+    "pdf_conversion",
+    "section_classification",
+    "stitching",
+    "top_entity_extraction",
+    "top_entity_kg_building",
+    "main_ontology_extractions",
+    "main_kg_building",
+    "extensions_extractions",
+    "extensions_kg_building",
+    "mop_derivation"
+  ]
+}

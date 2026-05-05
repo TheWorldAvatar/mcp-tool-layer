@@ -1,0 +1,20 @@
+{
+  "_comment": "Codegen-time hooks. Use namespace *aliases* exactly as the generated base script binds (e.g. ONTOSYN, NAMESPACE, RDFS) and OWL *local* names from the T-Box. export_memory_top_link_repair: per-ontology object with assert_root_type, outgoing_to_target, target_rdf_type, match_labels_via — not free-text material facts.",
+  "scoped_context_label_tail_strip_regex": null,
+  "export_memory_top_link_repair": {
+    "ontospecies": {
+      "assert_root_type": { "namespace": "ONTOSYN", "local": "ChemicalSynthesis" },
+      "outgoing_to_target": { "namespace": "ONTOSYN", "local": "hasChemicalOutput" },
+      "target_rdf_type": { "namespace": "NAMESPACE", "local": "Species" },
+      "match_labels_via": [
+        { "namespace": "RDFS", "local": "label" },
+        { "namespace": "NAMESPACE", "local": "hasProductName" }
+      ]
+    }
+  },
+  "scoped_canonical_label_for_create": {
+    "ontospecies": [
+      "ElementalAnalysisData"
+    ]
+  }
+}

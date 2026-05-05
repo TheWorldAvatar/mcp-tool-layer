@@ -102,7 +102,7 @@ def get_all_ontologies_from_config() -> list:
     ontologies.append((
         main["name"],
         main["ttl_file"],
-        "gpt-5"  # Default model for main
+        "gpt-5.2"  # Default model for main
     ))
     
     # Add extension ontologies
@@ -110,7 +110,7 @@ def get_all_ontologies_from_config() -> list:
         ontologies.append((
             ext["name"],
             ext["ttl_file"],
-            ext.get("agent_model", "gpt-4o")  # Use specified model or default
+            ext.get("agent_model", "gpt-5.2")  # Use specified model or default
         ))
     
     return ontologies
@@ -129,7 +129,7 @@ async def create_step_functions(
     script_name: str,
     version: int,
     iteration: int = 1,
-    model_name: str = "gpt-4.1"
+    model_name: str = "gpt-5.2"
 ) -> str:
     """
     Create functions for a specific step in the task division plan.

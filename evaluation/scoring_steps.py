@@ -16,14 +16,38 @@ if str(_eval_path) not in sys.path:
 try:
     from evaluation import _gt_step_names, _compare_steps
 except ImportError:
-    # If running as module, try absolute import
-    import importlib.util
-    eval_file = _eval_path / "evaluation.py"
-    spec = importlib.util.spec_from_file_location("eval_module", eval_file)
-    eval_module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(eval_module)
-    _gt_step_names = eval_module._gt_step_names
-    _compare_steps = eval_module._compare_steps
+    # Local fallback when the historical helper module is absent from this checkout.
+    _STEP_TYPE_NAMES = {
+        "Add", "HeatChill", "Filter", "Sonicate", "Dissolve", "Stir", "Transfer",
+        "Wash", "Dry", "Collect", "PH", "Degas", "Evaporate", "Extract", "Quench",
+        "Purify", "Concentrate", "Reflux", "Crystallize", "Distill", "Grind",
+        "Mix", "Separate", "Centrifuge",
+    }
+
+    def _gt_step_names(synth: Dict[str, Any]) -> List[str]:
+        steps = (synth or {}).get("steps", []) or []
+        out: List[str] = []
+        for step in steps:
+            if not isinstance(step, dict):
+                continue
+            step_type = ""
+            for key in step.keys():
+                if key in _STEP_TYPE_NAMES:
+                    step_type = key
+                    break
+            if not step_type and len(step) == 1:
+                step_type = next(iter(step.keys()), "")
+            if step_type:
+                out.append(step_type)
+        return out
+
+    def _compare_steps(gt_steps: List[str], pred_steps: List[str]) -> Tuple[int, int, int]:
+        gt_norm = [str(x or "").strip() for x in gt_steps if str(x or "").strip()]
+        pred_norm = [str(x or "").strip() for x in pred_steps if str(x or "").strip()]
+        tp = sum(1 for a, b in zip(gt_norm, pred_norm) if a == b)
+        fp = max(len(pred_norm) - tp, 0)
+        fn = max(len(gt_norm) - tp, 0)
+        return tp, fp, fn
 
 
 # Chemical synonymy mapping: define canonical species -> list of equivalent names.

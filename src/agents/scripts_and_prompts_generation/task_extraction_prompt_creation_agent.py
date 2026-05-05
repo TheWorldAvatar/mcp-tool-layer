@@ -23,12 +23,20 @@ SPECIAL HANDLING FOR PRE-EXTRACTION:
 """
 
 import os
+import sys
 import json
 import argparse
 import asyncio
+import re
 from pathlib import Path
 from typing import Dict, List, Any, Tuple
 from dotenv import load_dotenv
+from src.agents.scripts_and_prompts_generation.ttl_parser import (
+    detect_super_flat_ontology,
+    extract_ontology_integrity_profile,
+    format_ontology_integrity_guidance,
+    parse_ontology_ttl,
+)
 
 # -------- Meta-Prompt Loader --------
 def load_meta_prompt(prompt_path: str) -> str:
@@ -45,13 +53,21 @@ from models.ModelConfig import ModelConfig
 PLAN_PATH = "configs/task_division_plan.json"
 TBOX_PATH = "data/ontologies/ontosynthesis.ttl"
 OUTPUT_DIR_BASE = "sandbox/extraction_scopes"
-MODEL = os.environ.get("EXTRACTION_PROMPT_CREATION_MODEL", "gpt-4.1")
+MODEL = os.environ.get("EXTRACTION_PROMPT_CREATION_MODEL", "gpt-5.2")
 ITERATIONS_BASE = "ai_generated_contents_candidate/iterations"
 PROMPTS_CANDIDATE_BASE = "ai_generated_contents_candidate/prompts"
 MAX_RETRIES = 3
 
 # -------- Load environment --------
 load_dotenv(override=True)
+
+try:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    pass
 
 # -------- Hardcoded Generic Specifications --------
 
@@ -76,6 +92,23 @@ Normalization rules:
 - Preserve author wording and units
 - Use consistent identifier formats
 '''
+
+_SUPER_FLAT_ITER2_GUIDANCE = (
+    "\n\nSuper-flat ontology — guidance for the extraction prompt you are generating:\n"
+    "- Carefully read every rdfs:comment in the T-Box above. Many properties carry explicit input\n"
+    "  restrictions (e.g. \"1\" / blank, \"j\" / \"n\", a controlled vocabulary, a numeric range).\n"
+    "- The extraction prompt you generate MUST include an \"Encoding rules\" section that:\n"
+    "  * Enumerates every property that has a restricted allowed-value set (derive this list from\n"
+    "    the rdfs:comment annotations in the T-Box — do NOT invent or hard-code any names).\n"
+    "  * For each such property, states the exact allowed tokens (e.g. \"1\", \"j\", \"n\", \"yes\",\n"
+    "    \"no\", a unit string, etc.) and the omission rule (e.g. \"omit field if condition is\n"
+    "    absent, do NOT write descriptive text\").\n"
+    "  * Includes at least one concrete example per encoding type found in the T-Box.\n"
+    "- Also restate in the prompt any explicit exclusion criteria found in rdfs:comment as hard\n"
+    "  constraints (e.g. if the comment says something does not count, say so explicitly).\n"
+    "- The goal is that the extractor LLM reading your generated prompt will apply the correct\n"
+    "  encoding for every property without needing to look at the T-Box itself.\n"
+)
 
 # -------- System Prompt (Legacy mode) --------
 SYSTEM_PROMPT = """You are an information extraction expert specializing in creating precise extraction scope prompts.
@@ -367,7 +400,14 @@ def _ontology_tbox_path(name: str) -> str:
         return "data/ontologies/ontomops-subgraph.ttl"
     if name == "ontospecies":
         return "data/ontologies/ontospecies-subgraph.ttl"
-    return "data/ontologies/ontosynthesis.ttl"
+    # Fallback: treat `name` as a path if it exists; otherwise do not silently
+    # default to OntoSynthesis (that causes cross-domain prompt leakage).
+    try:
+        if name and Path(name).exists():
+            return name
+    except Exception:
+        pass
+    return name
 
 
 def _iterations_path_for(name: str) -> Path:
@@ -380,6 +420,32 @@ def _candidate_prompt_path_from(iter_prompt_path: str) -> Path:
         return Path(iter_prompt_path.replace("ai_generated_contents/prompts/", f"{PROMPTS_CANDIDATE_BASE}/"))
     # Already candidate or other; default under candidate base
     return Path(PROMPTS_CANDIDATE_BASE) / iter_prompt_path
+
+
+def _load_meta_task_config(config_path: str = "configs/meta_task/meta_task_config.json") -> Dict[str, Any]:
+    try:
+        cfg_path = Path(config_path)
+        if cfg_path.exists():
+            return json.loads(cfg_path.read_text(encoding="utf-8"))
+    except Exception:
+        pass
+    return {}
+
+
+def _ontology_role(ontology_name: str, config_path: str = "configs/meta_task/meta_task_config.json") -> str:
+    cfg = _load_meta_task_config(config_path)
+    ontologies = (cfg.get("ontologies", {}) or {})
+    main = ontologies.get("main", {})
+    if isinstance(main, dict) and main.get("name") == ontology_name:
+        return "main"
+    for ext in ontologies.get("extensions", []) or []:
+        if isinstance(ext, dict) and ext.get("name") == ontology_name:
+            return "extension"
+    return "main"
+
+
+def _is_extension_ontology(ontology_name: str, config_path: str = "configs/meta_task/meta_task_config.json") -> bool:
+    return _ontology_role(ontology_name, config_path=config_path) == "extension"
 
 
 ITER_SYS = load_meta_prompt("extraction/iter_system.md")
@@ -444,15 +510,14 @@ def _collect_iteration_prompts(iterations_obj: Dict[str, Any], iteration_filter:
     return prompts
 
 
-def _generate_and_write_iter1_prompt(llm, tbox_text: str, out_path: Path, ontology_name: str = "ontosynthesis") -> None:
+def _generate_and_write_iter1_prompt(llm, tbox_text: str, out_path: Path, ontology_name: str = "") -> None:
     """
     Generate ITER1 extraction prompt by analyzing TTL.
     
     For extension ontologies (ontomops, ontospecies): uses simple template replacement
     For main ontology (ontosynthesis): generates entity identification prompts via LLM
     """
-    # Detect if this is an extension ontology
-    is_extension = ontology_name in ["ontomops", "ontospecies"]
+    is_extension = _is_extension_ontology(ontology_name)
     
     if is_extension:
         # Use simple template for extensions - no LLM needed
@@ -462,27 +527,13 @@ def _generate_and_write_iter1_prompt(llm, tbox_text: str, out_path: Path, ontolo
         
         template = template_path.read_text(encoding='utf-8')
         
-        # Map ontology names to display names and placeholder names
-        ontology_config = {
-            "ontomops": {
-                "display_name": "OntoMOPs",
-                "tbox_placeholder": "{ontomops_t_box}"
-            },
-            "ontospecies": {
-                "display_name": "OntoSpecies",
-                "tbox_placeholder": "{ontospecies_t_box}"
-            }
-        }
-        
-        config = ontology_config.get(ontology_name, {
-            "display_name": ontology_name,
-            "tbox_placeholder": f"{{{ontology_name}_t_box}}"
-        })
+        display_name = ontology_name or "ontology"
+        tbox_placeholder = f"{{{display_name}_t_box}}"
         
         # Replace template placeholders with ontology-specific values
-        text = template.replace("{{ONTOLOGY_NAME}}", ontology_name)
-        text = text.replace("{{ONTOLOGY_DISPLAY_NAME}}", config["display_name"])
-        text = text.replace("{{TBOX_PLACEHOLDER}}", config["tbox_placeholder"])
+        text = template.replace("{{ONTOLOGY_NAME}}", display_name)
+        text = text.replace("{{ONTOLOGY_DISPLAY_NAME}}", display_name)
+        text = text.replace("{{TBOX_PLACEHOLDER}}", tbox_placeholder)
         
         out_path.parent.mkdir(parents=True, exist_ok=True)
         with open(out_path, "w", encoding="utf-8") as f:
@@ -513,7 +564,14 @@ def _generate_and_write_iter1_prompt(llm, tbox_text: str, out_path: Path, ontolo
         print(f"✅ Generated ITER1 prompt: {out_path} (using main ontology meta-prompts)")
 
 
-def _generate_and_write_pre_extraction_prompt(llm, tbox_text: str, meta: Dict[str, Any], out_path: Path) -> None:
+def _generate_and_write_pre_extraction_prompt(
+    llm,
+    tbox_text: str,
+    meta: Dict[str, Any],
+    out_path: Path,
+    *,
+    ontology_name: str = "",
+) -> None:
     """
     Generate a PRE-EXTRACTION prompt (raw text extraction only, no ontology constraints).
     Now includes tbox_text to extract exclusion/inclusion rules.
@@ -576,13 +634,15 @@ def _generate_input_variables_section(meta: Dict[str, Any]) -> str:
     # Determine which variables to include based on inputs field
     has_source = "source" in inputs
     has_extraction_source = "extraction_source" in inputs
+    has_pre_extraction_source = "pre_extraction_source" in inputs
     
     # Build the variables section
     lines = ["---", ""]
     lines.append("entity_label: {entity_label}")
     
     # For iterations using pre-extracted text (context)
-    if has_extraction_source:
+    # Iterations that read pre-extracted text still need a per-case context block.
+    if has_extraction_source or has_pre_extraction_source:
         lines.append("context:")
         lines.append("<<<")
         lines.append("{context}")
@@ -597,7 +657,139 @@ def _generate_input_variables_section(meta: Dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def _generate_and_write_prompt(llm, tbox_text: str, meta: Dict[str, Any], out_path: Path) -> None:
+def _generic_extraction_output_discipline() -> str:
+    """
+    Append non-domain-specific output discipline rules so extraction prompts remain
+    operational and machine-consumable even if the generated body drifts toward
+    explanatory prose.
+    """
+    return (
+        "Output discipline:\n"
+        "- Output only the requested structured sections, field lines, marker values, and evidence lines.\n"
+        "- Do not add narrative introductions, conclusions, reminders, or explanatory commentary.\n"
+        "- Do not emit placeholders or missing-value prose such as \"not provided\", "
+        "\"cannot be determined\", \"not applicable\", or similar text.\n"
+        "- If a field is unsupported, omit it entirely unless the prompt explicitly requires "
+        "a fixed marker token for that field.\n"
+        "- If evidence is requested, include evidence only for fields that are actually emitted.\n"
+        "- Keep free-text values minimal when the ontology requires a short verbatim phrase rather "
+        "than a sentence.\n"
+        "- If the ontology marks a parent class as requiring the most specific supported subclass, "
+        "never emit that parent class name as the extracted instance type when a subclass rule, "
+        "trigger, or subclass-specific property is present.\n"
+    )
+
+
+def _resolve_generation_model(ontology_name: str) -> str:
+    """Resolve prompt-generation model without ontology-specific fallbacks."""
+    return os.environ.get("EXTRACTION_PROMPT_CREATION_MODEL", MODEL)
+
+
+def _load_ontology_integrity_guidance(tbox_path: Path) -> str:
+    """Build generic ontology-derived integrity guidance for extraction prompt assembly."""
+    try:
+        profile = extract_ontology_integrity_profile(str(tbox_path))
+        return format_ontology_integrity_guidance(profile, include_machine_readable=True)
+    except Exception:
+        return ""
+
+
+def _collect_iteration_term_locals(value: Any) -> set[str]:
+    """Collect ontology-looking local names referenced by iteration metadata."""
+    terms: set[str] = set()
+
+    def visit(item: Any) -> None:
+        if isinstance(item, dict):
+            for key, val in item.items():
+                visit(key)
+                visit(val)
+            return
+        if isinstance(item, list):
+            for val in item:
+                visit(val)
+            return
+        if not isinstance(item, str):
+            return
+        for curie_match in re.finditer(r"\b([A-Za-z][A-Za-z0-9_-]*):([A-Za-z_][A-Za-z0-9_-]*)\b", item):
+            if curie_match.group(1).lower() in {"http", "https"}:
+                continue
+            terms.add(curie_match.group(2))
+        for token in re.findall(r"\b[A-Za-z_][A-Za-z0-9_]*(?:-[A-Za-z0-9_]+)*\b", item):
+            if any(ch.isupper() for ch in token) or "_" in token:
+                terms.add(token)
+
+    visit(value)
+    return terms
+
+
+def _local_name_from_iri(value: str) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    return re.split(r"[#/]", text.rstrip("#/"))[-1]
+
+
+def _ontology_comment_guidance_for_iteration(tbox_text: str, meta: Dict[str, Any]) -> str:
+    """Return verbatim ontology comments for classes/properties referenced by an iteration."""
+    referenced_locals = _collect_iteration_term_locals(meta)
+    if not referenced_locals:
+        return ""
+    try:
+        from rdflib import Graph
+        from rdflib.namespace import RDFS
+
+        graph = Graph()
+        graph.parse(data=tbox_text, format="turtle")
+    except Exception:
+        return ""
+
+    rows: list[tuple[str, str]] = []
+    seen_subjects: set[str] = set()
+    for subject in graph.subjects():
+        subject_text = str(subject)
+        if subject_text in seen_subjects:
+            continue
+        local = _local_name_from_iri(subject_text)
+        domain_locals = {
+            _local_name_from_iri(str(domain))
+            for domain in graph.objects(subject, RDFS.domain)
+            if _local_name_from_iri(str(domain))
+        }
+        if local not in referenced_locals and not (domain_locals & referenced_locals):
+            continue
+        comments = [str(comment).strip() for comment in graph.objects(subject, RDFS.comment) if str(comment).strip()]
+        if comments:
+            seen_subjects.add(subject_text)
+            rows.append((local, " ".join(comments)))
+
+    if not rows:
+        return ""
+    rows.sort(key=lambda item: item[0].lower())
+    lines = [
+        "Ontology-derived verbatim comments:",
+        "Use these ontology comments as hard extraction constraints for this iteration.",
+    ]
+    for local, comment in rows[:80]:
+        lines.append(f"- {local}: {comment}")
+    return "\n".join(lines)
+
+
+def _generate_and_write_prompt(
+    llm,
+    tbox_text: str,
+    meta: Dict[str, Any],
+    out_path: Path,
+    *,
+    ontology_name: str = "",
+    shape_info: Dict[str, Any] | None = None,
+    super_flat_fields: List[str] | None = None,
+    integrity_guidance: str = "",
+) -> None:
+    try:
+        iter_no = int((meta or {}).get("iteration_number") or 0)
+    except Exception:
+        iter_no = 0
+
     # Add fidelity guidance for sub-iterations (enrichment) in a generic way
     extra = ""
     try:
@@ -610,6 +802,15 @@ def _generate_and_write_prompt(llm, tbox_text: str, meta: Dict[str, Any], out_pa
             )
     except Exception:
         pass
+
+    # Super-flat ITER2: nudge the LLM prompt generator to derive and include encoding rules
+    try:
+        if (shape_info or {}).get("is_super_flat") and iter_no == 2:
+            extra = (extra or "") + _SUPER_FLAT_ITER2_GUIDANCE
+    except Exception:
+        pass
+    if integrity_guidance:
+        extra = (extra or "") + "\n\n" + integrity_guidance.strip()
     user = ITER_USER_TMPL.format(
         tbox=tbox_text,
         meta=json.dumps(meta, ensure_ascii=False, indent=2),
@@ -629,7 +830,15 @@ def _generate_and_write_prompt(llm, tbox_text: str, meta: Dict[str, Any], out_pa
         if lines and lines[-1].strip() == "```":
             lines = lines[:-1]
         text = "\n".join(lines)
-    
+
+    ontology_comment_guidance = _ontology_comment_guidance_for_iteration(tbox_text, meta)
+    if ontology_comment_guidance and "ontology-derived verbatim comments:" not in text.lower():
+        text = text.rstrip() + "\n\n" + ontology_comment_guidance
+
+    output_discipline = _generic_extraction_output_discipline().strip()
+    if output_discipline and "output discipline:" not in text.lower():
+        text = text.rstrip() + "\n\n" + output_discipline
+
     # Append input variables section programmatically
     variables_section = _generate_input_variables_section(meta)
     if variables_section:
@@ -640,7 +849,13 @@ def _generate_and_write_prompt(llm, tbox_text: str, meta: Dict[str, Any], out_pa
         f.write(text)
 
 
-def generate_prompts_from_iterations(ontologies: List[str], iteration_filter: List[str] = None, pre_extraction_only: bool = False) -> bool:
+def generate_prompts_from_iterations(
+    ontologies: List[str],
+    iteration_filter: List[str] = None,
+    pre_extraction_only: bool = False,
+    *,
+    tbox_path_map: Dict[str, str] | None = None,
+) -> bool:
     """
     Generate extraction prompts from iterations.json for specified ontologies.
     
@@ -662,8 +877,29 @@ def generate_prompts_from_iterations(ontologies: List[str], iteration_filter: Li
             continue
         try:
             iterations_obj = json.loads(iterations_path.read_text(encoding="utf-8"))
-            tbox_path = Path(_ontology_tbox_path(name))
+            # IMPORTANT: T-Box must come from the selected ontology, not hardcoded defaults.
+            # Prefer explicit mapping passed by orchestration; fall back to the built-in mapping.
+            tbox_path_str = None
+            try:
+                if isinstance(tbox_path_map, dict):
+                    tbox_path_str = tbox_path_map.get(name)
+            except Exception:
+                tbox_path_str = None
+            tbox_path = Path(tbox_path_str) if tbox_path_str else Path(_ontology_tbox_path(name))
             tbox_text = tbox_path.read_text(encoding="utf-8")
+            shape_info = detect_super_flat_ontology(str(tbox_path))
+            integrity_guidance = _load_ontology_integrity_guidance(tbox_path)
+            super_flat_fields: List[str] = []
+            try:
+                if (shape_info or {}).get("is_super_flat"):
+                    parsed = parse_ontology_ttl(str(tbox_path))
+                    top_cls = (shape_info or {}).get("top_level_class")
+                    if top_cls and isinstance(parsed, dict):
+                        cls_data = (parsed.get("classes", {}) or {}).get(str(top_cls), {}) or {}
+                        dt_props = (cls_data.get("datatype_properties", {}) or {})
+                        super_flat_fields = sorted(dt_props.keys())
+            except Exception:
+                super_flat_fields = []
 
             prompts = _collect_iteration_prompts(iterations_obj, iteration_filter=iteration_filter)
             
@@ -674,7 +910,7 @@ def generate_prompts_from_iterations(ontologies: List[str], iteration_filter: Li
                 print(f"Iteration filter: {', '.join(iteration_filter)}")
 
             llm = LLMCreator(
-                model=MODEL,
+                model=_resolve_generation_model(name),
                 remote_model=True,
                 model_config=ModelConfig(temperature=0, top_p=1.0),
                 structured_output=False,
@@ -734,9 +970,24 @@ def generate_prompts_from_iterations(ontologies: List[str], iteration_filter: Li
                 
                 # Use different generation function based on prompt type
                 if is_pre_extraction:
-                    _generate_and_write_pre_extraction_prompt(llm, tbox_text, meta, target)
+                    _generate_and_write_pre_extraction_prompt(
+                        llm,
+                        tbox_text,
+                        meta,
+                        target,
+                        ontology_name=name,
+                    )
                 else:
-                    _generate_and_write_prompt(llm, tbox_text, meta, target)
+                    _generate_and_write_prompt(
+                        llm,
+                        tbox_text,
+                        meta,
+                        target,
+                        ontology_name=name,
+                        shape_info=shape_info,
+                        super_flat_fields=super_flat_fields,
+                        integrity_guidance=integrity_guidance,
+                    )
                 
                 print(f"✅ Wrote prompt file: {target}")
         except Exception as e:
@@ -762,7 +1013,13 @@ async def main_async(args):
         selected.append("ontospecies")
 
     if selected:
-        success_iter = generate_prompts_from_iterations(selected)
+        itf = getattr(args, "iterations", "") or ""
+        iteration_filter = None
+        if isinstance(itf, str) and itf.strip():
+            iteration_filter = [x.strip() for x in itf.split(",") if x.strip()]
+        success_iter = generate_prompts_from_iterations(
+            selected, iteration_filter=iteration_filter
+        )
         return success_iter
 
     # Legacy mode: Load T-Box and Plan
@@ -828,10 +1085,19 @@ def main():
         help=f"Path to T-Box TTL file (default: {TBOX_PATH})"
     )
     parser.add_argument(
+        "--iterations",
+        type=str,
+        default="",
+        help=(
+            "Comma-separated iteration numbers when using --ontosynthesis / --ontomops / "
+            "--ontospecies (e.g. '2'). Empty means all iterations."
+        ),
+    )
+    parser.add_argument(
         "--version",
         type=int,
-        required=True,
-        help="Version number for output directory (e.g., 1, 2, 3)"
+        default=None,
+        help="Version number for legacy plan mode output directory (e.g., 1, 2, 3)",
     )
     parser.add_argument(
         "--model",
@@ -847,7 +1113,13 @@ def main():
     )
     
     args = parser.parse_args()
-    
+
+    has_ontology_flag = bool(
+        args.ontosynthesis or args.ontomops or args.ontospecies
+    )
+    if not has_ontology_flag and args.version is None:
+        parser.error("--version is required in legacy plan mode")
+
     try:
         success = asyncio.run(main_async(args))
         exit(0 if success else 1)

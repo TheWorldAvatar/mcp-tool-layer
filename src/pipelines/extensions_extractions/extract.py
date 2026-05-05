@@ -236,7 +236,7 @@ def run_step(doi_hash: str, config: dict) -> bool:
         return True
     
     # Load meta task configuration
-    meta_config_path = os.path.join(project_root, "configs/meta_task/meta_task_config.json")
+    meta_config_path = config.get("meta_task_config") or os.path.join(project_root, "configs/meta_task/meta_task_config.json")
     if not os.path.exists(meta_config_path):
         logger.error(f"Meta task config not found: {meta_config_path}")
         return False
@@ -287,6 +287,7 @@ def run_step(doi_hash: str, config: dict) -> bool:
         return False
     
     # Process each extension ontology
+    had_failures = False
     for extension in extensions:
         ontology_name = extension.get("name")
         logger.info(f"\n  📚 Extension: {ontology_name}")
@@ -301,6 +302,7 @@ def run_step(doi_hash: str, config: dict) -> bool:
         
         if not os.path.exists(iterations_config_path):
             logger.error(f"  ❌ Iterations config not found: {iterations_config_path}")
+            had_failures = True
             continue
         
         try:
@@ -308,6 +310,7 @@ def run_step(doi_hash: str, config: dict) -> bool:
                 iterations_config = json.load(f)
         except Exception as e:
             logger.error(f"  ❌ Failed to load iterations config: {e}")
+            had_failures = True
             continue
         
         # Process each entity
@@ -327,7 +330,12 @@ def run_step(doi_hash: str, config: dict) -> bool:
                 ))
             except Exception as e:
                 logger.error(f"  ❌ Extension failed for '{entity_label}': {e}")
+                had_failures = True
                 continue
+    
+    if had_failures:
+        logger.error("❌ Extensions extractions finished with one or more failures")
+        return False
     
     # Create completion marker
     try:

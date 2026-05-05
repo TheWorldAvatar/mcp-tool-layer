@@ -1,0 +1,21 @@
+{
+  "ontologies": {
+    "main": {
+      "name": "medical",
+      "description": "Flat medical case schema for extraction (mock ontology).",
+      "ttl_file": "medical_case/medical_case_schema_de_flat_v2.ttl",
+      "complex_pipeline": false,
+      "use_om2_units": false,
+      "output": {
+        "dir": "{ontology_name}_output",
+        "top_ttl_name": "top.ttl",
+        "entity_ttl_pattern": "{entity_safe}.ttl"
+      },
+      "mcp_set_name": "generated_ontology_mcps.json",
+      "mcp_list": [
+        "medical_mcp"
+      ]
+    },
+    "extensions": []
+  }
+}

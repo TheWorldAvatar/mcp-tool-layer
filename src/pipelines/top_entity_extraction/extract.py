@@ -8,6 +8,9 @@ using prompts defined in the main ontology configuration.
 import os
 import sys
 import json
+import re
+from pathlib import Path
+from typing import List, Optional
 
 # Add project root to path
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
@@ -16,6 +19,7 @@ if project_root not in sys.path:
 
 from src.utils.global_logger import get_logger
 from src.utils.extraction_models import get_extraction_model
+from src.pipelines.structured_extraction import validate_top_entity_lines
 from models.LLMCreator import LLMCreator
 from models.ModelConfig import ModelConfig
 import asyncio
@@ -75,7 +79,78 @@ def load_extraction_prompt(ontology_name: str, iteration: int = 1) -> str:
         return f.read()
 
 
-async def extract_top_entities(doi_hash: str, data_dir: str, ontology_name: str) -> bool:
+def _top_entities_txt_is_stale(existing: str, invalidate_substrings: list) -> bool:
+    """True if cached top_entities.txt should be discarded (wrong domain / placeholder)."""
+    if not (existing or "").strip():
+        return True
+    low = existing.lower()
+    for sub in invalidate_substrings or []:
+        if sub and str(sub).lower() in low:
+            return True
+    return False
+
+
+def _count_hint_lines(content: str, prefixes: Optional[List[str]]) -> List[str]:
+    prefixes = tuple(p for p in (prefixes or []) if p)
+    if not prefixes:
+        prefixes = ("Entity",)
+    out: List[str] = []
+    for line in content.split("\n"):
+        s = line.strip()
+        if s and any(s.startswith(p) for p in prefixes):
+            out.append(s)
+    return out
+
+
+def _normalize_top_entity_output(
+    content: str,
+    *,
+    line_prefixes: Optional[List[str]] = None,
+    identifier_code_regex: Optional[str] = None,
+) -> str:
+    """Normalize verbose top-entity lines to stable concise identifiers when possible."""
+    normalized: list[str] = []
+    seen: set[str] = set()
+    prefixes = tuple(p for p in (line_prefixes or []) if p)
+    if not prefixes:
+        prefixes = ("Entity",)
+    try:
+        code_re = re.compile(identifier_code_regex or r"\b[A-Z][A-Z0-9]{1,}(?:[-_]\d+[A-Za-z0-9]*)\b")
+    except re.error:
+        code_re = re.compile(r"\b[A-Z][A-Z0-9]{1,}(?:[-_]\d+[A-Za-z0-9]*)\b")
+    for raw_line in (content or "").splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        matched_prefix = next((p for p in prefixes if line.startswith(p)), "")
+        if not matched_prefix:
+            normalized.append(line)
+            continue
+        candidates = code_re.findall(line)
+        code = candidates[-1] if candidates else ""
+        if code:
+            key = code.upper()
+            if key in seen:
+                continue
+            seen.add(key)
+            normalized.append(f"{matched_prefix}-{len(seen)} [{code}]")
+        else:
+            if line in seen:
+                continue
+            seen.add(line)
+            normalized.append(line)
+    return "\n".join(normalized).strip() + ("\n" if normalized else "")
+
+
+async def extract_top_entities(
+    doi_hash: str,
+    data_dir: str,
+    ontology_name: str,
+    *,
+    invalidate_top_entities_txt_substrings: Optional[List[str]] = None,
+    count_lines_starting_with: Optional[List[str]] = None,
+    identifier_code_regex: Optional[str] = None,
+) -> bool:
     """
     Extract top-level entities from the stitched markdown.
     
@@ -89,22 +164,72 @@ async def extract_top_entities(doi_hash: str, data_dir: str, ontology_name: str)
     """
     doi_dir = os.path.join(data_dir, doi_hash)
     stitched_md = os.path.join(doi_dir, f"{doi_hash}_stitched.md")
+    text_md = os.path.join(doi_dir, f"{doi_hash}_text.md")
+    raw_md = os.path.join(doi_dir, f"{doi_hash}.md")
     output_file = os.path.join(doi_dir, "top_entities.txt")
     
-    # Check if already exists
+    # Check if already exists (skip only when content looks valid for this ontology).
     if os.path.exists(output_file):
-        logger.info(f"⏭️  Top entities already extracted: {output_file}")
-        return True
+        try:
+            existing = Path(output_file).read_text(encoding="utf-8")
+        except Exception:
+            existing = ""
+        low = existing.lower()
+        placeholder_doc = "provide the document" in low
+        stale_wrong_domain = _top_entities_txt_is_stale(existing, invalidate_top_entities_txt_substrings or [])
+        if existing.strip() and not placeholder_doc and not stale_wrong_domain:
+            logger.info(f"⏭️  Top entities already extracted: {output_file}")
+            return True
+        if stale_wrong_domain:
+            logger.warning(
+                f"⚠️  Stale/wrong-domain top_entities.txt; re-running extraction: {output_file}"
+            )
+        else:
+            logger.warning(
+                f"⚠️  Existing top_entities.txt looks invalid/placeholder; re-running extraction: {output_file}"
+            )
     
-    # Check if stitched markdown exists
-    if not os.path.exists(stitched_md):
-        logger.error(f"❌ Stitched markdown not found: {stitched_md}")
+    # Read paper content (robust fallback chain) and append supporting information
+    # when available; synthesis procedures are often specified only in SI.
+    vision_md = os.path.join(doi_dir, f"{doi_hash}_vision.md")
+    paper_content = ""
+    candidates = [vision_md, stitched_md, text_md, raw_md]
+    chosen = None
+    for p in candidates:
+        if not os.path.exists(p):
+            continue
+        try:
+            c = Path(p).read_text(encoding="utf-8")
+        except Exception:
+            c = ""
+        if c and c.strip():
+            paper_content = c
+            chosen = p
+            break
+    if not paper_content.strip():
+        logger.error(
+            f"❌ No usable paper content found. Tried: {', '.join([p for p in candidates if p])}"
+        )
         return False
-    
-    # Read paper content
-    logger.info(f"📄 Reading stitched markdown: {stitched_md}")
-    with open(stitched_md, 'r', encoding='utf-8') as f:
-        paper_content = f.read()
+    logger.info(f"📄 Using paper content from: {chosen}")
+
+    for si_name in (
+        f"{doi_hash}_si_text.md",
+        f"{doi_hash}_si_vision.md",
+        f"{doi_hash}_si.md",
+        f"{doi_hash}_si_tables.md",
+    ):
+        si_path = os.path.join(doi_dir, si_name)
+        if not os.path.exists(si_path):
+            continue
+        try:
+            si_text = Path(si_path).read_text(encoding="utf-8")
+        except Exception as e:
+            logger.warning(f"Failed to read {si_path}: {e}")
+            continue
+        if si_text and si_text.strip():
+            paper_content += f"\n\n# Supporting Information: {si_name}\n\n{si_text}"
+            logger.info(f"📎 Appended supporting information from: {si_path}")
     
     # Load extraction prompt
     logger.info(f"📋 Loading extraction prompt for {ontology_name} iteration 1")
@@ -145,6 +270,20 @@ async def extract_top_entities(doi_hash: str, data_dir: str, ontology_name: str)
             
             # Extract content
             content = result.content if hasattr(result, 'content') else str(result)
+            content = _normalize_top_entity_output(
+                content,
+                line_prefixes=count_lines_starting_with or [],
+                identifier_code_regex=identifier_code_regex,
+            )
+            ok_lines, line_errors = validate_top_entity_lines(
+                content,
+                list(count_lines_starting_with or []),
+            )
+            if not ok_lines:
+                raise ValueError(
+                    "Top entity extraction failed normalized line validation: "
+                    + "; ".join(line_errors[:3])
+                )
             
             # Save result
             os.makedirs(doi_dir, exist_ok=True)
@@ -154,8 +293,8 @@ async def extract_top_entities(doi_hash: str, data_dir: str, ontology_name: str)
             logger.info(f"✅ Top entities saved to: {output_file}")
             
             # Log extracted entities
-            lines = [line.strip() for line in content.split('\n') if line.strip() and line.strip().startswith('ChemicalSynthesis')]
-            logger.info(f"   Found {len(lines)} top-level entities")
+            lines = _count_hint_lines(content, count_lines_starting_with or [])
+            logger.info(f"   Found {len(lines)} top-level entity line(s) (prefix filter)")
             for line in lines[:5]:  # Show first 5
                 logger.info(f"   - {line[:80]}...")
             if len(lines) > 5:
@@ -191,17 +330,36 @@ def run_step(doi_hash: str, config: dict) -> bool:
     
     # Load meta config to get main ontology
     try:
-        meta_config = load_meta_config()
+        meta_config = load_meta_config(config.get("meta_task_config", "configs/meta_task/meta_task_config.json"))
         main_ontology = meta_config.get("ontologies", {}).get("main", {})
         ontology_name = main_ontology.get("name", "ontosynthesis")
         logger.info(f"   Using ontology: {ontology_name}")
+        policies = (main_ontology.get("runtime_policies") or {}) if isinstance(main_ontology, dict) else {}
+        te_pol = (policies.get("top_entity_extraction") or {}) if isinstance(policies, dict) else {}
+        invalidate_subs = te_pol.get("invalidate_top_entities_txt_substrings") or []
+        count_prefixes = te_pol.get("count_lines_starting_with")
+        if not count_prefixes:
+            iter1_pol = (policies.get("iter1_top_entity_kg") or {}) if isinstance(policies, dict) else {}
+            iter1_rules = (iter1_pol.get("prompt_rules") or {}) if isinstance(iter1_pol, dict) else {}
+            top_name = str(iter1_rules.get("top_level_entity_name") or "").strip()
+            count_prefixes = [top_name] if top_name else []
+        identifier_code_regex = te_pol.get("identifier_code_regex")
     except Exception as e:
         logger.error(f"❌ Failed to load meta config: {e}")
         return False
     
     # Run extraction
     try:
-        success = asyncio.run(extract_top_entities(doi_hash, data_dir, ontology_name))
+        success = asyncio.run(
+            extract_top_entities(
+                doi_hash,
+                data_dir,
+                ontology_name,
+                invalidate_top_entities_txt_substrings=invalidate_subs,
+                count_lines_starting_with=count_prefixes,
+                identifier_code_regex=identifier_code_regex,
+            )
+        )
         
         if success:
             logger.info(f"✅ Top Entity Extraction completed: {doi_hash}")

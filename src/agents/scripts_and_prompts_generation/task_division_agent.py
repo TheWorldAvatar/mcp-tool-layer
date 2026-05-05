@@ -2,7 +2,7 @@
 """
 task_division_agent.py
 
-Generates a structured JSON plan for building an A-Box from the OntoSynthesis T-Box.
+Generates a structured JSON plan for building an A-Box from a T-Box.
 The plan divides the KG construction into multiple steps, where each step specifies:
 - What instances to create
 - What relations to establish
@@ -33,12 +33,12 @@ load_dotenv(override=True)
 # -------- System Prompt --------
 SYSTEM_PROMPT = """You are a rigorous knowledge graph architect specializing in ontology-driven A-Box construction planning.
 
-Given an OWL/RDF T-Box (ontology schema), you will design a multi-step plan to build a conformant A-Box (instance knowledge graph) from scientific papers.
+Given an OWL/RDF T-Box (ontology schema), you will design a multi-step plan to build a conformant A-Box (instance knowledge graph) from source documents.
 
 Your output must be valid JSON only. No markdown, no prose."""
 
 # -------- User Prompt --------
-USER_PROMPT = """You are given an OWL/RDF T-Box (ontology schema) for chemical synthesis procedures.
+USER_PROMPT = """You are given an OWL/RDF T-Box (ontology schema).
 
 ## Objective
 
@@ -106,21 +106,21 @@ Return a JSON object with the following structure:
 ### Step Count
 - Use 4-6 steps maximum
 - Step 1: Top-level entities only
-- Steps 2-5: Progressive construction (inputs/outputs, then steps, then metadata)
-- Final step: Complete remaining properties (yield, equipment, provenance)
+- Steps 2-5: Progressive construction of related entities and their links
+- Final step: Complete remaining properties, context, and provenance
 
 ### Information Extraction
 For each step, specify:
-- Concrete data points to extract (names, formulas, amounts, conditions, etc.)
-- Extraction scope (whole paper vs. specific sections)
-- Entity context (global vs. per-synthesis)
+- Concrete data points to extract (labels, identifiers, values, conditions, references, etc.)
+- Extraction scope (whole document vs. specific sections)
+- Entity context (global vs. entity-scoped)
 
 ### Constraints
 For each step, include:
-- Cardinality rules (e.g., "exactly one ChemicalOutput per ChemicalSynthesis")
-- Validation rules (e.g., "do not create ChemicalInput for common solvents")
-- Deduplication rules (e.g., "avoid duplicate Supplier instances")
-- Stop conditions (e.g., "when all inputs are linked or skipped")
+- Cardinality rules (e.g., "exactly one ClassB per ClassA")
+- Validation rules (e.g., "do not create ClassB when the source only states generic background context")
+- Deduplication rules (e.g., "avoid duplicate AuxiliaryClass instances")
+- Stop conditions (e.g., "when all relevant instances are linked or explicitly skipped")
 
 ## Important Considerations
 

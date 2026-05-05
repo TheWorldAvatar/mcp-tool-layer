@@ -26,9 +26,14 @@ You will be given a concise ontology structure markdown that includes:
 3. **Relationship functions**:
    - For each object property in the ontology, generate a deterministic `add_*` function that:
      - accepts subject IRI string, object IRI string (or label parameters if the ontology indicates label-driven creation)
+     - MUST NOT accept a `graph` / `g` parameter in the public `add_*` signature
      - validates that subject/object exist and have compatible rdf:type according to the T-Box (best-effort)
      - adds exactly one triple `(subject, predicate, object)` (avoid duplicates where easy)
      - returns a JSON envelope using the base formatting helpers (`_format_success_json` / `_format_error`)
+     - manages graph persistence internally via `with locked_graph() as g:`
+   - If you use a private helper such as `_add_relationship`, that private helper MAY accept `graph: Graph`.
+   - `_format_success_json` must be called as `_format_success_json(iri, message, created=...)`.
+   - NEVER call `_format_success_json({{...}})` with a dict positional argument.
 4. **Ergonomic helpers** (ONLY when the ontology indicates they are relevant):
   - Provide stable-name wrappers for common user workflows, but implement them by delegating to the ontology-derived `add_*` functions you generated (do not re-implement the triple-adding logic).
   - If the ontology has a concept like “input” with a repeatable literal (e.g., multiple amounts/notes/identifiers), include a helper that **appends + deduplicates** a literal value.

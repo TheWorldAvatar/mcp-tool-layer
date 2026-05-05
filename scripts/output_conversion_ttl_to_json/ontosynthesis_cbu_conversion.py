@@ -7,10 +7,21 @@ to create JSON output matching the CBU ground truth format.
 """
 
 import json
+import sys
 from rdflib import Graph, Namespace, URIRef, RDF, RDFS, Literal
 from rdflib.namespace import OWL
 from rdflib.plugins.sparql import prepareQuery
 from typing import Dict, List, Any
+
+# Avoid UnicodeEncodeError on Windows consoles (e.g. minus U+2212 in formulae).
+_out = getattr(sys.stdout, "reconfigure", None)
+if callable(_out):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
+
 def build_cbu_json_from_graph(graph: Graph) -> Dict[str, Any]:
     """
     Build CBU JSON structure directly from an rdflib Graph, scanning synthesis→MOP
@@ -54,6 +65,122 @@ def build_cbu_json_from_graph(graph: Graph) -> Dict[str, Any]:
             return float(v)  # type: ignore
         except Exception:
             return None
+
+    def _uniq_keep_order(items: List[str]) -> List[str]:
+        out: List[str] = []
+        seen = set()
+        for item in items:
+            text = str(item or "").strip()
+            if not text or text in seen:
+                continue
+            seen.add(text)
+            out.append(text)
+        return out
+
+    def _split_alt_names(value: str) -> List[str]:
+        text = str(value or "").strip()
+        if not text:
+            return []
+        if ";" in text:
+            return [part.strip() for part in text.split(";") if part.strip()]
+        return [text]
+
+    def _looks_formula_like(text: str) -> bool:
+        s = str(text or "").strip()
+        if not s:
+            return False
+        if s.startswith("[") or s.startswith("("):
+            return True
+        compact = s.replace(" ", "")
+        if compact.isupper() and any(ch.isdigit() for ch in compact):
+            return True
+        return False
+
+    def _is_guest_mop(mop: URIRef) -> bool:
+        labels = [str(v).strip() for v in graph.objects(mop, RDFS.label)]
+        label_text = " ".join(labels)
+        return "·" in label_text
+
+    def _collect_input_aliases_for_mop(mop: URIRef) -> Dict[str, List[str]]:
+        synths = set()
+        for chem_out in graph.subjects(URIRef(str(ONTOSYN) + "isRepresentedBy"), mop):
+            for synth in graph.subjects(URIRef(str(ONTOSYN) + "hasChemicalOutput"), chem_out):
+                synths.add(synth)
+
+        if not synths:
+            mop_labels = [str(v).strip() for v in graph.objects(mop, RDFS.label) if str(v).strip()]
+            normalized_targets = {f"{label.lower()} synthesis" for label in mop_labels}
+            for synth in graph.subjects(RDF.type, URIRef(str(ONTOSYN) + "ChemicalSynthesis")):
+                synth_labels = [str(v).strip() for v in graph.objects(synth, RDFS.label) if str(v).strip()]
+                if any(lbl.lower() in normalized_targets for lbl in synth_labels):
+                    synths.add(synth)
+
+        organic_names: List[str] = []
+        metal_names: List[str] = []
+        seen_chems = set()
+
+        def _record_chemical(chem: URIRef) -> None:
+            chem_key = str(chem)
+            if chem_key in seen_chems:
+                return
+            seen_chems.add(chem_key)
+
+            labels = [str(v).strip() for v in graph.objects(chem, RDFS.label) if str(v).strip()]
+            alt_names: List[str] = []
+            for alt in graph.objects(chem, URIRef(str(ONTOSYN) + "hasAlternativeNames")):
+                alt_names.extend(_split_alt_names(str(alt)))
+            descriptions = [
+                str(v).strip().lower()
+                for v in graph.objects(chem, URIRef(str(ONTOSYN) + "hasChemicalDescription"))
+                if str(v).strip()
+            ]
+            merged_text = " ".join(labels + alt_names + descriptions).lower()
+            if not merged_text:
+                return
+            if any(token in merged_text for token in ["solvent", "guest molecule", "guest"]):
+                return
+
+            names = _uniq_keep_order(labels + alt_names)
+            if not names:
+                return
+
+            is_metal = any(token in merged_text for token in ["metal precursor", "voso4", "vanadyl sulfate"])
+            is_organic = any(
+                token in merged_text
+                for token in ["linker", "ligand", "carboxylate", "tetracarboxylic acid"]
+            ) or any(name.upper().startswith("H4") for name in names)
+
+            if is_metal:
+                metal_names.extend(names)
+            elif is_organic:
+                organic_names.extend(names)
+
+        for synth in synths:
+            for chem in graph.objects(synth, URIRef(str(ONTOSYN) + "hasChemicalInput")):
+                if isinstance(chem, URIRef):
+                    _record_chemical(chem)
+            for step in graph.objects(synth, URIRef(str(ONTOSYN) + "hasSynthesisStep")):
+                for chem in graph.objects(step, URIRef(str(ONTOSYN) + "hasAddedChemicalInput")):
+                    if isinstance(chem, URIRef):
+                        _record_chemical(chem)
+
+        return {
+            "organic": _uniq_keep_order(organic_names),
+            "metal": _uniq_keep_order(metal_names),
+        }
+
+    def _augment_cbu_names(formula: str, names: List[str], aliases: Dict[str, List[str]]) -> List[str]:
+        normalized = _uniq_keep_order([str(n).strip() for n in names if str(n).strip()])
+        non_formula = [n for n in normalized if not _looks_formula_like(n) and n != formula]
+        if "v6o6" in formula.lower():
+            inferred = aliases.get("metal", [])
+        else:
+            inferred = aliases.get("organic", [])
+        if non_formula:
+            return _uniq_keep_order(non_formula + inferred)
+        if inferred:
+            return _uniq_keep_order(inferred)
+        return [n for n in normalized if n != formula]
 
     def add_mop_to_aggregation(mop: URIRef) -> None:
         """Collect CBUs for a given MOP node into mop_to_cbus."""
@@ -157,6 +284,8 @@ def build_cbu_json_from_graph(graph: Graph) -> Dict[str, Any]:
     for mop in graph.subjects(RDF.type, mop_type_uri):
         print(f"Found MOP: {mop}")
         direct_mops_found += 1
+        if _is_guest_mop(mop):
+            continue
         ccdc_vals = list(graph.objects(mop, URIRef(str(ONTOMOPS) + "hasCCDCNumber")))
         ccdc = str(ccdc_vals[0]) if ccdc_vals else "N/A"
 
@@ -165,6 +294,8 @@ def build_cbu_json_from_graph(graph: Graph) -> Dict[str, Any]:
 
         direct_mops_found += 1
         print(f"Found MOP {mop} with CCDC {ccdc}")
+
+        aliases = _collect_input_aliases_for_mop(mop)
 
         # Get all CBUs for this MOP
         cbu_formulas = []
@@ -226,6 +357,11 @@ def build_cbu_json_from_graph(graph: Graph) -> Dict[str, Any]:
         # Sort CBUs by formula for consistency
         cbu_data = list(zip(cbu_formulas, cbu_names))
         cbu_data.sort(key=lambda x: x[0])
+
+        if len(cbu_data) >= 1:
+            cbu_data[0] = (cbu_data[0][0], _augment_cbu_names(cbu_data[0][0], cbu_data[0][1], aliases))
+        if len(cbu_data) >= 2:
+            cbu_data[1] = (cbu_data[1][0], _augment_cbu_names(cbu_data[1][0], cbu_data[1][1], aliases))
 
         entry = {
             "mopCCDCNumber": ccdc,

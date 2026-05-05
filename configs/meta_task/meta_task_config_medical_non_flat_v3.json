@@ -1,0 +1,150 @@
+{
+  "ontologies": {
+    "main": {
+      "name": "medical",
+      "description": "Non-flat medical case schema for extraction (hierarchical T-Box).",
+      "ttl_file": "medical_case/medical_case_schema_de_non_flat_v3.ttl",
+      "complex_pipeline": true,
+      "use_om2_units": false,
+      "output": {
+        "dir": "{ontology_name}_output",
+        "top_ttl_name": "top.ttl",
+        "entity_ttl_pattern": "{entity_safe}.ttl"
+      },
+      "runtime_policies": {
+        "iter1_top_entity_kg": {
+          "global_state_entity_name": "top",
+          "prompt_rules": {
+            "doi_argument_source": "document_identifier",
+            "top_level_entity_name": "top",
+            "forbid_human_readable_label_as_doi": true
+          }
+        },
+        "main_entity_kg": {
+          "runtime_context": {
+            "lock_to_global_state_entity_name": true
+          },
+          "publish": {
+            "merge_top_ttl_into_entity_ttl": true,
+            "top_entity_context_name": "top",
+            "prefer_composite_intermediate": true,
+            "hint_reconciliation": {
+              "optional_links": [
+                {
+                  "predicate_iri": "https://www.theworldavatar.com/kg/medical/hasDiagnosis",
+                  "target_class_iri": "https://www.theworldavatar.com/kg/medical/Diagnosis"
+                },
+                {
+                  "predicate_iri": "https://www.theworldavatar.com/kg/medical/hasComplication",
+                  "target_class_iri": "https://www.theworldavatar.com/kg/medical/Complication"
+                },
+                {
+                  "predicate_iri": "https://www.theworldavatar.com/kg/medical/hasPathologyOutcome",
+                  "target_class_iri": "https://www.theworldavatar.com/kg/medical/PathologyOutcome"
+                }
+              ],
+              "mutually_exclusive_property_groups": [
+                {
+                  "target_class_iri": "https://www.theworldavatar.com/kg/medical/SurgicalApproach",
+                  "property_iris": [
+                    "https://www.theworldavatar.com/kg/medical/offen",
+                    "https://www.theworldavatar.com/kg/medical/VATS",
+                    "https://www.theworldavatar.com/kg/medical/RATS"
+                  ]
+                }
+              ]
+            }
+          },
+          "shell_validation": {
+            "top_entity_class_iri": "https://www.theworldavatar.com/kg/medical/MedicalCase",
+            "require_entity_uri_subject": true,
+            "required_links": [
+              {
+                "predicate_iri": "https://www.theworldavatar.com/kg/medical/hasTimeline",
+                "target_class_iri": "https://www.theworldavatar.com/kg/medical/CaseTimeline",
+                "min_count": 1,
+                "repair_mode": "attach_singleton_if_missing"
+              },
+              {
+                "predicate_iri": "https://www.theworldavatar.com/kg/medical/hasSurgicalApproach",
+                "target_class_iri": "https://www.theworldavatar.com/kg/medical/SurgicalApproach",
+                "min_count": 1,
+                "repair_mode": "attach_singleton_if_missing"
+              },
+              {
+                "predicate_iri": "https://www.theworldavatar.com/kg/medical/hasPatientInfo",
+                "target_class_iri": "https://www.theworldavatar.com/kg/medical/PatientInfo",
+                "min_count": 1,
+                "repair_mode": "attach_singleton_if_missing"
+              },
+              {
+                "predicate_iri": "https://www.theworldavatar.com/kg/medical/hasSurgicalTeam",
+                "target_class_iri": "https://www.theworldavatar.com/kg/medical/SurgicalTeam",
+                "min_count": 1,
+                "repair_mode": "attach_singleton_if_missing"
+              },
+              {
+                "predicate_iri": "https://www.theworldavatar.com/kg/medical/hasProcedure",
+                "target_class_iri": "https://www.theworldavatar.com/kg/medical/Procedure",
+                "min_count": 1,
+                "repair_mode": "attach_singleton_if_missing",
+                "prune_unhinted_scalar_properties": true
+              }
+            ]
+          },
+          "prompt_rules": {
+            "require_top_entity_reuse": true,
+            "forbid_new_top_entity_creation": true,
+            "require_required_links_before_export": true
+          }
+        },
+        "identifier_handling": {
+          "prefer_global_state_for_nonhash": true,
+          "preserve_hash_regex": "^[0-9a-f]{8}$",
+          "fallback_to_global_state_patterns": [
+            "^Fallnummer\\b",
+            "^Fall-Nr\\.?\\b",
+            "^Patient\\b",
+            "OP-Datum"
+          ]
+        },
+        "top_entity_extraction": {
+          "invalidate_top_entities_txt_substrings": [
+            "No ChemicalSynthesis",
+            "ChemicalSynthesis instances",
+            "ontosyn:ChemicalSynthesis"
+          ],
+          "count_lines_starting_with": [
+            "MedicalCase"
+          ]
+        },
+        "iteration_plan": {
+          "max_main_iterations": 3,
+          "forbid_sub_iterations": true,
+          "iterations_blueprint_path": "configs/meta_task/medical_non_flat_v3_iterations_blueprint.json",
+          "postprocess_overrides": {
+            "2": {
+              "model_config_key": "extraction_balanced",
+              "use_agent": false
+            },
+            "3": {
+              "model_config_key": "extraction_balanced",
+              "pre_extraction_model_key": "advanced_model",
+              "use_agent": false
+            },
+            "4": {
+              "model_config_key": "extraction_balanced",
+              "use_agent": false
+            }
+          },
+          "llm_prompt_hint": "For this medical case schema, use exactly 3 main iterations (iteration_number 2, 3, 4 only). Each iteration must cover multiple related classes in one pass (e.g. demographics + timeline + team; procedure + approach; diagnosis + complication + pathology). Do not create one iteration per class. Do not emit sub_iterations, enrichment iterations, merge iterations, or iteration numbers such as 3.1, 31, 4.1, or 41."
+        }
+      },
+      "mcp_set_name": "generated_ontology_mcps.json",
+      "mcp_list": [
+        "medical_mcp"
+      ]
+    },
+    "extensions": []
+  }
+}

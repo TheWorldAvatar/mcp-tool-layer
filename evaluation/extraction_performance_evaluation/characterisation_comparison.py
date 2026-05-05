@@ -34,11 +34,10 @@ def parse_bands(s: str) -> Set[int]:
 
 def parse_percent_series(s: str) -> Dict[str, float]:
     out = {}
-    if not s: return out
-    for token in re.split(r"[;,]\s*", s.strip()):
-        m = re.match(r"([A-Za-z]+)\s+(-?\d+(?:\.\d+)?)", token)
-        if m:
-            out[m.group(1)] = float(m.group(2))
+    if not s:
+        return out
+    for m in re.finditer(r"([A-Za-z]+)\s*,?\s*(-?\d+(?:\.\d+)?)", s.strip()):
+        out[m.group(1)] = float(m.group(2))
     return out
 
 def load_char_map(path: str) -> Dict[str, dict]:

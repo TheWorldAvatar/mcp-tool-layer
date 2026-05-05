@@ -1,0 +1,323 @@
+{
+  "check_count": 8,
+  "checks_since_last_write": 0,
+  "checks_since_write": 0,
+  "has_check_since_write": false,
+  "history": [
+    {
+      "event": "write",
+      "kind": "init_memory_wrapper"
+    },
+    {
+      "event": "write",
+      "kind": "create_MedicalCase"
+    },
+    {
+      "event": "write",
+      "kind": "export_memory_wrapper"
+    },
+    {
+      "event": "write",
+      "kind": "init_memory_wrapper"
+    },
+    {
+      "event": "write",
+      "kind": "create_SurgicalApproach"
+    },
+    {
+      "event": "write",
+      "kind": "create_Procedure"
+    },
+    {
+      "event": "write",
+      "kind": "create_Diagnosis"
+    },
+    {
+      "event": "write",
+      "kind": "create_PathologyOutcome"
+    },
+    {
+      "event": "write",
+      "kind": "export_memory_wrapper"
+    },
+    {
+      "event": "write",
+      "kind": "init_memory_wrapper"
+    },
+    {
+      "event": "write",
+      "kind": "create_MedicalCase"
+    },
+    {
+      "event": "write",
+      "kind": "create_Procedure"
+    },
+    {
+      "event": "write",
+      "kind": "export_memory_wrapper"
+    },
+    {
+      "event": "write",
+      "kind": "init_memory_wrapper"
+    },
+    {
+      "event": "write",
+      "kind": "create_MedicalCase"
+    },
+    {
+      "event": "write",
+      "kind": "create_Procedure"
+    },
+    {
+      "event": "write",
+      "kind": "export_memory_wrapper"
+    },
+    {
+      "event": "write",
+      "kind": "init_memory_wrapper"
+    },
+    {
+      "event": "write",
+      "kind": "create_MedicalCase"
+    },
+    {
+      "event": "write",
+      "kind": "create_Procedure"
+    },
+    {
+      "event": "write",
+      "kind": "create_MedicalCase"
+    },
+    {
+      "event": "write",
+      "kind": "export_memory_wrapper"
+    },
+    {
+      "event": "write",
+      "kind": "init_memory_wrapper"
+    },
+    {
+      "event": "write",
+      "kind": "create_MedicalCase"
+    },
+    {
+      "event": "write",
+      "kind": "create_Procedure"
+    },
+    {
+      "event": "write",
+      "kind": "create_MedicalCase"
+    },
+    {
+      "event": "write",
+      "kind": "export_memory_wrapper"
+    },
+    {
+      "event": "write",
+      "kind": "init_memory_wrapper"
+    },
+    {
+      "event": "write",
+      "kind": "create_MedicalCase"
+    },
+    {
+      "event": "write",
+      "kind": "create_Procedure"
+    },
+    {
+      "event": "write",
+      "kind": "export_memory_wrapper"
+    },
+    {
+      "event": "write",
+      "kind": "init_memory_wrapper"
+    },
+    {
+      "event": "write",
+      "kind": "create_MedicalCase"
+    },
+    {
+      "event": "write",
+      "kind": "create_Procedure"
+    },
+    {
+      "event": "write",
+      "kind": "create_MedicalCase"
+    },
+    {
+      "event": "write",
+      "kind": "export_memory_wrapper"
+    },
+    {
+      "event": "write",
+      "kind": "init_memory_wrapper"
+    },
+    {
+      "event": "write",
+      "kind": "create_MedicalCase"
+    },
+    {
+      "event": "write",
+      "kind": "create_Procedure"
+    },
+    {
+      "event": "write",
+      "kind": "create_MedicalCase"
+    },
+    {
+      "event": "write",
+      "kind": "export_memory_wrapper"
+    },
+    {
+      "event": "write",
+      "kind": "init_memory_wrapper"
+    },
+    {
+      "event": "write",
+      "kind": "create_MedicalCase"
+    },
+    {
+      "event": "write",
+      "kind": "init_memory_wrapper"
+    },
+    {
+      "event": "write",
+      "kind": "create_Procedure"
+    },
+    {
+      "event": "write",
+      "kind": "export_memory_wrapper"
+    },
+    {
+      "event": "write",
+      "kind": "init_memory_wrapper"
+    },
+    {
+      "event": "write",
+      "kind": "create_MedicalCase"
+    },
+    {
+      "event": "write",
+      "kind": "create_Procedure"
+    },
+    {
+      "event": "write",
+      "kind": "export_memory_wrapper"
+    },
+    {
+      "event": "write",
+      "kind": "init_memory_wrapper"
+    },
+    {
+      "event": "write",
+      "kind": "create_MedicalCase"
+    },
+    {
+      "event": "write",
+      "kind": "init_memory_wrapper"
+    },
+    {
+      "event": "write",
+      "kind": "create_Procedure"
+    },
+    {
+      "event": "write",
+      "kind": "export_memory_wrapper"
+    },
+    {
+      "event": "write",
+      "kind": "init_memory_wrapper"
+    },
+    {
+      "event": "write",
+      "kind": "create_MedicalCase"
+    },
+    {
+      "event": "write",
+      "kind": "init_memory_wrapper"
+    },
+    {
+      "event": "write",
+      "kind": "create_Procedure"
+    },
+    {
+      "event": "write",
+      "kind": "export_memory_wrapper"
+    },
+    {
+      "event": "write",
+      "kind": "init_memory_wrapper"
+    },
+    {
+      "event": "write",
+      "kind": "create_MedicalCase"
+    },
+    {
+      "event": "write",
+      "kind": "create_Procedure"
+    },
+    {
+      "event": "write",
+      "kind": "init_memory_wrapper"
+    },
+    {
+      "event": "write",
+      "kind": "create_Procedure"
+    },
+    {
+      "event": "write",
+      "kind": "export_memory_wrapper"
+    },
+    {
+      "event": "write",
+      "kind": "init_memory_wrapper"
+    },
+    {
+      "event": "write",
+      "kind": "create_MedicalCase"
+    },
+    {
+      "event": "write",
+      "kind": "init_memory_wrapper"
+    },
+    {
+      "event": "write",
+      "kind": "create_Procedure"
+    },
+    {
+      "event": "write",
+      "kind": "export_memory_wrapper"
+    },
+    {
+      "event": "write",
+      "kind": "init_memory_wrapper"
+    },
+    {
+      "event": "write",
+      "kind": "create_MedicalCase"
+    },
+    {
+      "event": "write",
+      "kind": "init_memory_wrapper"
+    },
+    {
+      "event": "write",
+      "kind": "create_Procedure"
+    },
+    {
+      "event": "write",
+      "kind": "export_memory_wrapper"
+    }
+  ],
+  "last_call_kind": "export_memory_wrapper",
+  "last_check": null,
+  "last_check_kind": "check_existing_medical_entities",
+  "last_error": null,
+  "last_write": "export_memory_wrapper",
+  "noncheck_count": 24,
+  "total_check_calls": 517,
+  "total_checks": 0,
+  "total_noncheck_calls": 497,
+  "total_writes": 76,
+  "version": 1
+}

@@ -37,7 +37,7 @@ from src.pipelines.utils import (
 )
 
 
-def setup_test_mcp_configs():
+def setup_test_mcp_configs(meta_task_config_path: str = "configs/meta_task/meta_task_config.json"):
     """
     Setup MCP config files to use generated MCP tools from ai_generated_contents_candidate.
     
@@ -48,38 +48,66 @@ def setup_test_mcp_configs():
     if not scripts_dir.exists():
         print(f"❌ MCP scripts directory not found: {scripts_dir}")
         return None
-    
-    # Find all ontologies with MCP tools
+
+    # Build a deterministic test MCP config from the selected meta-task config.
+    # Important: the pipeline uses tool names from meta_task_config.json (mcp_list),
+    # e.g. `llm_created_mcp`, `mops_extension`, `ontospecies_extension`.
+    meta = {}
+    try:
+        meta = json.loads(Path(meta_task_config_path).read_text(encoding="utf-8"))
+    except Exception:
+        meta = {}
+
+    main_ontology = (meta.get("ontologies", {}).get("main", {}) or {})
+    main_ontology_name = str(main_ontology.get("name") or "").strip()
+    main_tools = main_ontology.get("mcp_list") or []
+    if not main_ontology_name or not main_tools:
+        print("❌ Main ontology name or MCP tool list missing in meta-task config")
+        return None
+
+    extensions = meta.get("ontologies", {}).get("extensions", []) or []
+
     test_mcp_config = {}
-    
-    for ontology_dir in scripts_dir.iterdir():
-        if not ontology_dir.is_dir():
-            continue
-        
-        main_script = ontology_dir / "main.py"
-        if not main_script.exists():
-            continue
-        
-        ontology_name = ontology_dir.name
-        print(f"[INFO] Found MCP tools for: {ontology_name}")
-        
-        # Add entry for this ontology's MCP server
-        # The server name should match what's used in iterations config
-        test_mcp_config["llm_created_mcp"] = {
+
+    # Main ontology tools -> main ontology generated server
+    target_dir = scripts_dir / main_ontology_name
+    if not (target_dir / "main.py").exists():
+        print(f"❌ MCP main.py not found for configured main ontology: {main_ontology_name}")
+        print(f"   Expected: {target_dir / 'main.py'}")
+        return None
+    print(f"[INFO] Using MCP tools for main ontology: {main_ontology_name}")
+    for tool_name in main_tools:
+        test_mcp_config[tool_name] = {
             "command": "python",
-            "args": [
-                "-m",
-                f"ai_generated_contents_candidate.scripts.{ontology_name}.main"
-            ],
-            "transport": "stdio"
+            "args": ["-m", f"ai_generated_contents_candidate.scripts.{main_ontology_name}.main"],
+            "transport": "stdio",
         }
+
+    # Extension tools -> extension generated servers (one server per extension ontology)
+    for ext in extensions:
+        ext_name = (ext or {}).get("name")
+        ext_tools = (ext or {}).get("mcp_list") or []
+        if not ext_name or not ext_tools:
+            continue
+        ext_dir = scripts_dir / ext_name
+        if not (ext_dir / "main.py").exists():
+            print(f"[WARN] Missing generated MCP main.py for extension ontology: {ext_name}")
+            continue
+        for tool_name in ext_tools:
+            test_mcp_config[tool_name] = {
+                "command": "python",
+                "args": ["-m", f"ai_generated_contents_candidate.scripts.{ext_name}.main"],
+                "transport": "stdio",
+            }
     
     if not test_mcp_config:
         print(f"❌ No valid MCP tools found in {scripts_dir}")
         return None
     
-    # Write test MCP config to configs/
-    test_config_path = Path("configs/test_mcp_config.json")
+    # Write an ontology-scoped test MCP config so medical and OntoSynthesis test
+    # runs do not overwrite each other's generated-tool server mapping.
+    safe_ontology_name = "".join(ch if ch.isalnum() or ch in {"_", "-"} else "_" for ch in main_ontology_name)
+    test_config_path = Path("configs") / f"test_mcp_config_{safe_ontology_name}.json"
     try:
         with open(test_config_path, 'w') as f:
             json.dump(test_mcp_config, f, indent=2)
@@ -90,16 +118,18 @@ def setup_test_mcp_configs():
         return None
 
 
-def run_pipeline(config_path: str, input_dir: Optional[str] = None, 
+def run_pipeline(config_path: str, input_dir: Optional[str] = None,
                  only_hashes: Optional[list[str]] = None,
                  use_mcp: bool = False,
                  iter1: bool = False,
                  skip_iter2_extraction: bool = False,
                  skip_iter3_extraction: bool = False,
-                 skip_iter4_extraction: bool = False):
+                 skip_iter4_extraction: bool = False,
+                 meta_task_config: Optional[str] = None,
+                 vision_override: Optional[bool] = None):
     """
     Run the pipeline according to configuration.
-    
+
     Args:
         config_path: Path to pipeline.json
         input_dir: Directory containing input PDFs (defaults to 'raw_data')
@@ -109,10 +139,19 @@ def run_pipeline(config_path: str, input_dir: Optional[str] = None,
         skip_iter2_extraction: If True, skip extraction for iteration 2
         skip_iter3_extraction: If True, skip extraction for iteration 3
         skip_iter4_extraction: If True, skip extraction for iteration 4
+        vision_override: True = force vision on, False = force vision off, None = use config value
     """
     # Load configuration
     config = load_config(config_path)
+
+    # CLI --vision / --no-vision overrides the config value.
+    if vision_override is not None:
+        config["vision_pdf_conversion"] = vision_override
     data_dir = config.get("data_dir", "data")
+
+    # Allow the pipeline config to pin a meta-task config file (used by most steps to
+    # determine ontology name, MCP tool sets, and output folder naming).
+    effective_meta_task_config = meta_task_config or config.get("meta_task_config")
     
     # Default input directory to raw_data if not provided
     if input_dir is None:
@@ -148,7 +187,9 @@ def run_pipeline(config_path: str, input_dir: Optional[str] = None,
     test_mcp_config_name = None
     if use_mcp:
         print("🧪 Setting up test MCP configuration...")
-        test_mcp_config_name = setup_test_mcp_configs()
+        test_mcp_config_name = setup_test_mcp_configs(
+            meta_task_config_path=effective_meta_task_config or "configs/meta_task/meta_task_config.json"
+        )
         if not test_mcp_config_name:
             print("[FAIL] Could not setup test MCP configuration")
             return False
@@ -211,10 +252,22 @@ def run_pipeline(config_path: str, input_dir: Optional[str] = None,
                 
                 # Run step
                 try:
-                    step_config = {
-                        "data_dir": data_dir,
-                        **config.get("step_configs", {}).get(step_name, {})
+                    # Structural keys that belong to the pipeline runner, not to steps.
+                    _PIPELINE_ONLY_KEYS = {
+                        "steps", "mode", "description", "step_configs",
+                        "input_dir", "data_dir",
                     }
+                    step_config = {
+                        # Forward all top-level config keys so steps can read flags like
+                        # vision_pdf_conversion, force_reconvert, etc.
+                        k: v for k, v in config.items() if k not in _PIPELINE_ONLY_KEYS
+                    }
+                    step_config["data_dir"] = data_dir
+                    # Per-step overrides take highest precedence.
+                    step_config.update(config.get("step_configs", {}).get(step_name, {}))
+                    # Prefer explicit CLI override, otherwise use pipeline config.
+                    if effective_meta_task_config and "meta_task_config" not in step_config:
+                        step_config["meta_task_config"] = effective_meta_task_config
                     
                     # If in test mode, add test MCP config to step config
                     if use_mcp and test_mcp_config_name:
@@ -556,7 +609,37 @@ def main():
         type=str,
         help='In verification mode, test only this specific ontology (e.g., ontosynthesis)'
     )
-    
+
+    parser.add_argument(
+        '--meta-task-config',
+        type=str,
+        default=None,
+        help=(
+            "Override meta task config JSON path. "
+            "If omitted, uses the pipeline config's 'meta_task_config' field."
+        )
+    )
+
+    vision_group = parser.add_mutually_exclusive_group()
+    vision_group.add_argument(
+        '--vision',
+        action='store_true',
+        default=None,
+        help=(
+            'Force vision LLM PDF transcription (sets vision_pdf_conversion=true). '
+            'Overrides the pipeline config value.'
+        )
+    )
+    vision_group.add_argument(
+        '--no-vision',
+        action='store_true',
+        default=None,
+        help=(
+            'Force plain PDF parsing (sets vision_pdf_conversion=false). '
+            'Overrides the pipeline config value.'
+        )
+    )
+
     args = parser.parse_args()
     
     # MCP verification mode (old --test behavior)
@@ -567,6 +650,14 @@ def main():
         sys.exit(0 if success else 1)
     
     # Run pipeline (with MCP tools if --test flag is set)
+    # Resolve --vision / --no-vision into a tri-state override (None = use config).
+    if args.vision:
+        vision_override = True
+    elif args.no_vision:
+        vision_override = False
+    else:
+        vision_override = None
+
     success = run_pipeline(
         config_path=args.config,
         input_dir=args.input_dir,
@@ -575,7 +666,9 @@ def main():
         iter1=args.iter1,
         skip_iter2_extraction=args.skip_iter2_extraction,
         skip_iter3_extraction=args.skip_iter3_extraction,
-        skip_iter4_extraction=args.skip_iter4_extraction
+        skip_iter4_extraction=args.skip_iter4_extraction,
+        meta_task_config=args.meta_task_config,
+        vision_override=vision_override,
     )
     
     sys.exit(0 if success else 1)
