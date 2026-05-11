@@ -2,34 +2,43 @@
 """
 fix_package_structure.py
 
-Utility script to create __init__.py files in ai_generated_contents_candidate
-to make it a proper Python package. This is required for -m module syntax.
+Utility script to create __init__.py files under a generated artifact root
+(default: ai_generated_contents_candidate) so `python -m ...scripts.<ont>.main` works.
 
 Usage:
     python -m src.agents.scripts_and_prompts_generation.fix_package_structure
+    python -m src.agents.scripts_and_prompts_generation.fix_package_structure \\
+        --root ai_generated_contents_pipeline_bundle
 """
 
+from __future__ import annotations
+
+import argparse
 from pathlib import Path
 import sys
 
+DEFAULT_ROOT = Path("ai_generated_contents_candidate")
 
-def create_init_files():
-    """Create all necessary __init__.py files."""
+
+def create_init_files(root: Path = DEFAULT_ROOT):
+    """Create all necessary __init__.py files under ``root``."""
+    root = Path(root)
     print("="*60)
     print("FIXING PYTHON PACKAGE STRUCTURE")
     print("="*60)
+    print(f"Root: {root}")
     print()
     
     # Base directories
     base_dirs = [
-        Path("ai_generated_contents_candidate"),
-        Path("ai_generated_contents_candidate/scripts"),
-        Path("ai_generated_contents_candidate/iterations"),
-        Path("ai_generated_contents_candidate/prompts"),
+        root,
+        root / "scripts",
+        root / "iterations",
+        root / "prompts",
     ]
     
     # Find all ontology subdirectories in scripts/
-    scripts_dir = Path("ai_generated_contents_candidate/scripts")
+    scripts_dir = root / "scripts"
     ontology_dirs = []
     if scripts_dir.exists():
         ontology_dirs = [d for d in scripts_dir.iterdir() if d.is_dir() and not d.name.startswith('_')]
@@ -64,19 +73,20 @@ def create_init_files():
     print()
     
     # Test if we can import the module
-    test_dirs = ["ontosynthesis", "ontomops", "ontospecies"]
+    test_dirs = ["ontosynthesis", "ontomops", "ontospecies", "medical"]
     found_any = False
     
     for ont in test_dirs:
-        main_script = Path(f"ai_generated_contents_candidate/scripts/{ont}/main.py")
+        main_script = root / "scripts" / ont / "main.py"
         if main_script.exists():
             found_any = True
             print(f"[OK] {ont}: main.py exists")
-            print(f"     You can now run: python -m ai_generated_contents_candidate.scripts.{ont}.main")
+            pkg = root.name
+            print(f"     You can now run: python -m {pkg}.scripts.{ont}.main")
     
     if not found_any:
-        print("[WARNING] No ontology scripts found in ai_generated_contents_candidate/scripts/")
-        print("          Generate scripts first using generation_main.py")
+        print(f"[WARNING] No ontology scripts found in {root / 'scripts'}/")
+        print("          Generate scripts first using agentic_generation_main (see README).")
     
     print()
 
@@ -90,8 +100,17 @@ def main():
         print("[ERROR] Must be run from project root directory")
         print("        (The directory containing src/agents/scripts_and_prompts_generation)")
         sys.exit(1)
+
+    ap = argparse.ArgumentParser(description="Create __init__.py under a generated MCP bundle root.")
+    ap.add_argument(
+        "--root",
+        type=Path,
+        default=DEFAULT_ROOT,
+        help=f"Artifact root directory (default: {DEFAULT_ROOT})",
+    )
+    args = ap.parse_args()
     
-    create_init_files()
+    create_init_files(args.root)
     
     print("[SUCCESS] Package structure fix complete!")
     print()
