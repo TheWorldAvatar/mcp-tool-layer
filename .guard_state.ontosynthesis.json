@@ -1,9 +1,0 @@
-{
-  "checks_since_last_write": 0,
-  "last_check_kind": "check_existing_chemical_syntheses",
-  "last_check_ts": 1776352155,
-  "last_noncheck_ts": 1776352160,
-  "total_checks": 44,
-  "total_nonchecks": 94,
-  "version": 1
-}

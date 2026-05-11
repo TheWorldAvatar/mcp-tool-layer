@@ -1,8 +1,0 @@
-{
-  "check_calls": 0,
-  "noncheck_calls": 579,
-  "last_check": null,
-  "last_noncheck": {
-    "kind": "export_memory_wrapper"
-  }
-}
