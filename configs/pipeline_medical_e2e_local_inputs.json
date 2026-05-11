@@ -1,0 +1,18 @@
+{
+  "mode": "per_doi",
+  "description": "Medical E2E: inputs from raw_data/ (e.g. OP Bericht 1.pdf); outputs under data_medical_e2e/ (gitignored)",
+  "meta_task_config": "configs/meta_task/meta_task_config_medical_non_flat_v3_one_iter.json",
+  "data_dir": "data_medical_e2e",
+  "test_mcp_config": "test_mcp_config_medical.json",
+  "vision_pdf_conversion": true,
+  "vision_model": "gpt-4o",
+  "vision_dpi": 150,
+  "steps": [
+    "pdf_conversion",
+    "stitching",
+    "top_entity_extraction",
+    "top_entity_kg_building",
+    "main_ontology_extractions",
+    "main_kg_building"
+  ]
+}

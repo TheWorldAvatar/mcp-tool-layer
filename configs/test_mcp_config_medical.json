@@ -3,7 +3,7 @@
     "command": "python",
     "args": [
       "-m",
-      "ai_generated_contents_candidate.scripts.medical.main"
+      "ai_generated_contents_pipeline_bundle.scripts.medical.main"
     ],
     "transport": "stdio"
   }
