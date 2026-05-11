@@ -44,13 +44,16 @@ def main() -> None:
     parser.add_argument("--actual-model", action="store_true", help="Disable heuristic label/filename-based linking")
     parser.add_argument("--debug", action="store_true", help="Include debug fields (IRIs) in JSON outputs where supported")
     parser.add_argument("--hash", type=str, help="Process only the specified hash (e.g., '3a4646d4')")
+    parser.add_argument("--data-dir", type=Path, default=None, help="Pipeline data root to merge from (default: data)")
     # Allow running only one stage when specified
     group = parser.add_mutually_exclusive_group()
     group.add_argument("--merge", action="store_true", help="Only perform merge/linking stage and write TTLs")
     group.add_argument("--conversion", action="store_true", help="Only perform conversion stage from existing merged TTLs")
     args = parser.parse_args()
     repo_root = Path(__file__).resolve().parents[1]
-    data_root = repo_root / "data"
+    data_root = args.data_dir if args.data_dir is not None else repo_root / "data"
+    if not data_root.is_absolute():
+        data_root = repo_root / data_root
     
     # Discover all hash directories from data folder
     hash_dirs = [p for p in data_root.iterdir() if p.is_dir() and not p.name.startswith('.')]

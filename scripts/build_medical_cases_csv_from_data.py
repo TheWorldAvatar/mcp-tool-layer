@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Build medical_cases_latest.csv by discovering one TTL per Ground-Truth case under data/<hash>/.
+Build evaluation/medical/medical_cases_latest.csv by discovering one TTL per Ground-Truth case under data/<hash>/.
 
 Priority (newest mtime wins within each tier):
   1) data/<hash>/medical_output/*.ttl excluding top.ttl
@@ -94,7 +94,11 @@ def main() -> int:
         type=Path,
         default=REPO_ROOT / "medical_case" / "medical_case_schema_de_non_flat_v3.ttl",
     )
-    ap.add_argument("--output", type=Path, default=REPO_ROOT / "medical_cases_latest.csv")
+    ap.add_argument(
+        "--output",
+        type=Path,
+        default=REPO_ROOT / "evaluation" / "medical" / "medical_cases_latest.csv",
+    )
     ap.add_argument(
         "--case-literal-hops",
         type=int,

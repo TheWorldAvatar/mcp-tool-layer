@@ -171,7 +171,10 @@ def build_cbu_json_from_graph(graph: Graph) -> Dict[str, Any]:
 
     def _augment_cbu_names(formula: str, names: List[str], aliases: Dict[str, List[str]]) -> List[str]:
         normalized = _uniq_keep_order([str(n).strip() for n in names if str(n).strip()])
-        non_formula = [n for n in normalized if not _looks_formula_like(n) and n != formula]
+        # Preserve source-species labels from the TTL exactly. Some valid aliases
+        # such as H2SDB/H2MDB contain digits and uppercase letters, so filtering
+        # all formula-like labels would drop correct owl:sameAs evidence.
+        non_formula = [n for n in normalized if n != formula]
         if "v6o6" in formula.lower():
             inferred = aliases.get("metal", [])
         else:
