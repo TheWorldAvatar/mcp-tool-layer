@@ -4,14 +4,17 @@ Top Entity KG Building Pipeline Step
 This step extracts top-level entities from the stitched markdown and builds
 a knowledge graph using an LLM agent with MCP tools.
 """
+
 import os
 import sys
 import json
 import asyncio
+import importlib.util
 import tempfile
 import re
 import unicodedata
 import hashlib
+import types
 from pathlib import Path
 from typing import List, Dict
 from filelock import FileLock
@@ -19,7 +22,9 @@ from rdflib import Graph, URIRef
 from rdflib.namespace import RDF, RDFS
 
 # Add project root to path for imports
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+project_root = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", "..", "..")
+)
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
@@ -61,7 +66,9 @@ def _normalize_entity_label_key(text: str) -> str:
     return normalized
 
 
-def _choose_preferred_typed_target(g: Graph, typed_targets: list[URIRef]) -> URIRef | None:
+def _choose_preferred_typed_target(
+    g: Graph, typed_targets: list[URIRef]
+) -> URIRef | None:
     if not typed_targets:
         return None
 
@@ -73,7 +80,9 @@ def _choose_preferred_typed_target(g: Graph, typed_targets: list[URIRef]) -> URI
     return sorted(typed_targets, key=_score, reverse=True)[0]
 
 
-def _canonicalize_parsed_top_entities(*, g: Graph, entities: list[dict]) -> list[dict]:
+def _canonicalize_parsed_top_entities(
+    *, g: Graph, entities: list[dict]
+) -> list[dict]:
     if not isinstance(entities, list) or not entities:
         return entities
 
@@ -116,6 +125,55 @@ def _canonicalize_parsed_top_entities(*, g: Graph, entities: list[dict]) -> list
     return normalized_entities
 
 
+def _filter_runtime_context_top_entities(
+    entities: list[dict], meta_config: dict
+) -> list[dict]:
+    """Drop shared runtime-context shell nodes when concrete top entities exist."""
+    if not isinstance(entities, list) or len(entities) <= 1:
+        return entities
+
+    policies = _get_runtime_policies(meta_config)
+    iter1 = policies.get("iter1_top_entity_kg", {}) or {}
+    shell_validation = (policies.get("main_entity_kg", {}) or {}).get(
+        "shell_validation", {}
+    ) or {}
+    context_names = {
+        _normalize_entity_label_key(value)
+        for value in (
+            iter1.get("global_state_entity_name"),
+            ((iter1.get("prompt_rules") or {}).get("top_level_entity_name")),
+            "top",
+        )
+        if str(value or "").strip()
+    }
+    top_class_local = _local_name(shell_validation.get("top_entity_class_iri"))
+    if top_class_local:
+        context_names.add(_normalize_entity_label_key(top_class_local))
+    context_names = {name for name in context_names if name}
+    if not context_names:
+        return entities
+
+    def _is_context_entity(entity: dict) -> bool:
+        label_key = _normalize_entity_label_key(str(entity.get("label") or ""))
+        uri_key = _normalize_entity_label_key(_local_name(str(entity.get("uri") or "")))
+        return label_key in context_names or uri_key in context_names
+
+    concrete_entities = [
+        entity
+        for entity in entities
+        if isinstance(entity, dict) and not _is_context_entity(entity)
+    ]
+    if not concrete_entities:
+        return entities
+    removed = len(entities) - len(concrete_entities)
+    if removed:
+        logger.warning(
+            "⚠️  Ignored %s runtime-context shell top-entity node(s) from iter1 TTL",
+            removed,
+        )
+    return concrete_entities
+
+
 def _local_name(iri: str) -> str:
     text = str(iri or "").strip()
     if "#" in text:
@@ -123,21 +181,20 @@ def _local_name(iri: str) -> str:
     return text.rstrip("/").rsplit("/", 1)[-1]
 
 
-def _get_top_entity_class_iri(meta_config: dict, default: str = "https://www.theworldavatar.com/kg/OntoSyn/ChemicalSynthesis") -> str:
+def _get_top_entity_class_iri(meta_config: dict, default: str = "") -> str:
     policies = _get_runtime_policies(meta_config)
     value = (
-        ((policies.get("main_entity_kg", {}) or {}).get("shell_validation", {}) or {})
-        .get("top_entity_class_iri")
-    )
+        (policies.get("main_entity_kg", {}) or {}).get("shell_validation", {}) or {}
+    ).get("top_entity_class_iri")
     return str(value or default).strip()
 
 
-def _mint_top_entity_iri(label: str, top_class_iri: str = "https://www.theworldavatar.com/kg/OntoSyn/ChemicalSynthesis") -> str:
+def _mint_top_entity_iri(label: str, top_class_iri: str = "") -> str:
     digest = hashlib.sha1(str(label or "").strip().encode("utf-8")).hexdigest()
     return f"https://www.theworldavatar.com/kg/instance/{_local_name(top_class_iri) or 'TopEntity'}/{digest}"
 
 
-def _top_entities_from_txt(doi_folder: str, top_class_iri: str = "https://www.theworldavatar.com/kg/OntoSyn/ChemicalSynthesis") -> list[dict]:
+def _top_entities_from_txt(doi_folder: str, top_class_iri: str = "") -> list[dict]:
     """Fallback structured top-entity JSON from the simple text extraction output."""
     txt_path = os.path.join(doi_folder, "top_entities.txt")
     if not os.path.exists(txt_path):
@@ -154,21 +211,27 @@ def _top_entities_from_txt(doi_folder: str, top_class_iri: str = "https://www.th
         bracket_match = re.match(r"^[A-Za-z][A-Za-z0-9_]*-\d+\s+\[(.+)\]\s*$", label)
         if bracket_match:
             label = bracket_match.group(1)
-        label = re.sub(r"^\s*(?:ChemicalSynthesis\s*[—:-]\s*)", "", label, flags=re.IGNORECASE).strip()
+        label = re.sub(r"^\s*[A-Za-z][A-Za-z0-9_]*\s*[—:]\s*", "", label).strip()
         if not label:
             continue
         key = _normalize_entity_label_key(label)
         if not key or key in seen:
             continue
         seen.add(key)
-        entities.append({"uri": _mint_top_entity_iri(label, top_class_iri), "label": label, "types": []})
+        entities.append(
+            {
+                "uri": _mint_top_entity_iri(label, top_class_iri),
+                "label": label,
+                "types": [],
+            }
+        )
     return entities
 
 
 def _merge_txt_top_entity_fallback(
     doi_folder: str,
     entities: list[dict],
-    top_class_iri: str = "https://www.theworldavatar.com/kg/OntoSyn/ChemicalSynthesis",
+    top_class_iri: str = "",
 ) -> list[dict]:
     """Supplement parser output with labels from top_entities.txt when SPARQL/TTL is incomplete."""
     txt_entities = _top_entities_from_txt(doi_folder, top_class_iri)
@@ -190,11 +253,11 @@ def _merge_txt_top_entity_fallback(
 def _materialize_supplemented_top_entities(
     g: Graph,
     entities: list[dict],
-    top_class_iri: str = "https://www.theworldavatar.com/kg/OntoSyn/ChemicalSynthesis",
+    top_class_iri: str = "",
 ) -> bool:
     """Ensure txt-fallback top entities are also present in the iter1 TTL graph."""
     changed = False
-    top_class = URIRef(top_class_iri)
+    top_class = URIRef(top_class_iri) if top_class_iri else None
     for entity in entities or []:
         if not isinstance(entity, dict):
             continue
@@ -203,7 +266,7 @@ def _materialize_supplemented_top_entities(
         if not uri or not label:
             continue
         node = URIRef(uri)
-        if (node, RDF.type, top_class) not in g:
+        if top_class is not None and (node, RDF.type, top_class) not in g:
             g.add((node, RDF.type, top_class))
             changed = True
         if (node, RDFS.label, None) not in g:
@@ -212,6 +275,215 @@ def _materialize_supplemented_top_entities(
             g.add((node, RDFS.label, Literal(label)))
             changed = True
     return changed
+
+
+def _load_generated_iter1_modules(
+    *, ontology_name: str, project_root: str = "."
+) -> dict[str, object]:
+    """Load regenerated MCP modules from the active generated-artifact root."""
+    roots: list[str] = []
+    override = os.environ.get("TWA_GENERATED_ARTIFACT_ROOT", "").strip()
+    if override:
+        roots.append(override)
+    roots.append("ai_generated_contents_candidate")
+    roots.append("ai_generated_contents")
+    scripts_dir: Path | None = None
+    for root in roots:
+        candidate = Path(project_root) / root / "scripts" / ontology_name
+        if candidate.is_dir():
+            scripts_dir = candidate
+            break
+    if scripts_dir is None:
+        raise FileNotFoundError(
+            f"Generated scripts directory not found for ontology {ontology_name!r} "
+            f"(tried: {[Path(project_root) / r / 'scripts' / ontology_name for r in roots]})"
+        )
+
+    package_name = (
+        f"_agentic_iter1_{ontology_name}_{abs(hash(str(scripts_dir.resolve())))}"
+    )
+    for name in list(sys.modules):
+        if name == package_name or name.startswith(package_name + "."):
+            del sys.modules[name]
+    package = types.ModuleType(package_name)
+    package.__path__ = [str(scripts_dir.resolve())]  # type: ignore[attr-defined]
+    sys.modules[package_name] = package
+
+    modules: dict[str, object] = {}
+    for module_stem in (
+        f"{ontology_name}_creation_base",
+        f"{ontology_name}_creation_entities",
+        f"{ontology_name}_creation_relationships",
+    ):
+        module_path = scripts_dir / f"{module_stem}.py"
+        spec = importlib.util.spec_from_file_location(
+            f"{package_name}.{module_stem}", module_path
+        )
+        if spec is None or spec.loader is None:
+            raise ImportError(f"Could not load generated module spec: {module_path}")
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[f"{package_name}.{module_stem}"] = module
+        spec.loader.exec_module(module)
+        modules[module_stem.rsplit("_creation_", 1)[-1]] = module
+    return modules
+
+
+def _repair_iter1_ttl_with_generated_tools(
+    *,
+    doi_hash: str,
+    data_dir: str,
+    ontology_name: str,
+    meta_config: dict,
+    entity_context_name: str,
+) -> bool:
+    """
+    Repair a failed ITER1 KG attempt by calling regenerated MCP implementation
+    functions directly. The concrete classes/properties come from the ontology
+    contract in the meta-task config, not from domain-specific code.
+    """
+    doi_folder = os.path.join(data_dir, doi_hash)
+    top_class_iri = _get_top_entity_class_iri(meta_config)
+    top_class_local = _local_name(top_class_iri)
+    if not top_class_local:
+        logger.error("❌ Cannot repair ITER1 TTL without a top entity class")
+        return False
+
+    top_entities = _top_entities_from_txt(doi_folder, top_class_iri)
+    if not top_entities:
+        logger.error(
+            "❌ Cannot repair ITER1 TTL because top_entities.txt has no usable labels"
+        )
+        return False
+    try:
+        os.environ["TWA_AGENTIC_DATA_DIR"] = data_dir
+        modules = _load_generated_iter1_modules(
+            ontology_name=ontology_name, project_root=project_root
+        )
+        base = modules["base"]
+        entities = modules["entities"]
+        relationships = modules["relationships"]
+
+        init_memory = getattr(base, "init_memory_wrapper")
+        export_memory = getattr(base, "export_memory_wrapper")
+        init_memory(doi_hash, entity_context_name)
+
+        create_top = getattr(entities, f"create_{top_class_local}")
+        policies = _get_runtime_policies(meta_config)
+        shell_validation = (policies.get("main_entity_kg", {}) or {}).get(
+            "shell_validation", {}
+        ) or {}
+
+        for top_entity in top_entities:
+            top_label = (
+                str((top_entity or {}).get("label") or top_class_local).strip()
+                or top_class_local
+            )
+            top_result = json.loads(create_top(top_label))
+            top_iri = str(top_result.get("iri") or "").strip()
+            if not top_iri:
+                logger.error(
+                    "❌ Generated top entity tool did not return an IRI for %s",
+                    top_label,
+                )
+                return False
+
+            for spec in shell_validation.get("required_links") or []:
+                predicate_local = _local_name(
+                    str((spec or {}).get("predicate_iri") or "")
+                )
+                target_local = _local_name(
+                    str((spec or {}).get("target_class_iri") or "")
+                )
+                if not predicate_local or not target_local:
+                    continue
+                create_target = getattr(entities, f"create_{target_local}", None)
+                add_link = getattr(relationships, f"add_{predicate_local}", None)
+                if create_target is None or add_link is None:
+                    logger.warning(
+                        "⚠️  Generated repair tools missing for %s -> %s",
+                        predicate_local,
+                        target_local,
+                    )
+                    continue
+                target_label = f"{top_label} {target_local}"
+                target_result = json.loads(create_target(target_label))
+                target_iri = str(target_result.get("iri") or "").strip()
+                if target_iri:
+                    add_link(top_iri, target_iri)
+
+        export_memory()
+        safe_context = (
+            re.sub(r"[^A-Za-z0-9_.-]+", "_", str(entity_context_name or "top")).strip(
+                "._"
+            )
+            or "top"
+        )
+        memory_ttl = os.path.join(doi_folder, "memory", f"{safe_context}.ttl")
+        iteration_ttl = os.path.join(doi_folder, "iteration_1.ttl")
+        if os.path.exists(memory_ttl):
+            import shutil
+
+            shutil.copy2(memory_ttl, iteration_ttl)
+            _ = publish_top_ttl(
+                doi_hash=doi_hash,
+                ontology_name=ontology_name,
+                data_dir=data_dir,
+                meta_cfg=meta_config,
+                src_candidates=[iteration_ttl, memory_ttl],
+            )
+        logger.warning(
+            "⚠️  Repaired ITER1 TTL by directly invoking regenerated MCP implementation functions"
+        )
+        return True
+    except Exception as exc:
+        logger.error(
+            f"❌ Generated-tool ITER1 repair failed: {type(exc).__name__}: {exc}"
+        )
+        return False
+
+
+def _iter1_needs_generated_top_uri_repair(
+    *,
+    doi_hash: str,
+    data_dir: str,
+    ontology_name: str,
+    meta_config: dict,
+) -> bool:
+    """Detect multi-top shells whose subjects do not match generated top-tool IRIs."""
+    doi_folder = os.path.join(data_dir, doi_hash)
+    top_class_iri = _get_top_entity_class_iri(meta_config)
+    top_entities = _top_entities_from_txt(doi_folder, top_class_iri)
+    if len(top_entities) <= 1:
+        return False
+
+    ttl_path = os.path.join(doi_folder, "iteration_1.ttl")
+    if not os.path.exists(ttl_path):
+        return False
+
+    try:
+        modules = _load_generated_iter1_modules(
+            ontology_name=ontology_name, project_root=project_root
+        )
+        expected_top_iri = getattr(modules["base"], "get_top_entity_iri")
+        g = Graph()
+        g.parse(ttl_path, format="turtle")
+    except Exception as exc:
+        logger.warning("⚠️  Could not validate generated top IRIs for ITER1: %s", exc)
+        return False
+
+    top_class = URIRef(top_class_iri) if top_class_iri else None
+    for entity in top_entities:
+        label = str((entity or {}).get("label") or "").strip()
+        if not label:
+            continue
+        node = URIRef(str(expected_top_iri(label)))
+        has_type = top_class is None or (node, RDF.type, top_class) in g
+        has_label = _normalize_entity_label_key(
+            _first_label(g, node)
+        ) == _normalize_entity_label_key(label)
+        if not (has_type and has_label):
+            return True
+    return False
 
 
 def resolve_generated_file(path: str) -> str:
@@ -223,12 +495,32 @@ def resolve_generated_file(path: str) -> str:
     """
     path = (path or "").replace("\\", "/")
     candidates: list[str] = []
+    override_root = (
+        os.environ.get("TWA_GENERATED_ARTIFACT_ROOT", "")
+        .strip()
+        .replace("\\", "/")
+        .rstrip("/")
+    )
     if path.startswith("ai_generated_contents/"):
-        candidates.append(path.replace("ai_generated_contents/", "ai_generated_contents_candidate/", 1))
+        if override_root:
+            candidates.append(path.replace("ai_generated_contents", override_root, 1))
+        candidates.append(
+            path.replace(
+                "ai_generated_contents/", "ai_generated_contents_candidate/", 1
+            )
+        )
         candidates.append(path)
     elif path.startswith("ai_generated_contents_candidate/"):
+        if override_root:
+            candidates.append(
+                path.replace("ai_generated_contents_candidate", override_root, 1)
+            )
         candidates.append(path)
-        candidates.append(path.replace("ai_generated_contents_candidate/", "ai_generated_contents/", 1))
+        candidates.append(
+            path.replace(
+                "ai_generated_contents_candidate/", "ai_generated_contents/", 1
+            )
+        )
     else:
         candidates.append(path)
 
@@ -236,6 +528,7 @@ def resolve_generated_file(path: str) -> str:
         if p and os.path.exists(p):
             return p
     return candidates[0]
+
 
 # -------------------- Global state writer --------------------
 GLOBAL_STATE_DIR = "data"
@@ -245,48 +538,50 @@ GLOBAL_STATE_LOCK = os.path.join(GLOBAL_STATE_DIR, "global_state.lock")
 
 def _get_runtime_policies(meta_config: dict) -> dict:
     """Return runtime policy block from meta config."""
-    return (
-        (meta_config or {})
-        .get("ontologies", {})
-        .get("main", {})
-        .get("runtime_policies", {})
-        or {}
-    )
+    return (meta_config or {}).get("ontologies", {}).get("main", {}).get(
+        "runtime_policies", {}
+    ) or {}
 
 
 def _get_iter1_entity_context_name(meta_config: dict, default: str = "top") -> str:
     """Resolve the configured iter1 entity context name."""
     policies = _get_runtime_policies(meta_config)
-    value = (
-        (policies.get("iter1_top_entity_kg", {}) or {}).get("global_state_entity_name")
-        or default
-    )
+    value = (policies.get("iter1_top_entity_kg", {}) or {}).get(
+        "global_state_entity_name"
+    ) or default
     return str(value).strip() or default
 
 
-def _get_iter1_entity_context_aliases(meta_config: dict, default: str = "top") -> list[str]:
+def _get_iter1_entity_context_aliases(
+    meta_config: dict, default: str = "top"
+) -> list[str]:
     """
     Return acceptable ITER1 persistence context names.
 
     Some older/generated ITER1 prompts initialized memory with the concrete top-level
-    class name (e.g. ``MedicalCase``) instead of the configured shared context name
-    (e.g. ``top``). During fallback recovery, accept both names so existing runs can
-    still be recovered deterministically.
+    class name instead of the configured shared context name. During fallback recovery,
+    accept both names so existing runs can still be recovered deterministically.
     """
     primary = _get_iter1_entity_context_name(meta_config, default=default)
     policies = _get_runtime_policies(meta_config)
-    iter1_cfg = (policies.get("iter1_top_entity_kg", {}) or {})
-    prompt_rules = (iter1_cfg.get("prompt_rules", {}) or {})
-    shell_validation = ((policies.get("main_entity_kg", {}) or {}).get("shell_validation", {}) or {})
+    iter1_cfg = policies.get("iter1_top_entity_kg", {}) or {}
+    prompt_rules = iter1_cfg.get("prompt_rules", {}) or {}
+    shell_validation = (policies.get("main_entity_kg", {}) or {}).get(
+        "shell_validation", {}
+    ) or {}
 
     top_level_entity_name = str(prompt_rules.get("top_level_entity_name") or "").strip()
-    top_entity_class_iri = str(shell_validation.get("top_entity_class_iri") or "").strip()
+    top_entity_class_iri = str(
+        shell_validation.get("top_entity_class_iri") or ""
+    ).strip()
     top_entity_class_local = ""
     if top_entity_class_iri:
-        top_entity_class_local = top_entity_class_iri.rsplit("/", 1)[-1].rsplit("#", 1)[-1].strip()
+        top_entity_class_local = (
+            top_entity_class_iri.rsplit("/", 1)[-1].rsplit("#", 1)[-1].strip()
+        )
 
     aliases: list[str] = []
-    for name in (primary, top_level_entity_name, top_entity_class_local, "MedicalCase", "top"):
+    for name in (primary, top_level_entity_name, top_entity_class_local, "top"):
         clean = str(name or "").strip()
         if clean and clean not in aliases:
             aliases.append(clean)
@@ -319,11 +614,15 @@ def _apply_identifier_runtime_env(meta_config: dict) -> None:
     patterns = identifier.get("fallback_to_global_state_patterns")
     _set_or_unset(
         "TWA_MCP_IDENTIFIER_FALLBACK_PATTERNS_JSON",
-        json.dumps(patterns, ensure_ascii=False) if isinstance(patterns, list) else None,
+        json.dumps(patterns, ensure_ascii=False)
+        if isinstance(patterns, list)
+        else None,
     )
 
 
-def _augment_iter1_prompt_with_runtime_rules(prompt_template: str, doi_hash: str, meta_config: dict) -> str:
+def _augment_iter1_prompt_with_runtime_rules(
+    prompt_template: str, doi_hash: str, meta_config: dict
+) -> str:
     """
     Append config-derived runtime rules to the ITER1 prompt.
     This keeps the policy outside code while still making the agent behavior explicit.
@@ -335,6 +634,9 @@ def _augment_iter1_prompt_with_runtime_rules(prompt_template: str, doi_hash: str
 
     doi_source = str(prompt_rules.get("doi_argument_source") or "").strip()
     top_name = str(prompt_rules.get("top_level_entity_name") or "").strip()
+    memory_context_name = (
+        str(iter1.get("global_state_entity_name") or "top").strip() or "top"
+    )
     forbid_label_as_doi = bool(prompt_rules.get("forbid_human_readable_label_as_doi"))
 
     if doi_source or top_name or forbid_label_as_doi:
@@ -343,9 +645,27 @@ def _augment_iter1_prompt_with_runtime_rules(prompt_template: str, doi_hash: str
             lines.append(
                 f"- When calling `init_memory`, pass the current document identifier value `{doi_hash}` as the `doi` argument."
             )
-        if top_name:
+        if memory_context_name:
             lines.append(
-                f"- When calling `init_memory`, set `top_level_entity_name` to `{top_name}`."
+                f"- When calling `init_memory`, set `top_level_entity_name` to `{memory_context_name}`."
+            )
+        top_class_local = _local_name(
+            (
+                (
+                    (policies.get("main_entity_kg", {}) or {}).get(
+                        "shell_validation", {}
+                    )
+                    or {}
+                ).get("top_entity_class_iri")
+            )
+        )
+        if top_class_local:
+            lines.append(
+                f"- `{memory_context_name}` is only the shared memory/runtime context label; never pass it as the `{top_class_local}` entity label."
+            )
+        elif top_name:
+            lines.append(
+                f"- `{top_name}` is only a runtime context label unless it appears as source-supported entity text."
             )
         if forbid_label_as_doi:
             lines.append(
@@ -359,7 +679,10 @@ def _augment_iter1_prompt_with_runtime_rules(prompt_template: str, doi_hash: str
         return prompt_template
     return prompt_template.rstrip() + "\n\n" + "\n".join(lines) + "\n"
 
-def write_global_state(doi: str, top_level_entity_name: str, top_level_entity_iri: str | None = None):
+
+def write_global_state(
+    doi: str, top_level_entity_name: str, top_level_entity_iri: str | None = None
+):
     """Write global state atomically with file lock for MCP server to read."""
     os.makedirs(GLOBAL_STATE_DIR, exist_ok=True)
     lock = FileLock(GLOBAL_STATE_LOCK)
@@ -378,14 +701,16 @@ def write_global_state(doi: str, top_level_entity_name: str, top_level_entity_ir
         lock.release()
 
 
-def load_meta_config(config_path: str = "configs/meta_task/meta_task_config.json") -> dict:
+def load_meta_config(
+    config_path: str = "configs/meta_task/meta_task_config.json",
+) -> dict:
     """Load the meta task configuration."""
     if not os.path.exists(config_path):
         logger.error(f"Meta config not found: {config_path}")
         return {}
-    
+
     try:
-        with open(config_path, 'r', encoding='utf-8') as f:
+        with open(config_path, "r", encoding="utf-8") as f:
             return json.load(f)
     except Exception as e:
         logger.error(f"Failed to load meta config: {e}")
@@ -397,9 +722,9 @@ def load_extraction_prompt(prompt_path: str) -> str:
     if not os.path.exists(prompt_path):
         logger.error(f"Prompt file not found: {prompt_path}")
         return ""
-    
+
     try:
-        with open(prompt_path, 'r', encoding='utf-8') as f:
+        with open(prompt_path, "r", encoding="utf-8") as f:
             return f.read()
     except Exception as e:
         logger.error(f"Failed to load prompt: {e}")
@@ -409,13 +734,13 @@ def load_extraction_prompt(prompt_path: str) -> str:
 def load_extraction_hints(doi_hash: str, data_dir: str = "data") -> str:
     """Load the extraction hints from the top_entity_extraction step."""
     hints_path = os.path.join(data_dir, doi_hash, "top_entities.txt")
-    
+
     if not os.path.exists(hints_path):
         logger.error(f"Extraction hints not found: {hints_path}")
         return ""
-    
+
     try:
-        with open(hints_path, 'r', encoding='utf-8') as f:
+        with open(hints_path, "r", encoding="utf-8") as f:
             return f.read()
     except Exception as e:
         logger.error(f"Failed to load extraction hints: {e}")
@@ -484,7 +809,7 @@ async def run_kg_building_agent(
 ) -> tuple[str, dict]:
     """
     Run the KG building agent with the given configuration.
-    
+
     Args:
         doi_hash: DOI hash identifier
         prompt_template: Prompt template for the agent
@@ -494,7 +819,7 @@ async def run_kg_building_agent(
         model_name: LLM model name
         temperature: Model temperature
         top_p: Model top_p parameter
-        
+
     Returns:
         Tuple of (response, metadata)
     """
@@ -515,7 +840,11 @@ async def run_kg_building_agent(
     instruction = instruction.replace("{paper_content}", paper_content or "")
 
     # Append content defensively if template doesn't include it.
-    if paper_content and paper_content.strip() and paper_content.strip() not in instruction:
+    if (
+        paper_content
+        and paper_content.strip()
+        and paper_content.strip() not in instruction
+    ):
         instruction = instruction.rstrip() + "\n\n" + paper_content.strip() + "\n"
     if hints and hints.strip() and hints.strip() not in instruction:
         instruction = (
@@ -524,47 +853,52 @@ async def run_kg_building_agent(
             + hints.strip()
             + "\n"
         )
-    
+
     # Write global state for MCP server using the configured iter1 entity context name.
     logger.info(f"📝 Writing global state for MCP server")
     write_global_state(doi_hash, entity_context_name)
-    
+
     # Create agent with MCP tools
     agent = BaseAgent(
         model_name=model_name,
         model_config=ModelConfig(temperature=temperature, top_p=top_p),
         remote_model=True,
         mcp_tools=mcp_tools,
-        mcp_set_name=mcp_set_name
+        mcp_set_name=mcp_set_name,
     )
-    
+
     logger.info(f"🚀 Running KG building agent for {doi_hash}")
     logger.info(f"   Model: {model_name}, MCP: {mcp_set_name}, Tools: {mcp_tools}")
-    
+
     # Retry mechanism for agent execution
     max_retries = 3
     retry_delays = [5, 10, 15]  # Progressive backoff in seconds
-    
+
     for attempt in range(max_retries):
         try:
             if attempt > 0:
                 logger.info(f"🔄 Retry attempt {attempt + 1}/{max_retries}")
-            
+
             response, metadata = await agent.run(instruction, recursion_limit=600)
             logger.info(f"✅ Agent completed successfully on attempt {attempt + 1}")
             return response, metadata
-            
+
         except Exception as e:
             import traceback
-            logger.error(f"❌ Agent execution failed on attempt {attempt + 1}/{max_retries}: {e}")
+
+            logger.error(
+                f"❌ Agent execution failed on attempt {attempt + 1}/{max_retries}: {e}"
+            )
             logger.error(traceback.format_exc())
-            
+
             if attempt < max_retries - 1:
                 delay = retry_delays[attempt]
                 logger.info(f"⏳ Waiting {delay}s before retry...")
                 await asyncio.sleep(delay)
             else:
-                logger.error(f"❌ All {max_retries} attempts failed for KG building agent")
+                logger.error(
+                    f"❌ All {max_retries} attempts failed for KG building agent"
+                )
                 raise
 
 
@@ -572,11 +906,11 @@ def save_agent_response(doi_hash: str, response: str, data_dir: str = "data") ->
     """Save the agent response to a file."""
     output_dir = os.path.join(data_dir, doi_hash, "kg_building")
     os.makedirs(output_dir, exist_ok=True)
-    
+
     response_path = os.path.join(output_dir, "iter1_response.md")
-    
+
     try:
-        with open(response_path, 'w', encoding='utf-8') as f:
+        with open(response_path, "w", encoding="utf-8") as f:
             f.write(f"# Iteration 1 - Top Entity KG Building\n\n")
             f.write(f"## Response\n\n{response}")
         logger.info(f"✅ Saved agent response to {response_path}")
@@ -604,10 +938,10 @@ def copy_output_ttl(
 ) -> bool:
     """
     Copy the output.ttl to iteration_1.ttl.
-    
+
     In normal mode:
         - Looks for: output.ttl or output_top.ttl in doi_hash root
-    
+
     In test mode:
         - Looks for: top.ttl in `{ontology_name}_output/` directory
     """
@@ -616,7 +950,7 @@ def copy_output_ttl(
     iter1_entity_aliases = _get_iter1_entity_context_aliases(meta_cfg, default="top")
     doi_folder = os.path.join(data_dir, doi_hash)
     iteration_1_ttl = os.path.join(doi_folder, "iteration_1.ttl")
-    
+
     if test_mode:
         # Test mode: Look for top.ttl in `{ontology_name}_output/`
         test_output_dir = os.path.join(doi_folder, f"{ontology_name}_output")
@@ -624,13 +958,16 @@ def copy_output_ttl(
             os.path.join(test_output_dir, "top.ttl"),
             os.path.join(test_output_dir, "Top.ttl"),
         ]
-        
+
         for candidate in test_candidates:
             if os.path.exists(candidate):
                 try:
                     import shutil
+
                     shutil.copy2(candidate, iteration_1_ttl)
-                    logger.info(f"✅ [TEST MODE] Saved iteration_1.ttl from {os.path.basename(candidate)}")
+                    logger.info(
+                        f"✅ [TEST MODE] Saved iteration_1.ttl from {os.path.basename(candidate)}"
+                    )
                     _ = publish_top_ttl(
                         doi_hash=doi_hash,
                         ontology_name=ontology_name,
@@ -651,8 +988,11 @@ def copy_output_ttl(
                 continue
             try:
                 import shutil
+
                 shutil.copy2(memory_top_ttl, iteration_1_ttl)
-                logger.info(f"✅ [TEST MODE] Saved iteration_1.ttl from memory/{alias}.ttl")
+                logger.info(
+                    f"✅ [TEST MODE] Saved iteration_1.ttl from memory/{alias}.ttl"
+                )
                 _ = publish_top_ttl(
                     doi_hash=doi_hash,
                     ontology_name=ontology_name,
@@ -672,13 +1012,17 @@ def copy_output_ttl(
                     export_candidates.extend(
                         os.path.join(exports_dir, f)
                         for f in os.listdir(exports_dir)
-                        if f.lower().startswith(f"{alias.lower()}_") and f.lower().endswith(".ttl")
+                        if f.lower().startswith(f"{alias.lower()}_")
+                        and f.lower().endswith(".ttl")
                     )
                 if export_candidates:
                     export_candidates = sorted(set(export_candidates))
-                    export_candidates.sort(key=lambda p: os.path.getmtime(p), reverse=True)
+                    export_candidates.sort(
+                        key=lambda p: os.path.getmtime(p), reverse=True
+                    )
                     latest = export_candidates[0]
                     import shutil
+
                     shutil.copy2(latest, iteration_1_ttl)
                     logger.info(
                         f"✅ [TEST MODE] Saved iteration_1.ttl from latest export: {os.path.basename(latest)}"
@@ -706,10 +1050,11 @@ def copy_output_ttl(
         # and (optionally) export snapshots under exports/. They DO NOT necessarily write
         # output.ttl/output_top.ttl into the DOI folder root.
         exports_dir = os.path.join(doi_folder, "exports")
-        
+
         if os.path.exists(output_ttl):
             try:
                 import shutil
+
                 shutil.copy2(output_ttl, iteration_1_ttl)
                 logger.info(f"✅ Saved iteration_1.ttl from output.ttl")
                 _ = publish_top_ttl(
@@ -726,6 +1071,7 @@ def copy_output_ttl(
         elif os.path.exists(output_top_ttl):
             try:
                 import shutil
+
                 shutil.copy2(output_top_ttl, iteration_1_ttl)
                 logger.info(f"✅ Saved iteration_1.ttl from output_top.ttl")
                 _ = publish_top_ttl(
@@ -744,10 +1090,11 @@ def copy_output_ttl(
                 memory_top_ttl = os.path.join(doi_folder, "memory", f"{alias}.ttl")
                 if not os.path.exists(memory_top_ttl):
                     continue
-                # Fallback: use persisted memory graph with the configured iter1 entity context name
-                # or a compatible legacy alias such as ``MedicalCase``.
+                # Fallback: use persisted memory graph with the configured iter1 entity
+                # context name or a compatible legacy class-name alias.
                 try:
                     import shutil
+
                     shutil.copy2(memory_top_ttl, iteration_1_ttl)
                     logger.info(f"✅ Saved iteration_1.ttl from memory/{alias}.ttl")
                     _ = publish_top_ttl(
@@ -770,15 +1117,21 @@ def copy_output_ttl(
                         export_candidates.extend(
                             os.path.join(exports_dir, f)
                             for f in os.listdir(exports_dir)
-                            if f.lower().startswith(f"{alias.lower()}_") and f.lower().endswith(".ttl")
+                            if f.lower().startswith(f"{alias.lower()}_")
+                            and f.lower().endswith(".ttl")
                         )
                     if export_candidates:
                         export_candidates = sorted(set(export_candidates))
-                        export_candidates.sort(key=lambda p: os.path.getmtime(p), reverse=True)
+                        export_candidates.sort(
+                            key=lambda p: os.path.getmtime(p), reverse=True
+                        )
                         latest = export_candidates[0]
                         import shutil
+
                         shutil.copy2(latest, iteration_1_ttl)
-                        logger.info(f"✅ Saved iteration_1.ttl from latest export: {os.path.basename(latest)}")
+                        logger.info(
+                            f"✅ Saved iteration_1.ttl from latest export: {os.path.basename(latest)}"
+                        )
                         _ = publish_top_ttl(
                             doi_hash=doi_hash,
                             ontology_name=ontology_name,
@@ -790,7 +1143,9 @@ def copy_output_ttl(
             except Exception as e:
                 logger.warning(f"⚠️  Failed scanning exports fallback: {e}")
 
-            logger.warning("⚠️  No output.ttl/output_top.ttl and no memory/export fallback found")
+            logger.warning(
+                "⚠️  No output.ttl/output_top.ttl and no memory/export fallback found"
+            )
             return False
 
 
@@ -802,12 +1157,12 @@ def parse_top_entities_from_ttl(
 ) -> bool:
     """
     Parse the iteration_1.ttl using SPARQL to extract top entities and save as JSON.
-    
+
     Args:
         doi_hash: DOI hash identifier
         ontology_name: Name of the ontology (e.g., "ontosynthesis")
         data_dir: Base data directory
-        
+
     Returns:
         True if parsing succeeded
     """
@@ -819,30 +1174,32 @@ def parse_top_entities_from_ttl(
         sparql_path = resolve_generated_file(
             f"ai_generated_contents/sparqls/{ontology_name}/top_entity_parsing.sparql"
         )
-        output_json_path = os.path.join(doi_folder, "mcp_run", "iter1_top_entities.json")
-        
+        output_json_path = os.path.join(
+            doi_folder, "mcp_run", "iter1_top_entities.json"
+        )
+
         # Check if TTL exists
         if not os.path.exists(ttl_path):
             logger.error(f"❌ TTL file not found: {ttl_path}")
             return False
-        
+
         # Check if SPARQL query exists
         if not os.path.exists(sparql_path):
             logger.error(f"❌ SPARQL query not found: {sparql_path}")
             return False
-        
+
         # Load SPARQL query
-        with open(sparql_path, 'r', encoding='utf-8') as f:
+        with open(sparql_path, "r", encoding="utf-8") as f:
             sparql_query = f.read()
-        
+
         # Parse TTL
         logger.info(f"📊 Parsing TTL with SPARQL query")
         g = Graph()
         g.parse(ttl_path, format="turtle")
-        
+
         # Execute SPARQL query
         results = g.query(sparql_query)
-        
+
         # Convert results to JSON format
         # NOTE: We do not assume any ontology-specific variable names here.
         # The SPARQL is expected to bind a top-entity variable (e.g. ?entity or ?synthesis)
@@ -863,53 +1220,69 @@ def parse_top_entities_from_ttl(
                 if hasattr(row, "label") and row.label
                 else uri.split("/")[-1]
             )
-            
-            entities.append({
-                "uri": uri,
-                "label": label,
-                # Type information can be inferred downstream; we keep this generic here.
-                "types": []
-            })
-        
+
+            entities.append(
+                {
+                    "uri": uri,
+                    "label": label,
+                    # Type information can be inferred downstream; we keep this generic here.
+                    "types": [],
+                }
+            )
+
         entities = _canonicalize_parsed_top_entities(g=g, entities=entities)
-        supplemented_entities = _merge_txt_top_entity_fallback(doi_folder, entities, top_class_iri)
+        entities = _filter_runtime_context_top_entities(entities, meta_config)
+        supplemented_entities = _merge_txt_top_entity_fallback(
+            doi_folder, entities, top_class_iri
+        )
+        supplemented_entities = _filter_runtime_context_top_entities(
+            supplemented_entities, meta_config
+        )
         if len(supplemented_entities) > len(entities):
             logger.warning(
                 "⚠️  Supplemented top-entity JSON from top_entities.txt: %s -> %s",
                 len(entities),
                 len(supplemented_entities),
             )
-            if _materialize_supplemented_top_entities(g, supplemented_entities, top_class_iri):
+            if _materialize_supplemented_top_entities(
+                g, supplemented_entities, top_class_iri
+            ):
                 g.serialize(destination=ttl_path, format="turtle")
-                logger.warning("⚠️  Materialized supplemented top entities into iteration_1.ttl")
+                logger.warning(
+                    "⚠️  Materialized supplemented top entities into iteration_1.ttl"
+                )
         entities = supplemented_entities
 
         # CRITICAL VALIDATION: Check if entities list is empty
         if not entities or len(entities) == 0:
-            logger.error(f"❌ CRITICAL: Parsed 0 entities from TTL - KG building failed to create any entities!")
-            logger.error(f"   This usually means the agent didn't properly use the MCP tools")
+            logger.error(
+                f"❌ CRITICAL: Parsed 0 entities from TTL - KG building failed to create any entities!"
+            )
+            logger.error(
+                f"   This usually means the agent didn't properly use the MCP tools"
+            )
             # Save empty JSON anyway for debugging
             os.makedirs(os.path.dirname(output_json_path), exist_ok=True)
-            with open(output_json_path, 'w', encoding='utf-8') as f:
+            with open(output_json_path, "w", encoding="utf-8") as f:
                 json.dump(entities, f, indent=2)
             return False  # Signal failure so we can retry
-        
+
         # Save to JSON
         os.makedirs(os.path.dirname(output_json_path), exist_ok=True)
-        with open(output_json_path, 'w', encoding='utf-8') as f:
+        with open(output_json_path, "w", encoding="utf-8") as f:
             json.dump(entities, f, indent=2)
-        
+
         logger.info(f"✅ Parsed {len(entities)} canonical top entities from TTL")
         logger.info(f"   Saved to: {output_json_path}")
-        
+
         # Log first few entities
         for entity in entities[:3]:
             logger.info(f"   - {entity['label']}")
         if len(entities) > 3:
             logger.info(f"   ... and {len(entities) - 3} more")
-        
+
         return True
-        
+
     except Exception as e:
         logger.error(f"❌ Failed to parse TTL: {e}")
         return False
@@ -918,71 +1291,78 @@ def parse_top_entities_from_ttl(
 def run_step(doi_hash: str, config: dict) -> bool:
     """
     Main entry point for the top entity KG building pipeline step.
-    
+
     This step:
     1. Loads the meta task configuration to determine ontology and MCP settings
     2. Loads the extraction hints from the previous step
     3. Loads the KG building prompt
     4. Runs an LLM agent with MCP tools to build the knowledge graph
     5. Saves the output TTL as iteration_1.ttl
-    
+
     Args:
         doi_hash: The DOI hash to process
         config: Pipeline configuration dictionary
-        
+
     Returns:
         True if KG building succeeded
     """
     data_dir = config.get("data_dir", "data")
     doi_folder = os.path.join(data_dir, doi_hash)
-    
+    os.environ["TWA_AGENTIC_DATA_DIR"] = os.path.abspath(data_dir)
+
     logger.info(f"▶️  Top Entity KG Building for {doi_hash}")
 
     # Load meta task configuration
-    meta_task_config_path = config.get("meta_task_config", "configs/meta_task/meta_task_config.json")
+    meta_task_config_path = config.get(
+        "meta_task_config", "configs/meta_task/meta_task_config.json"
+    )
     meta_config = load_meta_config(meta_task_config_path)
     if not meta_config:
         logger.error("❌ Failed to load meta task configuration")
         return False
-    
+
     # Get main ontology configuration
     main_ontology = meta_config.get("ontologies", {}).get("main", {})
     ontology_name = main_ontology.get("name", "ontosynthesis")
     mcp_set_name = main_ontology.get("mcp_set_name", "run_created_mcp.json")
     mcp_tools = main_ontology.get("mcp_list", ["llm_created_mcp"])
     agent_model = main_ontology.get("agent_model") or "gpt-4o"
-    iter1_entity_context_name = _get_iter1_entity_context_name(meta_config, default="top")
+    iter1_entity_context_name = _get_iter1_entity_context_name(
+        meta_config, default="top"
+    )
     _apply_identifier_runtime_env(meta_config)
 
     # Check if iteration_1.ttl already exists
     iteration_1_ttl = os.path.join(doi_folder, "iteration_1.ttl")
     if os.path.exists(iteration_1_ttl):
-        logger.info(f"  ⏭️  iteration_1.ttl already exists; refreshing iter1_top_entities.json")
+        logger.info(
+            f"  ⏭️  iteration_1.ttl already exists; refreshing iter1_top_entities.json"
+        )
         return parse_top_entities_from_ttl(
             doi_hash,
             ontology_name,
             data_dir,
             meta_task_config_path=meta_task_config_path,
         )
-    
+
     # Override with test MCP config if provided
     if "test_mcp_config" in config:
         mcp_set_name = config["test_mcp_config"]
         logger.info(f"  🧪 Using test MCP config")
-    
+
     logger.info(f"  📋 Ontology: {ontology_name}")
     logger.info(f"  🔧 MCP Set: {mcp_set_name}")
     logger.info(f"  🛠️  MCP Tools: {mcp_tools}")
     logger.info(f"  🤖 Agent model: {agent_model}")
-    
+
     # Load extraction hints from previous step
     hints = load_extraction_hints(doi_hash, data_dir)
     if not hints:
         logger.error("❌ Failed to load extraction hints")
         return False
-    
+
     logger.info(f"  ✓ Loaded extraction hints ({len(hints)} chars)")
-    
+
     # Load KG building prompt
     prompt_path = resolve_generated_file(
         f"ai_generated_contents/prompts/{ontology_name}/KG_BUILDING_ITER_1.md"
@@ -991,33 +1371,49 @@ def run_step(doi_hash: str, config: dict) -> bool:
     if not prompt_template:
         logger.error(f"❌ Failed to load prompt from {prompt_path}")
         return False
-    prompt_template = _augment_iter1_prompt_with_runtime_rules(prompt_template, doi_hash, meta_config)
-    
+    prompt_template = _augment_iter1_prompt_with_runtime_rules(
+        prompt_template, doi_hash, meta_config
+    )
+
     logger.info(f"  ✓ Loaded KG building prompt")
-    
+
     # Run the agent with retry logic for empty entity lists
     max_kg_retries = 3
     test_mode = "test_mcp_config" in config
-    
+
     for kg_attempt in range(max_kg_retries):
         try:
             if kg_attempt > 0:
-                logger.info(f"  🔄 KG Building retry attempt {kg_attempt + 1}/{max_kg_retries}")
+                logger.info(
+                    f"  🔄 KG Building retry attempt {kg_attempt + 1}/{max_kg_retries}"
+                )
                 # Clean up previous failed attempt
                 if os.path.exists(iteration_1_ttl):
                     os.remove(iteration_1_ttl)
-                    logger.info(f"  🗑️  Removed failed iteration_1.ttl from previous attempt")
-            
+                    logger.info(
+                        f"  🗑️  Removed failed iteration_1.ttl from previous attempt"
+                    )
+
             paper_content = load_paper_content(doi_hash, data_dir)
             if not paper_content:
                 logger.error("❌ Failed to load paper content for KG building")
                 return False
 
+            prompt_for_attempt = prompt_template
+            if kg_attempt > 0:
+                prompt_for_attempt = (
+                    prompt_template.rstrip()
+                    + "\n\nVALIDATION FEEDBACK FROM PREVIOUS ATTEMPT:\n"
+                    + "- The prior response did not produce a persisted Turtle file for the pipeline.\n"
+                    + "- Do not answer with prose-only success claims.\n"
+                    + "- Call the available MCP tools to initialize memory, create/link entities, and export memory.\n"
+                    + "- The retry is successful only if a TTL file is written for the current document.\n"
+                )
+
             # Save full prompt for reproducibility/debugging
             try:
                 preview_prompt = (
-                    prompt_template
-                    .replace("{doi}", doi_hash)
+                    prompt_for_attempt.replace("{doi}", doi_hash)
                     .replace("{paper_content}", paper_content)
                     .replace("{top_entities}", hints)
                     .replace("{hints}", hints)
@@ -1029,7 +1425,7 @@ def run_step(doi_hash: str, config: dict) -> bool:
             response, metadata = asyncio.run(
                 run_kg_building_agent(
                     doi_hash=doi_hash,
-                    prompt_template=prompt_template,
+                    prompt_template=prompt_for_attempt,
                     hints=hints,
                     paper_content=paper_content,
                     mcp_tools=mcp_tools,
@@ -1040,10 +1436,10 @@ def run_step(doi_hash: str, config: dict) -> bool:
                     entity_context_name=iter1_entity_context_name,
                 )
             )
-            
+
             # Save agent response
             save_agent_response(doi_hash, response, data_dir)
-            
+
             # Copy output TTL to iteration_1.ttl
             if not copy_output_ttl(
                 doi_hash,
@@ -1053,14 +1449,54 @@ def run_step(doi_hash: str, config: dict) -> bool:
                 meta_task_config_path=meta_task_config_path,
             ):
                 logger.warning("⚠️  Failed to save iteration_1.ttl")
-                if kg_attempt < max_kg_retries - 1:
+                repaired = _repair_iter1_ttl_with_generated_tools(
+                    doi_hash=doi_hash,
+                    data_dir=data_dir,
+                    ontology_name=ontology_name,
+                    meta_config=meta_config,
+                    entity_context_name=iter1_entity_context_name,
+                )
+                if repaired and copy_output_ttl(
+                    doi_hash,
+                    data_dir,
+                    test_mode=test_mode,
+                    ontology_name=ontology_name,
+                    meta_task_config_path=meta_task_config_path,
+                ):
+                    logger.warning(
+                        "⚠️  Saved iteration_1.ttl after generated-tool repair"
+                    )
+                else:
+                    repaired = False
+                if repaired:
+                    pass
+                elif kg_attempt < max_kg_retries - 1:
                     logger.info(f"  ⏳ Waiting 5s before retry...")
                     import time
+
                     time.sleep(5)
                     continue
                 else:
                     return False
-            
+            elif _iter1_needs_generated_top_uri_repair(
+                doi_hash=doi_hash,
+                data_dir=data_dir,
+                ontology_name=ontology_name,
+                meta_config=meta_config,
+            ):
+                logger.warning(
+                    "⚠️  ITER1 top shell uses non-generated top IRIs; rebuilding with generated tools"
+                )
+                repaired = _repair_iter1_ttl_with_generated_tools(
+                    doi_hash=doi_hash,
+                    data_dir=data_dir,
+                    ontology_name=ontology_name,
+                    meta_config=meta_config,
+                    entity_context_name=iter1_entity_context_name,
+                )
+                if not repaired:
+                    return False
+
             # Parse TTL to extract top entities as JSON
             logger.info(f"  📊 Parsing top entities from TTL")
             parse_success = parse_top_entities_from_ttl(
@@ -1069,33 +1505,41 @@ def run_step(doi_hash: str, config: dict) -> bool:
                 data_dir,
                 meta_task_config_path=meta_task_config_path,
             )
-            
+
             if not parse_success:
                 # Parsing failed or returned empty entities list
-                logger.error(f"  ❌ KG building attempt {kg_attempt + 1}/{max_kg_retries} produced no entities")
+                logger.error(
+                    f"  ❌ KG building attempt {kg_attempt + 1}/{max_kg_retries} produced no entities"
+                )
                 if kg_attempt < max_kg_retries - 1:
                     logger.info(f"  ⏳ Waiting 5s before retry...")
                     import time
+
                     time.sleep(5)
                     continue
                 else:
-                    logger.error(f"  ❌ All {max_kg_retries} KG building attempts failed to produce entities")
+                    logger.error(
+                        f"  ❌ All {max_kg_retries} KG building attempts failed to produce entities"
+                    )
                     return False
-            
+
             # Success! Entities were created
             logger.info(f"✅ Top Entity KG Building completed for {doi_hash}")
             return True
-            
+
         except Exception as e:
-            logger.error(f"❌ KG building attempt {kg_attempt + 1}/{max_kg_retries} failed: {e}")
+            logger.error(
+                f"❌ KG building attempt {kg_attempt + 1}/{max_kg_retries} failed: {e}"
+            )
             if kg_attempt < max_kg_retries - 1:
                 logger.info(f"  ⏳ Waiting 5s before retry...")
                 import time
+
                 time.sleep(5)
             else:
                 logger.error(f"❌ All {max_kg_retries} KG building attempts failed")
                 return False
-    
+
     return False
 
 
@@ -1103,12 +1547,9 @@ if __name__ == "__main__":
     # Example usage for standalone testing
     if len(sys.argv) > 1:
         test_doi_hash = sys.argv[1]
-        test_config = {
-            "data_dir": "data"
-        }
+        test_config = {"data_dir": "data"}
         print(f"Running top entity KG building step for DOI hash: {test_doi_hash}")
         success = run_step(test_doi_hash, test_config)
         print(f"Top entity KG building step {'succeeded' if success else 'failed'}.")
     else:
         print("Usage: python -m src.pipelines.top_entity_kg_building.build <doi_hash>")
-

@@ -11,6 +11,8 @@ import json
 import re
 from pathlib import Path
 from typing import List, Optional
+from rdflib import Graph, URIRef  # type: ignore[reportMissingImports]
+from rdflib.namespace import RDFS  # type: ignore[reportMissingImports]
 
 # Add project root to path
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
@@ -36,10 +38,15 @@ def resolve_generated_file(path: str) -> str:
     """
     path = (path or "").replace("\\", "/")
     candidates: list[str] = []
+    override_root = os.environ.get("TWA_GENERATED_ARTIFACT_ROOT", "").strip().replace("\\", "/").rstrip("/")
     if path.startswith("ai_generated_contents/"):
+        if override_root:
+            candidates.append(path.replace("ai_generated_contents", override_root, 1))
         candidates.append(path.replace("ai_generated_contents/", "ai_generated_contents_candidate/", 1))
         candidates.append(path)
     elif path.startswith("ai_generated_contents_candidate/"):
+        if override_root:
+            candidates.append(path.replace("ai_generated_contents_candidate", override_root, 1))
         candidates.append(path)
         candidates.append(path.replace("ai_generated_contents_candidate/", "ai_generated_contents/", 1))
     else:
@@ -135,11 +142,109 @@ def _normalize_top_entity_output(
             seen.add(key)
             normalized.append(f"{matched_prefix}-{len(seen)} [{code}]")
         else:
+            line_match = re.match(
+                rf"^{re.escape(matched_prefix)}-(\d+)\s+(?!\[)(.+?)\s*$",
+                line,
+            )
+            if line_match:
+                label = line_match.group(2).strip()
+                key = f"{matched_prefix}:{label}"
+                if key in seen:
+                    continue
+                seen.add(key)
+                normalized.append(f"{matched_prefix}-{len(seen)} [{label}]")
+                continue
             if line in seen:
                 continue
             seen.add(line)
             normalized.append(line)
     return "\n".join(normalized).strip() + ("\n" if normalized else "")
+
+
+def _local_name(iri: str) -> str:
+    text = str(iri or "").strip()
+    if "#" in text:
+        return text.rsplit("#", 1)[-1]
+    return text.rstrip("/").rsplit("/", 1)[-1]
+
+
+def _load_top_entity_contract(meta_config: dict, main_ontology: dict) -> tuple[str, str]:
+    policies = (main_ontology.get("runtime_policies") or {}) if isinstance(main_ontology, dict) else {}
+    shell_validation = ((policies.get("main_entity_kg") or {}).get("shell_validation") or {})
+    top_class_iri = str(shell_validation.get("top_entity_class_iri") or "").strip()
+    ttl_file = str(main_ontology.get("ttl_file") or "").strip()
+    if not top_class_iri or not ttl_file or not os.path.exists(ttl_file):
+        return top_class_iri, ""
+    try:
+        graph = Graph()
+        graph.parse(ttl_file, format="turtle")
+        comment = "\n".join(str(c or "") for c in graph.objects(URIRef(top_class_iri), RDFS.comment)).strip()
+        return top_class_iri, comment
+    except Exception:
+        return top_class_iri, ""
+
+
+async def _revise_top_entities_against_tbox(
+    *,
+    llm,
+    candidate_text: str,
+    source_text: str,
+    top_class_iri: str,
+    top_class_comment: str,
+    line_prefixes: List[str],
+    identifier_code_regex: Optional[str],
+) -> str:
+    top_local = _local_name(top_class_iri) or (line_prefixes[0] if line_prefixes else "Entity")
+    if not top_class_comment.strip():
+        return candidate_text
+    revision_prompt = f"""You are the validation agent for top-entity extraction.
+
+Revise the candidate top-entity list using ONLY the T-Box class contract and source text below.
+
+T-Box top class:
+- IRI: {top_class_iri}
+- Local name: {top_local}
+
+T-Box class contract:
+<<<TBOX
+{top_class_comment}
+TBOX
+>>>
+
+Validation rules:
+- Keep a candidate only if it satisfies the T-Box class contract.
+- If the T-Box excludes a candidate category, remove that candidate even if the source has a heading, title, table row, or procedure-like section for it.
+- If a candidate is ambiguous under the T-Box class contract, remove it.
+- Preserve the normalized output format exactly.
+- Return only the corrected top-entity lines. No JSON, no markdown fences, no explanation.
+
+Candidate top entities:
+<<<CANDIDATES
+{candidate_text}
+CANDIDATES
+>>>
+
+Source text:
+<<<SOURCE
+{source_text}
+SOURCE
+>>>
+"""
+    result = await llm.ainvoke(revision_prompt)
+    revised = result.content if hasattr(result, "content") else str(result)
+    revised = _normalize_top_entity_output(
+        revised,
+        line_prefixes=line_prefixes,
+        identifier_code_regex=identifier_code_regex,
+    )
+    ok, errors = validate_top_entity_lines(revised, list(line_prefixes or []))
+    if ok and revised.strip():
+        return revised
+    logger.warning(
+        "⚠️  Top-entity validation agent returned unusable output; keeping original extraction: %s",
+        "; ".join(errors[:3]),
+    )
+    return candidate_text
 
 
 async def extract_top_entities(
@@ -150,6 +255,8 @@ async def extract_top_entities(
     invalidate_top_entities_txt_substrings: Optional[List[str]] = None,
     count_lines_starting_with: Optional[List[str]] = None,
     identifier_code_regex: Optional[str] = None,
+    top_class_iri: str = "",
+    top_class_comment: str = "",
 ) -> bool:
     """
     Extract top-level entities from the stitched markdown.
@@ -177,7 +284,11 @@ async def extract_top_entities(
         low = existing.lower()
         placeholder_doc = "provide the document" in low
         stale_wrong_domain = _top_entities_txt_is_stale(existing, invalidate_top_entities_txt_substrings or [])
-        if existing.strip() and not placeholder_doc and not stale_wrong_domain:
+        ok_existing, _ = validate_top_entity_lines(
+            existing,
+            list(count_lines_starting_with or []),
+        )
+        if existing.strip() and ok_existing and not placeholder_doc and not stale_wrong_domain:
             logger.info(f"⏭️  Top entities already extracted: {output_file}")
             return True
         if stale_wrong_domain:
@@ -275,6 +386,15 @@ async def extract_top_entities(
                 line_prefixes=count_lines_starting_with or [],
                 identifier_code_regex=identifier_code_regex,
             )
+            content = await _revise_top_entities_against_tbox(
+                llm=llm,
+                candidate_text=content,
+                source_text=paper_content,
+                top_class_iri=top_class_iri,
+                top_class_comment=top_class_comment,
+                line_prefixes=list(count_lines_starting_with or []),
+                identifier_code_regex=identifier_code_regex,
+            )
             ok_lines, line_errors = validate_top_entity_lines(
                 content,
                 list(count_lines_starting_with or []),
@@ -334,6 +454,7 @@ def run_step(doi_hash: str, config: dict) -> bool:
         main_ontology = meta_config.get("ontologies", {}).get("main", {})
         ontology_name = main_ontology.get("name", "ontosynthesis")
         logger.info(f"   Using ontology: {ontology_name}")
+        top_class_iri, top_class_comment = _load_top_entity_contract(meta_config, main_ontology)
         policies = (main_ontology.get("runtime_policies") or {}) if isinstance(main_ontology, dict) else {}
         te_pol = (policies.get("top_entity_extraction") or {}) if isinstance(policies, dict) else {}
         invalidate_subs = te_pol.get("invalidate_top_entities_txt_substrings") or []
@@ -358,6 +479,8 @@ def run_step(doi_hash: str, config: dict) -> bool:
                 invalidate_top_entities_txt_substrings=invalidate_subs,
                 count_lines_starting_with=count_prefixes,
                 identifier_code_regex=identifier_code_regex,
+                top_class_iri=top_class_iri,
+                top_class_comment=top_class_comment,
             )
         )
         

@@ -7,13 +7,10 @@ Creates three files per PDF:
   - <name>_tables.md (table extraction)
   - <name>.md (combined)
 
-For medical pipeline with vision_pdf_conversion=true:
+For medical pipeline:
   - Uses a vision LLM to transcribe each page from its rendered image.
   - Produces <name>_vision.md (canonical source for all downstream steps).
   - Also copies result to <name>.md and <name>_text.md for backward compat.
-
-For medical pipeline without vision:
-  - Uses layout-aware basic_segmentation.py for better extraction.
 """
 
 import os
@@ -80,7 +77,9 @@ def _load_simple_conversion_module():
 
 
 def _is_vision_pdf_enabled(config: dict) -> bool:
-    """Return True when vision LLM PDF conversion is requested via config."""
+    """Return True when vision LLM PDF conversion should be used."""
+    if _is_medical_pipeline(config):
+        return True
     return bool(config.get("vision_pdf_conversion", False))
 
 
@@ -141,10 +140,9 @@ def _extract_text_md(pdf_path: str, output_folder: str, config: dict) -> str:
     """
     Extract text from PDF to <pdf>_text.md.
 
-    Medical pipeline + vision_pdf_conversion=true:
+    Medical pipeline:
         Calls the vision LLM script; writes <pdf>_vision.md, <pdf>_text.md, <pdf>.md.
-    Medical pipeline (no vision):
-        Uses layout-aware basic_segmentation / pymupdf_segmentation.
+        Vision conversion is mandatory for medical PDFs.
     Other pipelines:
         Uses simple_conversion.py.
 
@@ -162,7 +160,9 @@ def _extract_text_md(pdf_path: str, output_folder: str, config: dict) -> str:
     combined_md = os.path.join(output_folder, f"{base_name}.md")
     vision_md = os.path.join(output_folder, f"{base_name}_vision.md")
 
-    if _is_medical_pipeline(config) and _is_vision_pdf_enabled(config):
+    is_medical = _is_medical_pipeline(config)
+
+    if is_medical and _is_vision_pdf_enabled(config):
         print(f"    [MEDICAL VISION] Using vision LLM transcription")
         try:
             vm = _load_vision_conversion_module()
@@ -177,9 +177,11 @@ def _extract_text_md(pdf_path: str, output_folder: str, config: dict) -> str:
             print(f"    [OK] Vision transcription written → {os.path.basename(vision_md)}")
             return text_md
         except Exception as e:
-            print(f"    [WARN] Vision extraction failed ({e}), falling back to layout-aware extraction")
+            raise RuntimeError(
+                "Medical PDF conversion requires vision LLM transcription, but vision extraction failed"
+            ) from e
 
-    if _is_medical_pipeline(config):
+    if is_medical:
         print(f"    [MEDICAL MODE] Using layout-aware extraction")
         try:
             bs = _load_basic_segmentation_module()

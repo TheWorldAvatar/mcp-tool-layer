@@ -20,7 +20,9 @@ def parse_json_payload(text: str) -> Any:
         raise ValueError(f"Invalid JSON extraction payload: {e}") from e
 
 
-def validate_top_entity_lines(content: str, prefixes: list[str] | tuple[str, ...]) -> tuple[bool, list[str]]:
+def validate_top_entity_lines(
+    content: str, prefixes: list[str] | tuple[str, ...]
+) -> tuple[bool, list[str]]:
     """Validate normalized top-entity line shape: `<Prefix>-<n> [<label>]`."""
     allowed = tuple(p for p in prefixes if p) or ("Entity",)
     errors: list[str] = []
@@ -36,7 +38,9 @@ def validate_top_entity_lines(content: str, prefixes: list[str] | tuple[str, ...
     return not errors, errors
 
 
-def validate_hint_payload(content: str, *, allow_empty: bool = False) -> tuple[bool, list[str]]:
+def validate_hint_payload(
+    content: str, *, allow_empty: bool = False
+) -> tuple[bool, list[str]]:
     """Validate generic extraction hints without assuming ontology-specific fields."""
     text = str(content or "").strip()
     if not text:
@@ -44,11 +48,17 @@ def validate_hint_payload(content: str, *, allow_empty: bool = False) -> tuple[b
     if is_marker_only_optional_output(text):
         return True, []
     if text in {"{}", "[]"}:
-        return (allow_empty, [] if allow_empty else ["empty JSON payload is not allowed here"])
+        return (
+            allow_empty,
+            [] if allow_empty else ["empty JSON payload is not allowed here"],
+        )
     if text.startswith("{") or text.startswith("["):
         parsed = parse_json_payload(text)
         if parsed in ({}, []):
-            return (allow_empty, [] if allow_empty else ["empty JSON payload is not allowed here"])
+            return (
+                allow_empty,
+                [] if allow_empty else ["empty JSON payload is not allowed here"],
+            )
         return True, []
     if "SECTION:" in text or "rdf:type" in text:
         return True, []

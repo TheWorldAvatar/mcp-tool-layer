@@ -9,10 +9,13 @@ import os
 import json
 import ast
 import asyncio
+import importlib.util
 import shutil
+import sys
 import tempfile
 import hashlib
 import re
+import types
 import unicodedata
 from datetime import datetime
 from pathlib import Path
@@ -25,11 +28,13 @@ from models.ModelConfig import ModelConfig
 from src.utils.global_logger import get_logger
 from src.utils.extraction_models import get_extraction_model
 from src.pipelines.utils.ttl_publisher import (
+    enforce_published_graph_hygiene_file,
     get_main_ontology_name,
     get_output_naming_config,
     load_meta_task_config,
     publish_top_ttl,
     publish_ttl,
+    _normalize_medical_composite_graph,
 )
 from src.pipelines.utils.ordered_member_integrity import (
     enforce_ordered_member_integrity_file,
@@ -51,7 +56,9 @@ def _get_base_agent():
 
 
 def _get_runtime_policies(meta_cfg: dict) -> dict:
-    return ((meta_cfg or {}).get("ontologies", {}).get("main", {}) or {}).get("runtime_policies", {}) or {}
+    return ((meta_cfg or {}).get("ontologies", {}).get("main", {}) or {}).get(
+        "runtime_policies", {}
+    ) or {}
 
 
 def _get_main_entity_kg_policy(meta_cfg: dict) -> dict:
@@ -88,7 +95,9 @@ def _first_label(g: Graph, node: URIRef) -> str:
     return ""
 
 
-def _normalize_entity_label_key(text: str, suffixes_to_strip: Optional[list[str]] = None) -> str:
+def _normalize_entity_label_key(
+    text: str, suffixes_to_strip: Optional[list[str]] = None
+) -> str:
     raw = unicodedata.normalize("NFKC", str(text or "")).strip()
     bracket_match = re.match(r"^[A-Za-z][A-Za-z0-9_]*-\d+\s+\[(.+)\]\s*$", raw)
     if bracket_match:
@@ -124,7 +133,8 @@ def _resolve_expected_top_entity_uri(
     """Resolve the canonical top entity URI from the current graph."""
     class_iri = str(top_class_iri or "").strip()
     typed_entities = [
-        s for s in g.subjects(RDF.type, URIRef(class_iri))
+        s
+        for s in g.subjects(RDF.type, URIRef(class_iri))
         if class_iri and isinstance(s, URIRef)
     ]
     if not typed_entities:
@@ -138,18 +148,26 @@ def _resolve_expected_top_entity_uri(
 
     label_keys: list[str] = []
     if entity_label:
-        label_key = _normalize_entity_label_key(entity_label, label_key_suffixes_to_strip)
+        label_key = _normalize_entity_label_key(
+            entity_label, label_key_suffixes_to_strip
+        )
         if label_key:
             label_keys.append(label_key)
     if explicit_uri:
-        explicit_label_key = _normalize_entity_label_key(_first_label(g, URIRef(explicit_uri)), label_key_suffixes_to_strip)
+        explicit_label_key = _normalize_entity_label_key(
+            _first_label(g, URIRef(explicit_uri)), label_key_suffixes_to_strip
+        )
         if explicit_label_key and explicit_label_key not in label_keys:
             label_keys.append(explicit_label_key)
 
     for label_key in label_keys:
         matched = [
-            node for node in typed_entities
-            if _normalize_entity_label_key(_first_label(g, node), label_key_suffixes_to_strip) == label_key
+            node
+            for node in typed_entities
+            if _normalize_entity_label_key(
+                _first_label(g, node), label_key_suffixes_to_strip
+            )
+            == label_key
         ]
         if matched:
             chosen = _choose_preferred_typed_target(g, matched)
@@ -161,12 +179,14 @@ def _resolve_expected_top_entity_uri(
     return explicit_uri
 
 
-def _load_top_shell_graph(doi_folder: str, *, ontology_name: str, meta_cfg: dict) -> Optional[Graph]:
+def _load_top_shell_graph(
+    doi_folder: str, *, ontology_name: str, meta_cfg: dict
+) -> Optional[Graph]:
     naming = get_output_naming_config(meta_cfg=meta_cfg, ontology_name=ontology_name)
     candidates = [
+        os.path.join(doi_folder, "iteration_1.ttl"),
         os.path.join(doi_folder, "memory", "top.ttl"),
         os.path.join(doi_folder, naming.output_dir, naming.top_ttl_name),
-        os.path.join(doi_folder, "iteration_1.ttl"),
     ]
     for path in candidates:
         if not os.path.exists(path):
@@ -213,7 +233,9 @@ def _canonicalize_top_entities(
     ontology_name: str,
     meta_cfg: dict,
 ) -> list:
-    shell_validation = _get_main_entity_kg_policy(meta_cfg).get("shell_validation", {}) or {}
+    shell_validation = (
+        _get_main_entity_kg_policy(meta_cfg).get("shell_validation", {}) or {}
+    )
     top_class_iri = str(shell_validation.get("top_entity_class_iri") or "").strip()
     label_key_suffixes = shell_validation.get("label_key_suffixes_to_strip") or []
     if not isinstance(label_key_suffixes, list):
@@ -221,7 +243,9 @@ def _canonicalize_top_entities(
     if not top_class_iri or not isinstance(top_entities, list) or not top_entities:
         return top_entities
 
-    shell_graph = _load_top_shell_graph(doi_folder, ontology_name=ontology_name, meta_cfg=meta_cfg)
+    shell_graph = _load_top_shell_graph(
+        doi_folder, ontology_name=ontology_name, meta_cfg=meta_cfg
+    )
     if shell_graph is None:
         return top_entities
 
@@ -274,12 +298,23 @@ def _top_entities_from_txt(doi_folder: str, top_class_iri: str = "") -> list[dic
             label = bracket_match.group(1)
         class_local = _local_name(top_class_iri)
         if class_local:
-            label = re.sub(rf"^\s*(?:{re.escape(class_local)}\s*[—:-]\s*)", "", label, flags=re.IGNORECASE).strip()
+            label = re.sub(
+                rf"^\s*(?:{re.escape(class_local)}\s*[—:-]\s*)",
+                "",
+                label,
+                flags=re.IGNORECASE,
+            ).strip()
         key = _normalize_entity_label_key(label)
         if not label or not key or key in seen:
             continue
         seen.add(key)
-        entities.append({"uri": _mint_top_entity_iri(label, top_class_iri), "label": label, "types": []})
+        entities.append(
+            {
+                "uri": _mint_top_entity_iri(label, top_class_iri),
+                "label": label,
+                "types": [],
+            }
+        )
     return entities
 
 
@@ -333,15 +368,23 @@ def _choose_repair_target_for_top_entity(
     2. the only typed target if there is exactly one
     3. no guess when multiple unrelated targets exist
     """
-    typed_targets = sorted({s for s in g.subjects(RDF.type, target_cls) if isinstance(s, URIRef)}, key=str)
+    typed_targets = sorted(
+        {s for s in g.subjects(RDF.type, target_cls) if isinstance(s, URIRef)}, key=str
+    )
     if not typed_targets:
         return None
 
-    top_label_key = _normalize_entity_label_key(_first_label(g, top_entity), label_key_suffixes_to_strip)
+    top_label_key = _normalize_entity_label_key(
+        _first_label(g, top_entity), label_key_suffixes_to_strip
+    )
     if top_label_key:
         matched = [
-            node for node in typed_targets
-            if _normalize_entity_label_key(_first_label(g, node), label_key_suffixes_to_strip) == top_label_key
+            node
+            for node in typed_targets
+            if _normalize_entity_label_key(
+                _first_label(g, node), label_key_suffixes_to_strip
+            )
+            == top_label_key
         ]
         if matched:
             return _choose_preferred_typed_target(g, matched)
@@ -351,7 +394,9 @@ def _choose_repair_target_for_top_entity(
     return None
 
 
-def _derive_placeholder_label_from_top_label(text: str, *, strip_suffix: str = "") -> str:
+def _derive_placeholder_label_from_top_label(
+    text: str, *, strip_suffix: str = ""
+) -> str:
     normalized = unicodedata.normalize("NFKC", str(text or "")).strip()
     suffix = str(strip_suffix or "").strip()
     if suffix and normalized.lower().endswith(suffix.lower()):
@@ -359,7 +404,9 @@ def _derive_placeholder_label_from_top_label(text: str, *, strip_suffix: str = "
     return normalized
 
 
-def _resolve_hint_property_iri(*, property_namespace_iri: str, prop_name: str) -> URIRef:
+def _resolve_hint_property_iri(
+    *, property_namespace_iri: str, prop_name: str
+) -> URIRef:
     text = str(prop_name or "").strip()
     if not text:
         return URIRef(property_namespace_iri)
@@ -412,8 +459,12 @@ def _first_integer_object(g: Graph, node: URIRef, pred: URIRef) -> Optional[int]
 def _preferred_ordered_member_targets(g: Graph, *, target_cls: URIRef) -> list[URIRef]:
     """Choose one concrete node per semantic member, preferring richer subclassed nodes."""
     order_pred = URIRef(f"{_namespace_iri(str(target_cls))}hasOrder")
-    typed_targets = sorted({s for s in g.subjects(RDF.type, target_cls) if isinstance(s, URIRef)}, key=str)
-    concrete_targets = [node for node in typed_targets if not _is_placeholder_target(g, node)]
+    typed_targets = sorted(
+        {s for s in g.subjects(RDF.type, target_cls) if isinstance(s, URIRef)}, key=str
+    )
+    concrete_targets = [
+        node for node in typed_targets if not _is_placeholder_target(g, node)
+    ]
     if not concrete_targets:
         return []
 
@@ -424,7 +475,9 @@ def _preferred_ordered_member_targets(g: Graph, *, target_cls: URIRef) -> list[U
         grouped.setdefault((label_key, order_value), []).append(node)
 
     preferred: list[URIRef] = []
-    for key in sorted(grouped.keys(), key=lambda item: (item[1] is None, item[1], item[0])):
+    for key in sorted(
+        grouped.keys(), key=lambda item: (item[1] is None, item[1], item[0])
+    ):
         chosen = _choose_preferred_typed_target(g, grouped[key])
         if chosen is not None:
             preferred.append(chosen)
@@ -448,15 +501,20 @@ def _get_hint_reconciliation_specs(main_entity_policy: dict) -> list[dict]:
             continue
         specs.append(
             {
-                "section_name": str((raw_spec or {}).get("section_name") or "").strip() or _local_name(target_class_iri),
+                "section_name": str((raw_spec or {}).get("section_name") or "").strip()
+                or _local_name(target_class_iri),
                 "predicate_iri": pred_iri,
                 "target_class_iri": target_class_iri,
-                "property_namespace_iri": str((raw_spec or {}).get("property_namespace_iri") or "").strip()
+                "property_namespace_iri": str(
+                    (raw_spec or {}).get("property_namespace_iri") or ""
+                ).strip()
                 or _namespace_iri(target_class_iri)
                 or _namespace_iri(pred_iri),
                 "optional": optional,
                 "ordered_member": bool((raw_spec or {}).get("ordered_member")),
-                "prune_unhinted_scalar_properties": bool((raw_spec or {}).get("prune_unhinted_scalar_properties")),
+                "prune_unhinted_scalar_properties": bool(
+                    (raw_spec or {}).get("prune_unhinted_scalar_properties")
+                ),
             }
         )
     return specs
@@ -535,12 +593,18 @@ def _coerce_hint_kv_line(value: Any) -> Optional[dict]:
         return None
     key = match.group(1).strip()
     val = match.group(2).strip().strip('"')
-    if not key or not val or val.lower() in {"not provided", "unknown", "n/a", "na", "-"}:
+    if (
+        not key
+        or not val
+        or val.lower() in {"not provided", "unknown", "n/a", "na", "-"}
+    ):
         return None
     return {key: val}
 
 
-def _coerce_hinted_section_payload(payload: Any, *, target_variants: set[str]) -> Optional[dict]:
+def _coerce_hinted_section_payload(
+    payload: Any, *, target_variants: set[str]
+) -> Optional[dict]:
     if isinstance(payload, list):
         merged: dict = {}
         found = False
@@ -548,7 +612,9 @@ def _coerce_hinted_section_payload(payload: Any, *, target_variants: set[str]) -
             coerced = (
                 _coerce_hint_kv_line(item)
                 if not isinstance(item, (dict, list))
-                else _coerce_hinted_section_payload(item, target_variants=target_variants)
+                else _coerce_hinted_section_payload(
+                    item, target_variants=target_variants
+                )
             )
             if isinstance(coerced, dict):
                 merged = _merge_hint_payloads(merged, coerced)
@@ -565,7 +631,9 @@ def _coerce_hinted_section_payload(payload: Any, *, target_variants: set[str]) -
     has_unwrapped = False
     for key, value in payload.items():
         if _matches_hint_key(key, target_variants):
-            coerced = _coerce_hinted_section_payload(value, target_variants=target_variants)
+            coerced = _coerce_hinted_section_payload(
+                value, target_variants=target_variants
+            )
             if isinstance(coerced, dict):
                 unwrapped = _merge_hint_payloads(unwrapped, coerced)
                 has_unwrapped = True
@@ -575,20 +643,32 @@ def _coerce_hinted_section_payload(payload: Any, *, target_variants: set[str]) -
     return dict(payload)
 
 
-def _collect_matching_hinted_sections(payload: Any, *, section_variants: set[str]) -> list[Any]:
+def _collect_matching_hinted_sections(
+    payload: Any, *, section_variants: set[str]
+) -> list[Any]:
     matches: list[Any] = []
     if isinstance(payload, dict):
         for key, value in payload.items():
             if _matches_hint_key(key, section_variants):
                 matches.append(value)
-            matches.extend(_collect_matching_hinted_sections(value, section_variants=section_variants))
+            matches.extend(
+                _collect_matching_hinted_sections(
+                    value, section_variants=section_variants
+                )
+            )
     elif isinstance(payload, list):
         for item in payload:
-            matches.extend(_collect_matching_hinted_sections(item, section_variants=section_variants))
+            matches.extend(
+                _collect_matching_hinted_sections(
+                    item, section_variants=section_variants
+                )
+            )
     return matches
 
 
-def _extract_hinted_section_payload(aggregated_hints: dict, spec: dict) -> Optional[dict]:
+def _extract_hinted_section_payload(
+    aggregated_hints: dict, spec: dict
+) -> Optional[dict]:
     if not isinstance(aggregated_hints, dict):
         return None
 
@@ -608,15 +688,21 @@ def _extract_hinted_section_payload(aggregated_hints: dict, spec: dict) -> Optio
 
     merged: dict = {}
     found = False
-    for candidate in _collect_matching_hinted_sections(aggregated_hints, section_variants=section_variants):
-        coerced = _coerce_hinted_section_payload(candidate, target_variants=target_variants)
+    for candidate in _collect_matching_hinted_sections(
+        aggregated_hints, section_variants=section_variants
+    ):
+        coerced = _coerce_hinted_section_payload(
+            candidate, target_variants=target_variants
+        )
         if isinstance(coerced, dict):
             merged = _merge_hint_payloads(merged, coerced)
             found = True
     return merged if found else None
 
 
-def _apply_entity_context_runtime_env(*, main_entity_policy: dict, entity_safe: str) -> None:
+def _apply_entity_context_runtime_env(
+    *, main_entity_policy: dict, entity_safe: str
+) -> None:
     """
     Export config-derived entity-context handling rules so MCP utility modules can
     keep all iter2+ writes in one consistent memory file.
@@ -644,7 +730,9 @@ def _augment_kg_prompt_with_runtime_rules(
     lines: list[str] = []
 
     if prompt_rules.get("require_top_entity_reuse"):
-        lines.append(f"- Reuse the existing top-level entity IRI `{entity_uri}`. Do not replace it.")
+        lines.append(
+            f"- Reuse the existing top-level entity IRI `{entity_uri}`. Do not replace it."
+        )
     if prompt_rules.get("forbid_new_top_entity_creation"):
         lines.append("- Do not create a second top-level entity for this case.")
     if prompt_rules.get("require_required_links_before_export"):
@@ -657,22 +745,38 @@ def _augment_kg_prompt_with_runtime_rules(
                 )
     if lines:
         lines.insert(0, "Config-derived graph integrity rules:")
-        lines.append(f"- Use `{doi_hash}` as the document identifier/doi argument when relevant.")
+        lines.append(
+            f"- Use `{doi_hash}` as the document identifier/doi argument when relevant."
+        )
         lines.append(f"- Keep all work scoped to entity label `{entity_label}`.")
-        lines.append("- Every explicit canonical field present in `ExtractedHints` must be materialized into the scoped KG before export; do not terminate with only placeholder shell entities.")
-        lines.append("- Ordered-member property fidelity is mandatory: for each hinted member with `hasOrder`, materialize each property on the member with that exact order and never copy, inherit, or reuse a property value from a different ordered member.")
-        lines.append("- If two ordered members share the same class, still treat them as separate individuals with independent property values; each value must match the corresponding hint for that member order.")
-        lines.append("- When an ordered member hint omits an optional property, do not populate that property by copying it from a previous or following member unless the prompt or T-Box explicitly states an inheritance rule for that property.")
+        lines.append(
+            "- Every explicit canonical field present in `ExtractedHints` must be materialized into the scoped KG before export; do not terminate with only placeholder shell entities."
+        )
+        lines.append(
+            "- Ordered-member property fidelity is mandatory: for each hinted member with `hasOrder`, materialize each property on the member with that exact order and never copy, inherit, or reuse a property value from a different ordered member."
+        )
+        lines.append(
+            "- If two ordered members share the same class, still treat them as separate individuals with independent property values; each value must match the corresponding hint for that member order."
+        )
+        lines.append(
+            "- When an ordered member hint omits an optional property, do not populate that property by copying it from a previous or following member unless the prompt or T-Box explicitly states an inheritance rule for that property."
+        )
         hints_text = _strip_code_fences(hints_content)
         has_ordered_member_evidence = bool(
             re.search(r"<(?:step|member)\d+>", hints_text, flags=re.IGNORECASE)
             or re.search(r"\bhasOrder\b", hints_text)
         )
-        has_integrity_only_flags = bool(re.search(r"\bINTEGRITY_FLAGS\b", hints_text, flags=re.IGNORECASE))
+        has_integrity_only_flags = bool(
+            re.search(r"\bINTEGRITY_FLAGS\b", hints_text, flags=re.IGNORECASE)
+        )
         if not has_ordered_member_evidence:
-            lines.append("- If the current `ExtractedHints` do not contain explicit ordered-member evidence (for example member tokens, per-member triples, or ordering properties), do not create or duplicate ordered child members in this iteration. Preserve previously-created graph state and only materialize the explicit facts present in this iteration's hints.")
+            lines.append(
+                "- If the current `ExtractedHints` do not contain explicit ordered-member evidence (for example member tokens, per-member triples, or ordering properties), do not create or duplicate ordered child members in this iteration. Preserve previously-created graph state and only materialize the explicit facts present in this iteration's hints."
+            )
         if has_integrity_only_flags:
-            lines.append("- Treat integrity or validation flags in `ExtractedHints` as constraints on the graph, not as standalone evidence for creating new entities or replaying previously-created members.")
+            lines.append(
+                "- Treat integrity or validation flags in `ExtractedHints` as constraints on the graph, not as standalone evidence for creating new entities or replaying previously-created members."
+            )
         if re.search(r"\bhasParameter\s*:", hints_text, flags=re.IGNORECASE):
             lines.append(
                 "- If `ExtractedHints` contain generic parameter lines such as "
@@ -688,6 +792,7 @@ def _augment_kg_prompt_with_runtime_rules(
 def _response_has_recoverable_kg_error(response_text: str) -> bool:
     lowered = (response_text or "").lower()
     recoverable_markers = (
+        "recoverable_kg_error",
         "missing_subject",
         "missing subject",
         "container does not exist",
@@ -696,13 +801,52 @@ def _response_has_recoverable_kg_error(response_text: str) -> bool:
     return any(marker in lowered for marker in recoverable_markers)
 
 
-def _build_kg_recovery_prompt(*, base_prompt: str, entity_label: str, entity_uri: str) -> str:
+def _response_claims_persistence(response_text: str) -> bool:
+    lowered = (response_text or "").lower()
+    return any(
+        marker in lowered
+        for marker in (
+            "exported",
+            "successfully materialized",
+            "successfully created",
+            "rdf graph has been successfully",
+            "ttl",
+        )
+    )
+
+
+def _has_entity_persistence_artifact(
+    *, doi_folder: str, entity_safe: str, entity_label: str
+) -> bool:
+    mem_dir = os.path.join(doi_folder, "memory")
+    candidates = [
+        os.path.join(mem_dir, f"{entity_safe}.ttl"),
+        os.path.join(mem_dir, f"{entity_safe.lower()}.ttl"),
+        os.path.join(mem_dir, f"{entity_label}.ttl"),
+    ]
+    if any(os.path.exists(path) for path in candidates):
+        return True
+    exports_dir = os.path.join(doi_folder, "exports")
+    if os.path.isdir(exports_dir):
+        for name in os.listdir(exports_dir):
+            if name.startswith(entity_safe) and name.endswith(".ttl"):
+                return True
+    return False
+
+
+def _build_kg_recovery_prompt(
+    *, base_prompt: str, entity_label: str, entity_uri: str
+) -> str:
     return (
         base_prompt.rstrip()
         + "\n\nRecovery instructions for this retry:\n"
-        + f"- A previous attempt for `{entity_label}` failed because a required subject/container was missing.\n"
-        + f"- Re-establish the scoped top-level entity `{entity_uri}` in memory if needed before creating or linking child entities.\n"
-        + "- Then re-apply every explicit canonical field from `ExtractedHints`, create the missing links, and export again.\n"
+        + f"- A previous attempt for `{entity_label}` failed because it did not leave a persisted entity TTL artifact.\n"
+        + "- You must use MCP tools in this retry. Do not answer in prose until after the export tool succeeds.\n"
+        + f"- First call `init_memory` with the document id and top-level entity name `{entity_label}`.\n"
+        + f"- Then create or reuse the scoped top-level entity `{entity_uri}` before creating or linking child entities.\n"
+        + "- Re-apply every explicit canonical field from `ExtractedHints` by calling the matching `create_*` and `add_*` tools.\n"
+        + "- For ordered members, create each hinted member with its order scalar and link each member individually to the scoped top entity.\n"
+        + "- Finally call `export_memory`. If `export_memory` does not return TTL content or success, do not claim success.\n"
         + "- Do not switch scope and do not create a second competing top-level entity.\n"
     )
 
@@ -742,9 +886,13 @@ def _validate_entity_ttl_structure(
     top_entity = URIRef(resolved_entity_uri) if resolved_entity_uri else None
     if top_entity is not None and shell_validation.get("require_entity_uri_subject"):
         if not any(g.triples((top_entity, None, None))):
-            messages.append(f"Missing top-level entity subject in TTL: {resolved_entity_uri or entity_uri}")
+            messages.append(
+                f"Missing top-level entity subject in TTL: {resolved_entity_uri or entity_uri}"
+            )
         elif top_class_iri and (top_entity, RDF.type, URIRef(top_class_iri)) not in g:
-            messages.append(f"Top-level entity missing required rdf:type: {top_class_iri}")
+            messages.append(
+                f"Top-level entity missing required rdf:type: {top_class_iri}"
+            )
 
     if top_entity is not None:
         for spec in shell_validation.get("required_links", []) or []:
@@ -789,7 +937,9 @@ def _warn_typed_nodes_missing_configured_predicates(
         subject_class_iri = str(raw_rule.get("subject_class_iri") or "").strip()
         predicate_iri = str(raw_rule.get("predicate_iri") or "").strip()
         order_predicate_iri = str(raw_rule.get("order_predicate_iri") or "").strip()
-        message = str(raw_rule.get("message") or "Typed node is missing configured predicate").strip()
+        message = str(
+            raw_rule.get("message") or "Typed node is missing configured predicate"
+        ).strip()
         if not subject_class_iri or not predicate_iri:
             continue
         subject_class = URIRef(subject_class_iri)
@@ -840,7 +990,9 @@ def _repair_published_entity_ttl(
         return False, [f"Published TTL not found for repair: {ttl_path}"]
 
     naming = get_output_naming_config(meta_cfg=meta_cfg, ontology_name=ontology_name)
-    top_ttl = os.path.join(doi_folder, "memory", "top.ttl")
+    top_ttl = os.path.join(doi_folder, "iteration_1.ttl")
+    if not os.path.exists(top_ttl):
+        top_ttl = os.path.join(doi_folder, "memory", "top.ttl")
     if not os.path.exists(top_ttl):
         top_ttl = os.path.join(doi_folder, naming.output_dir, naming.top_ttl_name)
     if not os.path.exists(top_ttl):
@@ -876,11 +1028,15 @@ def _repair_published_entity_ttl(
     top_entity = URIRef(resolved_entity_uri) if resolved_entity_uri else None
     if top_class_iri and top_entity is not None:
         top_class = URIRef(top_class_iri)
-        typed_top_entities = [s for s in g.subjects(RDF.type, top_class) if isinstance(s, URIRef)]
+        typed_top_entities = [
+            s for s in g.subjects(RDF.type, top_class) if isinstance(s, URIRef)
+        ]
         if top_entity in typed_top_entities and len(typed_top_entities) > 1:
             drop_nodes = [node for node in typed_top_entities if node != top_entity]
             g = _drop_nodes_as_subjects(g, drop_nodes)
-            messages.append(f"Pruned {len(drop_nodes)} unrelated top-level shell entities during repair")
+            messages.append(
+                f"Pruned {len(drop_nodes)} unrelated top-level shell entities during repair"
+            )
 
     for spec in shell_validation.get("required_links", []) or []:
         pred_iri = str((spec or {}).get("predicate_iri") or "").strip()
@@ -891,11 +1047,17 @@ def _repair_published_entity_ttl(
             continue
         pred = URIRef(pred_iri)
         target_cls = URIRef(target_class_iri)
-        current_targets = [o for o in g.objects(top_entity, pred) if isinstance(o, URIRef) and (o, RDF.type, target_cls) in g]
+        current_targets = [
+            o
+            for o in g.objects(top_entity, pred)
+            if isinstance(o, URIRef) and (o, RDF.type, target_cls) in g
+        ]
         if len(current_targets) >= min_count:
             continue
         if bool((spec or {}).get("ordered_member")):
-            ordered_targets = _preferred_ordered_member_targets(g, target_cls=target_cls)
+            ordered_targets = _preferred_ordered_member_targets(
+                g, target_cls=target_cls
+            )
             if ordered_targets:
                 for node in ordered_targets:
                     g.add((top_entity, pred, node))
@@ -905,7 +1067,10 @@ def _repair_published_entity_ttl(
                 continue
         chosen_target: URIRef | None = None
         if repair_mode == "attach_singleton_if_missing":
-            typed_targets = sorted({s for s in g.subjects(RDF.type, target_cls) if isinstance(s, URIRef)}, key=str)
+            typed_targets = sorted(
+                {s for s in g.subjects(RDF.type, target_cls) if isinstance(s, URIRef)},
+                key=str,
+            )
             chosen_target = _choose_preferred_typed_target(typed_targets)
         else:
             chosen_target = _choose_repair_target_for_top_entity(
@@ -916,9 +1081,15 @@ def _repair_published_entity_ttl(
             )
 
         placeholder_cfg = (spec or {}).get("placeholder_target_if_missing") or {}
-        if chosen_target is None and isinstance(placeholder_cfg, dict) and placeholder_cfg:
+        if (
+            chosen_target is None
+            and isinstance(placeholder_cfg, dict)
+            and placeholder_cfg
+        ):
             placeholder_label = str(placeholder_cfg.get("label") or "").strip()
-            if not placeholder_label and bool(placeholder_cfg.get("derive_label_from_top_entity")):
+            if not placeholder_label and bool(
+                placeholder_cfg.get("derive_label_from_top_entity")
+            ):
                 placeholder_label = _derive_placeholder_label_from_top_label(
                     _first_label(g, top_entity),
                     strip_suffix=str(placeholder_cfg.get("strip_suffix") or ""),
@@ -947,10 +1118,17 @@ def _repair_published_entity_ttl(
                 continue
             pred = URIRef(pred_iri)
             target_cls = URIRef(target_class_iri)
-            current_targets = [o for o in g.objects(top_entity, pred) if isinstance(o, URIRef) and (o, RDF.type, target_cls) in g]
+            current_targets = [
+                o
+                for o in g.objects(top_entity, pred)
+                if isinstance(o, URIRef) and (o, RDF.type, target_cls) in g
+            ]
             if current_targets:
                 continue
-            typed_targets = sorted({s for s in g.subjects(RDF.type, target_cls) if isinstance(s, URIRef)}, key=str)
+            typed_targets = sorted(
+                {s for s in g.subjects(RDF.type, target_cls) if isinstance(s, URIRef)},
+                key=str,
+            )
             chosen_target = _choose_preferred_typed_target(typed_targets)
             if chosen_target is not None:
                 g.add((top_entity, pred, chosen_target))
@@ -966,6 +1144,7 @@ def _repair_published_entity_ttl(
 
     return True, messages
 
+
 # Generated artifacts resolver (candidate-first)
 def resolve_generated_file(path: str, project_root: str = ".") -> str:
     """
@@ -978,12 +1157,28 @@ def resolve_generated_file(path: str, project_root: str = ".") -> str:
     """
     rel = (path or "").replace("\\", "/")
     candidates: list[str] = []
+    override_root = (
+        os.environ.get("TWA_GENERATED_ARTIFACT_ROOT", "")
+        .strip()
+        .replace("\\", "/")
+        .rstrip("/")
+    )
     if rel.startswith("ai_generated_contents/"):
-        candidates.append(rel.replace("ai_generated_contents/", "ai_generated_contents_candidate/", 1))
+        if override_root:
+            candidates.append(rel.replace("ai_generated_contents", override_root, 1))
+        candidates.append(
+            rel.replace("ai_generated_contents/", "ai_generated_contents_candidate/", 1)
+        )
         candidates.append(rel)
     elif rel.startswith("ai_generated_contents_candidate/"):
+        if override_root:
+            candidates.append(
+                rel.replace("ai_generated_contents_candidate", override_root, 1)
+            )
         candidates.append(rel)
-        candidates.append(rel.replace("ai_generated_contents_candidate/", "ai_generated_contents/", 1))
+        candidates.append(
+            rel.replace("ai_generated_contents_candidate/", "ai_generated_contents/", 1)
+        )
     else:
         candidates.append(rel)
 
@@ -995,7 +1190,9 @@ def resolve_generated_file(path: str, project_root: str = ".") -> str:
     return os.path.join(project_root, candidates[0])
 
 
-def _artifact_is_current(path: str, dependency_paths: List[str] | None = None, *, project_root: str = ".") -> bool:
+def _artifact_is_current(
+    path: str, dependency_paths: List[str] | None = None, *, project_root: str = "."
+) -> bool:
     """Return True if artifact exists, is non-empty, and is not older than dependencies."""
     if not os.path.exists(path):
         return False
@@ -1010,7 +1207,11 @@ def _artifact_is_current(path: str, dependency_paths: List[str] | None = None, *
     for dep in dependency_paths or []:
         if not dep:
             continue
-        dep_path = dep if os.path.isabs(dep) else resolve_generated_file(dep, project_root=project_root)
+        dep_path = (
+            dep
+            if os.path.isabs(dep)
+            else resolve_generated_file(dep, project_root=project_root)
+        )
         if not os.path.exists(dep_path):
             return False
         try:
@@ -1019,13 +1220,16 @@ def _artifact_is_current(path: str, dependency_paths: List[str] | None = None, *
             return False
     return (not dep_mtimes) or artifact_mtime >= max(dep_mtimes)
 
+
 # Global state management for MCP server
 GLOBAL_STATE_DIR = "data"
 GLOBAL_STATE_JSON = os.path.join(GLOBAL_STATE_DIR, "global_state.json")
 GLOBAL_STATE_LOCK = os.path.join(GLOBAL_STATE_DIR, "global_state.lock")
 
 
-def write_global_state(doi: str, top_level_entity_name: str, top_level_entity_iri: str | None = None):
+def write_global_state(
+    doi: str, top_level_entity_name: str, top_level_entity_iri: str | None = None
+):
     """Write global state atomically with file lock for MCP server to read."""
     os.makedirs(GLOBAL_STATE_DIR, exist_ok=True)
     lock = FileLock(GLOBAL_STATE_LOCK)
@@ -1073,7 +1277,13 @@ def _safe_name(label: str) -> str:
 
 def _strip_export_timestamp(stem: str) -> str:
     parts = (stem or "").split("_")
-    if len(parts) >= 3 and parts[-2].isdigit() and len(parts[-2]) == 8 and parts[-1].isdigit() and len(parts[-1]) == 6:
+    if (
+        len(parts) >= 3
+        and parts[-2].isdigit()
+        and len(parts[-2]) == 8
+        and parts[-1].isdigit()
+        and len(parts[-1]) == 6
+    ):
         return "_".join(parts[:-2])
     if len(parts) >= 2 and parts[-1].isdigit():
         return "_".join(parts[:-1])
@@ -1152,19 +1362,30 @@ def _purge_entity_runtime_artifacts(
                     path=path,
                     entity_safe=entity_safe,
                     entity_uri=entity_uri,
-                    allow_iteration_suffix=(os.path.normcase(os.path.abspath(directory)) == os.path.normcase(os.path.abspath(intermediate_ttl_dir))) if intermediate_ttl_dir else False,
+                    allow_iteration_suffix=(
+                        os.path.normcase(os.path.abspath(directory))
+                        == os.path.normcase(os.path.abspath(intermediate_ttl_dir))
+                    )
+                    if intermediate_ttl_dir
+                    else False,
                 ):
                     continue
                 try:
                     os.remove(path)
                     deleted += 1
                 except Exception as e:
-                    logger.warning(f"    ⚠️  Failed to remove stale entity artifact {path}: {e}")
+                    logger.warning(
+                        f"    ⚠️  Failed to remove stale entity artifact {path}: {e}"
+                    )
         except Exception as e:
-            logger.warning(f"    ⚠️  Failed to scan runtime artifacts in {directory} for {entity_label}: {e}")
+            logger.warning(
+                f"    ⚠️  Failed to scan runtime artifacts in {directory} for {entity_label}: {e}"
+            )
 
     if deleted:
-        logger.info(f"    🧹 Removed {deleted} stale runtime artifact(s) for {entity_label}")
+        logger.info(
+            f"    🧹 Removed {deleted} stale runtime artifact(s) for {entity_label}"
+        )
     return deleted
 
 
@@ -1210,12 +1431,18 @@ def _purge_entity_canonical_persistence(
                     os.remove(path)
                     deleted += 1
                 except Exception as e:
-                    logger.warning(f"    ⚠️  Failed to remove canonical entity state {path}: {e}")
+                    logger.warning(
+                        f"    ⚠️  Failed to remove canonical entity state {path}: {e}"
+                    )
         except Exception as e:
-            logger.warning(f"    ⚠️  Failed to scan canonical entity state in {directory} for {entity_label}: {e}")
+            logger.warning(
+                f"    ⚠️  Failed to scan canonical entity state in {directory} for {entity_label}: {e}"
+            )
 
     if deleted:
-        logger.info(f"    🧼 Reset {deleted} canonical state file(s) for {entity_label}")
+        logger.info(
+            f"    🧼 Reset {deleted} canonical state file(s) for {entity_label}"
+        )
     return deleted
 
 
@@ -1311,7 +1538,9 @@ def _load_structured_hints(hints_text: str) -> dict:
             return _merge_section_hint_dicts(parsed, _load_entity_block_hints(parsed))
     except Exception:
         pass
-    return _merge_section_hint_dicts(_load_plain_section_hints(text), _load_entity_block_hints(text))
+    return _merge_section_hint_dicts(
+        _load_plain_section_hints(text), _load_entity_block_hints(text)
+    )
 
 
 def _load_plain_section_hints(hints_text: str) -> dict:
@@ -1376,7 +1605,9 @@ def _load_plain_section_hints(hints_text: str) -> dict:
             continue
         if cleaned.lower().startswith("warning:"):
             continue
-        kv_match = re.match(r"^([A-Za-z_][A-Za-z0-9_:\-.]*)\s*(?:=|:)\s*(.+?)\s*$", cleaned)
+        kv_match = re.match(
+            r"^([A-Za-z_][A-Za-z0-9_:\-.]*)\s*(?:=|:)\s*(.+?)\s*$", cleaned
+        )
         if not kv_match:
             continue
         key = kv_match.group(1).strip()
@@ -1384,7 +1615,13 @@ def _load_plain_section_hints(hints_text: str) -> dict:
         key_local = key.rsplit(":", 1)[-1] if ":" in key and "://" not in key else key
         if key.lower() in skip_keys or key_local.lower() in skip_keys:
             continue
-        if key_local.startswith("has") or key_local in {"created", "status", "message", "code", "warning"}:
+        if key_local.startswith("has") or key_local in {
+            "created",
+            "status",
+            "message",
+            "code",
+            "warning",
+        }:
             continue
         if value and value.lower() not in {"not provided", "unknown", "n/a", "na", "-"}:
             out.setdefault(current, {})[key] = value
@@ -1398,10 +1635,16 @@ def _get_ordered_member_hint_contracts(main_entity_policy: dict) -> list[dict]:
     return [contract for contract in contracts if isinstance(contract, dict)]
 
 
-def _extract_ordered_member_expectations(hints_text: str, contract: dict) -> list[dict[str, Any]]:
+def _extract_ordered_member_expectations(
+    hints_text: str, contract: dict
+) -> list[dict[str, Any]]:
     payload = _load_structured_hints(hints_text)
     section_name = str((contract or {}).get("section_name") or "").strip()
-    members = payload.get(section_name) if isinstance(payload, dict) and section_name else None
+    members = (
+        payload.get(section_name)
+        if isinstance(payload, dict) and section_name
+        else None
+    )
     if not isinstance(members, list):
         return []
     order_keys = (contract or {}).get("order_keys") or ["hasOrder"]
@@ -1419,7 +1662,11 @@ def _extract_ordered_member_expectations(hints_text: str, contract: dict) -> lis
         for key in type_keys:
             raw_value = item.get(str(key))
             if isinstance(raw_value, list):
-                raw_type_values = [str(value).strip() for value in raw_value if str(value or "").strip()]
+                raw_type_values = [
+                    str(value).strip()
+                    for value in raw_value
+                    if str(value or "").strip()
+                ]
             elif str(raw_value or "").strip():
                 raw_type_values = [str(raw_value).strip()]
             if raw_type_values:
@@ -1471,7 +1718,9 @@ def _validate_ordered_members_against_hints(
     expectations: list[dict[str, Any]] = []
     order_predicate_iris: dict[str, str] = {}
     for contract in contracts:
-        order_predicate_iri = str((contract or {}).get("order_predicate_iri") or "").strip()
+        order_predicate_iri = str(
+            (contract or {}).get("order_predicate_iri") or ""
+        ).strip()
         if not order_predicate_iri:
             continue
         extracted = _extract_ordered_member_expectations(hints_content, contract)
@@ -1495,7 +1744,9 @@ def _validate_ordered_members_against_hints(
             continue
         matches: list[URIRef] = []
         for node in g.subjects(RDF.type, URIRef(type_iri)):
-            if isinstance(node, URIRef) and _step_has_order(g, node, order, order_predicate_iri=order_predicate_iri):
+            if isinstance(node, URIRef) and _step_has_order(
+                g, node, order, order_predicate_iri=order_predicate_iri
+            ):
                 matches.append(node)
         if not matches:
             errors.append(
@@ -1545,15 +1796,21 @@ def _parse_generic_parameter_hints(hints_text: str) -> list[dict[str, Any]]:
             current["step_ref"] = line.split(":", 1)[1].strip()
         elif line.lower().startswith("rdf_type:"):
             raw_type = line.split(":", 1)[1].strip()
-            current["type_local"] = raw_type.rsplit(":", 1)[-1] if ":" in raw_type and "://" not in raw_type else _local_name(raw_type)
-        elif (order_match := re.match(r".*\bhasOrder\s*:\s*(\d+)\b", line, flags=re.IGNORECASE)):
+            current["type_local"] = (
+                raw_type.rsplit(":", 1)[-1]
+                if ":" in raw_type and "://" not in raw_type
+                else _local_name(raw_type)
+            )
+        elif order_match := re.match(
+            r".*\bhasOrder\s*:\s*(\d+)\b", line, flags=re.IGNORECASE
+        ):
             current["order"] = int(order_match.group(1))
-        elif (param_match := re.match(
+        elif param_match := re.match(
             r".*\bhasParameter\s*:\s*([A-Za-z][A-Za-z0-9_\- ]*)\s*=\s*"
             r"([-+]?\d+(?:\.\d+)?)\s*([^\s,;]+)",
             line,
             flags=re.IGNORECASE,
-        )):
+        ):
             current.setdefault("parameters", []).append(
                 {
                     "name": param_match.group(1).strip(),
@@ -1565,14 +1822,23 @@ def _parse_generic_parameter_hints(hints_text: str) -> list[dict[str, Any]]:
     return items
 
 
-def _load_generated_quantity_property_locals(*, ontology_name: str, class_local: str) -> list[str]:
-    main_path = Path("ai_generated_contents_candidate") / "scripts" / ontology_name / "main.py"
+def _load_generated_quantity_property_locals(
+    *, ontology_name: str, class_local: str
+) -> list[str]:
+    root = (
+        os.environ.get("TWA_GENERATED_ARTIFACT_ROOT", "").strip()
+        or "ai_generated_contents_candidate"
+    )
+    main_path = Path(root) / "scripts" / ontology_name / "main.py"
     try:
         tree = ast.parse(main_path.read_text(encoding="utf-8"))
     except Exception:
         return []
     for node in tree.body:
-        if not isinstance(node, ast.FunctionDef) or node.name != f"create_{class_local}":
+        if (
+            not isinstance(node, ast.FunctionDef)
+            or node.name != f"create_{class_local}"
+        ):
             continue
         arg_names = {arg.arg for arg in node.args.args}
         return sorted(
@@ -1633,7 +1899,9 @@ def _quantity_class_for(prop_local: str, unit_local: str) -> URIRef:
     return OM2.Quantity
 
 
-def _step_has_order(g: Graph, node: URIRef, order: Any, order_predicate_iri: str = "") -> bool:
+def _step_has_order(
+    g: Graph, node: URIRef, order: Any, order_predicate_iri: str = ""
+) -> bool:
     expected_pred = URIRef(order_predicate_iri) if order_predicate_iri else None
     for pred, obj in g.predicate_objects(node):
         if expected_pred is not None and pred != expected_pred:
@@ -1652,10 +1920,16 @@ def _find_step_node_for_hint(g: Graph, hint: dict[str, Any]) -> Optional[URIRef]
     type_local = str(hint.get("type_local") or "").strip()
     order = hint.get("order")
     candidates: list[URIRef] = []
-    for node in g.subjects(RDFS.label, Literal(step_ref)) if step_ref else g.subjects(None, None):
+    for node in (
+        g.subjects(RDFS.label, Literal(step_ref))
+        if step_ref
+        else g.subjects(None, None)
+    ):
         if not isinstance(node, URIRef):
             continue
-        if type_local and not any(_local_name(t) == type_local for t in g.objects(node, RDF.type)):
+        if type_local and not any(
+            _local_name(t) == type_local for t in g.objects(node, RDF.type)
+        ):
             continue
         if order is not None and not _step_has_order(g, node, order):
             continue
@@ -1674,7 +1948,9 @@ def _repair_generic_parameter_quantity_hints(
         g = Graph()
         g.parse(ttl_path, format="turtle")
     except Exception as e:
-        return False, [f"Failed to parse published TTL for generic parameter repair: {e}"]
+        return False, [
+            f"Failed to parse published TTL for generic parameter repair: {e}"
+        ]
 
     changed = False
     messages: list[str] = []
@@ -1688,7 +1964,9 @@ def _repair_generic_parameter_quantity_hints(
                 class_local=str(hint.get("type_local") or "").strip(),
             )
             for param in hint.get("parameters") or []:
-                prop_local = _choose_quantity_property_local(str(param.get("name") or ""), candidates)
+                prop_local = _choose_quantity_property_local(
+                    str(param.get("name") or ""), candidates
+                )
                 if not prop_local:
                     continue
                 pred = URIRef(f"{property_namespace_iri}{prop_local}")
@@ -1696,21 +1974,37 @@ def _repair_generic_parameter_quantity_hints(
                     continue
                 unit_local = _normalize_om2_unit_local(str(param.get("unit") or ""))
                 value = float(param.get("value"))
-                digest = hashlib.sha1(f"{step}|{pred}|{value}|{unit_local}".encode("utf-8")).hexdigest()
-                q = URIRef(f"https://www.theworldavatar.com/kg/instance/OM2Quantity/{digest}")
+                digest = hashlib.sha1(
+                    f"{step}|{pred}|{value}|{unit_local}".encode("utf-8")
+                ).hexdigest()
+                q = URIRef(
+                    f"https://www.theworldavatar.com/kg/instance/OM2Quantity/{digest}"
+                )
                 g.add((q, RDF.type, _quantity_class_for(prop_local, unit_local)))
-                g.add((q, RDFS.label, Literal(f"{_first_label(g, step) or _local_name(step)} {prop_local}")))
+                g.add(
+                    (
+                        q,
+                        RDFS.label,
+                        Literal(
+                            f"{_first_label(g, step) or _local_name(step)} {prop_local}"
+                        ),
+                    )
+                )
                 g.add((q, OM2.hasNumericalValue, Literal(value)))
                 g.add((q, OM2.hasUnit, URIRef(f"{str(OM2)}{unit_local}")))
                 g.add((step, pred, q))
                 changed = True
-                messages.append(f"Materialized generic parameter {param.get('name')} as {prop_local} on {_first_label(g, step) or step}")
+                messages.append(
+                    f"Materialized generic parameter {param.get('name')} as {prop_local} on {_first_label(g, step) or step}"
+                )
 
     if changed:
         try:
             g.serialize(destination=ttl_path, format="turtle")
         except Exception as e:
-            return False, messages + [f"Failed to write generic parameter repaired TTL: {e}"]
+            return False, messages + [
+                f"Failed to write generic parameter repaired TTL: {e}"
+            ]
     return True, messages
 
 
@@ -1740,7 +2034,9 @@ def _prune_unhinted_orphan_required_targets(
             continue
         pred = URIRef(pred_iri)
         target_cls = URIRef(target_class_iri)
-        linked = {o for _, _, o in g.triples((None, pred, None)) if isinstance(o, URIRef)}
+        linked = {
+            o for _, _, o in g.triples((None, pred, None)) if isinstance(o, URIRef)
+        }
         for node in list(g.subjects(RDF.type, target_cls)):
             if not isinstance(node, URIRef) or node in linked:
                 continue
@@ -1762,7 +2058,9 @@ def _prune_unhinted_orphan_required_targets(
     return True, messages
 
 
-def _choose_preferred_typed_target(g: Graph, typed_targets: List[URIRef]) -> Optional[URIRef]:
+def _choose_preferred_typed_target(
+    g: Graph, typed_targets: List[URIRef]
+) -> Optional[URIRef]:
     if not typed_targets:
         return None
 
@@ -1836,7 +2134,9 @@ def _repair_published_entity_ttl_from_hints(
         pred_iri = str(spec.get("predicate_iri") or "").strip()
         target_class_iri = str(spec.get("target_class_iri") or "").strip()
         property_namespace_iri = str(spec.get("property_namespace_iri") or "").strip()
-        if not (section_name and pred_iri and target_class_iri and property_namespace_iri):
+        if not (
+            section_name and pred_iri and target_class_iri and property_namespace_iri
+        ):
             continue
         pred = URIRef(pred_iri)
         target_cls = URIRef(target_class_iri)
@@ -1844,7 +2144,8 @@ def _repair_published_entity_ttl_from_hints(
         hinted_section = _extract_hinted_section_payload(aggregated_hints, spec)
 
         current_targets = [
-            o for o in g.objects(top_entity, pred)
+            o
+            for o in g.objects(top_entity, pred)
             if isinstance(o, URIRef) and (o, RDF.type, target_cls) in g
         ]
 
@@ -1852,7 +2153,9 @@ def _repair_published_entity_ttl_from_hints(
         if len(current_targets) > 1 and not is_ordered_member:
             canonical = _choose_preferred_typed_target(g, current_targets)
             if canonical is not None:
-                remap = {node: canonical for node in current_targets if node != canonical}
+                remap = {
+                    node: canonical for node in current_targets if node != canonical
+                }
                 if remap:
                     g = _remap_graph_nodes(g, remap)
                     messages.append(
@@ -1873,10 +2176,13 @@ def _repair_published_entity_ttl_from_hints(
             continue
 
         if is_ordered_member:
-            preferred_targets = _preferred_ordered_member_targets(g, target_cls=target_cls)
+            preferred_targets = _preferred_ordered_member_targets(
+                g, target_cls=target_cls
+            )
             if preferred_targets:
                 existing_links = [
-                    o for o in g.objects(top_entity, pred)
+                    o
+                    for o in g.objects(top_entity, pred)
                     if isinstance(o, URIRef) and (o, RDF.type, target_cls) in g
                 ]
                 desired_set = set(preferred_targets)
@@ -1892,12 +2198,17 @@ def _repair_published_entity_ttl_from_hints(
                 )
 
         if not current_targets:
-            typed_targets = sorted({s for s in g.subjects(RDF.type, target_cls) if isinstance(s, URIRef)}, key=str)
+            typed_targets = sorted(
+                {s for s in g.subjects(RDF.type, target_cls) if isinstance(s, URIRef)},
+                key=str,
+            )
             canonical = _choose_preferred_typed_target(g, typed_targets)
             if canonical is not None:
                 g.add((top_entity, pred, canonical))
                 current_targets = [canonical]
-                messages.append(f"Reattached hinted {section_name} singleton {canonical} to top entity")
+                messages.append(
+                    f"Reattached hinted {section_name} singleton {canonical} to top entity"
+                )
 
         if not current_targets and isinstance(hinted_section, dict):
             canonical = _materialize_placeholder_target(
@@ -1912,7 +2223,9 @@ def _repair_published_entity_ttl_from_hints(
             )
 
         if not current_targets and is_ordered_member:
-            placeholder_label = f"{_first_label(g, top_entity) or 'Hinted'} ordered member"
+            placeholder_label = (
+                f"{_first_label(g, top_entity) or 'Hinted'} ordered member"
+            )
             canonical = _materialize_placeholder_target(
                 g,
                 target_cls=target_cls,
@@ -1989,7 +2302,12 @@ def _repair_published_entity_ttl_from_hints(
                     g.remove((target_node, prop, old))
             if (target_node, prop, desired_literal) not in g:
                 g.add((target_node, prop, desired_literal))
-                messages.append(f"Materialized hinted property {section_name}.{prop_name} on {target_node}")
+                messages.append(
+                    f"Materialized hinted property {section_name}.{prop_name} on {target_node}"
+                )
+
+        if (ontology_name or "").strip() == "medical":
+            _normalize_medical_composite_graph(g)
 
     try:
         g.serialize(destination=ttl_path, format="turtle")
@@ -2024,7 +2342,9 @@ def _find_hints_file(*, mcp_run_dir: str, iter_num: int, entity_safe: str) -> st
     return expected
 
 
-def _find_enrichment_patch_files(*, mcp_run_dir: str, iter_num: int, entity_safe: str) -> list[str]:
+def _find_enrichment_patch_files(
+    *, mcp_run_dir: str, iter_num: int, entity_safe: str
+) -> list[str]:
     """Return enrichment patch files that refine a base iteration's hints."""
     prefix = f"iter{iter_num}_"
     suffix = f"_{entity_safe}.txt"
@@ -2080,7 +2400,9 @@ def _merge_entity_ttl_candidates(
             merged.parse(src, format="turtle")
             parsed.append(src)
         except Exception as e:
-            logger.warning(f"    ⚠️  Failed to parse TTL shard for {entity_label}: {os.path.basename(src)} ({e})")
+            logger.warning(
+                f"    ⚠️  Failed to parse TTL shard for {entity_label}: {os.path.basename(src)} ({e})"
+            )
 
     if not parsed:
         return False
@@ -2097,6 +2419,7 @@ def _merge_entity_ttl_candidates(
         ", ".join(os.path.basename(p) for p in parsed),
     )
     return True
+
 
 def _try_copy_entity_ttl_to_intermediate(
     *,
@@ -2145,7 +2468,8 @@ def _try_copy_entity_ttl_to_intermediate(
             export_candidates = [
                 os.path.join(exports_dir, f)
                 for f in os.listdir(exports_dir)
-                if f.lower().startswith(entity_safe.lower() + "_") and f.lower().endswith(".ttl")
+                if f.lower().startswith(entity_safe.lower() + "_")
+                and f.lower().endswith(".ttl")
             ]
             if export_candidates:
                 candidates.extend(export_candidates)
@@ -2154,7 +2478,13 @@ def _try_copy_entity_ttl_to_intermediate(
             def _strip_ts(stem: str) -> str:
                 parts = (stem or "").split("_")
                 # common pattern: <name>_YYYYMMDD_HHMMSS
-                if len(parts) >= 3 and parts[-2].isdigit() and len(parts[-2]) == 8 and parts[-1].isdigit() and len(parts[-1]) == 6:
+                if (
+                    len(parts) >= 3
+                    and parts[-2].isdigit()
+                    and len(parts[-2]) == 8
+                    and parts[-1].isdigit()
+                    and len(parts[-1]) == 6
+                ):
                     return "_".join(parts[:-2])
                 # best-effort: strip one numeric suffix
                 if len(parts) >= 2 and parts[-1].isdigit():
@@ -2178,7 +2508,9 @@ def _try_copy_entity_ttl_to_intermediate(
                     if not fn.lower().endswith(".ttl") or fn.lower() == "top.ttl":
                         continue
                     try:
-                        content = open(os.path.join(exports_dir, fn), encoding="utf-8").read()
+                        content = open(
+                            os.path.join(exports_dir, fn), encoding="utf-8"
+                        ).read()
                         if iri_token in content:
                             candidates_by_iri.append(os.path.join(exports_dir, fn))
                     except Exception:
@@ -2204,7 +2536,9 @@ def _try_copy_entity_ttl_to_intermediate(
 
         def _score_candidate(path: str) -> tuple[int, int, float, str]:
             normalized_path = os.path.normcase(os.path.abspath(path))
-            memory_dir = os.path.normcase(os.path.abspath(os.path.join(doi_folder, "memory")))
+            memory_dir = os.path.normcase(
+                os.path.abspath(os.path.join(doi_folder, "memory"))
+            )
             in_memory_dir = int(normalized_path.startswith(memory_dir))
             matches_entity_iri = int(_contains_entity_iri(path))
             try:
@@ -2213,7 +2547,9 @@ def _try_copy_entity_ttl_to_intermediate(
                 mtime = 0.0
             return (in_memory_dir, matches_entity_iri, mtime, normalized_path)
 
-        best_candidate = sorted(unique_candidates, key=_score_candidate, reverse=True)[0]
+        best_candidate = sorted(unique_candidates, key=_score_candidate, reverse=True)[
+            0
+        ]
         try:
             shutil.copy2(best_candidate, intermediate_ttl)
             logger.info(
@@ -2222,7 +2558,9 @@ def _try_copy_entity_ttl_to_intermediate(
             )
             return True
         except Exception as e:
-            logger.warning(f"    ⚠️  Failed to copy best entity TTL for {entity_label}: {e}")
+            logger.warning(
+                f"    ⚠️  Failed to copy best entity TTL for {entity_label}: {e}"
+            )
 
     # Backward-compat fallback (rarely produced by the created MCP server)
     output_ttl = os.path.join(doi_folder, "output.ttl")
@@ -2231,7 +2569,9 @@ def _try_copy_entity_ttl_to_intermediate(
         logger.info(f"    ✅ Saved intermediate TTL from output.ttl")
         return True
 
-    logger.warning(f"    ⚠️  No entity TTL found for {entity_label} (safe={entity_safe})")
+    logger.warning(
+        f"    ⚠️  No entity TTL found for {entity_label} (safe={entity_safe})"
+    )
     return False
 
 
@@ -2243,7 +2583,7 @@ def load_prompt(prompt_path: str, project_root: str = ".") -> str:
         return ""
 
     try:
-        with open(full_path, 'r', encoding='utf-8') as f:
+        with open(full_path, "r", encoding="utf-8") as f:
             return f.read()
     except Exception as e:
         logger.error(f"Failed to load prompt from {full_path}: {e}")
@@ -2305,17 +2645,19 @@ async def run_kg_building_agent(
     )
 
     # Add orphan entity check instruction
-    prompt += ("\n\n"
-              "Before exporting the final TTL/memory, call the tool `check_orphan_entities` to detect any orphan entities. "
-              "If any are found, attempt to connect them appropriately to the scoped top entity, ordered members, linked child entities, or parameters. "
-              "If you cannot connect some, list their details in your response and proceed with export.")
+    prompt += (
+        "\n\n"
+        "Before exporting the final TTL/memory, call the tool `check_orphan_entities` to detect any orphan entities. "
+        "If any are found, attempt to connect them appropriately to the scoped top entity, ordered members, linked child entities, or parameters. "
+        "If you cannot connect some, list their details in your response and proceed with export."
+    )
 
     # Save full prompt
     kg_prompts_dir = os.path.join(doi_folder, "prompts", f"iter{iter_num}_kg_building")
     os.makedirs(kg_prompts_dir, exist_ok=True)
     prompt_file = os.path.join(kg_prompts_dir, f"{safe}.md")
     try:
-        with open(prompt_file, 'w', encoding='utf-8') as f:
+        with open(prompt_file, "w", encoding="utf-8") as f:
             f.write(f"# Iteration {iter_num} KG Building Prompt\n\n")
             f.write(f"**Entity**: {entity_label}\n\n")
             f.write(f"**Entity URI**: {entity_uri}\n\n")
@@ -2334,7 +2676,9 @@ async def run_kg_building_agent(
     retry_prompt = prompt
     for attempt in range(max_retries):
         try:
-            logger.info(f"    🚀 Running KG building agent for '{entity_label}' (iter {iter_num})")
+            logger.info(
+                f"    🚀 Running KG building agent for '{entity_label}' (iter {iter_num})"
+            )
             BaseAgent = _get_base_agent()
             agent = BaseAgent(
                 model_name=agent_model,
@@ -2357,11 +2701,13 @@ async def run_kg_building_agent(
             logger.info(f"    ✅ MCP server operations completed")
 
             # Save response
-            kg_responses_dir = os.path.join(doi_folder, "responses", f"iter{iter_num}_kg_building")
+            kg_responses_dir = os.path.join(
+                doi_folder, "responses", f"iter{iter_num}_kg_building"
+            )
             os.makedirs(kg_responses_dir, exist_ok=True)
             response_file = os.path.join(kg_responses_dir, f"{safe}.md")
             try:
-                with open(response_file, 'w', encoding='utf-8') as f:
+                with open(response_file, "w", encoding="utf-8") as f:
                     f.write(f"# Iteration {iter_num} KG Building Response\n\n")
                     f.write(f"**Entity**: {entity_label}\n\n")
                     f.write("---\n\n")
@@ -2370,6 +2716,18 @@ async def run_kg_building_agent(
                 logger.warning(f"Failed to save response to {response_file}: {e}")
 
             response_text = str(response)
+            if _response_claims_persistence(
+                response_text
+            ) and not _has_entity_persistence_artifact(
+                doi_folder=doi_folder,
+                entity_safe=safe,
+                entity_label=entity_label,
+            ):
+                response_text = (
+                    response_text
+                    + "\n\nRECOVERABLE_KG_ERROR: response claimed graph persistence/export, "
+                    "but no entity TTL artifact was found in memory or exports."
+                )
             if _response_has_recoverable_kg_error(response_text):
                 if attempt < max_retries - 1:
                     logger.warning(
@@ -2388,35 +2746,150 @@ async def run_kg_building_agent(
                     "    ❌ KG agent kept returning recoverable subject/container errors after %d attempts",
                     max_retries,
                 )
-                raise RuntimeError("KG agent returned repeated recoverable subject/container errors")
+                raise RuntimeError(
+                    "KG agent returned repeated recoverable persistence/tool-use errors"
+                )
 
             return response_text
 
         except Exception as e:
-            logger.error(f"    Agent execution failed on attempt {attempt + 1}/{max_retries}: {e}")
+            logger.error(
+                f"    Agent execution failed on attempt {attempt + 1}/{max_retries}: {e}"
+            )
             if attempt < max_retries - 1:
                 wait_time = 5 * (attempt + 1)
                 logger.info(f"    Waiting {wait_time}s before retry...")
                 await asyncio.sleep(wait_time)
             else:
-                logger.error(f"    ❌ Agent execution failed after {max_retries} attempts")
-                raise RuntimeError(f"Agent execution failed after {max_retries} attempts. Last error: {e}")
+                logger.error(
+                    f"    ❌ Agent execution failed after {max_retries} attempts"
+                )
+                raise RuntimeError(
+                    f"Agent execution failed after {max_retries} attempts. Last error: {e}"
+                )
 
 
-async def _process_iterations(doi_hash: str, config: dict, doi_folder: str,
-                              top_entities: list, iterations: list,
-                              mcp_run_dir: str, data_dir: str, project_root: str,
-                              ontology_name: str = "",
-                              iterations_config_path: str = "") -> bool:
+def _try_generated_materialize_hints(
+    *,
+    doi_hash: str,
+    data_dir: str,
+    ontology_name: str,
+    project_root: str,
+    entity_label: str,
+    entity_safe: str,
+    hints_content: str,
+    intermediate_ttl: str,
+    response_file: str,
+) -> bool:
+    """Use the generated ontology MCP implementation as the deterministic primary path."""
+    if not ontology_name:
+        return False
+    roots: list[str] = []
+    override = os.environ.get("TWA_GENERATED_ARTIFACT_ROOT", "").strip()
+    if override:
+        roots.append(override)
+    roots.extend(("ai_generated_contents_candidate", "ai_generated_contents"))
+    scripts_dir: Path | None = None
+    main_path: Path | None = None
+    for root in roots:
+        candidate = Path(project_root) / root / "scripts" / ontology_name
+        mp = candidate / "main.py"
+        if mp.is_file():
+            scripts_dir = candidate
+            main_path = mp
+            break
+    if scripts_dir is None or main_path is None:
+        return False
+
+    package_name = (
+        f"_generated_main_kg_{ontology_name}_{abs(hash(str(scripts_dir.resolve())))}"
+    )
+    for module_name in list(sys.modules):
+        if module_name == package_name or module_name.startswith(package_name + "."):
+            del sys.modules[module_name]
+    package = types.ModuleType(package_name)
+    package.__path__ = [str(scripts_dir.resolve())]  # type: ignore[attr-defined]
+    sys.modules[package_name] = package
+
+    try:
+        os.environ["TWA_AGENTIC_DATA_DIR"] = os.path.abspath(str(data_dir))
+        spec = importlib.util.spec_from_file_location(f"{package_name}.main", main_path)
+        if spec is None or spec.loader is None:
+            return False
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[f"{package_name}.main"] = module
+        spec.loader.exec_module(module)
+        tool = getattr(module, "materialize_hints", None)
+        fn = getattr(tool, "fn", tool)
+        if fn is None or not callable(fn):
+            return False
+        result_text = fn(
+            doi_hash, entity_safe or entity_label, entity_label, hints_content
+        )
+        result = json.loads(result_text)
+        if str(result.get("status") or "").lower() != "ok":
+            logger.warning(
+                "    ⚠️  Generated materializer returned non-ok status: %s",
+                result.get("message") or result_text,
+            )
+            return False
+        ttl = str(result.get("ttl") or "").strip()
+        if not ttl:
+            logger.warning("    ⚠️  Generated materializer returned no TTL")
+            return False
+        os.makedirs(os.path.dirname(intermediate_ttl), exist_ok=True)
+        with open(intermediate_ttl, "w", encoding="utf-8") as f:
+            f.write(ttl)
+        os.makedirs(os.path.dirname(response_file), exist_ok=True)
+        with open(response_file, "w", encoding="utf-8") as f:
+            f.write(
+                f"# Generated Materializer KG Response\n\n**Entity**: {entity_label}\n\n---\n\n"
+            )
+            f.write(
+                json.dumps(
+                    {k: v for k, v in result.items() if k != "ttl"},
+                    indent=2,
+                    ensure_ascii=False,
+                )
+            )
+        logger.info(
+            "    ✅ Generated materializer created KG TTL for '%s'", entity_label
+        )
+        return True
+    except Exception as exc:
+        logger.warning(
+            "    ⚠️  Generated materializer failed for '%s': %s: %s",
+            entity_label,
+            type(exc).__name__,
+            exc,
+        )
+        return False
+
+
+async def _process_iterations(
+    doi_hash: str,
+    config: dict,
+    doi_folder: str,
+    top_entities: list,
+    iterations: list,
+    mcp_run_dir: str,
+    data_dir: str,
+    project_root: str,
+    ontology_name: str = "",
+    iterations_config_path: str = "",
+) -> bool:
     """Async helper to process all iterations and entities."""
-    meta_task_config_path = config.get("meta_task_config", "configs/meta_task/meta_task_config.json")
+    meta_task_config_path = config.get(
+        "meta_task_config", "configs/meta_task/meta_task_config.json"
+    )
     meta_cfg = load_meta_task_config(meta_task_config_path)
     main_entity_policy = _get_main_entity_kg_policy(meta_cfg)
-    agent_model = (
-        ((meta_cfg or {}).get("ontologies", {}).get("main", {}) or {}).get("agent_model")
-        or "gpt-4o"
+    agent_model = ((meta_cfg or {}).get("ontologies", {}).get("main", {}) or {}).get(
+        "agent_model"
+    ) or "gpt-4o"
+    output_naming = get_output_naming_config(
+        meta_cfg=meta_cfg, ontology_name=ontology_name
     )
-    output_naming = get_output_naming_config(meta_cfg=meta_cfg, ontology_name=ontology_name)
     ontology_output_dir = os.path.join(doi_folder, output_naming.output_dir)
     intermediate_ttl_dir = os.path.join(doi_folder, "intermediate_ttl_files")
     os.makedirs(intermediate_ttl_dir, exist_ok=True)
@@ -2466,7 +2939,9 @@ async def _process_iterations(doi_hash: str, config: dict, doi_folder: str,
         # Load KG building prompt
         kg_prompt = load_prompt(kg_building_prompt_path, project_root)
         if not kg_prompt:
-            logger.error(f"  ❌ Failed to load KG building prompt for iteration {iter_num}")
+            logger.error(
+                f"  ❌ Failed to load KG building prompt for iteration {iter_num}"
+            )
             continue
 
         # Process each entity sequentially with strict isolation
@@ -2475,8 +2950,10 @@ async def _process_iterations(doi_hash: str, config: dict, doi_folder: str,
             entity_uri = entity.get("uri", "")
             safe = _safe_name(entity_label)
 
-            logger.info(f"  📌 Entity {idx+1}/{len(top_entities)}: {entity_label}")
-            _apply_entity_context_runtime_env(main_entity_policy=main_entity_policy, entity_safe=safe)
+            logger.info(f"  📌 Entity {idx + 1}/{len(top_entities)}: {entity_label}")
+            _apply_entity_context_runtime_env(
+                main_entity_policy=main_entity_policy, entity_safe=safe
+            )
 
             if safe not in entity_runtime_reset_done:
                 _purge_entity_runtime_artifacts(
@@ -2495,10 +2972,21 @@ async def _process_iterations(doi_hash: str, config: dict, doi_folder: str,
                 )
                 entity_runtime_reset_done.add(safe)
 
-            response_file = os.path.join(doi_folder, "responses", f"iter{iter_num}_kg_building", f"{safe}.md")
-            intermediate_ttl = os.path.join(intermediate_ttl_dir, f"iteration_{iter_num}_{safe}.ttl")
-            hints_file = _find_hints_file(mcp_run_dir=mcp_run_dir, iter_num=iter_num, entity_safe=safe)
-            freshness_deps = [iterations_config_path, kg_building_prompt_path, hints_file, __file__]
+            response_file = os.path.join(
+                doi_folder, "responses", f"iter{iter_num}_kg_building", f"{safe}.md"
+            )
+            intermediate_ttl = os.path.join(
+                intermediate_ttl_dir, f"iteration_{iter_num}_{safe}.ttl"
+            )
+            hints_file = _find_hints_file(
+                mcp_run_dir=mcp_run_dir, iter_num=iter_num, entity_safe=safe
+            )
+            freshness_deps = [
+                iterations_config_path,
+                kg_building_prompt_path,
+                hints_file,
+                __file__,
+            ]
             hints_content = ""
 
             # Publish-time hint reconciliation needs the merged structured hints even
@@ -2508,7 +2996,7 @@ async def _process_iterations(doi_hash: str, config: dict, doi_folder: str,
                 continue
 
             try:
-                with open(hints_file, 'r', encoding='utf-8') as f:
+                with open(hints_file, "r", encoding="utf-8") as f:
                     hints_content = f.read()
             except Exception as e:
                 logger.error(f"    ❌ Failed to read hints file: {e}")
@@ -2526,7 +3014,9 @@ async def _process_iterations(doi_hash: str, config: dict, doi_folder: str,
                         with open(patch_file, "r", encoding="utf-8") as f:
                             patch_text = f.read().strip()
                     except Exception as e:
-                        logger.warning(f"    ⚠️  Failed to read enrichment patch {patch_file}: {e}")
+                        logger.warning(
+                            f"    ⚠️  Failed to read enrichment patch {patch_file}: {e}"
+                        )
                         continue
                     if patch_text:
                         patch_chunks.append(
@@ -2535,7 +3025,9 @@ async def _process_iterations(doi_hash: str, config: dict, doi_folder: str,
                 if patch_chunks:
                     hints_content = hints_content.rstrip() + "".join(patch_chunks)
                     freshness_deps.extend(patch_files)
-                    logger.info(f"    🧩 Merged {len(patch_chunks)} enrichment patch file(s) into iter{iter_num} hints")
+                    logger.info(
+                        f"    🧩 Merged {len(patch_chunks)} enrichment patch file(s) into iter{iter_num} hints"
+                    )
 
             aggregated_hints = entity_publish_inputs.get(safe, {}).get("hints", {})
             if isinstance(aggregated_hints, dict):
@@ -2549,9 +3041,10 @@ async def _process_iterations(doi_hash: str, config: dict, doi_folder: str,
 
             # Reuse only if the prior response + intermediate TTL are newer than the
             # current iterations config, KG prompt, and extracted hints.
-            if (
-                _artifact_is_current(response_file, freshness_deps, project_root=project_root)
-                and _artifact_is_current(intermediate_ttl, freshness_deps, project_root=project_root)
+            if _artifact_is_current(
+                response_file, freshness_deps, project_root=project_root
+            ) and _artifact_is_current(
+                intermediate_ttl, freshness_deps, project_root=project_root
             ):
                 logger.info(f"    ⏭️  KG building already completed")
                 sources = entity_publish_inputs.get(safe, {}).get("sources", [])
@@ -2559,28 +3052,41 @@ async def _process_iterations(doi_hash: str, config: dict, doi_folder: str,
                     sources.append(intermediate_ttl)
                 continue
             if os.path.exists(response_file) or os.path.exists(intermediate_ttl):
-                logger.info(f"    🔁 Existing KG building artifacts are stale for '{entity_label}', regenerating")
+                logger.info(
+                    f"    🔁 Existing KG building artifacts are stale for '{entity_label}', regenerating"
+                )
 
             # Run KG building agent
             try:
-                response = await run_kg_building_agent(
+                generated_materialized = _try_generated_materialize_hints(
                     doi_hash=doi_hash,
-                    entity_label=entity_label,
-                    entity_uri=entity_uri,
-                    hints_content=hints_content,
-                    kg_prompt=kg_prompt,
-                    iter_num=iter_num,
-                    mcp_tools=mcp_tools,
-                    mcp_set_name=mcp_set_name,
                     data_dir=data_dir,
-                    main_entity_policy=main_entity_policy,
-                    agent_model=agent_model,
+                    ontology_name=ontology_name,
+                    project_root=project_root,
+                    entity_label=entity_label,
+                    entity_safe=safe,
+                    hints_content=hints_content,
+                    intermediate_ttl=intermediate_ttl,
+                    response_file=response_file,
                 )
+                if not generated_materialized:
+                    response = await run_kg_building_agent(
+                        doi_hash=doi_hash,
+                        entity_label=entity_label,
+                        entity_uri=entity_uri,
+                        hints_content=hints_content,
+                        kg_prompt=kg_prompt,
+                        iter_num=iter_num,
+                        mcp_tools=mcp_tools,
+                        mcp_set_name=mcp_set_name,
+                        data_dir=data_dir,
+                        main_entity_policy=main_entity_policy,
+                        agent_model=agent_model,
+                    )
 
                 # Copy output.ttl to intermediate TTL file
                 # In test mode, look for entity-specific TTL in `{ontology_name}_output/` (stale fallback only).
                 test_mode = "test_mcp_config" in config
-
                 if test_mode:
                     # Test mode MUST still prefer the canonical MCP persistence locations (memory/ + exports/)
                     # over any previously-published {ontology}_output snapshots, otherwise we can "lock in"
@@ -2597,7 +3103,9 @@ async def _process_iterations(doi_hash: str, config: dict, doi_folder: str,
                     for mem_path in mem_candidates:
                         if os.path.exists(mem_path):
                             shutil.copy2(mem_path, intermediate_ttl)
-                            logger.info(f"    ✅ [TEST MODE] Saved from memory/{os.path.basename(mem_path)}")
+                            logger.info(
+                                f"    ✅ [TEST MODE] Saved from memory/{os.path.basename(mem_path)}"
+                            )
                             found = True
                             break
 
@@ -2614,8 +3122,12 @@ async def _process_iterations(doi_hash: str, config: dict, doi_folder: str,
 
                     # 3) Last resort: previously published output dir (may be stale)
                     if not found:
-                        test_output_dir = os.path.join(doi_folder, f"{ontology_name}_output")
-                        entity_slug = entity_label.lower().replace(" ", "-").replace("_", "-")
+                        test_output_dir = os.path.join(
+                            doi_folder, f"{ontology_name}_output"
+                        )
+                        entity_slug = (
+                            entity_label.lower().replace(" ", "-").replace("_", "-")
+                        )
                         test_candidates = [
                             os.path.join(test_output_dir, f"{safe}.ttl"),
                             os.path.join(test_output_dir, f"{entity_slug}.ttl"),
@@ -2625,12 +3137,16 @@ async def _process_iterations(doi_hash: str, config: dict, doi_folder: str,
                         for candidate in test_candidates:
                             if os.path.exists(candidate):
                                 shutil.copy2(candidate, intermediate_ttl)
-                                logger.info(f"    ✅ [TEST MODE] Saved from {os.path.basename(candidate)} (stale fallback)")
+                                logger.info(
+                                    f"    ✅ [TEST MODE] Saved from {os.path.basename(candidate)} (stale fallback)"
+                                )
                                 found = True
                                 break
 
                     if not found:
-                        logger.warning(f"    ⚠️  [TEST MODE] No TTL found (memory/exports/output) for {entity_label}")
+                        logger.warning(
+                            f"    ⚠️  [TEST MODE] No TTL found (memory/exports/output) for {entity_label}"
+                        )
                 else:
                     found = _try_copy_entity_ttl_to_intermediate(
                         doi_folder=doi_folder,
@@ -2649,7 +3165,9 @@ async def _process_iterations(doi_hash: str, config: dict, doi_folder: str,
                     )
                     if not step_ok:
                         for msg in step_msgs:
-                            logger.warning(f"    ⚠️  Ordered-step hint fidelity failed: {msg}")
+                            logger.warning(
+                                f"    ⚠️  Ordered-step hint fidelity failed: {msg}"
+                            )
                         try:
                             os.remove(intermediate_ttl)
                         except Exception:
@@ -2670,7 +3188,9 @@ async def _process_iterations(doi_hash: str, config: dict, doi_folder: str,
             # Wait to ensure all MCP server file operations are flushed to disk
             # before moving to next entity (which will overwrite global state)
             if idx < len(top_entities) - 1:  # Not the last entity
-                logger.info(f"    🔒 Entity synchronization point (preparing for next entity)...")
+                logger.info(
+                    f"    🔒 Entity synchronization point (preparing for next entity)..."
+                )
                 await asyncio.sleep(2)
                 logger.info(f"    ✅ Ready for next entity")
 
@@ -2680,7 +3200,9 @@ async def _process_iterations(doi_hash: str, config: dict, doi_folder: str,
         entity_uri = str(info.get("entity_uri") or "")
         sources = info.get("sources") or []
         if not isinstance(sources, list) or not sources:
-            logger.warning(f"    ⚠️  No intermediate TTLs accumulated for {entity_label}")
+            logger.warning(
+                f"    ⚠️  No intermediate TTLs accumulated for {entity_label}"
+            )
             publish_failures += 1
             continue
         aggregated_hints = info.get("hints") or {}
@@ -2699,12 +3221,18 @@ async def _process_iterations(doi_hash: str, config: dict, doi_folder: str,
         if published:
             parameter_property_namespace_iri = ""
             for spec in _get_hint_reconciliation_specs(main_entity_policy):
-                parameter_property_namespace_iri = str(spec.get("property_namespace_iri") or "").strip()
+                parameter_property_namespace_iri = str(
+                    spec.get("property_namespace_iri") or ""
+                ).strip()
                 if parameter_property_namespace_iri:
                     break
             if not parameter_property_namespace_iri:
-                shell_validation = (main_entity_policy or {}).get("shell_validation", {}) or {}
-                parameter_property_namespace_iri = _namespace_iri(str(shell_validation.get("top_entity_class_iri") or ""))
+                shell_validation = (main_entity_policy or {}).get(
+                    "shell_validation", {}
+                ) or {}
+                parameter_property_namespace_iri = _namespace_iri(
+                    str(shell_validation.get("top_entity_class_iri") or "")
+                )
             repaired, repair_msgs = _repair_published_entity_ttl(
                 ttl_path=published,
                 doi_folder=doi_folder,
@@ -2726,7 +3254,9 @@ async def _process_iterations(doi_hash: str, config: dict, doi_folder: str,
                 ttl_path=published,
                 entity_uri=entity_uri,
                 entity_label=entity_label,
-                aggregated_hints=aggregated_hints if isinstance(aggregated_hints, dict) else {},
+                aggregated_hints=aggregated_hints
+                if isinstance(aggregated_hints, dict)
+                else {},
                 ontology_name=ontology_name,
                 main_entity_policy=main_entity_policy,
             )
@@ -2739,11 +3269,13 @@ async def _process_iterations(doi_hash: str, config: dict, doi_folder: str,
                     logger.error(f"       - {msg}")
                 publish_failures += 1
 
-            parameter_repaired, parameter_msgs = _repair_generic_parameter_quantity_hints(
-                ttl_path=published,
-                raw_hints=raw_hints if isinstance(raw_hints, list) else [],
-                ontology_name=ontology_name,
-                property_namespace_iri=parameter_property_namespace_iri,
+            parameter_repaired, parameter_msgs = (
+                _repair_generic_parameter_quantity_hints(
+                    ttl_path=published,
+                    raw_hints=raw_hints if isinstance(raw_hints, list) else [],
+                    ontology_name=ontology_name,
+                    property_namespace_iri=parameter_property_namespace_iri,
+                )
             )
             if parameter_msgs:
                 for msg in parameter_msgs:
@@ -2768,6 +3300,26 @@ async def _process_iterations(doi_hash: str, config: dict, doi_folder: str,
                     logger.error(f"       - {msg}")
                 publish_failures += 1
 
+            hygiene_ok, hygiene_msgs = enforce_published_graph_hygiene_file(
+                ttl_path=published,
+                top_entity_uri=entity_uri,
+                top_class_iri=str(
+                    ((main_entity_policy or {}).get("shell_validation", {}) or {}).get(
+                        "top_entity_class_iri"
+                    )
+                    or ""
+                ),
+                entity_label=entity_label,
+            )
+            if hygiene_msgs:
+                for msg in hygiene_msgs:
+                    logger.info(f"    🧼 {msg}")
+            if not hygiene_ok:
+                logger.error("    ❌ Published TTL graph hygiene enforcement failed:")
+                for msg in hygiene_msgs:
+                    logger.error(f"       - {msg}")
+                publish_failures += 1
+
             ordered_ok, ordered_report = enforce_ordered_member_integrity_file(
                 ttl_path=published,
                 runtime_profile=runtime_ordered_member_profile,
@@ -2780,7 +3332,9 @@ async def _process_iterations(doi_hash: str, config: dict, doi_folder: str,
             elif ordered_status == "no_action":
                 logger.info("    ✅ Ordered-member integrity already satisfied")
             elif ordered_status == "skipped":
-                logger.info("    ℹ️  Ordered-member integrity enforcement skipped (no T-Box contract)")
+                logger.info(
+                    "    ℹ️  Ordered-member integrity enforcement skipped (no T-Box contract)"
+                )
             if ordered_msgs:
                 for msg in ordered_msgs:
                     logger.info(f"    ↳ {msg}")
@@ -2790,7 +3344,31 @@ async def _process_iterations(doi_hash: str, config: dict, doi_folder: str,
                     logger.error(f"       - {msg}")
                 publish_failures += 1
 
-            logger.info(f"    ✅ Published entity TTL: {os.path.relpath(published, doi_folder)}")
+            hygiene_ok, hygiene_msgs = enforce_published_graph_hygiene_file(
+                ttl_path=published,
+                top_entity_uri=entity_uri,
+                top_class_iri=str(
+                    ((main_entity_policy or {}).get("shell_validation", {}) or {}).get(
+                        "top_entity_class_iri"
+                    )
+                    or ""
+                ),
+                entity_label=entity_label,
+            )
+            if hygiene_msgs:
+                for msg in hygiene_msgs:
+                    logger.info(f"    🧼 {msg}")
+            if not hygiene_ok:
+                logger.error(
+                    "    ❌ Published TTL final graph hygiene enforcement failed:"
+                )
+                for msg in hygiene_msgs:
+                    logger.error(f"       - {msg}")
+                publish_failures += 1
+
+            logger.info(
+                f"    ✅ Published entity TTL: {os.path.relpath(published, doi_folder)}"
+            )
             ok_struct, struct_msgs = _validate_entity_ttl_structure(
                 ttl_path=published,
                 entity_uri=entity_uri,
@@ -2803,18 +3381,25 @@ async def _process_iterations(doi_hash: str, config: dict, doi_folder: str,
                     logger.error(f"       - {msg}")
                 publish_failures += 1
             else:
-                post_publish_warnings = (main_entity_policy or {}).get("post_publish_warnings", {}) or {}
+                post_publish_warnings = (main_entity_policy or {}).get(
+                    "post_publish_warnings", {}
+                ) or {}
                 _warn_typed_nodes_missing_configured_predicates(
                     ttl_path=published,
                     entity_label=entity_label,
-                    warning_rules=post_publish_warnings.get("typed_nodes_missing_predicate", []) or [],
+                    warning_rules=post_publish_warnings.get(
+                        "typed_nodes_missing_predicate", []
+                    )
+                    or [],
                 )
         else:
             logger.warning(f"    ⚠️  Failed to publish entity TTL for {entity_label}")
             publish_failures += 1
 
     if publish_failures:
-        logger.warning(f"⚠️  Main KG building finished with {publish_failures} publish/copy failure(s)")
+        logger.warning(
+            f"⚠️  Main KG building finished with {publish_failures} publish/copy failure(s)"
+        )
         return False
     return True
 
@@ -2833,6 +3418,7 @@ def run_step(doi_hash: str, config: dict) -> bool:
     # Extract config parameters
     data_dir = config.get("data_dir", "data")
     project_root = config.get("project_root", ".")
+    os.environ["TWA_AGENTIC_DATA_DIR"] = os.path.abspath(str(data_dir))
 
     logger.info(f"🏗️  Starting main KG building for DOI: {doi_hash}")
 
@@ -2848,14 +3434,25 @@ def run_step(doi_hash: str, config: dict) -> bool:
     if os.path.exists(marker_file):
         # Marker can exist even if publishing failed in older runs.
         # If no per-entity TTLs are present in the published output dir, rerun.
-        meta_task_config_path = config.get("meta_task_config", "configs/meta_task/meta_task_config.json")
+        meta_task_config_path = config.get(
+            "meta_task_config", "configs/meta_task/meta_task_config.json"
+        )
         meta_cfg = load_meta_task_config(meta_task_config_path)
-        ontology_name = (config.get("ontology_name") or get_main_ontology_name(meta_cfg, default="main")).strip() or "main"
-        naming = get_output_naming_config(meta_cfg=meta_cfg, ontology_name=ontology_name)
+        ontology_name = (
+            config.get("ontology_name")
+            or get_main_ontology_name(meta_cfg, default="main")
+        ).strip() or "main"
+        naming = get_output_naming_config(
+            meta_cfg=meta_cfg, ontology_name=ontology_name
+        )
         published_dir = os.path.join(doi_folder, naming.output_dir)
         try:
             published_entity_ttls = (
-                [f for f in os.listdir(published_dir) if f.lower().endswith(".ttl") and f.lower() != "top.ttl"]
+                [
+                    f
+                    for f in os.listdir(published_dir)
+                    if f.lower().endswith(".ttl") and f.lower() != "top.ttl"
+                ]
                 if os.path.isdir(published_dir)
                 else []
             )
@@ -2867,7 +3464,11 @@ def run_step(doi_hash: str, config: dict) -> bool:
                 if os.path.isdir(mcp_run_dir):
                     for fname in os.listdir(mcp_run_dir):
                         low = fname.lower()
-                        if low.startswith("iter") and "_hints_" in low and low.endswith(".txt"):
+                        if (
+                            low.startswith("iter")
+                            and "_hints_" in low
+                            and low.endswith(".txt")
+                        ):
                             latest_hint_mtime = max(
                                 latest_hint_mtime,
                                 os.path.getmtime(os.path.join(mcp_run_dir, fname)),
@@ -2886,22 +3487,33 @@ def run_step(doi_hash: str, config: dict) -> bool:
                     step_code_mtime = os.path.getmtime(__file__)
             except Exception:
                 step_code_mtime = 0.0
-            latest_required_mtime = max(latest_hint_mtime, config_mtime, step_code_mtime)
+            latest_required_mtime = max(
+                latest_hint_mtime, config_mtime, step_code_mtime
+            )
 
-            published_paths = [os.path.join(published_dir, f) for f in published_entity_ttls]
+            published_paths = [
+                os.path.join(published_dir, f) for f in published_entity_ttls
+            ]
             published_are_current = True
             if latest_required_mtime > 0:
                 try:
-                    published_are_current = all(os.path.getmtime(p) >= latest_required_mtime for p in published_paths)
+                    published_are_current = all(
+                        os.path.getmtime(p) >= latest_required_mtime
+                        for p in published_paths
+                    )
                 except Exception:
                     published_are_current = False
 
             if published_are_current:
                 logger.info(f"  ⏭️  Main KG building already completed (marker exists)")
                 return True
-            logger.warning("  🔁 Marker exists but published entity TTLs are older than current hints/config; re-running main KG building")
+            logger.warning(
+                "  🔁 Marker exists but published entity TTLs are older than current hints/config; re-running main KG building"
+            )
         else:
-            logger.warning("  🔁 Marker exists but no published entity TTLs found; re-running main KG building")
+            logger.warning(
+                "  🔁 Marker exists but no published entity TTLs found; re-running main KG building"
+            )
 
     # Load top entities
     entities_path = os.path.join(mcp_run_dir, "iter1_top_entities.json")
@@ -2910,16 +3522,22 @@ def run_step(doi_hash: str, config: dict) -> bool:
         return False
 
     try:
-        with open(entities_path, 'r', encoding='utf-8') as f:
+        with open(entities_path, "r", encoding="utf-8") as f:
             top_entities = json.load(f)
     except Exception as e:
         logger.error(f"Failed to load top entities: {e}")
         return False
 
-    meta_task_config_path = config.get("meta_task_config", "configs/meta_task/meta_task_config.json")
+    meta_task_config_path = config.get(
+        "meta_task_config", "configs/meta_task/meta_task_config.json"
+    )
     meta_cfg = load_meta_task_config(meta_task_config_path)
-    ontology_name = (config.get("ontology_name") or get_main_ontology_name(meta_cfg, default="main")).strip() or "main"
-    shell_validation = _get_main_entity_kg_policy(meta_cfg).get("shell_validation", {}) or {}
+    ontology_name = (
+        config.get("ontology_name") or get_main_ontology_name(meta_cfg, default="main")
+    ).strip() or "main"
+    shell_validation = (
+        _get_main_entity_kg_policy(meta_cfg).get("shell_validation", {}) or {}
+    )
     top_class_iri = str(shell_validation.get("top_entity_class_iri") or "").strip()
     supplemented_top_entities = _supplement_top_entities_from_txt(
         doi_folder,
@@ -2955,7 +3573,7 @@ def run_step(doi_hash: str, config: dict) -> bool:
         logger.error("Top shell TTL not found for merge")
         return False
     try:
-        with open(entities_path, 'w', encoding='utf-8') as f:
+        with open(entities_path, "w", encoding="utf-8") as f:
             json.dump(top_entities, f, indent=2)
     except Exception as e:
         logger.warning(f"Failed to persist canonicalized top entities: {e}")
@@ -2974,7 +3592,7 @@ def run_step(doi_hash: str, config: dict) -> bool:
         return False
 
     try:
-        with open(iterations_config_path, 'r', encoding='utf-8') as f:
+        with open(iterations_config_path, "r", encoding="utf-8") as f:
             iterations_config = json.load(f)
         iterations = iterations_config.get("iterations", [])
     except Exception as e:
@@ -2983,18 +3601,20 @@ def run_step(doi_hash: str, config: dict) -> bool:
 
     # Process all iterations and entities with proper async handling
     try:
-        success = asyncio.run(_process_iterations(
-            doi_hash=doi_hash,
-            config=config,
-            doi_folder=doi_folder,
-            top_entities=top_entities,
-            iterations=iterations,
-            mcp_run_dir=mcp_run_dir,
-            data_dir=data_dir,
-            project_root=project_root,
-            ontology_name=ontology_name,
-            iterations_config_path=iterations_config_path,
-        ))
+        success = asyncio.run(
+            _process_iterations(
+                doi_hash=doi_hash,
+                config=config,
+                doi_folder=doi_folder,
+                top_entities=top_entities,
+                iterations=iterations,
+                mcp_run_dir=mcp_run_dir,
+                data_dir=data_dir,
+                project_root=project_root,
+                ontology_name=ontology_name,
+                iterations_config_path=iterations_config_path,
+            )
+        )
 
         if not success:
             logger.error(f"  ❌ Iteration processing failed")
@@ -3002,12 +3622,13 @@ def run_step(doi_hash: str, config: dict) -> bool:
     except Exception as e:
         logger.error(f"  ❌ Iteration processing raised exception: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
     # Create completion marker
     try:
-        with open(marker_file, 'w') as f:
+        with open(marker_file, "w") as f:
             f.write("completed\n")
         logger.info(f"  📌 Created completion marker")
     except Exception as e:
@@ -3019,16 +3640,13 @@ def run_step(doi_hash: str, config: dict) -> bool:
 
 if __name__ == "__main__":
     import sys
+
     if len(sys.argv) < 2:
         print("Usage: python -m src.pipelines.main_kg_building.build <doi_hash>")
         sys.exit(1)
 
     # Create config dict for standalone usage
-    config = {
-        "data_dir": "data",
-        "project_root": "."
-    }
+    config = {"data_dir": "data", "project_root": "."}
 
     success = run_step(sys.argv[1], config)
     sys.exit(0 if success else 1)
-

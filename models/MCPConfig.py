@@ -55,13 +55,13 @@ class MCPConfig:
             if isinstance(config, dict):
                 for k, v in config.items():
                     if isinstance(v, str):
-                        config[k] = _convert_windows_path_to_linux(v)
+                        config[k] = _convert_windows_path_to_linux(os.path.expandvars(v))
                     elif isinstance(v, (dict, list)):
                         config[k] = _convert_config_paths(v)
             elif isinstance(config, list):
                 for i, v in enumerate(config):
                     if isinstance(v, str):
-                        config[i] = _convert_windows_path_to_linux(v)
+                        config[i] = _convert_windows_path_to_linux(os.path.expandvars(v))
                     elif isinstance(v, (dict, list)):
                         config[i] = _convert_config_paths(v)
             return config

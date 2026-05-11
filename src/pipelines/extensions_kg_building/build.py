@@ -84,6 +84,27 @@ def _entity_name_variants(name: str) -> List[str]:
         _add(normalized)
         _add(normalized.lower())
 
+    transliterated_chars: List[str] = []
+    for char in normalized:
+        if ord(char) < 128:
+            transliterated_chars.append(char)
+            continue
+        try:
+            char_name = unicodedata.name(char)
+        except ValueError:
+            transliterated_chars.append("_")
+            continue
+        if char_name.startswith("GREEK ") and " LETTER " in char_name:
+            transliterated_chars.append(char_name.rsplit(" LETTER ", 1)[-1].lower())
+        else:
+            transliterated_chars.append("_")
+    transliterated = "".join(transliterated_chars)
+    if transliterated != normalized:
+        _add(transliterated)
+        _add(transliterated.lower())
+        _add(transliterated.replace("_", "-"))
+        _add(transliterated.replace("-", "_"))
+
     return variants
 
 
@@ -96,6 +117,7 @@ def _looks_like_valid_extension_ttl(content: str, ontology_name: Optional[str]) 
     markers = {
         "ontomops": (
             "https://www.theworldavatar.com/kg/OntoMOPs/",
+            "https://www.theworldavatar.com/kg/ontomops/",
             "MetalOrganicPolyhedron",
             "hasCCDCNumber",
             "isBuiltFrom",
@@ -103,6 +125,7 @@ def _looks_like_valid_extension_ttl(content: str, ontology_name: Optional[str]) 
         ),
         "ontospecies": (
             "https://www.theworldavatar.com/kg/OntoSpecies/",
+            "http://www.theworldavatar.com/ontology/ontospecies/OntoSpecies.owl#",
             "Species",
             "hasMolecularFormula",
             "hasInChI",
@@ -256,14 +279,15 @@ def load_prompt(prompt_path: str, project_root: str = ".") -> str:
     
     Tries candidate directory first, then production directory.
     """
-    # Try candidate first (where generation scripts write), then fallback to production
-    candidate_path = prompt_path.replace("ai_generated_contents/", "ai_generated_contents_candidate/", 1)
-    production_path = prompt_path
-    
-    paths_to_try = [
-        os.path.join(project_root, candidate_path),
-        os.path.join(project_root, production_path)
-    ]
+    prompt_path = (prompt_path or "").replace("\\", "/")
+    override_root = os.environ.get("TWA_GENERATED_ARTIFACT_ROOT", "").strip().replace("\\", "/").rstrip("/")
+    paths_to_try = []
+    if override_root and prompt_path.startswith("ai_generated_contents/"):
+        paths_to_try.append(os.path.join(project_root, prompt_path.replace("ai_generated_contents", override_root, 1)))
+    paths_to_try.extend([
+        os.path.join(project_root, prompt_path.replace("ai_generated_contents/", "ai_generated_contents_candidate/", 1)),
+        os.path.join(project_root, prompt_path),
+    ])
     
     for full_path in paths_to_try:
         if os.path.exists(full_path):
@@ -700,6 +724,8 @@ async def run_extension_agent(
     
     # Run agent with retry mechanism
     logger.info(f"    🤖 Running extension agent...")
+    os.environ["TWA_EXTENSION_DATA_DIR"] = os.path.abspath(data_dir)
+    os.environ["TWA_AGENTIC_DATA_DIR"] = os.path.abspath(data_dir)
     model_config = ModelConfig(temperature=0, top_p=1)
     agent = BaseAgent(
         model_name=agent_model,
@@ -1148,11 +1174,15 @@ def run_step(doi_hash: str, config: dict) -> bool:
             ontology_name = extension.get("name")
             logger.info(f"\n  📚 Extension: {ontology_name}")
             
-            # Load iteration config for this ontology
-            # Try candidate first (where generation scripts write), then fallback to production
+            # Load iteration config for this ontology from the active generated-artifact root first.
+            artifact_roots = []
+            override_root = os.environ.get("TWA_GENERATED_ARTIFACT_ROOT", "").strip()
+            if override_root:
+                artifact_roots.append(override_root)
+            artifact_roots.extend(["ai_generated_contents_candidate", "ai_generated_contents"])
             iterations_config_paths = [
-                os.path.join(project_root, "ai_generated_contents_candidate/iterations", ontology_name, "iterations.json"),
-                os.path.join(project_root, "ai_generated_contents/iterations", ontology_name, "iterations.json")
+                os.path.join(project_root, artifact_root, "iterations", ontology_name, "iterations.json")
+                for artifact_root in dict.fromkeys(artifact_roots)
             ]
             
             iterations_config_path = None

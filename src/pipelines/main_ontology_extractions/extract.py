@@ -72,10 +72,15 @@ def resolve_generated_file(path: str) -> str:
     """
     path = (path or "").replace("\\", "/")
     candidates: list[str] = []
+    override_root = os.environ.get("TWA_GENERATED_ARTIFACT_ROOT", "").strip().replace("\\", "/").rstrip("/")
     if path.startswith("ai_generated_contents/"):
+        if override_root:
+            candidates.append(path.replace("ai_generated_contents", override_root, 1))
         candidates.append(path.replace("ai_generated_contents/", "ai_generated_contents_candidate/", 1))
         candidates.append(path)
     elif path.startswith("ai_generated_contents_candidate/"):
+        if override_root:
+            candidates.append(path.replace("ai_generated_contents_candidate", override_root, 1))
         candidates.append(path)
         candidates.append(path.replace("ai_generated_contents_candidate/", "ai_generated_contents/", 1))
     else:
@@ -160,6 +165,16 @@ def _parse_structured_hint_payload(text: str):
         return None
 
 
+def _hint_item_merge_key(item) -> tuple[str, object] | None:
+    if not isinstance(item, dict):
+        return None
+    for key in ("hasOrder", "order", "stepNumber", "label"):
+        value = item.get(key)
+        if value not in (None, ""):
+            return key, value
+    return None
+
+
 def _merge_structured_hint_payloads(base, update):
     if isinstance(base, dict) and isinstance(update, dict):
         merged = dict(base)
@@ -168,6 +183,20 @@ def _merge_structured_hint_payloads(base, update):
                 merged[key] = _merge_structured_hint_payloads(merged[key], value)
             else:
                 merged[key] = value
+        return merged
+    if isinstance(base, list) and isinstance(update, list):
+        merged = list(base)
+        index = {
+            key: pos
+            for pos, item in enumerate(merged)
+            if (key := _hint_item_merge_key(item)) is not None
+        }
+        for item in update:
+            merge_key = _hint_item_merge_key(item)
+            if merge_key is not None and merge_key in index:
+                merged[index[merge_key]] = _merge_structured_hint_payloads(merged[index[merge_key]], item)
+            else:
+                merged.append(item)
         return merged
     return update
 
