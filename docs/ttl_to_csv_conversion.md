@@ -19,7 +19,7 @@ Converts medical pipeline TTL outputs into a single CSV file with **consistent c
 ```bash
 python scripts/medical_ttl_to_csv_sparql.py \
     --data-dir data \
-    --output medical_cases.csv \
+    --output evaluation/medical/medical_cases.csv \
     --schema-ttl medical_case/medical_case_schema_de.ttl
 ```
 
@@ -29,7 +29,7 @@ python scripts/medical_ttl_to_csv_sparql.py \
 [INFO] Loading schema from medical_case\medical_case_schema_de.ttl
 [INFO] Schema defines 79 canonical columns
 [INFO] Processing 4 TTL file(s)...
-[OK] Wrote 4 row(s) to medical_cases.csv
+[OK] Wrote 4 row(s) to evaluation/medical/medical_cases.csv
 [INFO] Output has 81 columns (2 metadata + 79 fields)
 ```
 
@@ -85,7 +85,7 @@ Alter,Fall-Nr,Name,Geburtsdatum
 ```bash
 python scripts/medical_ttl_to_csv_sparql.py \
     --data-dir data \
-    --output medical_cases.csv \
+    --output evaluation/medical/medical_cases.csv \
     --schema-ttl medical_case/medical_case_schema_de.ttl
 ```
 

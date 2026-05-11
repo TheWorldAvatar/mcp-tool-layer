@@ -119,12 +119,9 @@ This is the “build step” that prepares the ontology-specific artifacts used 
 - Generation orchestration and agents live in:
   - `src/agents/scripts_and_prompts_generation/`
 - Common entrypoints are documented in `README.md` (repo root), including:
-  - `task_division_agent.py`
-  - `iteration_creation_agent.py`
-  - `task_prompt_creation_agent.py`
-  - `task_extraction_prompt_creation_agent.py`
-  - `mcp_underlying_script_creation_agent.py`
-  - `mcp_main_script_creation_agent.py`
+  - `agentic_generation_main.py`
+  - `iteration_creation_agent.py` (optional standalone iterations helper)
+  - `mcp_main_script_creation_agent.py` (legacy Docker/agent path)
 
 ---
 
@@ -294,10 +291,7 @@ The repo includes a post-processing step that merges per-step TTLs, builds link 
 
 #### 8.1 Changing ontology behavior
 - Update ontology T-Box under `data/ontologies/`
-- Regenerate:
-  - iteration specs: `src/agents/scripts_and_prompts_generation/iteration_creation_agent.py`
-  - prompts: `task_prompt_creation_agent.py`, `task_extraction_prompt_creation_agent.py`
-  - MCP scripts: `mcp_underlying_script_creation_agent.py`, `mcp_main_script_creation_agent.py`
+- Regenerate artefacts with `src/agents/scripts_and_prompts_generation/agentic_generation_main.py` (see root `README.md`).
 - Promote candidate outputs from `ai_generated_contents_candidate/` into `ai_generated_contents/` when stable.
 
 #### 8.2 Changing runtime pipeline behavior

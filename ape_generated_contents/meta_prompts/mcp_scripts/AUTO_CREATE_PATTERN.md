@@ -146,7 +146,11 @@ When regenerating scripts with this updated meta-prompt:
 
 **To Verify:**
 ```bash
-python -m src.agents.scripts_and_prompts_generation.generation_main --direct --ontology <ontology_name>
+python -m src.agents.scripts_and_prompts_generation.agentic_generation_main \
+  --ontology <ontology_name> \
+  --stage all \
+  --output-root ai_generated_contents_candidate \
+  --json
 ```
 
 Then check:
