@@ -46,6 +46,8 @@ def bootstrap_dirs(
         root / "data" / "log",
         root / "data" / "ontologies",
         root / "raw_data",
+        root / "raw_data_mop",
+        root / "data_medical_e2e",
     ]
 
     # Common runtime working directories (gitignored)
