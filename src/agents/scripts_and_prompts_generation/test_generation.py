@@ -22,12 +22,8 @@ def test_imports():
     
     modules = [
         "iteration_creation_agent",
-        "mcp_underlying_script_creation_agent",
         "mcp_main_script_creation_agent",
-        "task_division_agent",
-        "task_extraction_prompt_creation_agent",
-        "task_prompt_creation_agent",
-        "generation_main"
+        "agentic_generation_main",
     ]
     
     all_imported = True
@@ -159,7 +155,8 @@ def main():
     if all_passed:
         print("[SUCCESS] ALL VALIDATION TESTS PASSED")
         print("\nYou can now run the generation pipeline:")
-        print("  python -m src.agents.scripts_and_prompts_generation.generation_main --all")
+        print("  python -m src.agents.scripts_and_prompts_generation.agentic_generation_main \\")
+        print("    --ontology ontosynthesis --stage all --output-root ai_generated_contents_candidate --json")
     else:
         print("[FAILED] SOME VALIDATION TESTS FAILED")
         print("\nPlease fix the issues above before running the generation pipeline.")

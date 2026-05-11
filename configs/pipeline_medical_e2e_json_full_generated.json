@@ -1,0 +1,18 @@
+{
+  "mode": "per_doi",
+  "description": "Medical E2E: JSON-full generated MCP + isolated data_medical_e2e_json_full",
+  "meta_task_config": "configs/meta_task/meta_task_config_medical_non_flat_v3.json",
+  "data_dir": "data_medical_e2e_json_full",
+  "test_mcp_config": "test_mcp_config_medical_json_full.json",
+  "vision_pdf_conversion": false,
+  "vision_model": "gpt-4o",
+  "vision_dpi": 150,
+  "steps": [
+    "pdf_conversion",
+    "stitching",
+    "top_entity_extraction",
+    "top_entity_kg_building",
+    "main_ontology_extractions",
+    "main_kg_building"
+  ]
+}

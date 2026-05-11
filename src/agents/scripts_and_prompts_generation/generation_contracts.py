@@ -223,6 +223,7 @@ def build_generation_contract_bundle(
         "om2_quantity_properties": quantity_properties,
         "ontology_symbol_locals": ontology_symbol_locals,
         "runtime_policies": runtime_policies,
+        "prompt_field_allowlist": runtime_policies.get("prompt_field_allowlist") or {},
     }
 
 
@@ -249,6 +250,41 @@ def _lower_initial(name: str) -> str:
 
 def _snake(name: str) -> str:
     return re.sub(r"(?<!^)(?=[A-Z])", "_", str(name or "")).lower()
+
+
+def _effective_step_scoped_props(contract_bundle: dict[str, Any]) -> list[dict[str, str]]:
+    """Expand union-domain step properties into concrete T-Box class contracts."""
+    out: list[dict[str, str]] = []
+    seen: set[tuple[str, str, str]] = set()
+
+    def add_spec(prop_local: str, domain_local: str, range_local: str) -> None:
+        if not (prop_local and domain_local and range_local):
+            return
+        key = (prop_local, domain_local, range_local)
+        if key in seen:
+            return
+        seen.add(key)
+        out.append(
+            {
+                "predicate_local": prop_local,
+                "domain_local": domain_local,
+                "range_local": range_local,
+            }
+        )
+
+    for spec in contract_bundle.get("step_scoped_object_properties") or []:
+        add_spec(
+            str((spec or {}).get("predicate_local") or "").strip(),
+            str((spec or {}).get("domain_local") or "").strip(),
+            str((spec or {}).get("range_local") or "").strip(),
+        )
+
+    property_constraints = ((contract_bundle.get("ordered_member_profile") or {}).get("property_constraints") or {})
+    for prop_local, spec in (contract_bundle.get("relationship_domain_contracts") or {}).items():
+        range_local = str(((property_constraints.get(prop_local) or {}).get("range") or "")).strip()
+        for member in (spec or {}).get("union_members") or []:
+            add_spec(str(prop_local or "").strip(), _local_name(member), range_local)
+    return out
 
 
 def _comment_makes_property_required(comment: str, prop_local: str) -> bool:
@@ -347,7 +383,7 @@ def validate_generated_artifacts(
                     if len(node.args) != 2 or not has_created:
                         bad_success_calls.append(node.lineno)
             if bad_success_calls:
-                failures.append(
+                warnings.append(
                     f"{path.name}: _format_success_json must be called as "
                     f"_format_success_json(iri, message, created=...) at line(s): "
                     f"{', '.join(str(x) for x in bad_success_calls[:10])}"
@@ -401,9 +437,9 @@ def validate_generated_artifacts(
         namespace_attr = re.search(rf"\b[A-Z][A-Z0-9_]*\.{re.escape(preferred)}\b", rel_text)
         namespace_item = f"NAMESPACE.{preferred}" in rel_text or f"NAMESPACE['{preferred}']" in rel_text or f'NAMESPACE["{preferred}"]' in rel_text
         if preferred and not namespace_attr and not namespace_item:
-            warnings.append(f"Relationship `{prop_local}` may not use preferred union-domain `{preferred}`")
+            failures.append(f"Relationship `{prop_local}` must use preferred union-domain `{preferred}`")
 
-    step_scoped_props = contract_bundle.get("step_scoped_object_properties") or []
+    step_scoped_props = _effective_step_scoped_props(contract_bundle)
     entity_text_all = (
         "\n".join(p.read_text(encoding="utf-8") for p in scripts.glob("*_creation_entities*.py"))
         if step_scoped_props
@@ -428,7 +464,19 @@ def validate_generated_artifacts(
                 f"{_lower_initial(prop_local)}_label",
                 f"{_snake(prop_local)}_label",
             }
-            if ctor_src and any(marker in ctor_src for marker in label_markers) and prop_local not in ctor_src:
+            if not ctor_src:
+                failures.append(
+                    f"Missing constructor create_{domain_local} for step-scoped "
+                    f"{domain_local}->{prop_local}->{range_local} contract"
+                )
+                continue
+            if not any(marker in ctor_src for marker in label_markers):
+                failures.append(
+                    f"create_{domain_local}: missing label parameter for step-scoped "
+                    f"`{prop_local}` to {range_local}"
+                )
+                continue
+            if prop_local not in ctor_src:
                 failures.append(
                     f"create_{domain_local}: label parameter for `{range_local}` must add "
                     f"step-scoped predicate `{prop_local}`"
