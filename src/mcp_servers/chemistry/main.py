@@ -8,14 +8,19 @@ from src.mcp_servers.chemistry.operations.canonical_search import (
 from src.mcp_servers.chemistry.operations.cas_to_smiles import (
     cas_to_smiles,
 )
-from src.mcp_servers.chemistry.operations.enhanced_smiles_based_cbu_processing import (
-    _to_storage_canonical,
-)
 import json
 import os
 
-# Enhanced SMILES processing now imported from package path above
-_HAS_ENHANCED_SMILES = True
+try:
+    from src.mcp_servers.chemistry.operations.enhanced_smiles_based_cbu_processing import (
+        _to_storage_canonical,
+    )
+    _HAS_ENHANCED_SMILES = True
+    _ENHANCED_SMILES_IMPORT_ERROR = ""
+except Exception as exc:
+    _to_storage_canonical = None
+    _HAS_ENHANCED_SMILES = False
+    _ENHANCED_SMILES_IMPORT_ERROR = str(exc)
 
 mcp = FastMCP(name="chemistry")
 
@@ -35,7 +40,10 @@ def convert_smiles_to_canonical_enhanced(smiles: str):
         Tuple of (canonical_smiles, inchikey, source_kind)
     """
     if not _HAS_ENHANCED_SMILES:
-        raise ImportError("Enhanced SMILES processing functions not available")
+        raise ImportError(
+            "Enhanced SMILES processing functions not available"
+            + (f": {_ENHANCED_SMILES_IMPORT_ERROR}" if _ENHANCED_SMILES_IMPORT_ERROR else "")
+        )
     
     try:
         # Use single-format enhanced processing

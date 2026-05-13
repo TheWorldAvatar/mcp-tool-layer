@@ -7,7 +7,10 @@ You are generating the **BASE/FOUNDATION/INFRASTRUCTURE** script that provides O
 Generate a complete base script that implements **INFRASTRUCTURE ONLY**:
 - Guard system (`_guard_*`, `_guard_paths`, `_load_guard_state`, `_save_guard_state`)
 - Namespace definitions (primary `NAMESPACE` + any additional namespaces provided by configuration / ontology input)
+- Stable uppercase alias for the primary namespace (blurred form: `<PRIMARY_NS_ALIAS> = NAMESPACE`)
 - JSON/Error formatting helpers (`_json_line`, `_format_error`, `_format_success_json`)
+- `_coerce_iri(iri: str) -> URIRef`
+- `_guard_iri(iri: str, role: str = "iri") -> tuple[Optional[URIRef], Optional[str]]`
 - Auto-create helper functions (`_find_or_create_*`)
 - Memory management wrappers (`init_memory_wrapper`, `export_memory_wrapper`)
 
@@ -68,6 +71,8 @@ from ..universal_utils import (
 
 # Namespace definitions (CRITICAL - export ALL for entities script to import)
 NAMESPACE = Namespace("{namespace_uri}")
+# ALSO export a stable uppercase alias that points to the same namespace, e.g.:
+# <PRIMARY_NS_ALIAS> = NAMESPACE
 # IMPORTANT: Define any additional namespaces that appear in the ontology structure,
 # including external ontologies (e.g., OM-2) or secondary namespaces under the same base URI.
 # Do NOT hardcode domain/ontology-specific namespace lists here; derive what you define from the provided ontology input.
@@ -85,7 +90,7 @@ Implement the complete guard system:
 - `_load_guard_state()` - load guard state
 - `_save_guard_state(state)` - save guard state
 - `_guard_note_check(kind)` - note check call
-- `_guard_note_noncheck()` - note non-check call
+- `_guard_note_noncheck(name: str = "")` - note non-check call
 - `_guard_check(func)` - decorator for check functions
 - `_guard_noncheck(func)` - decorator for create/modify functions
 
@@ -96,6 +101,16 @@ Implement the complete guard system:
 - If enforcement fails, return a JSON error envelope via `_format_error(...)` instead of raising.
 
 ### 3. JSON/Error Formatting Helpers
+
+Also implement:
+
+```python
+def _coerce_iri(iri: str) -> URIRef:
+    """Strip, validate non-empty, and convert a string IRI into URIRef."""
+
+def _guard_iri(iri: str, role: str = "iri") -> tuple[Optional[URIRef], Optional[str]]:
+    """Return (URIRef, None) on success, or (None, error_message) on failure."""
+```
 
 ```python
 def _json_line(d: dict) -> str:

@@ -8,6 +8,9 @@ CRITICAL:
 - Use exact class/property names from the T-Box
 - Reference the MCP Main Script to understand available tools and their domain-specific requirements
 - If the step indicates enrichment/sub-iterations, include fidelity guidance (preserve prior entities/steps, enrich only, maintain order and continuity)
+- The generated prompt must be short, operational, and construction-focused. Do not turn it into an ontology tutorial or an extraction guide.
+- When a scoped top-level entity is provided for the iteration, the generated prompt MUST treat that entity IRI as authoritative, MUST explicitly forbid creating a second top-level entity for the same scope, and MUST require linking all created/reused child entities back to that scoped entity before export.
+- The generated prompt must include a final integrity reminder to verify required links are attached before terminating or exporting memory.
 
 Given a step from a task division plan, generate an MCP iteration prompt that:
 1. Instructs an agent to create specific RDF triples using the available MCP tools

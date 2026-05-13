@@ -1,0 +1,13 @@
+{
+  "agentic_generation_workspace": {
+    "command": "python",
+    "args": [
+      "-m",
+      "src.mcp_servers.agentic_generation_workspace.main"
+    ],
+    "env": {
+      "AGENTIC_GENERATION_OUTPUT_ROOT": "${AGENTIC_GENERATION_OUTPUT_ROOT}"
+    },
+    "transport": "stdio"
+  }
+}

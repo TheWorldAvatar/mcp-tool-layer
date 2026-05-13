@@ -1,0 +1,16 @@
+{
+  "mode": "per_doi",
+  "description": "Isolated medical iter1 pipeline using agentic generated scripts/prompts",
+  "meta_task_config": "configs/meta_task/meta_task_config_medical_non_flat_v3.json",
+  "data_dir": "data_agentic_medical_pipeline_valid",
+  "test_mcp_config": "test_mcp_config_agentic_medical_valid.json",
+  "vision_pdf_conversion": true,
+  "vision_model": "gpt-4o",
+  "vision_dpi": 150,
+  "steps": [
+    "pdf_conversion",
+    "stitching",
+    "top_entity_extraction",
+    "top_entity_kg_building"
+  ]
+}

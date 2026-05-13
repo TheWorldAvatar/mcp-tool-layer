@@ -98,7 +98,7 @@ T-Box (schema, in Turtle):
     return header + "\n" + ttl_text
 
 
-def _generate_sparql_with_llm(ttl_text: str, ontology_name: str, model: str = "gpt-4o") -> str:
+def _generate_sparql_with_llm(ttl_text: str, ontology_name: str, model: str = "gpt-5.2") -> str:
     """
     Generate a SPARQL query for the top entity from the T-Box.
 
@@ -205,7 +205,12 @@ def _write_sparql(ontology_name: str, sparql_text: str) -> Path:
     return cand_path
 
 
-def generate_top_entity_sparql_for_ontology(ontology_name: str, model: str = "gpt-4o") -> Path:
+def generate_top_entity_sparql_for_ontology(
+    ontology_name: str,
+    model: str = "gpt-5.2",
+    *,
+    tbox_path: str | Path | None = None,
+) -> Path:
     """
     High-level helper:
       1) Load T-Box from data/ontologies/<ontology_name>.ttl
@@ -213,7 +218,7 @@ def generate_top_entity_sparql_for_ontology(ontology_name: str, model: str = "gp
       3) Save to ai_generated_contents_candidate/sparqls/<ontology_name>/top_entity_parsing.sparql
          (and mirror to ai_generated_contents/sparqls/<ontology_name>/top_entity_parsing.sparql)
     """
-    ttl_path = Path("data/ontologies") / f"{ontology_name}.ttl"
+    ttl_path = Path(tbox_path) if tbox_path else (Path("data/ontologies") / f"{ontology_name}.ttl")
     ttl_text = _read_text_file(ttl_path)
     if not ttl_text:
         raise FileNotFoundError(f"T-Box TTL not found or empty: {ttl_path}")
@@ -277,8 +282,8 @@ Examples:
     parser.add_argument(
         "--model",
         type=str,
-        default="gpt-4o",
-        help="LLM model name to use via LLMCreator (default: gpt-4o)",
+        default="gpt-5.2",
+        help="LLM model name to use via LLMCreator (default: gpt-5.2)",
     )
 
     args = parser.parse_args(argv)

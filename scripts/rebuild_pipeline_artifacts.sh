@@ -16,11 +16,10 @@ Usage:
 
 What this does:
   - Bootstraps required gitignored folders
-  - Regenerates ALL candidate artefacts used by the pipeline:
+  - Regenerates ALL candidate artefacts used by the pipeline via agentic_generation_main:
       - iterations.json
       - prompts
-      - generated MCP scripts (main.py + *_creation.py)
-      - configs/generated_ontology_mcps.json
+      - generated MCP scripts (main.py + deterministic *_creation_*.py modules)
   - Generates top-entity SPARQL (writes directly to ai_generated_contents/)
   - (Default) Promotes candidate prompts+iterations into ai_generated_contents/ (pipeline default)
   - (Default) Rewires MCP config JSONs the pipeline uses to point at the newly generated MCP servers:
@@ -29,10 +28,10 @@ What this does:
 
 Notes:
   - This script does NOT run the extraction pipeline; it only regenerates and wires artefacts.
-  - Requires valid LLM credentials in your environment for generation steps.
+  - Deterministic artifact regeneration via agentic_generation_main does not consume LLM quota; the SPARQL helper step still uses `--model` when you pass one.
   - --test runs the same flow but only for ONE ontology (default: ontosynthesis), to reduce cost/time.
   - --main-only skips everything and regenerates ONLY ai_generated_contents_candidate/scripts/<ontology>/main.py
-    using existing candidate scripts (checks/base/relationships/entities_*.py). This is the fastest way to iterate on main.py.
+    using deterministic layout from agentic_generation_main --main-only (requires existing *_creation_*.py peers).
 
 Examples:
   scripts/rebuild_pipeline_artifacts.sh
@@ -121,23 +120,65 @@ case "$ONTOLOGY" in
     ;;
 esac
 
-if [[ "$ONTOLOGY" == "all" ]]; then
-  GEN_ARGS=(--all)
-else
-  GEN_ARGS=(--"$ONTOLOGY")
-fi
-if [[ -n "$MODEL" ]]; then
-  GEN_ARGS+=(--model "$MODEL")
+AGENTIC_ROOT="ai_generated_contents_candidate"
+
+if [[ "$DIRECT" == "true" ]]; then
+  echo "[WARN] --direct is ignored (artifact regeneration uses deterministic agentic_generation_main)." >&2
 fi
 
-# Script generation is direct-by-default in generation_main now.
-# Keep this flag as an explicit opt-in for older branches / clarity.
-if [[ "$DIRECT" == "true" ]]; then
-  GEN_ARGS+=(--direct)
-fi
+agentic_main_only() {
+  local onto="$1"
+  "$PYTHON_BIN" -m src.agents.scripts_and_prompts_generation.agentic_generation_main \
+    --ontology "$onto" \
+    --main-only \
+    --output-root "$AGENTIC_ROOT" \
+    --json
+}
+
+agentic_full_single() {
+  local onto="$1"
+  "$PYTHON_BIN" -m src.agents.scripts_and_prompts_generation.agentic_generation_main \
+    --ontology "$onto" \
+    --stage all \
+    --output-root "$AGENTIC_ROOT" \
+    --json
+}
+
+agentic_full_extensions() {
+  "$PYTHON_BIN" -m src.agents.scripts_and_prompts_generation.agentic_generation_main \
+    --extensions \
+    --stage all \
+    --output-root "$AGENTIC_ROOT" \
+    --json
+}
+
+run_agentic_generation() {
+  if [[ "$ONTOLOGY" == "all" ]]; then
+    agentic_full_single ontosynthesis
+    agentic_full_extensions
+  else
+    agentic_full_single "$ONTOLOGY"
+  fi
+}
 
 echo "[INFO] Bootstrapping repo folders..."
 "$PYTHON_BIN" scripts/bootstrap_repo.py
+
+echo "[INFO] Ensuring sandbox universal_utils.py is copied into candidate scripts tree (if present)..."
+"$PYTHON_BIN" - <<'PY'
+from pathlib import Path
+import shutil
+
+root = Path(".").resolve()
+src = root / "sandbox" / "code" / "universal_utils.py"
+dst = root / "ai_generated_contents_candidate" / "scripts" / "universal_utils.py"
+if src.exists():
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(src, dst)
+    print(f"[OK] Copied universal_utils.py -> {dst}")
+else:
+    print(f"[WARN] Missing {src}; skipping universal_utils copy")
+PY
 
 validate_import() {
   # Validate that a module can be imported without starting any server.
@@ -238,7 +279,7 @@ if [[ "$MAIN_ONLY" == "true" ]]; then
   fi
 
   echo "[INFO] MAIN-ONLY: Regenerating only ai_generated_contents_candidate/scripts/${ONTOLOGY}/main.py ..."
-  "$PYTHON_BIN" -m src.agents.scripts_and_prompts_generation.generation_main "${GEN_ARGS[@]}" --main-only
+  agentic_main_only "$ONTOLOGY"
 
   MCP_MODULE="ai_generated_contents_candidate.scripts.${ONTOLOGY}.main"
   if [[ -f "$MAIN_PY" ]]; then
@@ -277,8 +318,8 @@ if [[ "$MAIN_ONLY" == "true" ]]; then
   exit 0
 fi
 
-echo "[INFO] Generating candidate artefacts (scripts/prompts/iterations/config)..."
-"$PYTHON_BIN" -m src.agents.scripts_and_prompts_generation.generation_main "${GEN_ARGS[@]}"
+echo "[INFO] Generating candidate artefacts (scripts/prompts/iterations) via agentic_generation_main..."
+run_agentic_generation
 
 echo "[INFO] Ensuring generated scripts are importable packages..."
 "$PYTHON_BIN" -m src.agents.scripts_and_prompts_generation.fix_package_structure
@@ -449,7 +490,7 @@ if [[ "$REWIRE_MCP" == "true" ]]; then
   echo "[INFO] Rewiring MCP config JSONs to use newly generated MCP servers..."
 
   # Only rewire servers that were actually generated.
-  # (generation_main returns non-zero on failure, but this also protects manual/partial runs.)
+  # (Protects manual/partial runs if some ontology folders are missing.)
   HAVE_ONTO="false"
   HAVE_ONTOMOPS="false"
   HAVE_ONTOSPECIES="false"

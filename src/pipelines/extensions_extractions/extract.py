@@ -54,13 +54,14 @@ def load_prompt(prompt_path: str, project_root: str = ".") -> str:
     Tries candidate directory first, then production directory.
     """
     prompt_path = (prompt_path or "").replace("\\", "/")
-    candidate_path = prompt_path.replace("ai_generated_contents/", "ai_generated_contents_candidate/", 1)
-    production_path = prompt_path
-
-    paths_to_try = [
-        os.path.join(project_root, candidate_path),
-        os.path.join(project_root, production_path),
-    ]
+    override_root = os.environ.get("TWA_GENERATED_ARTIFACT_ROOT", "").strip().replace("\\", "/").rstrip("/")
+    paths_to_try = []
+    if override_root and prompt_path.startswith("ai_generated_contents/"):
+        paths_to_try.append(os.path.join(project_root, prompt_path.replace("ai_generated_contents", override_root, 1)))
+    paths_to_try.extend([
+        os.path.join(project_root, prompt_path.replace("ai_generated_contents/", "ai_generated_contents_candidate/", 1)),
+        os.path.join(project_root, prompt_path),
+    ])
 
     for full_path in paths_to_try:
         if os.path.exists(full_path):
@@ -236,7 +237,7 @@ def run_step(doi_hash: str, config: dict) -> bool:
         return True
     
     # Load meta task configuration
-    meta_config_path = os.path.join(project_root, "configs/meta_task/meta_task_config.json")
+    meta_config_path = config.get("meta_task_config") or os.path.join(project_root, "configs/meta_task/meta_task_config.json")
     if not os.path.exists(meta_config_path):
         logger.error(f"Meta task config not found: {meta_config_path}")
         return False
@@ -287,20 +288,27 @@ def run_step(doi_hash: str, config: dict) -> bool:
         return False
     
     # Process each extension ontology
+    had_failures = False
     for extension in extensions:
         ontology_name = extension.get("name")
         logger.info(f"\n  📚 Extension: {ontology_name}")
         
         # Load iteration config for this ontology
-        iterations_config_path = os.path.join(
-            project_root,
-            "ai_generated_contents_candidate/iterations",
-            ontology_name,
-            "iterations.json"
-        )
-        
-        if not os.path.exists(iterations_config_path):
-            logger.error(f"  ❌ Iterations config not found: {iterations_config_path}")
+        artifact_roots = []
+        override_root = os.environ.get("TWA_GENERATED_ARTIFACT_ROOT", "").strip()
+        if override_root:
+            artifact_roots.append(override_root)
+        artifact_roots.extend(["ai_generated_contents_candidate", "ai_generated_contents"])
+        iterations_config_path = ""
+        for artifact_root in dict.fromkeys(artifact_roots):
+            candidate = os.path.join(project_root, artifact_root, "iterations", ontology_name, "iterations.json")
+            if os.path.exists(candidate):
+                iterations_config_path = candidate
+                break
+
+        if not iterations_config_path:
+            logger.error(f"  ❌ Iterations config not found for {ontology_name}. Tried roots: {artifact_roots}")
+            had_failures = True
             continue
         
         try:
@@ -308,6 +316,7 @@ def run_step(doi_hash: str, config: dict) -> bool:
                 iterations_config = json.load(f)
         except Exception as e:
             logger.error(f"  ❌ Failed to load iterations config: {e}")
+            had_failures = True
             continue
         
         # Process each entity
@@ -327,7 +336,12 @@ def run_step(doi_hash: str, config: dict) -> bool:
                 ))
             except Exception as e:
                 logger.error(f"  ❌ Extension failed for '{entity_label}': {e}")
+                had_failures = True
                 continue
+    
+    if had_failures:
+        logger.error("❌ Extensions extractions finished with one or more failures")
+        return False
     
     # Create completion marker
     try:

@@ -88,6 +88,10 @@ def _name_sets_for_diff(gt_list: List[str], res_list: List[str]) -> Tuple[set, s
 
 def _collect_output_ccdcs(obj: Any) -> List[str]:
     out: set = set()
+    for syn in (obj or {}).get("Synthesis", []) or []:
+        c = str((syn or {}).get("productCCDCNumber") or "").strip()
+        if _is_valid(c):
+            out.add(_normalize(c))
     for proc in (obj or {}).get("synthesisProcedures", []) or []:
         for step in (proc or {}).get("steps", []) or []:
             for oc in (step or {}).get("outputChemical", []) or []:
@@ -135,6 +139,17 @@ def _as_list(v: Any) -> List[str]:
 
 def _extract_input_chemical_names_from_gt(gt_obj: Dict) -> List[str]:
     names: List[str] = []
+    for syn in gt_obj.get("Synthesis", []) or []:
+        for step in syn.get("steps", []) or []:
+            if not isinstance(step, dict):
+                continue
+            for step_payload in step.values():
+                if not isinstance(step_payload, dict):
+                    continue
+                for input_chem in step_payload.get("addedChemical", []) or []:
+                    vals = input_chem.get("chemicalName")
+                    for s in _as_list(vals):
+                        names.append(s)
     for proc in gt_obj.get("synthesisProcedures", []) or []:
         for step in proc.get("steps", []) or []:
             for input_chem in step.get("inputChemicals", []) or []:
@@ -147,6 +162,18 @@ def _extract_input_chemical_names_from_gt(gt_obj: Dict) -> List[str]:
 
 def _type_presence_counts_gt(gt_obj: Dict) -> Dict[str, int]:
     counts = {k: 0 for k in TYPES}
+    for syn in gt_obj.get("Synthesis", []) or []:
+        for step in syn.get("steps", []) or []:
+            if not isinstance(step, dict):
+                continue
+            for step_payload in step.values():
+                if not isinstance(step_payload, dict):
+                    continue
+                for chem in step_payload.get("addedChemical", []) or []:
+                    if _as_list(chem.get("chemicalName")):
+                        counts["name"] += 1
+                    if _as_list(chem.get("chemicalAmount")):
+                        counts["amount"] += 1
     for proc in gt_obj.get("synthesisProcedures", []) or []:
         for step in proc.get("steps", []) or []:
             for input_chem in step.get("inputChemicals", []) or []:
@@ -257,11 +284,11 @@ def _extract_chemical_names_flexible(res_obj: Dict) -> List[str]:
 
 def evaluate_current(*, fuzzy: bool = False, use_full_gt: bool = False) -> None:
     if use_full_gt:
-        GT_ROOT = Path("full_ground_truth/chemicals1")
+        GT_ROOT = Path("full_ground_truth/chemicals")
         OUT_ROOT = Path("evaluation/data/full_result/chemicals")
         allowed_files = None
     else:
-        GT_ROOT = Path("full_ground_truth/chemicals1")  # Always use full_ground_truth
+        GT_ROOT = Path("full_ground_truth/chemicals")  # Always use full_ground_truth
         OUT_ROOT = Path("evaluation/data/result/chemicals")
         # Only evaluate these 9 files in default mode
         allowed_files = {
@@ -276,6 +303,7 @@ def evaluate_current(*, fuzzy: bool = False, use_full_gt: bool = False) -> None:
             "10.1039_D3QI01501G.json"
         }
     OUT_ROOT.mkdir(parents=True, exist_ok=True)
+    RES_ROOT = Path("evaluation/data/merged_tll")
 
     hash_to_doi = hash_map_reverse(Path("data/doi_to_hash.json"))
     hashes = sorted([p.name for p in RES_ROOT.iterdir() if p.is_dir()])
@@ -383,7 +411,7 @@ def evaluate_current(*, fuzzy: bool = False, use_full_gt: bool = False) -> None:
 
 def evaluate_full(*, fuzzy: bool = False) -> None:
     """Evaluate current predictions against full ground truth dataset."""
-    GT_ROOT = Path("full_ground_truth/chemicals1")
+    GT_ROOT = Path("full_ground_truth/chemicals")
     RES_ROOT = Path("evaluation/data/merged_tll")
     OUT_ROOT = Path("evaluation/data/full_result/chemicals")
     OUT_ROOT.mkdir(parents=True, exist_ok=True)
@@ -508,11 +536,11 @@ def evaluate_previous(use_anchored: bool = False, *, fuzzy: bool = False, use_fu
         use_full_gt: Use full ground truth dataset instead of earlier ground truth
     """
     if use_full_gt:
-        GT_ROOT = Path("full_ground_truth/chemicals1")
+        GT_ROOT = Path("full_ground_truth/chemicals")
         OUT_ROOT = Path("evaluation/data/full_result/chemicals_previous")
         allowed_files = None
     else:
-        GT_ROOT = Path("full_ground_truth/chemicals1")  # Always use full_ground_truth
+        GT_ROOT = Path("full_ground_truth/chemicals")  # Always use full_ground_truth
         OUT_ROOT = Path("evaluation/data/result/chemicals_previous")
         # Only evaluate these 9 files in default mode
         allowed_files = {
@@ -721,7 +749,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Chemicals scoring evaluator")
     parser.add_argument("--previous", action="store_true", help="Evaluate previous_work/*.json against ground truth")
     parser.add_argument("--anchor", action="store_true", help="Use previous_work_anchored/ instead of previous_work/ (only with --previous)")
-    parser.add_argument("--full", action="store_true", help="Evaluate against full ground truth dataset (full_ground_truth/chemicals1/)")
+    parser.add_argument("--full", action="store_true", help="Evaluate against full ground truth dataset (full_ground_truth/chemicals/)")
     parser.add_argument("--fuzzy", action="store_true", help="Ignore differences in procedureName and outputChemical (names, chemicalFormula) while displaying and scoring context")
     args = parser.parse_args()
 

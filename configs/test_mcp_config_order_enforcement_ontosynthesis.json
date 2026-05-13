@@ -1,0 +1,24 @@
+{
+  "llm_created_mcp": {
+    "command": "python",
+    "args": [
+      "-m",
+      "ai_generated_contents_order_enforcement_check.scripts.ontosynthesis.main"
+    ],
+    "env": {
+      "TWA_AGENTIC_DATA_DIR": "${TWA_AGENTIC_DATA_DIR}"
+    },
+    "transport": "stdio"
+  },
+  "ontosynthesis_mcp": {
+    "command": "python",
+    "args": [
+      "-m",
+      "ai_generated_contents_order_enforcement_check.scripts.ontosynthesis.main"
+    ],
+    "env": {
+      "TWA_AGENTIC_DATA_DIR": "${TWA_AGENTIC_DATA_DIR}"
+    },
+    "transport": "stdio"
+  }
+}

@@ -5,6 +5,146 @@
       "description": "The ontology for the synthesis of chemical compounds.",
       "ttl_file": "data/ontologies/ontosynthesis.ttl",
       "complex_pipeline": true,
+      "agent_model": "gpt-4o",
+      "runtime_policies": {
+        "iter1_top_entity_kg": {
+          "global_state_entity_name": "top",
+          "prompt_rules": {
+            "doi_argument_source": "current_document_hash",
+            "top_level_entity_name": "ChemicalSynthesis",
+            "forbid_human_readable_label_as_doi": true
+          }
+        },
+        "main_entity_kg": {
+          "runtime_context": {
+            "lock_to_global_state_entity_name": true
+          },
+          "publish": {
+            "merge_top_ttl_into_entity_ttl": true,
+            "top_entity_context_name": "top",
+            "prefer_composite_intermediate": true,
+            "hint_reconciliation": {
+              "ordered_member_hint_contracts": [
+                {
+                  "section_name": "SynthesisStepList",
+                  "type_namespace_iri": "https://www.theworldavatar.com/kg/OntoSyn/",
+                  "type_keys": [
+                    "rdf:type",
+                    "type"
+                  ],
+                  "order_keys": [
+                    "ontosyn:hasOrder",
+                    "hasOrder"
+                  ],
+                  "order_predicate_iri": "https://www.theworldavatar.com/kg/OntoSyn/hasOrder"
+                }
+              ]
+            }
+          },
+          "shell_validation": {
+            "top_entity_class_iri": "https://www.theworldavatar.com/kg/OntoSyn/ChemicalSynthesis",
+            "label_key_suffixes_to_strip": [
+              "synthesis"
+            ],
+            "require_entity_uri_subject": true,
+            "required_links": [
+              {
+                "predicate_iri": "https://www.theworldavatar.com/kg/OntoSyn/hasSynthesisStep",
+                "target_class_iri": "https://www.theworldavatar.com/kg/OntoSyn/SynthesisStep",
+                "min_count": 1,
+                "ordered_member": true
+              },
+              {
+                "predicate_iri": "https://www.theworldavatar.com/kg/OntoSyn/hasChemicalOutput",
+                "target_class_iri": "https://www.theworldavatar.com/kg/OntoSyn/ChemicalOutput",
+                "min_count": 1,
+                "placeholder_target_if_missing": {
+                  "derive_label_from_top_entity": true,
+                  "strip_suffix": " synthesis"
+                }
+              }
+            ]
+          },
+          "prompt_rules": {
+            "require_top_entity_reuse": true,
+            "forbid_new_top_entity_creation": true,
+            "require_required_links_before_export": true
+          },
+          "post_publish_warnings": {
+            "typed_nodes_missing_predicate": [
+              {
+                "subject_class_iri": "https://www.theworldavatar.com/kg/OntoSyn/Add",
+                "predicate_iri": "https://www.theworldavatar.com/kg/OntoSyn/hasAddedChemicalInput",
+                "order_predicate_iri": "https://www.theworldavatar.com/kg/OntoSyn/hasOrder",
+                "message": "Add step has no configured added-input predicate"
+              }
+            ]
+          }
+        },
+        "top_entity_extraction": {
+          "invalidate_top_entities_txt_substrings": [
+            "No ChemicalSynthesis",
+            "ChemicalSynthesis instances",
+            "ontosyn:ChemicalSynthesis"
+          ],
+          "count_lines_starting_with": [
+            "ChemicalSynthesis"
+          ],
+          "identifier_code_regex": "\\b[A-Z][A-Z0-9]{1,}(?:[-_]\\d+[A-Za-z0-9]*)\\b"
+        },
+        "iteration_plan": {
+          "iterations_blueprint_path": "configs/meta_task/ontosynthesis_iterations_blueprint.json",
+          "postprocess_overrides": {
+            "2": {
+              "name": "inputs_outputs",
+              "model_config_key": "iter2_hints",
+              "use_agent": true,
+              "inputs": {
+                "keep_only": [
+                  "source"
+                ],
+                "set": {
+                  "source": "stitched_paper"
+                }
+              }
+            },
+            "3": {
+              "name": "synthesis_steps",
+              "model_config_key": "iter3_hints",
+              "use_agent": false,
+              "inputs": {
+                "keep_only": [
+                  "pre_extraction_source",
+                  "extraction_source"
+                ],
+                "set": {
+                  "pre_extraction_source": "stitched_paper",
+                  "extraction_source": "pre_extracted_text"
+                }
+              },
+              "sub_iterations": {
+                "ordered_overrides": [
+                  {
+                    "name": "step_enrichment",
+                    "model_config_key": "iter3_1_enrichment",
+                    "use_agent": false
+                  },
+                  {
+                    "name": "vessel_enrichment",
+                    "model_config_key": "iter3_2_enrichment",
+                    "use_agent": false
+                  }
+                ]
+              }
+            },
+            "4": {
+              "name": "yield_extraction",
+              "model_config_key": "iter4_hints",
+              "use_agent": false
+            }
+          }
+        }
+      },
       "output": {
         "dir": "{ontology_name}_output",
         "top_ttl_name": "top.ttl",
@@ -21,9 +161,14 @@
         "description": "The ontology for describing of metal-organic polyhedra.",
         "ttl_file": "data/ontologies/ontomops-subgraph.ttl",
         "complex_pipeline": false,
+        "output": {
+          "dir": "{ontology_name}_output",
+          "entity_ttl_pattern": "{ontology_name}_extension_{entity_name}.ttl"
+        },
         "mcp_set_name": "extension.json",
         "mcp_list": [
-          "mops_extension"
+          "mops_extension",
+          "ccdc"
         ],
         "agent_model": "gpt-4o"
       },
@@ -32,9 +177,14 @@
         "description": "The ontology for describing the species of chemical compounds.",
         "ttl_file": "data/ontologies/ontospecies-subgraph.ttl",
         "complex_pipeline": false,
+        "output": {
+          "dir": "{ontology_name}_output",
+          "entity_ttl_pattern": "{entity_slugified}.ttl"
+        },
         "mcp_set_name": "extension.json",
         "mcp_list": [
-          "ontospecies_extension"
+          "ontospecies_extension",
+          "ccdc"
         ],
         "agent_model": "gpt-4o"
       }

@@ -148,7 +148,7 @@ def _guard_noncheck(func):
 **Example Grouping**:
 - If `ClassA`, `ClassB`, `ClassC` all inherit from `ParentClass`, create **only** `check_existing_ParentClass()`
 - If `ClassX` has no parent, create `check_existing_ClassX()`
-- If `ClassY` inherits from external ontology (e.g., `OntoLab:LabEquipment`), create `check_existing_ClassY()`
+- If `ClassY` inherits from an external ontology class (e.g., `ExternalNS:ExternalParentClass`), create `check_existing_ClassY()`
 
 **Pattern:**
 ```python
@@ -371,9 +371,9 @@ def _find_or_create_{{AuxiliaryEntityType}}(
 ```
 
 **Apply This Pattern To:**
-- Measurement/quantity entities (e.g., temperature, duration, volume with value+unit)
-- Equipment entities (e.g., containers/vessels with name+type)
-- Environmental/condition entities (e.g., atmosphere, pressure conditions)
+- Quantity-like entities (e.g., value+unit pairs)
+- Equipment- or container-like entities (e.g., named supporting objects with a category/type)
+- Context/condition entities (e.g., environment, state, or operating condition)
 - Any entity type that is commonly referenced as an auxiliary/supporting entity
 
 **Integration Example in Main Creation Function:**

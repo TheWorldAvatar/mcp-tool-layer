@@ -5,6 +5,7 @@ from typing import Dict, List, Optional, Tuple, Union
 from rdflib import Graph, Namespace, Literal
 from rdflib.namespace import RDF, RDFS
 from models.locations import DATA_DIR
+from src.pipelines.utils.ttl_publisher import get_output_naming_config, load_meta_task_config
 
 
 def _configure_utf8_stdio() -> None:
@@ -40,6 +41,28 @@ def _read_text_file(path: str) -> str:
         return ""
 
 
+def _normalize_label(text: str) -> str:
+    return " ".join(str(text or "").casefold().replace("_", " ").split())
+
+
+def _resolve_root_ttl_path(hash_value: str, entity_label: str) -> str:
+    """Resolve the main ontology per-entity TTL using current config naming first."""
+    safe_entity = _safe_name(entity_label)
+    try:
+        meta_cfg = load_meta_task_config()
+        ontology_name = str((meta_cfg.get("ontologies", {}).get("main", {}) or {}).get("name") or "ontosynthesis").strip() or "ontosynthesis"
+        naming = get_output_naming_config(meta_cfg=meta_cfg, ontology_name=ontology_name)
+        candidate = os.path.join(DATA_DIR, hash_value, naming.output_dir, naming.entity_ttl_pattern.format(
+            entity_safe=safe_entity,
+            ontology_name=ontology_name,
+        ))
+        if os.path.exists(candidate):
+            return candidate
+    except Exception:
+        pass
+    return os.path.join(DATA_DIR, hash_value, f"output_{safe_entity}.ttl")
+
+
 def _read_derived_mop_formula(hash_value: str, entity: str) -> str:
     """Read derived mop_formula if present under data/<hash>/cbu_derivation/full/<entity>.json.
     
@@ -67,11 +90,41 @@ def _find_top_entities(hash_value: str) -> List[Tuple[str, str]]:
     Returns:
         List of tuples: (actual_entity_label, filename)
     """
-    out: List[Tuple[str, str]] = []
     ttl_dir = os.path.join(DATA_DIR, hash_value, "ontomops_output")
     if not os.path.isdir(ttl_dir):
-        return out
-    
+        return []
+
+    def _score_candidate(path: str, expected_label: str) -> Tuple[int, int]:
+        try:
+            g = Graph()
+            g.parse(path, format="turtle")
+        except Exception:
+            return (-1, -1)
+
+        label_matches = 0
+        for synth in g.subjects(RDF.type, Namespace("https://www.theworldavatar.com/kg/OntoSyn/").ChemicalSynthesis):
+            labels = [str(v) for v in g.objects(synth, RDFS.label)]
+            if any(_normalize_label(v) == _normalize_label(expected_label) for v in labels):
+                label_matches += 1
+        if label_matches == 0:
+            for synth, _, lbl in g.triples((None, RDFS.label, None)):
+                if isinstance(lbl, Literal) and "ChemicalSynthesis/" in str(synth):
+                    if _normalize_label(str(lbl)) == _normalize_label(expected_label):
+                        label_matches += 1
+
+        mop_facts = 0
+        ontomops = Namespace("https://www.theworldavatar.com/kg/ontomops/")
+        for subj in g.subjects(RDF.type, ontomops.MetalOrganicPolyhedron):
+            mop_facts += 3 + len(list(g.triples((subj, None, None))))
+        for pred in (ontomops.hasCCDCNumber, ontomops.hasMOPFormula, ontomops.hasChemicalBuildingUnit):
+            mop_facts += sum(1 for _ in g.triples((None, pred, None)))
+        return (label_matches, mop_facts)
+
+    all_ttls = [
+        name for name in sorted(os.listdir(ttl_dir))
+        if name.startswith("ontomops_extension_") and name.endswith(".ttl")
+    ]
+
     # Load mapping file to convert filenames to actual entity labels
     mapping_file = os.path.join(ttl_dir, "ontomops_output_mapping.json")
     filename_to_label = {}  # Maps filename -> actual entity label
@@ -85,11 +138,44 @@ def _find_top_entities(hash_value: str) -> List[Tuple[str, str]]:
                         filename_to_label[filename] = entity_label
         except Exception:
             pass
-    
-    for name in sorted(os.listdir(ttl_dir)):
-        if not name.startswith("ontomops_extension_") or not name.endswith(".ttl"):
-            continue
-        # Try to get actual entity label from mapping, fallback to filename-based label
+
+    preferred: List[Tuple[str, str]] = []
+    used_files: set[str] = set()
+
+    if filename_to_label:
+        labels = sorted(set(filename_to_label.values()))
+        label_to_files: Dict[str, List[str]] = {}
+        for filename, label in filename_to_label.items():
+            label_to_files.setdefault(label, []).append(filename)
+
+        for label in labels:
+            candidates = [
+                os.path.join(ttl_dir, filename)
+                for filename in label_to_files.get(label, [])
+                if filename in all_ttls
+            ]
+            candidates.extend(
+                os.path.join(ttl_dir, filename)
+                for filename in all_ttls
+                if filename not in used_files
+            )
+            scored = sorted(
+                {
+                    path: _score_candidate(path, label)
+                    for path in candidates
+                }.items(),
+                key=lambda item: (item[1][0], item[1][1], item[0]),
+                reverse=True,
+            )
+            if scored and scored[0][1][0] > 0 and scored[0][1][1] > 0:
+                chosen = os.path.basename(scored[0][0])
+                preferred.append((label, chosen))
+                used_files.add(chosen)
+        if preferred:
+            return preferred
+
+    out: List[Tuple[str, str]] = []
+    for name in all_ttls:
         actual_entity_label = filename_to_label.get(name, name[len("ontomops_extension_"):-len(".ttl")])
         if actual_entity_label:
             out.append((actual_entity_label, name))
@@ -205,7 +291,7 @@ def integrate_hash(hash_value: str) -> List[Dict[str, str]]:
         # Use the actual filename from mapping
         src_path = os.path.join(ttl_dir, ttl_filename)
         # For root TTL, use safe name of actual entity label
-        root_ttl_path = os.path.join(DATA_DIR, hash_value, f"output_{_safe_name(actual_entity_label)}.ttl")
+        root_ttl_path = _resolve_root_ttl_path(hash_value, actual_entity_label)
 
         g = Graph()
         root = Graph()
@@ -458,7 +544,7 @@ def _write_integrated_ttl(hash_value: str, entity_label: str, ttl_filename: str,
 
     # Load the root entity TTL to fetch detailed labels/types for CBUs referenced by the extension
     # Use safe name for root TTL path
-    root_ttl_path = os.path.join(DATA_DIR, hash_value, f"output_{_safe_name(entity_label)}.ttl")
+    root_ttl_path = _resolve_root_ttl_path(hash_value, entity_label)
     root = Graph()
     try:
         if os.path.exists(root_ttl_path):

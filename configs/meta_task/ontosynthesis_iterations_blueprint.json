@@ -1,0 +1,166 @@
+{
+  "ontology": "ontosynthesis",
+  "description": "The ontology for the synthesis of chemical compounds.",
+  "iterations": [
+    {
+      "iteration_number": 2,
+      "name": "inputs_outputs",
+      "description": "Extract ChemicalInput and ChemicalOutput instances for each ChemicalSynthesis.",
+      "extraction_prompt": "ai_generated_contents/prompts/ontosynthesis/EXTRACTION_ITER_2.md",
+      "model_config_key": "iter2_hints",
+      "per_entity": true,
+      "use_agent": true,
+      "inputs": {
+        "source": "stitched_paper"
+      },
+      "outputs": {
+        "hints_file": "mcp_run/iter2_hints_{entity_safe}.txt",
+        "prompt_file": "prompts/iter2_extraction/{entity_safe}.md",
+        "response_file": "responses/iter2_extraction/{entity_safe}.md"
+      },
+      "mcp_set_name": "run_created_mcp.json",
+      "mcp_tools": [
+        "llm_created_mcp"
+      ],
+      "kg_building_prompt": "ai_generated_contents/prompts/ontosynthesis/KG_BUILDING_ITER_2.md",
+      "extraction_mcp_set_name": "chemistry.json",
+      "extraction_mcp_tools": [
+        "pubchem",
+        "enhanced_websearch",
+        "ccdc"
+      ]
+    },
+    {
+      "iteration_number": 3,
+      "name": "synthesis_steps",
+      "description": "Extract SynthesisStep instances for each ChemicalSynthesis, including step order and type.",
+      "has_pre_extraction": true,
+      "pre_extraction_prompt": "ai_generated_contents/prompts/ontosynthesis/PRE_EXTRACTION_ITER_3.md",
+      "pre_extraction_model_key": "advanced_model",
+      "extraction_prompt": "ai_generated_contents/prompts/ontosynthesis/EXTRACTION_ITER_3.md",
+      "model_config_key": "iter3_hints",
+      "per_entity": true,
+      "use_agent": false,
+      "extraction_validation": {
+        "forbid_generic_ordered_member_types": {
+          "enabled": true,
+          "generic_labels": [
+            "SynthesisStep",
+            "Step",
+            "Operation",
+            "Procedure",
+            "Workup"
+          ],
+          "generic_key_patterns": [
+            "^SynthesisStep\\s*\\d+$"
+          ],
+          "type_keys": [
+            "rdf:type",
+            "type",
+            "class",
+            "step_type",
+            "steptype"
+          ]
+        }
+      },
+      "require_members_when_source_matches": [
+        {
+          "enabled": true,
+          "section_name": "SynthesisStepList",
+          "source_patterns": [
+            "\\bheated\\b[^.\\n;]*\\b\\d+(?:\\.\\d+)?\\s*(?:°\\s*C|℃|degrees?\\s*C|C)\\b[^.\\n;]*\\b\\d+(?:\\.\\d+)?\\s*(?:h|hr|hrs|hour|hours)\\b"
+          ],
+          "expected_type": "ontosyn:HeatChill",
+          "required_properties": [
+            "ontosyn:hasTargetTemperature",
+            "ontosyn:hasStepDuration"
+          ]
+        }
+      ],
+      "inputs": {
+        "pre_extraction_source": "stitched_paper",
+        "extraction_source": "pre_extracted_text"
+      },
+      "outputs": {
+        "hints_file": "mcp_run/iter3_hints_{entity_safe}.txt",
+        "prompt_file": "prompts/iter3_extraction/{entity_safe}.md",
+        "response_file": "responses/iter3_extraction/{entity_safe}.md",
+        "pre_extraction_file": "pre_extraction/entity_text_{entity_safe}.txt",
+        "pre_extraction_prompt_file": "prompts/iter3_pre_extraction/{entity_safe}.md",
+        "pre_extraction_response_file": "responses/iter3_pre_extraction/{entity_safe}.md"
+      },
+      "sub_iterations": [
+        {
+          "iteration_number": 3.1,
+          "name": "step_enrichment",
+          "description": "Refine the types of SynthesisStep instances.",
+          "enriches": 3,
+          "extraction_prompt": "ai_generated_contents/prompts/ontosynthesis/EXTRACTION_ITER_3_1.md",
+          "model_config_key": "iter3_1_enrichment",
+          "per_entity": true,
+          "use_agent": false,
+          "inputs": {
+            "base_hints": "mcp_run/iter3_hints_{entity_safe}.txt",
+            "pre_extracted_text": "pre_extraction/entity_text_{entity_safe}.txt"
+          },
+          "outputs": {
+            "file_path": "extracted_data/{entity_safe}/synthesis_steps_refined.json",
+            "hints_file": "mcp_run/iter3_hints_{entity_safe}.txt",
+            "prompt_file": "prompts/iter3.1_enrichment/{entity_safe}.md",
+            "response_file": "responses/iter3.1_enrichment/{entity_safe}.md",
+            "done_marker": "mcp_run/iter3_3.1_done_{entity_safe}.marker"
+          }
+        },
+        {
+          "iteration_number": 3.2,
+          "name": "vessel_enrichment",
+          "description": "Enrich SynthesisStep instances with vessel and equipment details.",
+          "enriches": 3,
+          "extraction_prompt": "ai_generated_contents/prompts/ontosynthesis/EXTRACTION_ITER_3_2.md",
+          "model_config_key": "iter3_2_enrichment",
+          "per_entity": true,
+          "use_agent": false,
+          "inputs": {
+            "base_hints": "mcp_run/iter3_hints_{entity_safe}.txt",
+            "pre_extracted_text": "pre_extraction/entity_text_{entity_safe}.txt"
+          },
+          "outputs": {
+            "file_path": "extracted_data/{entity_safe}/synthesis_steps_enriched.json",
+            "hints_file": "mcp_run/iter3_hints_{entity_safe}.txt",
+            "prompt_file": "prompts/iter3.2_enrichment/{entity_safe}.md",
+            "response_file": "responses/iter3.2_enrichment/{entity_safe}.md",
+            "done_marker": "mcp_run/iter3_3.2_done_{entity_safe}.marker"
+          }
+        }
+      ],
+      "mcp_set_name": "run_created_mcp.json",
+      "mcp_tools": [
+        "llm_created_mcp"
+      ],
+      "kg_building_prompt": "ai_generated_contents/prompts/ontosynthesis/KG_BUILDING_ITER_3.md"
+    },
+    {
+      "iteration_number": 4,
+      "name": "yield_extraction",
+      "description": "Extract yield information for each ChemicalSynthesis.",
+      "extraction_prompt": "ai_generated_contents/prompts/ontosynthesis/EXTRACTION_ITER_4.md",
+      "model_config_key": "iter4_hints",
+      "per_entity": true,
+      "use_agent": false,
+      "inputs": {
+        "file_path": "extracted_data/{entity_safe}/synthesis_steps_enriched.json",
+        "source": "stitched_paper"
+      },
+      "outputs": {
+        "hints_file": "mcp_run/iter4_hints_{entity_safe}.txt",
+        "prompt_file": "prompts/iter4_extraction/{entity_safe}.md",
+        "response_file": "responses/iter4_extraction/{entity_safe}.md"
+      },
+      "mcp_set_name": "run_created_mcp.json",
+      "mcp_tools": [
+        "llm_created_mcp"
+      ],
+      "kg_building_prompt": "ai_generated_contents/prompts/ontosynthesis/KG_BUILDING_ITER_4.md"
+    }
+  ]
+}

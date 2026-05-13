@@ -19,13 +19,13 @@ This document inventories **the code + meta-prompts used to generate MCP scripts
 
 ## 1) Orchestrator (entrypoint)
 
-- **Entrypoint**: `src/agents/scripts_and_prompts_generation/generation_main.py`
-  - **Role**: orchestrates generation steps (parse TTL → iterations → scripts → prompts → MCP config).
-  - **Writes MCP scripts to**: `ai_generated_contents_candidate/scripts/<ontology>/...`
-  - **Ensures utility copied**:
-    - **Source**: `sandbox/code/universal_utils.py`
-    - **Target**: `ai_generated_contents_candidate/scripts/universal_utils.py`
-    - **Function**: `ensure_universal_utils()` in `generation_main.py`
+- **Entrypoint**: `src/agents/scripts_and_prompts_generation/agentic_generation_main.py`
+  - **Role**: deterministic regeneration of iteration specs, prompts, and MCP Python servers under an output root (commonly `ai_generated_contents_candidate/`).
+  - **Shell orchestration**: `scripts/rebuild_pipeline_artifacts.sh` (bootstrap, universal_utils copy, SPARQL generation, promotion, MCP rewiring).
+- **Ensures utility copied**:
+  - **Source**: `sandbox/code/universal_utils.py`
+  - **Target**: `ai_generated_contents_candidate/scripts/universal_utils.py`
+  - **Function**: inline copy step inside `scripts/rebuild_pipeline_artifacts.sh`
 
 ---
 
@@ -96,25 +96,20 @@ These examples intentionally use **placeholder names** and must not introduce do
     - IRI minting (`_mint_hash_iri`)
     - common graph helpers (`_find_by_type_and_label`, `_set_single_label`, etc.)
 - **Copied output**: `ai_generated_contents_candidate/scripts/universal_utils.py`
-  - **Copied by**: `ensure_universal_utils()` in `generation_main.py`
+  - **Copied by**: `scripts/rebuild_pipeline_artifacts.sh` (Python snippet after `bootstrap_repo.py`)
 
 ---
 
 ## 4) Agent-based MCP generators (legacy / alternate path)
 
-These modules generate MCP scripts using the project’s agent framework (they still rely on the same meta-prompt folder).
-
-- **Underlying script agent**: `src/agents/scripts_and_prompts_generation/mcp_underlying_script_creation_agent.py`
-  - **Loads design principles**:
-    - `src/agents/mops/prompts/universal_mcp_underlying_script_design_principles.md`
-  - **Loads meta-prompts from**: `ape_generated_contents/meta_prompts/mcp_scripts/`
-  - **Typical output**:
-    - `ai_generated_contents_candidate/scripts/<ontology>/<ontology>_creation.py` (monolithic legacy)
+These modules can still generate MCP scripts using the project’s agent framework (Docker-heavy workflows).
 
 - **Main script agent**: `src/agents/scripts_and_prompts_generation/mcp_main_script_creation_agent.py`
   - **Loads meta-prompts from**: `ape_generated_contents/meta_prompts/mcp_scripts/`
   - **Typical output**:
     - `ai_generated_contents_candidate/scripts/<ontology>/main.py`
+
+The historical monolithic underlying-script generator has been removed; new work should call `agentic_generation_main.py` for deterministic multi-file MCP layouts.
 
 ---
 

@@ -17,7 +17,7 @@ Iteration metadata (READ THIS CAREFULLY - it tells you what task the extracted t
 - Any INCLUSION rules or scope constraints (e.g., "ONLY extract", "focus on", "strictly include")
 - These rules define what content should or should not be extracted during pre-extraction
 - Incorporate these exclusion/inclusion rules into the pre-extraction prompt using generic, domain-agnostic language
-- Do NOT copy domain-specific examples, but DO capture the intent of the rules (e.g., if TTL says "exclude activation procedures", translate to "exclude post-production treatment or preparation procedures not part of the main synthesis")
+- Do NOT copy domain-specific examples, but DO capture the intent of the rules using blurred language (e.g., translate a domain-specific exclusion into a generic instruction such as "exclude supporting or out-of-scope procedures not part of the main process under analysis")
 
 **REQUIRED STRUCTURE**: The prompt you generate MUST include these exact placeholder variables:
 - {{entity_label}} - will be replaced with the specific entity name
@@ -28,14 +28,17 @@ Your PRE-EXTRACTION prompt MUST:
 - Extract ALL relevant text spans for the entity that are needed for the subsequent task described in the metadata
 - Ensure the extracted text is SELF-CONTAINED: include all context, definitions, conditions, and referenced procedures
 - Preserve original wording without summarization or interpretation
+- If the downstream task depends on precedence between different evidence locations, the pre-extraction prompt MUST explicitly prioritize collecting the strongest evidence spans first (e.g., dedicated summary/header lines, final-result sections, explicit labeled fields) and then collect weaker contextual narrative only as supporting context.
+- If the downstream task distinguishes final authoritative evidence from provisional evidence, the pre-extraction prompt MUST explicitly preserve both the authoritative text and the qualifying context that shows why weaker/provisional text should not control the final label.
 - Handle cross-references (e.g., "above-mentioned procedure", "same method as") by explicitly resolving them:
   * First include the original sentence with the reference
   * Then add a separator: 'The "[referenced phrase]" refers to the following content:'
   * Then include the FULL referenced text (trace back completely)
 - Include global experimental conditions if mentioned (these may appear in other sections)
 - Include any preparatory steps or context mentioned elsewhere that are needed to understand the entity's procedure
+- When a task depends on distinguishing canonical named items from generic fallback wording, collect the exact source lines that name the canonical item, not only the later descriptive narrative.
 - Output plain text only (no JSON, no structure, no markdown fences in the actual extraction)
-- Be completely domain-agnostic (no specific compound types, no domain-specific terminology)
+- Be completely domain-agnostic (no specific entity types, no domain-specific terminology)
 
 DO NOT include in a pre-extraction prompt:
 - Ontology constraints or class names
@@ -53,7 +56,7 @@ Extract the ORIGINAL TEXT spans from the paper that describe the procedure for t
 - SELF-CONTAINMENT REQUIREMENT: The extracted text must be self-contained and include ALL information needed for the subsequent task. Someone reading only the extracted text should have complete context.
 - Include global experimental conditions if mentioned (e.g., "The experiments were performed under xxx"). Note that 
 this information might appear in other sections of the paper, you must include it in the pre-extraction. Read all contents carefully to find the global experimental conditions.
-- Include any preparatory steps, reagent preparations, or contextual information mentioned elsewhere in the paper that are necessary to understand the entity's procedure.
+- Include any preparatory steps, supporting context, or prerequisite information mentioned elsewhere in the paper that are necessary to understand the entity's procedure.
 - CRITICAL - TRACE BACK COMPLETELY: If the text contains vague references (e.g., 'above-mentioned procedure', 'same method as', 'similar to', 'prepared as described for', 'following the procedure', 'as described earlier'), you MUST:
   1) First include the original sentence with the reference
   2) Then add a clear separator line: 'The "[referenced phrase]" refers to the following content:'

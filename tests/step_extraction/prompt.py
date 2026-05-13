@@ -85,6 +85,9 @@ Output ONLY a strict JSON object in this exact format:
 }
 
 Output ONLY the JSON object as specified. No code fences, no extra text, no commentary.
+The "step" value MUST be one of these concrete step names only: Add, Stir, Dissolve, HeatChill, Filter, Transfer, Separate, Dry, Evaporate, Sonicate, Crystallize.
+Never output parent/generic labels such as "SynthesisStep", "Step", "Operation", "Procedure", or "Workup" as a step value.
+If a step has addedChemical/hasAddedChemicalInput information, classify it as Add. If it has targetTemperature/isSealed/heating/cooling information, classify it as HeatChill. If it has washingSolvent/filtration information, classify it as Filter.
 """
 
 # Text output format for step extraction

@@ -104,6 +104,7 @@ import sys
 import json
 import hashlib
 import tempfile
+import re
 from filelock import FileLock
 
 from models.BaseAgent import BaseAgent
@@ -168,6 +169,40 @@ def _write_text(path: str, content: str):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         f.write(content)
+
+
+def _resolve_entity_uri(hash_value: str, entity_name: str) -> str:
+    """Resolve the authoritative top-level entity IRI for a given label."""
+    try:
+        for entity in load_top_level_entities(hash_value):
+            label = entity.get("label", "")
+            uri = entity.get("uri", "")
+            if label == entity_name or _safe_name(label) == _safe_name(entity_name):
+                return uri or ""
+    except Exception:
+        pass
+    return ""
+
+
+def _is_degenerate_ontospecies_extraction(content: str) -> bool:
+    """Flag placeholder-heavy extraction outputs that contain no concrete species facts."""
+    text = str(content or "")
+    if not text.strip():
+        return True
+    placeholder_hits = len(re.findall(r"Not specified", text, flags=re.IGNORECASE))
+    concrete_markers = [
+        "hasCCDCNumberValue",
+        "hasMolecularFormulaValue",
+        "hasChemicalFormulaValue",
+        "hasWeightPercentageCalculatedValue",
+        "hasWeightPercentageExperimentalValue",
+        "hasBands",
+        "hasMaterialName",
+        "hasSolventName",
+        "hasShifts",
+    ]
+    has_concrete_marker = any(marker in text for marker in concrete_markers)
+    return placeholder_hits >= 5 and not has_concrete_marker
 
 def _resolve_doi_from_hash(hash_value: str):
     """Return (pipeline_doi_with_underscore, slash_doi) for a given hash, or ("", "") if unknown."""
@@ -362,8 +397,15 @@ async def extract_ontospecies_content(hash_value, paper_content, test_mode=False
         # Check if extraction already exists
         extraction_file = os.path.join(mcp_run_dir, f"extraction_{safe}.txt")
         if os.path.exists(extraction_file):
-            print(f"⏭️  Skip extraction for '{label}': {extraction_file} exists")
-            continue
+            try:
+                with open(extraction_file, "r", encoding="utf-8") as f:
+                    existing_content = f.read()
+                if not _is_degenerate_ontospecies_extraction(existing_content):
+                    print(f"⏭️  Skip extraction for '{label}': {extraction_file} exists")
+                    continue
+                print(f"♻️  Regenerating placeholder-heavy extraction for '{label}'")
+            except Exception:
+                pass
         
         try:
             # Extract content using EXTRACTION_PROMPT
@@ -406,8 +448,16 @@ async def extract_ontospecies_content_for_entity(hash_value, paper_content, enti
     
     # Check if extraction already exists
     if os.path.exists(extraction_file):
-        print(f"⏭️  Skip extraction for '{entity_name}': {os.path.basename(extraction_file)} exists")
-        return
+        try:
+            with open(extraction_file, "r", encoding="utf-8") as f:
+                existing_content = f.read()
+            if not _is_degenerate_ontospecies_extraction(existing_content):
+                print(f"⏭️  Skip extraction for '{entity_name}': {os.path.basename(extraction_file)} exists")
+                return
+            print(f"♻️  Regenerating placeholder-heavy extraction for '{entity_name}'")
+        except Exception:
+            pass
+    entity_uri = _resolve_entity_uri(hash_value, entity_name)
     
     try:
         # Extract content using EXTRACTION_PROMPT
@@ -415,18 +465,20 @@ async def extract_ontospecies_content_for_entity(hash_value, paper_content, enti
             paper_content=paper_content,
             goal=EXTRACTION_PROMPT.format(
                 entity_label=entity_name,
-                entity_uri="",  # Will be filled by the extraction function
+                entity_uri=entity_uri,
                 ontospecies_t_box=ontospecies_tbox
             ),
             t_box=ontospecies_tbox,
             entity_label=entity_name,
-            entity_uri="",
+            entity_uri=entity_uri,
             model_name=get_extraction_model("extension_ontospecies"),
         )
         
         # Save extracted content
         _write_text(extraction_file, extracted_content)
         print(f"✅ Saved extraction for '{entity_name}' to {os.path.basename(extraction_file)}")
+        if _is_degenerate_ontospecies_extraction(extracted_content):
+            print(f"⚠️  Extraction for '{entity_name}' is still placeholder-heavy; upstream extraction quality issue remains")
         
     except Exception as e:
         print(f"❌ Error extracting content for '{entity_name}': {e}")

@@ -1,0 +1,16 @@
+{
+  "mode": "per_doi",
+  "description": "Isolated OntoSynthesis main-ontology pipeline using agentic generated scripts/prompts",
+  "meta_task_config": "configs/meta_task/meta_task_config.json",
+  "data_dir": "data_agentic_ontosynthesis_main",
+  "test_mcp_config": "test_mcp_config_agentic_ontosynthesis_main.json",
+  "steps": [
+    "pdf_conversion",
+    "section_classification",
+    "stitching",
+    "top_entity_extraction",
+    "top_entity_kg_building",
+    "main_ontology_extractions",
+    "main_kg_building"
+  ]
+}

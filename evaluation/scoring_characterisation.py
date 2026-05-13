@@ -447,6 +447,7 @@ def evaluate_current(use_full_gt: bool = False) -> None:
             "10.1039_D3QI01501G.json"
         }
     OUT_ROOT.mkdir(parents=True, exist_ok=True)
+    RES_ROOT = Path("evaluation/data/merged_tll")
 
     hash_to_doi = hash_map_reverse(Path("data/doi_to_hash.json"))
     hashes = sorted([p.name for p in RES_ROOT.iterdir() if p.is_dir()])

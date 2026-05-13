@@ -7,10 +7,10 @@
   ],
   "external": {
     "OM2": "http://www.ontology-of-units-of-measure.org/resource/om-2/",
-    "ONTOCAPE_MAT": "http://www.theworldavatar.com/ontology/ontocape/material/material.owl#"
+    "ONTOCAPE_MAT": "http://www.theworldavatar.com/ontology/ontocape/material/material.owl#",
+    "ONTOSYN": "https://www.theworldavatar.com/kg/OntoSyn/"
   },
   "project_templates": {
-    "ONTOSYN": "{kg_base}OntoSyn/",
     "ONTOLAB": "{kg_base}OntoLab/",
     "ONTOMOPS": "{kg_base}ontomops/"
   }

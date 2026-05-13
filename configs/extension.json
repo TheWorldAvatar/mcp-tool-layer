@@ -3,16 +3,22 @@
     "command": "python",
     "args": [
       "-m",
-      "ai_generated_contents_candidate.scripts.ontomops.main"
+      "ai_generated_contents_pipeline_bundle.scripts.ontomops.main"
     ],
+    "env": {
+      "TWA_AGENTIC_DATA_DIR": "${TWA_AGENTIC_DATA_DIR}"
+    },
     "transport": "stdio"
   },
   "ontospecies_extension": {
     "command": "python",
     "args": [
       "-m",
-      "ai_generated_contents_candidate.scripts.ontospecies.main"
+      "ai_generated_contents_pipeline_bundle.scripts.ontospecies.main"
     ],
+    "env": {
+      "TWA_AGENTIC_DATA_DIR": "${TWA_AGENTIC_DATA_DIR}"
+    },
     "transport": "stdio"
   },
   "ccdc": {

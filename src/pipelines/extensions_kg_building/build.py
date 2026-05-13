@@ -12,14 +12,22 @@ import asyncio
 import logging
 import hashlib
 import unicodedata
+from functools import lru_cache
 from pathlib import Path
 from typing import Dict, List, Optional
 from urllib.parse import quote
 from filelock import FileLock
+from rdflib import Graph, Namespace, URIRef, Literal
+from rdflib.namespace import RDF, RDFS
 
 from models.BaseAgent import BaseAgent
 from models.ModelConfig import ModelConfig
 from src.pipelines.utils.ttl_publisher import get_output_naming_config, load_meta_task_config
+from src.pipelines.utils.ordered_member_integrity import (
+    align_ordered_members_to_reference_content,
+    enforce_ordered_member_integrity_file,
+    load_all_runtime_ordered_member_profiles,
+)
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(message)s')
@@ -44,19 +52,242 @@ def _safe_name(label: str) -> str:
     )
 
 
+def _entity_name_variants(name: str) -> List[str]:
+    """Build filename-safe variants for entity labels with punctuation differences."""
+    text = str(name or "").strip()
+    if not text:
+        return []
+
+    variants: List[str] = []
+    seen: set[str] = set()
+
+    def _add(value: str) -> None:
+        value = str(value or "").strip()
+        if value and value not in seen:
+            seen.add(value)
+            variants.append(value)
+
+    punct_variants = [text, text.lower()]
+    punct_tokens = ["·", "•", "∙", "⋅", "●", "–", "—", "−"]
+
+    for value in list(punct_variants):
+        _add(value)
+        _add(value.replace("_", "-"))
+        _add(value.replace("-", "_"))
+        for token in punct_tokens:
+            _add(value.replace(token, "_"))
+            _add(value.replace(token, "-"))
+            _add(value.replace(token, ""))
+
+    normalized = unicodedata.normalize("NFKC", text)
+    if normalized != text:
+        _add(normalized)
+        _add(normalized.lower())
+
+    transliterated_chars: List[str] = []
+    for char in normalized:
+        if ord(char) < 128:
+            transliterated_chars.append(char)
+            continue
+        try:
+            char_name = unicodedata.name(char)
+        except ValueError:
+            transliterated_chars.append("_")
+            continue
+        if char_name.startswith("GREEK ") and " LETTER " in char_name:
+            transliterated_chars.append(char_name.rsplit(" LETTER ", 1)[-1].lower())
+        else:
+            transliterated_chars.append("_")
+    transliterated = "".join(transliterated_chars)
+    if transliterated != normalized:
+        _add(transliterated)
+        _add(transliterated.lower())
+        _add(transliterated.replace("_", "-"))
+        _add(transliterated.replace("-", "_"))
+
+    return variants
+
+
+def _looks_like_valid_extension_ttl(content: str, ontology_name: Optional[str]) -> bool:
+    """Reject placeholder/shared-memory TTLs that do not contain extension ontology facts."""
+    text = str(content or "")
+    if not text.strip():
+        return False
+
+    markers = {
+        "ontomops": (
+            "https://www.theworldavatar.com/kg/OntoMOPs/",
+            "https://www.theworldavatar.com/kg/ontomops/",
+            "MetalOrganicPolyhedron",
+            "hasCCDCNumber",
+            "isBuiltFrom",
+            "hasMOPFormula",
+        ),
+        "ontospecies": (
+            "https://www.theworldavatar.com/kg/OntoSpecies/",
+            "http://www.theworldavatar.com/ontology/ontospecies/OntoSpecies.owl#",
+            "Species",
+            "hasMolecularFormula",
+            "hasInChI",
+            "Characterisation",
+            "hasCCDCNumberValue",
+        ),
+    }
+    required_markers = markers.get(str(ontology_name or "").strip().lower())
+    if not required_markers:
+        return True
+    return any(marker in text for marker in required_markers)
+
+
+def _read_valid_extension_ttl(path: str, ontology_name: Optional[str]) -> Optional[str]:
+    """Read an extension TTL only when it contains ontology-specific content."""
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            content = f.read()
+    except Exception:
+        return None
+    return content if _looks_like_valid_extension_ttl(content, ontology_name) else None
+
+
+def _repair_ontospecies_scoped_anchor(
+    content: str,
+    *,
+    entity_label: str,
+    entity_uri: str,
+    ontology_name: Optional[str],
+) -> str:
+    """Ensure OntoSpecies output keeps the scoped ChemicalSynthesis -> Species anchor."""
+    if str(ontology_name or "").strip().lower() != "ontospecies":
+        return content
+    if not str(content or "").strip() or not str(entity_uri or "").strip():
+        return content
+
+    try:
+        graph = Graph()
+        graph.parse(data=content, format="turtle")
+    except Exception:
+        return content
+
+    ontospecies = Namespace("http://www.theworldavatar.com/ontology/ontospecies/OntoSpecies.owl#")
+    ontosyn = Namespace("https://www.theworldavatar.com/kg/OntoSyn/")
+    top_entity = URIRef(str(entity_uri).strip())
+    graph.bind("ontospecies", ontospecies)
+    graph.bind("ontosyn", ontosyn)
+
+    graph.add((top_entity, RDF.type, ontosyn.ChemicalSynthesis))
+    scoped_label = str(entity_label or "").strip()
+    if scoped_label:
+        graph.remove((top_entity, RDFS.label, None))
+        graph.add((top_entity, RDFS.label, Literal(scoped_label)))
+
+    # Entity-scoped OntoSpecies TTLs must not keep foreign ChemicalSynthesis shells from
+    # neighboring runs. Preserve any Species anchor facts, then prune the extra shells.
+    foreign_synths = []
+    for subject in set(graph.subjects()):
+        if not isinstance(subject, URIRef) or subject == top_entity:
+            continue
+        if (subject, RDF.type, ontosyn.ChemicalSynthesis) in graph or "ChemicalSynthesis/" in str(subject):
+            foreign_synths.append(subject)
+
+    for foreign in foreign_synths:
+        for obj in list(graph.objects(foreign, ontosyn.hasChemicalOutput)):
+            if (obj, RDF.type, ontospecies.Species) in graph:
+                graph.add((top_entity, ontosyn.hasChemicalOutput, obj))
+        for triple in list(graph.triples((foreign, None, None))):
+            graph.remove(triple)
+        for triple in list(graph.triples((None, None, foreign))):
+            graph.remove(triple)
+
+    existing_outputs = [
+        obj for obj in graph.objects(top_entity, ontosyn.hasChemicalOutput)
+        if (obj, RDF.type, ontospecies.Species) in graph
+    ]
+    if existing_outputs:
+        return graph.serialize(format="turtle")
+
+    scoped_name = re.sub(r"\s+synthesis\s*$", "", str(entity_label or "").strip(), flags=re.IGNORECASE).strip()
+    species_nodes = list(graph.subjects(RDF.type, ontospecies.Species))
+    preferred = None
+    for species in species_nodes:
+        labels = {str(v).strip() for v in graph.objects(species, RDFS.label)}
+        labels.update(str(v).strip() for v in graph.objects(species, ontospecies.hasProductName))
+        if scoped_name and scoped_name in labels:
+            preferred = species
+            break
+
+    if preferred is None and len(species_nodes) == 1:
+        preferred = species_nodes[0]
+
+    if preferred is not None:
+        graph.add((top_entity, ontosyn.hasChemicalOutput, preferred))
+
+    return graph.serialize(format="turtle")
+
+
+def _repair_ontomops_missing_ccdc(
+    content: str,
+    *,
+    entity_label: str,
+    ontology_name: Optional[str],
+) -> str:
+    """Fill missing ontomops:hasCCDCNumber using the local CCDC lookup when possible."""
+    if str(ontology_name or "").strip().lower() != "ontomops":
+        return content
+    if not str(content or "").strip():
+        return content
+
+    try:
+        graph = Graph()
+        graph.parse(data=content, format="turtle")
+    except Exception:
+        return content
+
+    ontomops = Namespace("https://www.theworldavatar.com/kg/ontomops/")
+    graph.bind("ontomops", ontomops)
+
+    try:
+        from src.mcp_servers.ccdc.operations.wsl_ccdc import search_ccdc_by_mop_name
+    except Exception:
+        return content
+
+    fallback_label = re.sub(r"^\s*Synthesis\s+of\s+", "", str(entity_label or "").strip(), flags=re.IGNORECASE).strip()
+    changed = False
+    for mop in graph.subjects(RDF.type, ontomops.MetalOrganicPolyhedron):
+        if any(str(v).strip() for v in graph.objects(mop, ontomops.hasCCDCNumber)):
+            continue
+        labels = [str(v).strip() for v in graph.objects(mop, RDFS.label) if str(v).strip()]
+        search_terms = labels + ([fallback_label] if fallback_label else [])
+        ccdc_number = ""
+        for term in search_terms:
+            try:
+                results = search_ccdc_by_mop_name(term, exact=False) or []
+            except Exception:
+                results = []
+            if results:
+                _, ccdc_number = results[0]
+                if ccdc_number:
+                    break
+        if ccdc_number:
+            graph.add((mop, ontomops.hasCCDCNumber, Literal(str(ccdc_number).strip())))
+            changed = True
+
+    return graph.serialize(format="turtle") if changed else content
+
+
 def load_prompt(prompt_path: str, project_root: str = ".") -> str:
     """Load prompt template from markdown file.
     
     Tries candidate directory first, then production directory.
     """
-    # Try candidate first (where generation scripts write), then fallback to production
-    candidate_path = prompt_path.replace("ai_generated_contents/", "ai_generated_contents_candidate/", 1)
-    production_path = prompt_path
-    
-    paths_to_try = [
-        os.path.join(project_root, candidate_path),
-        os.path.join(project_root, production_path)
-    ]
+    prompt_path = (prompt_path or "").replace("\\", "/")
+    override_root = os.environ.get("TWA_GENERATED_ARTIFACT_ROOT", "").strip().replace("\\", "/").rstrip("/")
+    paths_to_try = []
+    if override_root and prompt_path.startswith("ai_generated_contents/"):
+        paths_to_try.append(os.path.join(project_root, prompt_path.replace("ai_generated_contents", override_root, 1)))
+    paths_to_try.extend([
+        os.path.join(project_root, prompt_path.replace("ai_generated_contents/", "ai_generated_contents_candidate/", 1)),
+        os.path.join(project_root, prompt_path),
+    ])
     
     for full_path in paths_to_try:
         if os.path.exists(full_path):
@@ -74,6 +305,22 @@ def load_prompt(prompt_path: str, project_root: str = ".") -> str:
     for path in paths_to_try:
         logger.error(f"      - {path}")
     return ""
+
+
+@lru_cache(maxsize=1)
+def _ccdc_tool_is_healthy() -> bool:
+    """Return whether the local CCDC tool can answer a minimal lookup."""
+    try:
+        from src.mcp_servers.ccdc.operations.wsl_ccdc import search_ccdc_by_mop_name
+
+        results = search_ccdc_by_mop_name("VMOP-a", exact=False)
+        if results:
+            logger.info("    ✅ CCDC tool health check passed")
+            return True
+        logger.warning("    ⚠️  CCDC tool health check returned no results")
+    except Exception as exc:
+        logger.warning(f"    ⚠️  CCDC tool health check failed: {exc}")
+    return False
 
 
 def load_entity_ttl(
@@ -107,12 +354,13 @@ def load_entity_ttl(
         except Exception:
             primary_name = f"{entity_safe}.ttl"
 
-        published_candidates = [
-            primary_name,
-            f"{entity_safe}.ttl",
-            f"{entity_safe.lower()}.ttl",
-            f"{entity_safe.replace('_', '-')}.ttl",
-        ]
+        published_candidates: List[str] = []
+        for base in [primary_name, *_entity_name_variants(entity_safe), f"{entity_safe}.ttl"]:
+            root, ext = os.path.splitext(base)
+            if ext:
+                published_candidates.extend(_entity_name_variants(base))
+            else:
+                published_candidates.extend([f"{variant}.ttl" for variant in _entity_name_variants(base)])
         for candidate in published_candidates:
             ttl_path = os.path.join(published_dir, candidate)
             if os.path.exists(ttl_path):
@@ -127,24 +375,27 @@ def load_entity_ttl(
         logger.debug(f"    Published TTL lookup failed: {e}")
     
     # Normal mode: prefer the persisted MCP memory graph, then fall back to older conventions.
-    memory_ttl = os.path.join(doi_folder, "memory", f"{entity_safe}.ttl")
-    if os.path.exists(memory_ttl):
-        try:
-            with open(memory_ttl, "r", encoding="utf-8") as f:
-                content = f.read()
-            logger.info(f"    📄 Loaded entity TTL from memory: {os.path.basename(memory_ttl)}")
-            return content
-        except Exception as e:
-            logger.error(f"    ❌ Failed to read {memory_ttl}: {e}")
+    for candidate in _entity_name_variants(entity_safe):
+        memory_ttl = os.path.join(doi_folder, "memory", f"{candidate}.ttl")
+        if os.path.exists(memory_ttl):
+            try:
+                with open(memory_ttl, "r", encoding="utf-8") as f:
+                    content = f.read()
+                logger.info(f"    📄 Loaded entity TTL from memory: {os.path.basename(memory_ttl)}")
+                return content
+            except Exception as e:
+                logger.error(f"    ❌ Failed to read {memory_ttl}: {e}")
 
     # Next: try latest exported snapshot (export_memory default location)
     exports_dir = os.path.join(doi_folder, "exports")
     try:
         if os.path.isdir(exports_dir):
+            entity_prefixes = {variant.lower() for variant in _entity_name_variants(entity_safe)}
             export_candidates = [
                 os.path.join(exports_dir, f)
                 for f in os.listdir(exports_dir)
-                if f.lower().startswith(entity_safe.lower() + "_") and f.lower().endswith(".ttl")
+                if f.lower().endswith(".ttl")
+                and any(f.lower().startswith(prefix + "_") for prefix in entity_prefixes)
             ]
             if export_candidates:
                 export_candidates.sort(key=lambda p: os.path.getmtime(p), reverse=True)
@@ -157,11 +408,7 @@ def load_entity_ttl(
         logger.warning(f"    ⚠️  Error scanning exports for entity TTL: {e}")
 
     # Backward-compat: Try multiple naming conventions in root
-    candidates = [
-        f"output_{entity_safe}.ttl",
-        f"output_{entity_safe.lower()}.ttl",
-        f"output_{entity_safe.replace('_', '-')}.ttl",
-    ]
+    candidates = [f"output_{variant}.ttl" for variant in _entity_name_variants(entity_safe)]
     for candidate in candidates:
         ttl_path = os.path.join(doi_folder, candidate)
         if os.path.exists(ttl_path):
@@ -271,7 +518,9 @@ async def run_extension_agent(
     prompt_file: str,
     output_ttl_name: str,
     data_dir: str = "data",
-    ontology_name: str = None
+    ontology_name: str = None,
+    meta_cfg: Optional[dict] = None,
+    project_root: str = ".",
 ) -> str:
     """Run extension agent for a single entity."""
     doi_folder = os.path.join(data_dir, doi_hash)
@@ -306,13 +555,91 @@ async def run_extension_agent(
                 json.dump(mapping, f, indent=2, ensure_ascii=False)
         except Exception:
             return
+
+    meta_cfg = meta_cfg or load_meta_task_config()
+    runtime_ordered_member_profile = load_all_runtime_ordered_member_profiles(
+        meta_cfg=meta_cfg,
+        project_root=project_root,
+    )
+
+    def _finalize_extension_output(content: str, final_path: str, completion_message: str) -> str:
+        finalized = _repair_ontospecies_scoped_anchor(
+            content,
+            entity_label=entity_label,
+            entity_uri=entity_uri,
+            ontology_name=ontology_name,
+        )
+        finalized = _repair_ontomops_missing_ccdc(
+            finalized,
+            entity_label=entity_label,
+            ontology_name=ontology_name,
+        )
+        finalized, alignment_report = align_ordered_members_to_reference_content(
+            finalized,
+            ontosynthesis_ttl,
+            runtime_ordered_member_profile,
+            top_entity_uri=entity_uri,
+        )
+        alignment_status = str((alignment_report or {}).get("status") or "skipped")
+        alignment_messages = (alignment_report or {}).get("messages") or []
+        if alignment_status == "repaired":
+            logger.info("    ✅ Ordered-member references aligned to canonical main TTL nodes")
+        elif alignment_status == "no_action":
+            logger.info("    ✅ Ordered-member references already aligned to canonical main TTL nodes")
+        elif alignment_status == "skipped":
+            logger.info("    ℹ️  Ordered-member reference alignment skipped")
+        if alignment_messages:
+            for message in alignment_messages:
+                logger.info(f"    ↳ {message}")
+        if alignment_status == "failed":
+            raise RuntimeError(
+                "Ordered-member reference alignment failed for extension output: "
+                + "; ".join(str(msg) for msg in alignment_messages)
+            )
+        os.makedirs(os.path.dirname(final_path), exist_ok=True)
+        with open(final_path, "w", encoding="utf-8") as f:
+            f.write(finalized)
+
+        ordered_ok, ordered_report = enforce_ordered_member_integrity_file(
+            ttl_path=final_path,
+            runtime_profile=runtime_ordered_member_profile,
+            top_entity_uri=entity_uri,
+        )
+        ordered_status = str((ordered_report or {}).get("status") or "skipped")
+        ordered_messages = (ordered_report or {}).get("messages") or []
+        if ordered_status == "repaired":
+            logger.info("    ✅ Ordered-member integrity repaired for extension output")
+        elif ordered_status == "no_action":
+            logger.info("    ✅ Ordered-member integrity already satisfied for extension output")
+        elif ordered_status == "skipped":
+            logger.info("    ℹ️  Ordered-member integrity enforcement skipped for extension output")
+        if ordered_messages:
+            for message in ordered_messages:
+                logger.info(f"    ↳ {message}")
+        if not ordered_ok:
+            raise RuntimeError(
+                "Ordered-member integrity enforcement failed for extension output: "
+                + "; ".join(str(msg) for msg in ordered_messages)
+            )
+
+        _maybe_update_ontomops_mapping(final_path)
+        with open(final_path, "r", encoding="utf-8") as f:
+            final_text = f.read()
+        logger.info(completion_message)
+        return final_text
     
     # Check if extension already exists
     if os.path.exists(output_ttl_path):
-        logger.info(f"    ⏭️  Extension exists: {os.path.basename(output_ttl_path)}")
-        _maybe_update_ontomops_mapping(output_ttl_path)
-        with open(output_ttl_path, 'r', encoding='utf-8') as f:
-            return f.read()
+        existing_content = _read_valid_extension_ttl(output_ttl_path, ontology_name)
+        if existing_content is not None:
+            return _finalize_extension_output(
+                existing_content,
+                output_ttl_path,
+                f"    ⏭️  Extension exists: {os.path.basename(output_ttl_path)}",
+            )
+        logger.warning(
+            f"    ⚠️  Existing extension TTL is not a valid {ontology_name} graph, regenerating: {os.path.basename(output_ttl_path)}"
+        )
 
     # If the extension MCP server already persisted an entity TTL under memory_<ontology_name>,
     # use it directly to avoid unnecessary agent reruns (and LLM costs).
@@ -320,63 +647,31 @@ async def run_extension_agent(
         try:
             import shutil
             safe_local = _safe_name(entity_label)
+            mem_name_variants = []
+            for value in [entity_label, safe_local]:
+                mem_name_variants.extend(_entity_name_variants(value))
             mem_dir = os.path.join(doi_folder, f"memory_{ontology_name}")
             mem_candidates = [
-                os.path.join(mem_dir, f"{entity_label}.ttl"),
-                os.path.join(mem_dir, f"{safe_local}.ttl"),
-                os.path.join(mem_dir, f"{safe_local.lower()}.ttl"),
+                os.path.join(mem_dir, f"{candidate}.ttl")
+                for candidate in mem_name_variants
             ]
             for mem_path in mem_candidates:
                 if os.path.exists(mem_path):
-                    os.makedirs(os.path.dirname(output_ttl_path), exist_ok=True)
-                    shutil.copy2(mem_path, output_ttl_path)
-                    logger.info(
-                        f"    ✅ Extension completed: {os.path.basename(output_ttl_path)} (copied from {os.path.basename(mem_dir)})"
+                    content = _read_valid_extension_ttl(mem_path, ontology_name)
+                    if content is None:
+                        logger.warning(
+                            f"    ⚠️  Ignoring invalid {ontology_name} memory TTL: {os.path.basename(mem_path)}"
+                        )
+                        continue
+                    return _finalize_extension_output(
+                        content,
+                        output_ttl_path,
+                        f"    ✅ Extension completed: {os.path.basename(output_ttl_path)} (copied from {os.path.basename(mem_dir)})",
                     )
-                    _maybe_update_ontomops_mapping(output_ttl_path)
-                    with open(output_ttl_path, "r", encoding="utf-8") as f:
-                        return f.read()
 
-            # Some MCP servers persist under the shared memory/ + exports/ conventions.
-            shared_mem_dir = os.path.join(doi_folder, "memory")
-            shared_mem_candidates = [
-                os.path.join(shared_mem_dir, f"{entity_label}.ttl"),
-                os.path.join(shared_mem_dir, f"{safe_local}.ttl"),
-                os.path.join(shared_mem_dir, f"{safe_local.lower()}.ttl"),
-            ]
-            for mem_path in shared_mem_candidates:
-                if os.path.exists(mem_path):
-                    os.makedirs(os.path.dirname(output_ttl_path), exist_ok=True)
-                    shutil.copy2(mem_path, output_ttl_path)
-                    logger.info(
-                        f"    ✅ Extension completed: {os.path.basename(output_ttl_path)} (copied from {os.path.basename(shared_mem_dir)})"
-                    )
-                    _maybe_update_ontomops_mapping(output_ttl_path)
-                    with open(output_ttl_path, "r", encoding="utf-8") as f:
-                        return f.read()
-
-            exports_dir = os.path.join(doi_folder, "exports")
-            if os.path.isdir(exports_dir):
-                import glob
-                # Prefer exact safe_local prefix, then raw label prefix
-                patterns = [
-                    os.path.join(exports_dir, f"{safe_local}_*.ttl"),
-                    os.path.join(exports_dir, f"{entity_label}_*.ttl"),
-                ]
-                export_matches = []
-                for pat in patterns:
-                    export_matches.extend(glob.glob(pat))
-                if export_matches:
-                    export_matches.sort(key=lambda p: os.path.getmtime(p), reverse=True)
-                    latest = export_matches[0]
-                    os.makedirs(os.path.dirname(output_ttl_path), exist_ok=True)
-                    shutil.copy2(latest, output_ttl_path)
-                    logger.info(
-                        f"    ✅ Extension completed: {os.path.basename(output_ttl_path)} (copied from exports/{os.path.basename(latest)})"
-                    )
-                    _maybe_update_ontomops_mapping(output_ttl_path)
-                    with open(output_ttl_path, "r", encoding="utf-8") as f:
-                        return f.read()
+            # Do not satisfy extension outputs from the main ontology's shared
+            # memory/exports locations: those graphs can contain valid-looking
+            # extension markers from prior contaminated runs.
         except Exception as e:
             logger.debug(f"    Pre-run memory TTL shortcut failed: {e}")
     
@@ -394,6 +689,8 @@ async def run_extension_agent(
         "hash": doi_hash,
         "doi_underscore": doi_us,
         "doi_slash": doi_sl,
+        "entity_label": entity_label,
+        "entity_uri": entity_uri,
         "ontosynthesis_a_box": ontosynthesis_ttl,  # Old key name
         "main_ontology_a_box": ontosynthesis_ttl,  # New key name (for updated templates)
         "paper_content": extracted_content
@@ -401,8 +698,12 @@ async def run_extension_agent(
     
     logger.info(f"    🔍 Formatting prompt with keys: {sorted(format_kwargs.keys())}")
     
+    class _PreserveUnknownPlaceholders(dict):
+        def __missing__(self, key: str) -> str:
+            return "{" + str(key) + "}"
+
     try:
-        prompt = extension_prompt_template.format(**format_kwargs)
+        prompt = extension_prompt_template.format_map(_PreserveUnknownPlaceholders(format_kwargs))
         logger.info(f"    ✅ Prompt formatted successfully ({len(prompt)} chars)")
     except KeyError as e:
         missing_key = str(e).strip("'")
@@ -423,6 +724,8 @@ async def run_extension_agent(
     
     # Run agent with retry mechanism
     logger.info(f"    🤖 Running extension agent...")
+    os.environ["TWA_EXTENSION_DATA_DIR"] = os.path.abspath(data_dir)
+    os.environ["TWA_AGENTIC_DATA_DIR"] = os.path.abspath(data_dir)
     model_config = ModelConfig(temperature=0, top_p=1)
     agent = BaseAgent(
         model_name=agent_model,
@@ -442,102 +745,105 @@ async def run_extension_agent(
                 logger.info(f"    🔄 Retry attempt {attempt + 1}/{max_retries}")
             
             response, metadata = await agent.run(prompt, recursion_limit=recursion_limit)
+            tool_activity = (metadata or {}).get("tool_activity", {}) or {}
+            logger.info(
+                "    🔧 Agent tool activity: planned=%s, executed=%s, tools=%s",
+                tool_activity.get("planned_tool_call_count", 0),
+                tool_activity.get("tool_message_count", 0),
+                tool_activity.get("executed_tool_name_set", []),
+            )
             
             # The agent should have created the output file via MCP
             # Check if it exists (exact path first, then try pattern matching for ontomops with hash)
             if os.path.exists(output_ttl_path):
-                logger.info(f"    ✅ Extension completed: {os.path.basename(output_ttl_path)}")
-                _maybe_update_ontomops_mapping(output_ttl_path)
-                with open(output_ttl_path, 'r', encoding='utf-8') as f:
-                    return f.read()
-            else:
-                # For ontomops, try to find the file using the mapping or pattern matching
-                if ontology_name == "ontomops":
-                    output_dir = os.path.dirname(output_ttl_path)
-                    # Try reading from mapping file first
-                    mapping_file = os.path.join(output_dir, "ontomops_output_mapping.json")
-                    if os.path.exists(mapping_file):
-                        try:
-                            with open(mapping_file, 'r', encoding='utf-8') as f:
-                                mapping = json.load(f)
-                            # Look up by entity_label
-                            if entity_label in mapping:
-                                mapped_file = os.path.join(output_dir, mapping[entity_label])
-                                if os.path.exists(mapped_file):
-                                    logger.info(f"    ✅ Extension completed: {os.path.basename(mapped_file)} (found via mapping)")
-                                    with open(mapped_file, 'r', encoding='utf-8') as f:
-                                        return f.read()
-                        except Exception as e:
-                            logger.debug(f"    Could not read mapping file: {e}")
-                    
-                    # Fallback: pattern matching for files with hash
-                    if os.path.exists(output_dir):
-                        import glob
-                        pattern_base = os.path.basename(output_ttl_path).replace('.ttl', '')
-                        # Try pattern with hash suffix
-                        pattern = f"{pattern_base}_*.ttl"
-                        matches = glob.glob(os.path.join(output_dir, pattern))
-                        if matches:
-                            matched_file = matches[0]
-                            logger.info(f"    ✅ Extension completed: {os.path.basename(matched_file)} (found via pattern matching)")
-                            with open(matched_file, 'r', encoding='utf-8') as f:
-                                return f.read()
-
-                # Final fallback (all extensions): use persisted entity-specific memory TTL even if export_memory
-                # wasn't called or the tool exports to a non-standard location.
-                #
-                # The generated extension MCP servers persist memory under:
-                #   data/<hash>/memory_<ontology_name>/<entity_label>.ttl
-                # (observed: memory_ontomops, memory_ontospecies)
-                try:
-                    import shutil
-                    safe_local = _safe_name(entity_label)
-                    mem_dirs = [
-                        os.path.join(doi_folder, f"memory_{ontology_name}"),
-                        os.path.join(doi_folder, "memory"),
-                    ]
-                    for mem_dir in mem_dirs:
-                        mem_candidates = [
-                            os.path.join(mem_dir, f"{entity_label}.ttl"),
-                            os.path.join(mem_dir, f"{safe_local}.ttl"),
-                            os.path.join(mem_dir, f"{safe_local.lower()}.ttl"),
-                        ]
-                        for mem_path in mem_candidates:
-                            if os.path.exists(mem_path):
-                                os.makedirs(os.path.dirname(output_ttl_path), exist_ok=True)
-                                shutil.copy2(mem_path, output_ttl_path)
-                                logger.info(
-                                    f"    ✅ Extension completed: {os.path.basename(output_ttl_path)} (copied from {os.path.basename(mem_dir)})"
-                                )
-                                with open(output_ttl_path, "r", encoding="utf-8") as f:
-                                    return f.read()
-
-                    # Last resort: use latest export snapshot
-                    exports_dir = os.path.join(doi_folder, "exports")
-                    if os.path.isdir(exports_dir):
-                        import glob
-                        patterns = [
-                            os.path.join(exports_dir, f"{safe_local}_*.ttl"),
-                            os.path.join(exports_dir, f"{entity_label}_*.ttl"),
-                        ]
-                        export_matches = []
-                        for pat in patterns:
-                            export_matches.extend(glob.glob(pat))
-                        if export_matches:
-                            export_matches.sort(key=lambda p: os.path.getmtime(p), reverse=True)
-                            latest = export_matches[0]
-                            os.makedirs(os.path.dirname(output_ttl_path), exist_ok=True)
-                            shutil.copy2(latest, output_ttl_path)
-                            logger.info(
-                                f"    ✅ Extension completed: {os.path.basename(output_ttl_path)} (copied from exports/{os.path.basename(latest)})"
-                            )
-                            with open(output_ttl_path, "r", encoding="utf-8") as f:
-                                return f.read()
-                except Exception as e:
-                    logger.debug(f"    Memory TTL fallback failed: {e}")
+                direct_content = _read_valid_extension_ttl(output_ttl_path, ontology_name)
+                if direct_content is not None:
+                    return _finalize_extension_output(
+                        direct_content,
+                        output_ttl_path,
+                        f"    ✅ Extension completed: {os.path.basename(output_ttl_path)}",
+                    )
+                logger.warning(
+                    f"    ⚠️  Agent wrote an invalid {ontology_name} TTL, continuing fallback checks: {os.path.basename(output_ttl_path)}"
+                )
+            # Continue fallback discovery when the exact output is missing or invalid.
+            # For ontomops, try to find the file using the mapping or pattern matching
+            if ontology_name == "ontomops":
+                output_dir = os.path.dirname(output_ttl_path)
+                # Try reading from mapping file first
+                mapping_file = os.path.join(output_dir, "ontomops_output_mapping.json")
+                if os.path.exists(mapping_file):
+                    try:
+                        with open(mapping_file, 'r', encoding='utf-8') as f:
+                            mapping = json.load(f)
+                        # Look up by entity_label
+                        if entity_label in mapping:
+                            mapped_file = os.path.join(output_dir, mapping[entity_label])
+                            if os.path.exists(mapped_file):
+                                mapped_content = _read_valid_extension_ttl(mapped_file, ontology_name)
+                                if mapped_content is not None:
+                                    return _finalize_extension_output(
+                                        mapped_content,
+                                        mapped_file,
+                                        f"    ✅ Extension completed: {os.path.basename(mapped_file)} (found via mapping)",
+                                    )
+                    except Exception as e:
+                        logger.debug(f"    Could not read mapping file: {e}")
                 
-                logger.warning(f"    ⚠️  Extension TTL not found: {os.path.basename(output_ttl_path)}")
-                return str(response)
+                # Fallback: pattern matching for files with hash
+                if os.path.exists(output_dir):
+                    import glob
+                    pattern_base = os.path.basename(output_ttl_path).replace('.ttl', '')
+                    # Try pattern with hash suffix
+                    pattern = f"{pattern_base}_*.ttl"
+                    matches = glob.glob(os.path.join(output_dir, pattern))
+                    if matches:
+                        for matched_file in matches:
+                            matched_content = _read_valid_extension_ttl(matched_file, ontology_name)
+                            if matched_content is not None:
+                                return _finalize_extension_output(
+                                    matched_content,
+                                    matched_file,
+                                    f"    ✅ Extension completed: {os.path.basename(matched_file)} (found via pattern matching)",
+                                )
+
+            # Final fallback (all extensions): use persisted entity-specific memory TTL even if export_memory
+            # wasn't called or the tool exports to a non-standard location.
+            #
+            # The generated extension MCP servers persist memory under:
+            #   data/<hash>/memory_<ontology_name>/<entity_label>.ttl
+            # (observed: memory_ontomops, memory_ontospecies)
+            try:
+                import shutil
+                safe_local = _safe_name(entity_label)
+                mem_name_variants = []
+                for value in [entity_label, safe_local]:
+                    mem_name_variants.extend(_entity_name_variants(value))
+                mem_dirs = [os.path.join(doi_folder, f"memory_{ontology_name}")]
+                for mem_dir in mem_dirs:
+                    mem_candidates = [
+                        os.path.join(mem_dir, f"{candidate}.ttl")
+                        for candidate in mem_name_variants
+                    ]
+                    for mem_path in mem_candidates:
+                        if os.path.exists(mem_path):
+                            content = _read_valid_extension_ttl(mem_path, ontology_name)
+                            if content is None:
+                                logger.warning(
+                                    f"    ⚠️  Ignoring fallback TTL without {ontology_name} facts: {os.path.basename(mem_path)}"
+                                )
+                                continue
+                            return _finalize_extension_output(
+                                content,
+                                output_ttl_path,
+                                f"    ✅ Extension completed: {os.path.basename(output_ttl_path)} (copied from {os.path.basename(mem_dir)})",
+                            )
+            except Exception as e:
+                logger.debug(f"    Memory TTL fallback failed: {e}")
+            
+            raise RuntimeError(
+                f"Extension agent did not produce a valid {ontology_name} TTL for '{entity_label}'"
+            )
         
         except Exception as e:
             error_msg = str(e)
@@ -744,13 +1050,23 @@ async def process_extension_kg(
     recursion_limit = iteration.get("recursion_limit", 50)  # Default recursion limit
     mcp_tools = iteration.get("mcp_tools", [])
     mcp_set_name = iteration.get("mcp_set_name", f"{ontology_name}_mcp")
-    agent_model = iteration.get("agent_model", "gpt-4o")
+    extension_meta_cfg = {}
+    for ext_cfg in ((meta_cfg or {}).get("ontologies", {}).get("extensions", []) or []):
+        if str(ext_cfg.get("name") or "").strip() == ontology_name:
+            extension_meta_cfg = ext_cfg or {}
+            break
+    agent_model = (
+        extension_meta_cfg.get("agent_model")
+        or iteration.get("agent_model")
+        or "gpt-4o"
+    )
 
-    # Portability: drop Docker/binary-dependent tools when present in configs.
-    # (CCDC tool commonly fails on Windows without external deps.)
     if mcp_tools and "ccdc" in set(mcp_tools):
-        logger.warning(f"    ⚠️  Dropping 'ccdc' from extension MCP tools for portability: {mcp_tools}")
-        mcp_tools = [t for t in mcp_tools if t != "ccdc"]
+        if _ccdc_tool_is_healthy():
+            logger.info(f"    ✅ Keeping 'ccdc' enabled for extension MCP tools: {mcp_tools}")
+        else:
+            logger.warning(f"    ⚠️  Dropping unhealthy 'ccdc' from extension MCP tools: {mcp_tools}")
+            mcp_tools = [t for t in mcp_tools if t != "ccdc"]
     
     logger.info(f"    📋 Agent config: model={agent_model}, recursion_limit={recursion_limit}, mcp_set={mcp_set_name}")
     
@@ -768,7 +1084,9 @@ async def process_extension_kg(
         prompt_file=extension_prompt_file,
         output_ttl_name=output_ttl,
         data_dir=data_dir,
-        ontology_name=ontology_name
+        ontology_name=ontology_name,
+        meta_cfg=meta_cfg,
+        project_root=project_root,
     )
     
     logger.info(f"  ✅ KG building completed for {entity_label}")
@@ -803,7 +1121,7 @@ def run_step(doi_hash: str, config: dict) -> bool:
         return True
     
     # Load meta task configuration
-    meta_config_path = os.path.join(project_root, "configs/meta_task/meta_task_config.json")
+    meta_config_path = config.get("meta_task_config") or os.path.join(project_root, "configs/meta_task/meta_task_config.json")
     if not os.path.exists(meta_config_path):
         logger.error(f"Meta task config not found: {meta_config_path}")
         return False
@@ -848,18 +1166,23 @@ def run_step(doi_hash: str, config: dict) -> bool:
     logger.info(f"Found {len(top_entities)} top entities")
     
     # Process all extensions and entities sequentially using a single event loop
-    async def process_all_extensions():
+    async def process_all_extensions() -> bool:
         """Process all extensions and entities sequentially in a single event loop."""
+        had_failures = False
         # Process each extension ontology
         for extension in extensions:
             ontology_name = extension.get("name")
             logger.info(f"\n  📚 Extension: {ontology_name}")
             
-            # Load iteration config for this ontology
-            # Try candidate first (where generation scripts write), then fallback to production
+            # Load iteration config for this ontology from the active generated-artifact root first.
+            artifact_roots = []
+            override_root = os.environ.get("TWA_GENERATED_ARTIFACT_ROOT", "").strip()
+            if override_root:
+                artifact_roots.append(override_root)
+            artifact_roots.extend(["ai_generated_contents_candidate", "ai_generated_contents"])
             iterations_config_paths = [
-                os.path.join(project_root, "ai_generated_contents_candidate/iterations", ontology_name, "iterations.json"),
-                os.path.join(project_root, "ai_generated_contents/iterations", ontology_name, "iterations.json")
+                os.path.join(project_root, artifact_root, "iterations", ontology_name, "iterations.json")
+                for artifact_root in dict.fromkeys(artifact_roots)
             ]
             
             iterations_config_path = None
@@ -873,6 +1196,7 @@ def run_step(doi_hash: str, config: dict) -> bool:
                 logger.error(f"  ❌ Iterations config not found. Tried:")
                 for path in iterations_config_paths:
                     logger.error(f"      - {path}")
+                had_failures = True
                 continue
             
             try:
@@ -880,6 +1204,7 @@ def run_step(doi_hash: str, config: dict) -> bool:
                     iterations_config = json.load(f)
             except Exception as e:
                 logger.error(f"  ❌ Failed to load iterations config: {e}")
+                had_failures = True
                 continue
             
             # Process each entity STRICTLY SEQUENTIALLY
@@ -906,15 +1231,20 @@ def run_step(doi_hash: str, config: dict) -> bool:
                     logger.error(f"  ❌ KG building failed for '{entity_label}': {e}")
                     import traceback
                     logger.error(f"  Traceback: {traceback.format_exc()}")
+                    had_failures = True
                     continue
+        return not had_failures
     
     # Run all processing in a single event loop
     try:
-        asyncio.run(process_all_extensions())
+        success = asyncio.run(process_all_extensions())
     except Exception as e:
         logger.error(f"❌ Failed to process extensions: {e}")
         import traceback
         logger.error(f"Traceback: {traceback.format_exc()}")
+        return False
+    if not success:
+        logger.error("❌ Extensions KG building finished with one or more failures")
         return False
     
     # Create completion marker

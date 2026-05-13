@@ -353,7 +353,7 @@ async def generate_underlying_script_direct(
     ontology_path: str,
     ontology_name: str,
     output_dir: str,
-    model_name: str = "gpt-4o",
+    model_name: str = "gpt-5.2",
     max_retries: int = 3
 ) -> str:
     """
@@ -439,7 +439,7 @@ async def generate_main_script_direct(
     ontology_name: str,
     underlying_script_path: str,
     output_dir: str,
-    model_name: str = "gpt-4o",
+    model_name: str = "gpt-5.2",
     max_retries: int = 3
 ) -> str:
     """

@@ -13,6 +13,7 @@ import json
 import asyncio
 import subprocess
 import logging
+import shutil
 from pathlib import Path
 from typing import List, Dict, Optional, Any
 
@@ -38,6 +39,29 @@ from models.locations import DATA_DIR, DATA_CCDC_DIR
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(message)s')
 logger = logging.getLogger(__name__)
+
+
+def _latest_mtime_in_dir(path: str, *, suffixes: tuple[str, ...] = ()) -> float:
+    if not os.path.isdir(path):
+        return 0.0
+    latest = 0.0
+    for name in os.listdir(path):
+        full = os.path.join(path, name)
+        if not os.path.isfile(full):
+            continue
+        if suffixes and not name.endswith(suffixes):
+            continue
+        try:
+            latest = max(latest, os.path.getmtime(full))
+        except Exception:
+            continue
+    return latest
+
+
+def _clear_dir_if_exists(path: str) -> None:
+    if not os.path.exists(path):
+        return
+    shutil.rmtree(path, ignore_errors=True)
 
 
 async def run_metal_derivation(doi_hash: str) -> bool:
@@ -353,12 +377,6 @@ def run_step(doi_hash: str, config: dict) -> bool:
         logger.error(f"DOI folder not found: {doi_folder}")
         return False
     
-    # Check if step is already completed
-    marker_file = os.path.join(doi_folder, ".mop_derivation_done")
-    if os.path.exists(marker_file):
-        logger.info(f"  ⏭️  MOP derivation already completed (marker exists)")
-        return True
-    
     # Check if ontomops_output exists (prerequisite)
     ontomops_dir = os.path.join(doi_folder, "ontomops_output")
     if not os.path.isdir(ontomops_dir):
@@ -371,6 +389,20 @@ def run_step(doi_hash: str, config: dict) -> bool:
         logger.warning(f"  ⚠️  No ontomops extension files found, skipping MOP derivation")
         return True
 
+    source_mtime = _latest_mtime_in_dir(ontomops_dir, suffixes=(".ttl", ".json"))
+
+    # Check if step is already completed
+    marker_file = os.path.join(doi_folder, ".mop_derivation_done")
+    if os.path.exists(marker_file):
+        try:
+            marker_mtime = os.path.getmtime(marker_file)
+        except Exception:
+            marker_mtime = 0.0
+        if marker_mtime >= source_mtime:
+            logger.info(f"  ⏭️  MOP derivation already completed (marker exists)")
+            return True
+        logger.warning("  🔁 MOP derivation marker is older than ontomops outputs; re-running downstream derivation")
+
     # Check if CBU derivation results already exist (optional optimization)
     cbu_derivation_dir = os.path.join(doi_folder, "cbu_derivation")
     metal_structured_dir = os.path.join(cbu_derivation_dir, "metal", "structured")
@@ -378,11 +410,19 @@ def run_step(doi_hash: str, config: dict) -> bool:
 
     metal_results_exist = os.path.exists(metal_structured_dir) and os.listdir(metal_structured_dir)
     organic_results_exist = os.path.exists(organic_structured_dir) and os.listdir(organic_structured_dir)
+    metal_results_current = _latest_mtime_in_dir(metal_structured_dir, suffixes=(".json", ".txt", ".md")) >= source_mtime
+    organic_results_current = _latest_mtime_in_dir(organic_structured_dir, suffixes=(".json", ".txt", ".md")) >= source_mtime
 
-    if metal_results_exist and organic_results_exist:
+    if metal_results_exist and organic_results_exist and metal_results_current and organic_results_current:
         logger.info(f"  ⏭️  CBU derivation results already exist, skipping derivation steps")
         skip_derivation = True
     else:
+        if metal_results_exist and not metal_results_current:
+            logger.warning("  🔁 Metal CBU results are stale; clearing structured outputs before re-derivation")
+            _clear_dir_if_exists(metal_structured_dir)
+        if organic_results_exist and not organic_results_current:
+            logger.warning("  🔁 Organic CBU results are stale; clearing structured outputs before re-derivation")
+            _clear_dir_if_exists(organic_structured_dir)
         logger.info(f"  📝 CBU derivation results not found, will run derivation")
         skip_derivation = False
     
@@ -415,10 +455,19 @@ def run_step(doi_hash: str, config: dict) -> bool:
         # Step 3: Initial Integration (use previous integration module)
         integrated_dir = os.path.join(data_dir, doi_hash, "cbu_derivation", "integrated")
         integration_results_exist = os.path.exists(integrated_dir) and any(f.endswith('.json') for f in os.listdir(integrated_dir))
+        integration_baseline = max(
+            source_mtime,
+            _latest_mtime_in_dir(metal_structured_dir, suffixes=(".json", ".txt", ".md")),
+            _latest_mtime_in_dir(organic_structured_dir, suffixes=(".json", ".txt", ".md")),
+        )
+        integration_results_current = _latest_mtime_in_dir(integrated_dir, suffixes=(".json", ".ttl")) >= integration_baseline
 
-        if integration_results_exist:
+        if integration_results_exist and integration_results_current:
             logger.info(f"  ⏭️  Integration results already exist, skipping integration step")
         else:
+            if integration_results_exist and not integration_results_current:
+                logger.warning("  🔁 Integration results are stale; clearing outputs before re-integration")
+                _clear_dir_if_exists(integrated_dir)
             logger.info(f"\n  📍 Step 3: Integration (legacy orchestrator)")
             try:
                 cmd = [sys.executable, "-m", "src.agents.mops.cbu_derivation.integration", "--file", doi_hash]
@@ -450,10 +499,18 @@ def run_step(doi_hash: str, config: dict) -> bool:
         # Step 4: MOP Formula Derivation (use previous standalone module)
         mop_formula_dir = os.path.join(data_dir, doi_hash, "cbu_derivation", "full")
         mop_formula_results_exist = os.path.exists(mop_formula_dir) and any(f.endswith('.md') for f in os.listdir(mop_formula_dir))
+        mop_formula_baseline = max(
+            integration_baseline,
+            _latest_mtime_in_dir(integrated_dir, suffixes=(".json", ".ttl")),
+        )
+        mop_formula_results_current = _latest_mtime_in_dir(mop_formula_dir, suffixes=(".json", ".md", ".ttl")) >= mop_formula_baseline
 
-        if mop_formula_results_exist:
+        if mop_formula_results_exist and mop_formula_results_current:
             logger.info(f"  ⏭️  MOP formula results already exist, skipping MOP formula derivation")
         else:
+            if mop_formula_results_exist and not mop_formula_results_current:
+                logger.warning("  🔁 MOP formula results are stale; clearing outputs before re-derivation")
+                _clear_dir_if_exists(mop_formula_dir)
             logger.info(f"\n  📍 Step 4: MOP Formula Derivation (legacy orchestrator)")
             try:
                 cmd = [sys.executable, "-m", "src.agents.mops.ontomop_derivation.agent_mop_formula", "--file", doi_hash]

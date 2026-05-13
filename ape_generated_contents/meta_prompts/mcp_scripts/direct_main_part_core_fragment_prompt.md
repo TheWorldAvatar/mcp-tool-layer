@@ -11,8 +11,8 @@ Generate ONLY the **core** tool wrappers:
 
 ## Tool descriptions (required)
 Each wrapper MUST include a concise docstring (triple-quoted) that describes what the tool does.
-If a docstring hint is provided in the input below, copy it (or its first sentence) into the wrapper docstring.
-If a `tbox:` hint is provided, include it verbatim in the docstring under a `T-Box:` line.
+If a docstring hint is provided in the input below, use only its generic first sentence.
+Do NOT copy ontology/T-Box/domain prose into wrapper docstrings; detailed semantics belong in prompts and config-derived runtime rules, not per-tool descriptions.
 
 ## Critical constraints
 - This is a **fragment**, NOT a full server.

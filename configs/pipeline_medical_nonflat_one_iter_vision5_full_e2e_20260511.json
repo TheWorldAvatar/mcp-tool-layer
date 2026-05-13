@@ -1,0 +1,18 @@
+{
+  "mode": "per_doi",
+  "description": "Full medical E2E validation run from regenerated MCP artifacts through scoring",
+  "meta_task_config": "configs/meta_task/meta_task_config_medical_non_flat_v3_one_iter.json",
+  "data_dir": "data_medical_nonflat_one_iter_vision5_full_e2e_20260511",
+  "test_mcp_config": "test_mcp_config_medical_nonflat_one_iter_20260510.json",
+  "vision_pdf_conversion": true,
+  "vision_model": "gpt-4o",
+  "vision_dpi": 150,
+  "steps": [
+    "pdf_conversion",
+    "stitching",
+    "top_entity_extraction",
+    "top_entity_kg_building",
+    "main_ontology_extractions",
+    "main_kg_building"
+  ]
+}

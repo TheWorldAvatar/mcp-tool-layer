@@ -72,6 +72,8 @@ def instruction_prompt():
 @mcp.tool(name="init_memory", description="Initialize or resume the persistent graph. Reads from ontomops_global_state.json for hash and entity information.")
 @mcp_tool_logger
 def init_memory(hash_value: str = None, top_level_entity_name: str = None) -> str:
+    if hash_value and not (len(str(hash_value)) == 8 and all(c in "0123456789abcdef" for c in str(hash_value).lower())):
+        hash_value = None
     return _init_memory(hash_value, top_level_entity_name)
 
 @mcp.tool(name="inspect_memory", description="Return a detailed summary of all individuals, types, labels, attributes, and connections in the current memory graph.")

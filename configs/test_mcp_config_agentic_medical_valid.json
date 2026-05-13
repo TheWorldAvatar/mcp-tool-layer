@@ -1,0 +1,10 @@
+{
+  "medical_mcp": {
+    "command": "python",
+    "args": [
+      "-m",
+      "ai_generated_contents_agentic_medical_valid.scripts.medical.main"
+    ],
+    "transport": "stdio"
+  }
+}

@@ -66,7 +66,7 @@ class GlobalLogger:
             init_logger.addHandler(file_handler)
             
         # Console handler - only show WARNING and above
-        console_handler = logging.StreamHandler(sys.stdout)
+        console_handler = logging.StreamHandler(sys.stderr)
         console_handler.setLevel(logging.WARNING)
         console_handler.setFormatter(formatter)
         init_logger.addHandler(console_handler)
@@ -118,7 +118,7 @@ class GlobalLogger:
         logger.addHandler(file_handler)
         
         # Console handler - only show WARNING and above
-        console_handler = logging.StreamHandler(sys.stdout)
+        console_handler = logging.StreamHandler(sys.stderr)
         console_handler.setLevel(logging.WARNING)
         console_handler.setFormatter(formatter)
         logger.addHandler(console_handler)

@@ -1,3 +1,7 @@
+# Local Python environments (pipeline / dev)
+.venv-pipeline/
+.venv/
+
 /data
 configs/mcp_configs.json
 .env
@@ -12,6 +16,8 @@ configs/mcp_configs.json
 configs/pretask_mcp_configs.json
 /src/agents/mops/dynamic_mcp/prompts/archive
 /raw_data
+/raw_data_medical*/
+/data_medical*/
 /archive
 /earlier_ground_truth
 /scripts/output_conversion_ttl_to_json/data
@@ -56,6 +62,7 @@ evaluation/development_check/number_of_chemical_inputs_test.md
 /evaluation/data_mcp_set_1
 /ai_generated_contents
 /ai_generated_contents_candidate
+/ai_generated_contents_pipeline_bundle
 /ai_generated_contents_reference
 /corrected_gt
 /corrected_new_gt
@@ -72,4 +79,34 @@ configs/run_created_mcp.json.bak.20260114_141836
 /docs/mcp_generation_requirements
 /.guard
 /.memory
+# MCP/guard runtime state dumps (often recreated at repo root during runs)
 guard_state.json
+/.guard*.json
+/.mcp_guard*.json
+/.medical*_guard*.json
+/.ontospecies_guard*.json
+/.ontosynthesis_guard*.json
+/guard_check_state.json
+/guard_noncheck_state.json
+/guard_state*.json
+/medical_creation_guard_state.json
+/medical_guard_state.json
+/medical_mcp_guard_state.json
+/ontomops_guard_state.json
+/ontospecies_guard_state.json
+/ontosynthesis_guard_state.json
+/pipeline_*.log
+/.cursor_pipeline_last_run.log
+/medical_case
+/raw_data_mop
+/ai_generated_contents_llm_agent_medical
+/ai_generated_contents_llm_agent_medical_thirdparty_test/prompts
+/ai_generated_contents_order_enforcement_check/prompts
+/ai_generated_contents_step_fix_check/prompts
+/ai_generated_contents_agentic_ontosynthesis_main/prompts
+/ai_generated_contents_agentic_candidate/scripts
+/ai_generated_contents_agent_candidate_json_ontosynthesis_one_script_json_patch/reports
+/ai_generated_contents_agent_candidate_json_medical_fresh_20260509/scripts
+/ai_generated_contents_agent_candidate_json_medical_nonflat_one_iter_20260510/
+/tmp_generated_quality_probe/
+/evaluation/ontomops_derivation_evaluation/reports_agentic/

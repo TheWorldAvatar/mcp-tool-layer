@@ -65,6 +65,15 @@ BASE_URL=...
 
 Exact keys depend on your `models/ModelConfig.py` / `models/LLMCreator.py` configuration.
 
+### Optional tooling and reproducibility
+
+Several MCP-backed capabilities used during extraction are **optional** and require **separate configuration** beyond the steps above:
+
+- **CCDC** (Cambridge Crystallographic Data Centre): integrating CCDC-backed tooling requires its **own setup and a valid CCDC license**. Without it, parts of crystallographic workflows may be degraded or unavailable.
+- **Web search** (for example `enhanced_websearch` listed in generated iteration configs): typically depends on API keys and MCP server wiring in `configs/mcp_configs.json` (start from `configs/mcp_configs.json.example`).
+
+You can run the pipeline **without** these integrations, but **you should not expect to reproduce the same benchmark-quality scores** we reported when those tools were enabled and correctly configured.
+
 ## Common folder layout (fresh clone)
 
 After `python scripts/bootstrap_repo.py`, you should have (among others):
@@ -116,69 +125,56 @@ The main pipeline entrypoint is `mop_main.py` (see its CLI help):
 python mop_main.py --help
 ```
 
-## Prompt + MCP script generation (no `.sh` wrappers)
+## Prompt + MCP script generation
 
-Use the following canonical Python entrypoints to generate plans, prompts, and MCP scripts.
+Canonical regeneration uses **`agentic_generation_main`**, which writes deterministic MCP modules plus prompts and `iterations.json` under your chosen output root (often `ai_generated_contents_candidate/` when using `scripts/rebuild_pipeline_artifacts.sh`).
 
-### 1) Generate a task division plan (writes `configs/task_division_plan.json`)
-
-```bash
-python -m src.agents.scripts_and_prompts_generation.task_division_agent \
-  --tbox data/ontologies/ontosynthesis.ttl \
-  --output configs/task_division_plan.json \
-  --model gpt-5
-```
-
-### 2) Generate KG-building iteration prompts (writes into `ai_generated_contents_candidate/prompts/…`)
+### OntoSynthesis + extension ontologies (default meta-task config)
 
 ```bash
-python -m src.agents.scripts_and_prompts_generation.task_prompt_creation_agent \
-  --version 1 \
-  --plan configs/task_division_plan.json \
-  --tbox data/ontologies/ontosynthesis.ttl \
-  --model gpt-4.1 \
-  --parallel 3
-```
-
-### 3) Generate extraction-scope prompts (writes into `ai_generated_contents_candidate/prompts/…`)
-
-Legacy plan-driven mode (matches the old `run_extraction_prompt_creation.sh` intent):
-
-```bash
-python -m src.agents.scripts_and_prompts_generation.task_extraction_prompt_creation_agent \
-  --version 1 \
-  --plan configs/task_division_plan.json \
-  --tbox data/ontologies/ontosynthesis.ttl \
-  --model gpt-5 \
-  --parallel 3
-```
-
-Iterations-driven mode (uses ontology flags + `ai_generated_contents_candidate/iterations/**/iterations.json`):
-
-```bash
-python -m src.agents.scripts_and_prompts_generation.task_extraction_prompt_creation_agent \
-  --ontosynthesis \
-  --version 1 \
-  --model gpt-5 \
-  --parallel 3
-```
-
-### 4) Generate MCP underlying scripts from T-Box (writes into `ai_generated_contents_candidate/scripts/…`)
-
-All ontologies from `ape_generated_contents/meta_task_config.json`:
-
-```bash
-python -m src.agents.scripts_and_prompts_generation.mcp_underlying_script_creation_agent --all
-```
-
-Single ontology (by short name or by TTL path):
-
-```bash
-python -m src.agents.scripts_and_prompts_generation.mcp_underlying_script_creation_agent \
+python -m src.agents.scripts_and_prompts_generation.agentic_generation_main \
   --ontology ontosynthesis \
-  --model gpt-5 \
-  --split
+  --stage all \
+  --output-root ai_generated_contents_candidate \
+  --json
+
+python -m src.agents.scripts_and_prompts_generation.agentic_generation_main \
+  --extensions \
+  --stage all \
+  --output-root ai_generated_contents_candidate \
+  --json
 ```
+
+### Medical ontology (example meta-task override)
+
+```bash
+python -m src.agents.scripts_and_prompts_generation.agentic_generation_main \
+  --ontology medical \
+  --meta-task-config configs/meta_task/meta_task_config_medical_non_flat_v3_one_iter.json \
+  --output-root ai_generated_contents_agent_candidate_json_medical_nonflat_one_iter_20260510 \
+  --stage all \
+  --json
+```
+
+### Pointing the runtime pipeline at generated artifacts
+
+Set **`TWA_GENERATED_ARTIFACT_ROOT`** to the directory that contains `iterations/`, `prompts/`, and `scripts/` for the ontology you are running (absolute path recommended on Windows):
+
+```bash
+# POSIX-style shells
+export TWA_GENERATED_ARTIFACT_ROOT="$PWD/ai_generated_contents_agent_candidate_json_medical_nonflat_one_iter_20260510"
+
+# PowerShell
+$env:TWA_GENERATED_ARTIFACT_ROOT = "$(Resolve-Path ai_generated_contents_agent_candidate_json_medical_nonflat_one_iter_20260510)"
+```
+
+Then run `python mop_main.py ...` with your pipeline config as usual.
+
+More detail: [src/agents/scripts_and_prompts_generation/README.md](src/agents/scripts_and_prompts_generation/README.md).
+
+### JSON-patch helpers (optional)
+
+Specialized flows (for example one-shot script compaction) live in `json_patch_*.py` modules next to `agentic_generation_main.py`; see the technical README above.
 
 ## Repo maintenance scripts (`scripts/`)
 
@@ -186,8 +182,8 @@ These convenience wrappers help you (a) regenerate the full “pipeline artefact
 
 ### 1) Regenerate *all* pipeline artefacts + promote to production
 
-- Generates **candidate** artefacts via `generation_main` (iterations, prompts, MCP scripts, generated MCP config)
-- Generates **top-entity parsing SPARQL** (writes into `ai_generated_contents/`)
+- Generates **candidate** artefacts via `agentic_generation_main` (iterations, prompts, deterministic MCP scripts)
+- Generates **top-entity parsing SPARQL** (writes into `ai_generated_contents/`; uses `--model` when provided)
 - Promotes candidate prompts + iterations into `ai_generated_contents/` (what the runtime pipeline reads by default)
 - Rewires runtime MCP configs to use the newly generated MCP servers
 
@@ -212,7 +208,8 @@ bash scripts/rebuild_pipeline_artifacts.sh --test --ontology ontosynthesis --mod
 ```
 
 Notes:
-- Script generation is **direct-by-default** (no MCP/Docker required for code output). To force agent/MCP script generation (requires Docker), run the Python entrypoint with `--agent-scripts`.
+- `--direct` is accepted for backwards compatibility but ignored; artifact regeneration is deterministic via `agentic_generation_main`.
+- Optional **`--llm-agent-generation`** on `agentic_generation_main` enables LLM-driven repair passes (not used by this shell wrapper by default).
 
 ### 1.5) Rewire which MCP the pipeline uses (NO regeneration; cheap)
 
@@ -277,4 +274,20 @@ This makes **one** small LLM call to generate a tiny Python file and verifies it
 bash scripts/test_llm_smoke.sh gpt-5.2
 ```
 
+## Documentation index
+
+- [docs/Overall.md](docs/Overall.md)
+- [docs/ttl_to_csv_conversion.md](docs/ttl_to_csv_conversion.md)
+- [docs/ocr_fallback_guide.md](docs/ocr_fallback_guide.md)
+- [docs/medical_pdf_extraction_integration.md](docs/medical_pdf_extraction_integration.md)
+- [docs/medical_error_analysis_latest.md](docs/medical_error_analysis_latest.md)
+- [docs/medical_expert_boundary_clarification_request.md](docs/medical_expert_boundary_clarification_request.md)
+- [docs/mcp_generation_checklist.md](docs/mcp_generation_checklist.md)
+- [docs/detailed_mcp_generation_checklist.md](docs/detailed_mcp_generation_checklist.md)
+- [docs/Pre-existing-artifact-inventory.md](docs/Pre-existing-artifact-inventory.md)
+- [docs/ArtefactInventory.md](docs/ArtefactInventory.md)
+- [docs/workspace_cleanup_20260511_MANIFEST.txt](docs/workspace_cleanup_20260511_MANIFEST.txt) (paths moved during workspace archival)
+- [src/agents/scripts_and_prompts_generation/README.md](src/agents/scripts_and_prompts_generation/README.md)
+- [src/agents/grounding/README.md](src/agents/grounding/README.md)
+- [ape_generated_contents/README.md](ape_generated_contents/README.md)
 

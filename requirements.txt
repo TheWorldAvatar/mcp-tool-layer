@@ -111,6 +111,7 @@ pluggy==1.6.0
 protobuf==4.25.8
 psutil==7.0.0
 psycopg2-binary==2.9.10
+pubchempy==1.0.5
 pycparser==2.22
 pydantic==2.11.7
 pydantic-settings==2.10.0
@@ -132,6 +133,7 @@ python-slugify==8.0.4
 pytz==2025.2
 PyYAML==6.0.2
 RapidFuzz==3.13.0
+rdkit==2026.3.1
 rdflib==7.1.4
 referencing==0.36.2
 regex==2024.11.6

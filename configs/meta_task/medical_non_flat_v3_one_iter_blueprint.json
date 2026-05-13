@@ -1,0 +1,29 @@
+{
+  "iterations": [
+    {
+      "iteration_number": 2,
+      "name": "Full non-flat medical case extraction",
+      "description": "Extract the complete non-flat medical case subgraph in one downstream pass. Populate patient, timeline, surgical team, procedure, surgical approach, diagnosis, complication, and pathology outcome fields, then link all resulting sub-entities to the top-level MedicalCase entity.",
+      "has_pre_extraction": false,
+      "model_config_key": "extraction_balanced",
+      "use_agent": false,
+      "per_entity": true,
+      "inputs": {
+        "source": "stitched_paper"
+      },
+      "outputs": {
+        "hints_file": "mcp_run/iter2_hints_{entity_safe}.txt",
+        "prompt_file": "prompts/iter2_extraction/{entity_safe}.md",
+        "response_file": "responses/iter2_extraction/{entity_safe}.md"
+      },
+      "kg": {
+        "datatype_property_handling": {
+          "emit_only_when_supported": true,
+          "null_representation": "omit",
+          "boolean_as_string_one": "1",
+          "free_text_minimal_phrase": true
+        }
+      }
+    }
+  ]
+}

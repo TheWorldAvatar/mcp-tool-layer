@@ -384,6 +384,12 @@ def _find_top_entities(hash_value: str) -> List[str]:
         try:
             with open(mapping_file, 'r', encoding='utf-8') as mf:
                 mapping = json.load(mf)
+                label_entries = [
+                    entity_label for entity_label in mapping.keys()
+                    if not str(entity_label).startswith("https://")
+                ]
+                if label_entries:
+                    return sorted(set(label_entries))
                 # Reverse mapping: filename -> entity_label
                 for entity_label, filename in mapping.items():
                     if not entity_label.startswith("https://"):  # Skip IRI entries, keep only label entries
