@@ -51,6 +51,27 @@ class TestAgenticGenerationWorkspaceMCP(unittest.TestCase):
         # The command shape is allowed even if the file does not exist.
         self.assertFalse(allowed["ok"])
 
+    def test_mcp_tool_wrappers_return_recoverable_errors(self) -> None:
+        import asyncio
+
+        missing_result = asyncio.run(
+            workspace.read_workspace_file_tool.run(
+                {"path": "tmp/agentic_generation/tests/does-not-exist.md"}
+            )
+        )
+        missing = json.loads(missing_result.structured_content["result"])
+        self.assertFalse(missing["ok"])
+        self.assertEqual(missing["error_type"], "FileNotFoundError")
+
+        invalid_diff_result = asyncio.run(
+            workspace.show_workspace_diff_tool.run(
+                {"path": "tmp/agentic_generation/tests/does-not-exist"}
+            )
+        )
+        invalid_diff = json.loads(invalid_diff_result.structured_content["result"])
+        self.assertFalse(invalid_diff["ok"])
+        self.assertEqual(invalid_diff["error_type"], "FileNotFoundError")
+
 
 if __name__ == "__main__":
     unittest.main()

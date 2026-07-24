@@ -25,6 +25,9 @@ def _output_root() -> Path:
     configured = os.environ.get("AGENTIC_GENERATION_OUTPUT_ROOT") or DEFAULT_OUTPUT_ROOT
     if configured.startswith("${") and configured.endswith("}"):
         configured = DEFAULT_OUTPUT_ROOT
+    raw = Path(configured)
+    if raw.is_absolute():
+        return raw.resolve()
     return (REPO_ROOT / configured).resolve()
 
 
@@ -40,6 +43,12 @@ def _allowed_write_roots() -> tuple[Path, ...]:
         if path.is_dir()
     )
     roots.append(_tmp_root())
+    # Semantic MCP closed-loop sandboxes under tmp/.
+    roots.extend(
+        path.resolve()
+        for path in (REPO_ROOT / "tmp").glob("semantic_mcp_loop_*")
+        if path.is_dir()
+    )
     unique: list[Path] = []
     for root in roots:
         if root not in unique:
@@ -62,6 +71,19 @@ def _display(path: Path) -> str:
         return path.resolve().relative_to(REPO_ROOT).as_posix()
     except ValueError:
         return str(path)
+
+
+def _error_payload(exc: Exception, **context: object) -> str:
+    """Return recoverable tool failures as data instead of aborting ReAct."""
+    return json.dumps(
+        {
+            "ok": False,
+            "error_type": type(exc).__name__,
+            "error": str(exc),
+            **context,
+        },
+        indent=2,
+    )
 
 
 def _read_path(path: str | Path) -> Path:
@@ -176,7 +198,18 @@ def apply_unified_patch(path: str, patch_text: str) -> str:
 
 
 def show_workspace_diff(path: str) -> str:
-    target = _read_path(path)
+    target = _repo_path(path)
+    if not target.exists():
+        raise FileNotFoundError(f"Path does not exist: {_display(target)}")
+    if target.is_dir():
+        files = sorted(
+            candidate
+            for candidate in target.rglob("*")
+            if candidate.is_file() and candidate.suffix in {".md", ".py", ".json"}
+        )
+        return "\n".join(
+            show_workspace_diff(_display(candidate)) for candidate in files
+        )
     current = _lines(target.read_text(encoding="utf-8", errors="replace"))
     return "".join(
         difflib.unified_diff(
@@ -306,30 +339,42 @@ def instruction_prompt() -> str:
 def list_workspace_files_tool(
     relative_path: str = DEFAULT_OUTPUT_ROOT, max_entries: int = 200
 ) -> str:
-    return list_workspace_files(relative_path, max_entries)
+    try:
+        return list_workspace_files(relative_path, max_entries)
+    except (OSError, ValueError) as exc:
+        return _error_payload(exc, path=relative_path)
 
 
 @mcp.tool(name="read_workspace_file")
 def read_workspace_file_tool(path: str, max_chars: int = 20000) -> str:
-    return read_workspace_file(path, max_chars)
+    try:
+        return read_workspace_file(path, max_chars)
+    except (OSError, ValueError) as exc:
+        return _error_payload(exc, path=path)
 
 
 @mcp.tool(name="write_workspace_file")
 def write_workspace_file_tool(path: str, content: str) -> str:
-    return write_workspace_file(path, content)
+    try:
+        return write_workspace_file(path, content)
+    except (OSError, ValueError) as exc:
+        return _error_payload(exc, path=path)
 
 
 @mcp.tool(name="apply_unified_patch")
 def apply_unified_patch_tool(path: str, patch_text: str) -> str:
     try:
         return apply_unified_patch(path, patch_text)
-    except WorkspaceSafetyError as exc:
-        return json.dumps({"ok": False, "error": str(exc)}, indent=2)
+    except (OSError, ValueError) as exc:
+        return _error_payload(exc, path=path)
 
 
 @mcp.tool(name="show_workspace_diff")
 def show_workspace_diff_tool(path: str) -> str:
-    return show_workspace_diff(path)
+    try:
+        return show_workspace_diff(path)
+    except (OSError, ValueError) as exc:
+        return _error_payload(exc, path=path)
 
 
 @mcp.tool(name="run_allowed_validation_command")
@@ -338,10 +383,8 @@ def run_allowed_validation_command_tool(
 ) -> str:
     try:
         return run_allowed_validation_command(command, timeout_seconds)
-    except WorkspaceSafetyError as exc:
-        return json.dumps(
-            {"ok": False, "error": str(exc), "command": command}, indent=2
-        )
+    except (OSError, ValueError) as exc:
+        return _error_payload(exc, command=command)
 
 
 if __name__ == "__main__":
