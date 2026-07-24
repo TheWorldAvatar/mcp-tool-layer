@@ -3,6 +3,8 @@ from typing import Any, Dict, List
 
 from rdflib import Graph
 
+from scripts.output_conversion_ttl_to_json.name_utils import split_alternative_names
+
 
 def load_graph_from_ttl(ttl_path: str) -> Graph:
     g = Graph()
@@ -53,22 +55,23 @@ def query_ccdc_to_cbus(graph: Graph) -> Dict[str, Dict[str, List[str]]]:
         out.setdefault(ccdc, {})
         out[ccdc].setdefault(cbu_label, [])
 
-        def add_name(val: Any) -> None:
+        def add_name(val: Any, *, split: bool = False) -> None:
             if val:
-                s = str(val).strip()
-                if s and s not in out[ccdc][cbu_label]:
-                    out[ccdc][cbu_label].append(s)
+                names = split_alternative_names(val) if split else [str(val).strip()]
+                for name in names:
+                    if name and name not in out[ccdc][cbu_label]:
+                        out[ccdc][cbu_label].append(name)
 
         # Prefer alternative names; if none, include its own label as a name
         added_any = False
         if row.cbuAlt:
-            add_name(row.cbuAlt)
+            add_name(row.cbuAlt, split=True)
             added_any = True
         if row.sameLabel:
             add_name(row.sameLabel)
             added_any = True
         if row.sameAlt:
-            add_name(row.sameAlt)
+            add_name(row.sameAlt, split=True)
             added_any = True
         if not added_any:
             add_name(row.cbuLabel)

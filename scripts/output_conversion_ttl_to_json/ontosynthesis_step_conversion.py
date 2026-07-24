@@ -9,12 +9,11 @@ to extract synthesis step data and convert it to the steps JSON format.
 import json
 import re
 from rdflib import Graph, Namespace, URIRef
-from rdflib.plugins.sparql import prepareQuery
 from typing import Dict, List, Any, Optional
+from scripts.output_conversion_ttl_to_json.name_utils import extend_unique_names
 from scripts.output_conversion_ttl_to_json.step.chemicalinput_query import query_synthesis_inputs
 from scripts.output_conversion_ttl_to_json.step.ccdc_query import query_ccdc_numbers
 from scripts.output_conversion_ttl_to_json.step.step_query import query_synthesis_steps
-from scripts.output_conversion_ttl_to_json.step.step_details import query_step_details_all_fields
 
 
 def load_ttl_file(file_path: str) -> Graph:
@@ -130,7 +129,6 @@ def query_syntheses_via_steps(graph: Graph, namespaces: Dict[str, Namespace]) ->
     """Fallback: find any subject that has ontosyn:hasSynthesisStep and treat it as a synthesis.
     Label is optional.
     """
-    ontosyn = namespaces.get('ontosyn')
     rdfs = namespaces.get('rdfs')
     if not rdfs:
         return []
@@ -221,7 +219,6 @@ def extract_duration(graph: Graph, namespaces: Dict[str, Namespace], step_uri: s
     """Extract duration information from a step URI using SPARQL and return clean format."""
     ontosyn = namespaces.get('ontosyn')
     rdfs = namespaces.get('rdfs')
-    om2 = namespaces.get('om-2')
     
     if not ontosyn or not rdfs:
         return "N/A"
@@ -271,7 +268,6 @@ def extract_temperature(graph: Graph, namespaces: Dict[str, Namespace], step_uri
     """Extract temperature information from a step URI using SPARQL and return clean format."""
     ontosyn = namespaces.get('ontosyn')
     rdfs = namespaces.get('rdfs')
-    om2 = namespaces.get('om-2')
     
     if not ontosyn or not rdfs:
         return "N/A"
@@ -673,9 +669,7 @@ def query_step_chemicals(graph: Graph, namespaces: Dict[str, Namespace], step_ur
                     rec["names"].append(lbl)
             # Append alternative name
             if row.alt:
-                alt = str(row.alt).strip()
-                if alt and alt not in rec["names"]:
-                    rec["names"].append(alt)
+                extend_unique_names(rec["names"], [row.alt], split=True)
             # Append chemical formula values/labels
             for attr in ("cfLabel", "cfVal", "cfValSyn"):
                 val = getattr(row, attr, None)
@@ -771,9 +765,7 @@ def query_step_chemicals(graph: Graph, namespaces: Dict[str, Namespace], step_ur
                     rec["names"].append(lbl)
             # Append alternative name
             if getattr(row, 'alt', None):
-                alt = str(row.alt).strip()
-                if alt and alt not in rec["names"]:
-                    rec["names"].append(alt)
+                extend_unique_names(rec["names"], [row.alt], split=True)
             # Append chemical formula values/labels
             for attr in ("cfLabel", "cfVal", "cfValSyn"):
                 val = getattr(row, attr, None)

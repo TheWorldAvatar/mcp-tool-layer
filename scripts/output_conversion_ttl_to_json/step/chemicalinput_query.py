@@ -3,6 +3,8 @@ from typing import Dict, List
 
 from rdflib import Graph, URIRef
 
+from scripts.output_conversion_ttl_to_json.name_utils import extend_unique_names
+
 
 def load_graph_from_ttl(ttl_path: str) -> Graph:
     g = Graph()
@@ -55,9 +57,11 @@ def query_synthesis_inputs(graph: Graph, synthesis_uri: str) -> List[Dict[str, a
             }
         # Collect alternative names
         if row.altName:
-            alt = str(row.altName)
-            if alt and alt not in grouped[chem_uri]["alternative_names"]:
-                grouped[chem_uri]["alternative_names"].append(alt)
+            extend_unique_names(
+                grouped[chem_uri]["alternative_names"],
+                [row.altName],
+                split=True,
+            )
     
     return list(grouped.values())
 

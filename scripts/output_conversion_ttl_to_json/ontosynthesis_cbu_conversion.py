@@ -10,8 +10,12 @@ import json
 import sys
 from rdflib import Graph, Namespace, URIRef, RDF, RDFS, Literal
 from rdflib.namespace import OWL
-from rdflib.plugins.sparql import prepareQuery
 from typing import Dict, List, Any
+
+from scripts.output_conversion_ttl_to_json.name_utils import (
+    extend_unique_names,
+    split_alternative_names,
+)
 
 # Avoid UnicodeEncodeError on Windows consoles (e.g. minus U+2212 in formulae).
 _out = getattr(sys.stdout, "reconfigure", None)
@@ -77,14 +81,6 @@ def build_cbu_json_from_graph(graph: Graph) -> Dict[str, Any]:
             out.append(text)
         return out
 
-    def _split_alt_names(value: str) -> List[str]:
-        text = str(value or "").strip()
-        if not text:
-            return []
-        if ";" in text:
-            return [part.strip() for part in text.split(";") if part.strip()]
-        return [text]
-
     def _looks_formula_like(text: str) -> bool:
         s = str(text or "").strip()
         if not s:
@@ -128,7 +124,7 @@ def build_cbu_json_from_graph(graph: Graph) -> Dict[str, Any]:
             labels = [str(v).strip() for v in graph.objects(chem, RDFS.label) if str(v).strip()]
             alt_names: List[str] = []
             for alt in graph.objects(chem, URIRef(str(ONTOSYN) + "hasAlternativeNames")):
-                alt_names.extend(_split_alt_names(str(alt)))
+                extend_unique_names(alt_names, [alt], split=True)
             descriptions = [
                 str(v).strip().lower()
                 for v in graph.objects(chem, URIRef(str(ONTOSYN) + "hasChemicalDescription"))
@@ -205,22 +201,20 @@ def build_cbu_json_from_graph(graph: Graph) -> Dict[str, Any]:
             formula = str(cbu_formula_vals[0]) if cbu_formula_vals else None
             if not formula:
                 # Try to get formula from the label (which may be the formula itself)
-                labels = [str(l) for l in graph.objects(cbu, RDFS.label)]
+                labels = [str(label) for label in graph.objects(cbu, RDFS.label)]
                 formula = labels[0] if labels else "N/A"
             formula = _normalize_string(str(formula))
 
             names_set = set()
             # Include all labels on the CBU itself (may have multiple)
-            for l in graph.objects(cbu, RDFS.label):
-                names_set.add(_normalize_string(str(l)))
+            for label in graph.objects(cbu, RDFS.label):
+                names_set.add(_normalize_string(str(label)))
             # Include alternative names on the CBU - these are important for chemical species identification
             for alt_name_literal in graph.objects(cbu, URIRef(str(ONTOSYN) + "hasAlternativeNames")):
-                alt_name_str = str(alt_name_literal).strip()
-                # Remove surrounding quotes if present
-                if alt_name_str.startswith('"') and alt_name_str.endswith('"'):
-                    alt_name_str = alt_name_str[1:-1]
-                if alt_name_str:
-                    names_set.add(_normalize_string(alt_name_str))
+                names_set.update(
+                    _normalize_string(name)
+                    for name in split_alternative_names(alt_name_literal)
+                )
             # Fallback: include formula if we still have no names
             if not names_set and formula != "N/A":
                 names_set.add(_normalize_string(formula))
@@ -229,12 +223,10 @@ def build_cbu_json_from_graph(graph: Graph) -> Dict[str, Any]:
                     names_set.add(_normalize_string(str(ci_label)))
                 # Also collect alternative names from chemical inputs
                 for ci_alt_literal in graph.objects(chem_input, URIRef(str(ONTOSYN) + "hasAlternativeNames")):
-                    alt_name_str = str(ci_alt_literal).strip()
-                    # Remove surrounding quotes if present
-                    if alt_name_str.startswith('"') and alt_name_str.endswith('"'):
-                        alt_name_str = alt_name_str[1:-1]
-                    if alt_name_str:
-                        names_set.add(_normalize_string(alt_name_str))
+                    names_set.update(
+                        _normalize_string(name)
+                        for name in split_alternative_names(ci_alt_literal)
+                    )
                 for ci_formula in graph.objects(chem_input, URIRef(str(ONTOSYN) + "hasChemicalFormula")):
                     names_set.add(_normalize_string(str(ci_formula)))
 
@@ -318,12 +310,7 @@ def build_cbu_json_from_graph(graph: Graph) -> Dict[str, Any]:
 
             # Get alternative names - each should be a separate literal
             for alt_name_literal in graph.objects(cbu, URIRef(str(ONTOSYN) + "hasAlternativeNames")):
-                alt_name_str = str(alt_name_literal).strip()
-                # Remove surrounding quotes if present
-                if alt_name_str.startswith('"') and alt_name_str.endswith('"'):
-                    alt_name_str = alt_name_str[1:-1]
-                if alt_name_str and alt_name_str not in names:
-                    names.append(alt_name_str)
+                extend_unique_names(names, [alt_name_literal], split=True)
 
             # Get chemical formula if available
             for chem_formula in graph.objects(cbu, URIRef(str(ONTOSYN) + "hasChemicalFormula")):
@@ -341,12 +328,7 @@ def build_cbu_json_from_graph(graph: Graph) -> Dict[str, Any]:
 
                 # Alternative names from chemical inputs
                 for ci_alt_literal in graph.objects(chem_input, URIRef(str(ONTOSYN) + "hasAlternativeNames")):
-                    alt_name_str = str(ci_alt_literal).strip()
-                    # Remove surrounding quotes if present
-                    if alt_name_str.startswith('"') and alt_name_str.endswith('"'):
-                        alt_name_str = alt_name_str[1:-1]
-                    if alt_name_str and alt_name_str not in names:
-                        names.append(alt_name_str)
+                    extend_unique_names(names, [ci_alt_literal], split=True)
 
                 # Chemical formula from chemical inputs
                 for ci_formula in graph.objects(chem_input, URIRef(str(ONTOSYN) + "hasChemicalFormula")):
@@ -518,8 +500,6 @@ def query_mop_data(graph: Graph, namespaces: Dict[str, Namespace]) -> List[Dict[
 def query_cbu_details(graph: Graph, namespaces: Dict[str, Namespace], cbu_uris: List[str]) -> List[Dict[str, Any]]:
     """Query Chemical Building Unit details from both ontomops_extension.ttl and output.ttl."""
     
-    ontomops = namespaces.get('ontomops')
-    ontosyn = namespaces.get('ontosyn')
     rdfs = namespaces.get('rdfs')
     
     if not rdfs or not cbu_uris:

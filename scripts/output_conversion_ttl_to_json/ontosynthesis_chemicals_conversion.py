@@ -8,8 +8,9 @@ to extract chemical synthesis data and convert it to the chemicals JSON format.
 
 import json
 from rdflib import Graph, Namespace, URIRef
-from rdflib.plugins.sparql import prepareQuery
 from typing import Dict, List, Any, Optional
+
+from scripts.output_conversion_ttl_to_json.name_utils import extend_unique_names
 
 
 def load_ttl_files(file_paths: List[str]) -> Graph:
@@ -90,7 +91,6 @@ def query_synthesis_inputs(graph: Graph, namespaces: Dict[str, Namespace], synth
     
     ontosyn = namespaces.get('ontosyn')
     rdfs = namespaces.get('rdfs')
-    ontomops = namespaces.get('ontomops')
     
     if not ontosyn or not rdfs:
         return []
@@ -151,9 +151,11 @@ def query_synthesis_inputs(graph: Graph, namespaces: Dict[str, Namespace], synth
         
         # Collect all alternative names
         if row.altName:
-            alt_name = str(row.altName)
-            if alt_name not in chemicals_dict[chemical_uri]['alt_names']:
-                chemicals_dict[chemical_uri]['alt_names'].append(alt_name)
+            extend_unique_names(
+                chemicals_dict[chemical_uri]['alt_names'],
+                [row.altName],
+                split=True,
+            )
     
     # Build final inputs list
     inputs = []
@@ -169,9 +171,7 @@ def query_synthesis_inputs(graph: Graph, namespaces: Dict[str, Namespace], synth
                     all_names.append(label)
         
         # Add all alternative names
-        for alt_name in chem_data['alt_names']:
-            if alt_name not in all_names:
-                all_names.append(alt_name)
+        extend_unique_names(all_names, chem_data['alt_names'])
         
         # If no names after filtering, use "Unknown"
         if not all_names:
@@ -364,7 +364,6 @@ def query_synthesis_outputs(graph: Graph, namespaces: Dict[str, Namespace], synt
     # If both a Species and a ChemicalOutput exist for the same product, keep only the one with CCDCNumber
     filtered: List[Dict[str, Any]] = []
     for rec in aggregated.values():
-        ccdc = (rec.get('CCDCNumber') or '').strip()
         filtered.append(rec)
 
     # Prefer records with CCDC; drop duplicates without CCDC when a CCDC-bearing record shares the same canonical name
