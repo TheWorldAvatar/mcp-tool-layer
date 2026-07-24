@@ -6,8 +6,9 @@ tools and keep their sessions alive for the whole run.
 from __future__ import annotations
 
 import asyncio
+import json
 from contextlib import AsyncExitStack
-from typing import Any, Dict, List, Tuple, Optional, Callable
+from typing import Any, Dict, List, Tuple
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langgraph.prebuilt import create_react_agent
@@ -20,6 +21,36 @@ from models.MCPConfig import MCPConfig
 from models.ModelConfig import ModelConfig
 from models.TokenCalculator import TokenCounter
 from src.utils.global_logger import get_logger
+
+
+def _flatten_exception_group(exc: BaseException) -> List[BaseException]:
+    """Flatten Python/AnyIO exception groups into actionable leaf exceptions."""
+    children = getattr(exc, "exceptions", None)
+    if not children:
+        return [exc]
+    leaves: List[BaseException] = []
+    for child in children:
+        leaves.extend(_flatten_exception_group(child))
+    return leaves
+
+
+def _tool_error_text(exc: BaseException) -> str:
+    """Convert a tool exception into a recoverable observation for ReAct."""
+    leaves = _flatten_exception_group(exc)
+    return json.dumps(
+        {
+            "ok": False,
+            "error_type": type(exc).__name__,
+            "errors": [
+                {"type": type(item).__name__, "message": str(item)} for item in leaves
+            ],
+            "instruction": (
+                "Correct the tool arguments and retry. Do not treat this tool failure "
+                "as successful completion."
+            ),
+        },
+        ensure_ascii=False,
+    )
 
 
 def _normalize_ai_message_content(content: Any) -> str:
@@ -118,10 +149,14 @@ def _summarize_react_tool_activity(messages: List[Any]) -> Dict[str, Any]:
                 tool_call_names.append(name)
 
     executed_tool_names: List[str] = []
+    tool_outputs: List[Dict[str, str]] = []
     for msg in tool_messages:
         name = str(getattr(msg, "name", "") or "").strip()
         if name:
             executed_tool_names.append(name)
+        content = _normalize_ai_message_content(getattr(msg, "content", None))
+        if content:
+            tool_outputs.append({"name": name, "content": content})
 
     return {
         "ai_message_count": len(ai_messages),
@@ -130,6 +165,7 @@ def _summarize_react_tool_activity(messages: List[Any]) -> Dict[str, Any]:
         "planned_tool_names": tool_call_names,
         "executed_tool_names": executed_tool_names,
         "executed_tool_name_set": sorted(set(executed_tool_names)),
+        "tool_outputs": tool_outputs,
     }
 
 
@@ -223,6 +259,9 @@ class BaseAgent:
             for server_name, session in sessions.items():
                 try:
                     server_tools = await load_mcp_tools(session)
+                    for tool in server_tools:
+                        if hasattr(tool, "handle_tool_error"):
+                            tool.handle_tool_error = _tool_error_text
                     tools.extend(server_tools)
                     self.logger.info(f"Loaded {len(server_tools)} MCP tools from {server_name}")
                 except Exception as exc:
