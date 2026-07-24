@@ -1,0 +1,586 @@
+{
+  "workflows": [
+    {
+      "id": "mq01_ethylene_glycol_hbond",
+      "title": "MQ1 — ethylene glycol H-bond donor/acceptor counts",
+      "steps": [
+        {
+          "tool": "query_physprops_wide",
+          "args": {
+            "namespace": "ontospecies",
+            "smiles": "C(CO)O"
+          },
+          "output_variable": "hbond_rows"
+        }
+      ],
+      "answer_variable": "hbond_rows"
+    },
+    {
+      "id": "mq02_amino_propanol_uses",
+      "title": "MQ2 — uses of 3-amino-2-propanol",
+      "tags": ["expected_empty"],
+      "steps": [
+        {
+          "tool": "search_uses_enriched",
+          "args": {
+            "namespace": "ontospecies",
+            "use_fragment": "3-amino-2-propanol"
+          },
+          "output_variable": "use_rows"
+        }
+      ],
+      "answer_variable": "use_rows"
+    },
+    {
+      "id": "mq03_formula_c6h8o6",
+      "title": "MQ3 — species with molecular formula C6H8O6",
+      "steps": [
+        {
+          "tool": "filter_by_literal",
+          "args": {
+            "namespace": "ontospecies",
+            "class_local": "Species",
+            "property_local": "hasMolecularFormula",
+            "value_fragment": "C6H8O6",
+            "match": "equals"
+          },
+          "output_variable": "species_rows"
+        }
+      ],
+      "answer_variable": "species_rows"
+    },
+    {
+      "id": "mq04_pka_inchi_c6h15n",
+      "title": "MQ4 — pKa for InChI C6H15N tertiary amine",
+      "steps": [
+        {
+          "tool": "query_pka_enriched",
+          "args": {
+            "namespace": "ontospecies",
+            "species_fragment": "InChI=1S/C6H15N/c1-5(2)7-6(3)4/h5-7H,1-4H3"
+          },
+          "output_variable": "pka_rows"
+        }
+      ],
+      "answer_variable": "pka_rows"
+    },
+    {
+      "id": "mq05_pka_propenoic_acid",
+      "title": "MQ5 — pKa values for propenoic acid",
+      "steps": [
+        {
+          "tool": "query_pka_enriched",
+          "args": {
+            "namespace": "ontospecies",
+            "species_fragment": "propenoic acid"
+          },
+          "output_variable": "pka_rows"
+        }
+      ],
+      "answer_variable": "pka_rows"
+    },
+    {
+      "id": "mq06_pka_butanoic_smiles",
+      "title": "MQ6 — pKa for CCCC(=O)O",
+      "steps": [
+        {
+          "tool": "query_pka_enriched",
+          "args": {
+            "namespace": "ontospecies",
+            "species_fragment": "CCCC(=O)O"
+          },
+          "output_variable": "pka_rows"
+        }
+      ],
+      "answer_variable": "pka_rows"
+    },
+    {
+      "id": "mq07_pka_diamine_inchi",
+      "title": "MQ7 — pKa for methylenediamine InChI",
+      "tags": ["expected_empty"],
+      "steps": [
+        {
+          "tool": "query_pka_enriched",
+          "args": {
+            "namespace": "ontospecies",
+            "species_fragment": "InChI=1S/C2H6N2/c1-2(3)4/h1H3,(H3,3,4)"
+          },
+          "output_variable": "pka_rows"
+        }
+      ],
+      "answer_variable": "pka_rows"
+    },
+    {
+      "id": "mq08_acetic_temp_dependence",
+      "title": "MQ8 — acetic acid pKa vs temperature",
+      "tags": ["expected_empty"],
+      "steps": [
+        {
+          "tool": "query_pka_enriched",
+          "args": {
+            "namespace": "ontospecies",
+            "species_fragment": "acetic acid"
+          },
+          "output_variable": "pka_rows"
+        },
+        {
+          "type": "transform",
+          "transform": "filter_rows",
+          "name": "non_empty_temperature",
+          "input_variable": "pka_rows",
+          "output_variable": "temp_rows",
+          "logic": "and",
+          "filters": [
+            {"field": "temperature", "op": "ne", "value": ""}
+          ],
+          "offline_only": true
+        }
+      ],
+      "answer_variable": "temp_rows"
+    },
+    {
+      "id": "mq09_perrin2_temp",
+      "title": "MQ9 — perrin2 temperature dependence of pKaH1",
+      "tags": ["expected_empty"],
+      "steps": [
+        {
+          "tool": "query_pka_enriched",
+          "args": {
+            "namespace": "ontospecies",
+            "ref_label_fragment": "perrin2",
+            "acidity_label_fragment": "pKaH1"
+          },
+          "output_variable": "pka_rows"
+        }
+      ],
+      "answer_variable": "pka_rows"
+    },
+    {
+      "id": "mq10_high_pressure_pka",
+      "title": "MQ10 — species with pKa at high pressures",
+      "tags": ["expected_empty"],
+      "steps": [
+        {
+          "tool": "query_pka_enriched",
+          "args": {
+            "namespace": "ontospecies",
+            "method_fragment": "pressure"
+          },
+          "output_variable": "pka_rows"
+        }
+      ],
+      "answer_variable": "pka_rows"
+    },
+    {
+      "id": "mq11_most_pka_species",
+      "title": "MQ11 — species with most pKaH values",
+      "steps": [
+        {
+          "tool": "query_species_profile_top",
+          "args": {
+            "namespace": "ontospecies",
+            "limit": 10
+          },
+          "output_variable": "profile_rows"
+        }
+      ],
+      "answer_variable": "profile_rows"
+    },
+    {
+      "id": "mq12_methylamine_ionic",
+      "title": "MQ12 — ionic strengths for methylamine pKa",
+      "steps": [
+        {
+          "tool": "query_pka_enriched",
+          "args": {
+            "namespace": "ontospecies",
+            "species_fragment": "methylamine"
+          },
+          "output_variable": "pka_rows"
+        }
+      ],
+      "answer_variable": "pka_rows"
+    },
+    {
+      "id": "mq13_multi_source_pka",
+      "title": "MQ13 — compounds with pKa across multiple sources",
+      "steps": [
+        {
+          "tool": "query_pka_enriched",
+          "args": {
+            "namespace": "ontospecies"
+          },
+          "output_variable": "pka_pool"
+        },
+        {
+          "type": "transform",
+          "transform": "group_aggregate",
+          "name": "sources_per_species",
+          "input_variable": "pka_pool",
+          "output_variable": "multi_source",
+          "group_by": ["species_iri", "primary_label"],
+          "aggregations": [
+            {"op": "count_distinct", "field": "provenance", "as": "source_count"}
+          ],
+          "offline_only": true
+        },
+        {
+          "type": "transform",
+          "transform": "filter_rows",
+          "name": "multi_source_filter",
+          "input_variable": "multi_source",
+          "output_variable": "multi_source_rows",
+          "logic": "and",
+          "filters": [
+            {"field": "source_count", "op": "gt", "value": 1}
+          ],
+          "offline_only": true
+        }
+      ],
+      "answer_variable": "multi_source_rows"
+    },
+    {
+      "id": "mq14_uncertain_reliability_pka",
+      "title": "MQ14 — methods most often tagged Uncertain reliability",
+      "tags": ["expected_empty"],
+      "steps": [
+        {
+          "tool": "query_pka_enriched",
+          "args": {
+            "namespace": "ontospecies",
+            "reliability_fragment": "uncertain"
+          },
+          "output_variable": "uncertain_pool"
+        },
+        {
+          "type": "transform",
+          "transform": "group_aggregate",
+          "name": "uncertain_by_method",
+          "input_variable": "uncertain_pool",
+          "output_variable": "method_counts",
+          "group_by": ["method"],
+          "aggregations": [
+            {"op": "count", "as": "count"}
+          ],
+          "order_by": {"field": "count", "order": "desc"},
+          "offline_only": true
+        }
+      ],
+      "answer_variable": "method_counts"
+    },
+    {
+      "id": "mq15_pka_and_pkb",
+      "title": "MQ15 — compounds with both pKa and pKb measurements",
+      "tags": ["expected_empty"],
+      "steps": [
+        {
+          "tool": "query_pka_enriched",
+          "args": {
+            "namespace": "ontospecies"
+          },
+          "output_variable": "pka_pool"
+        },
+        {
+          "type": "transform",
+          "transform": "group_aggregate",
+          "name": "acidity_labels_per_species",
+          "input_variable": "pka_pool",
+          "output_variable": "label_counts",
+          "group_by": ["species_iri", "primary_label", "acidity_label"],
+          "aggregations": [
+            {"op": "count", "as": "count"}
+          ],
+          "offline_only": true
+        },
+        {
+          "type": "transform",
+          "transform": "group_aggregate",
+          "name": "both_pka_pkb",
+          "input_variable": "label_counts",
+          "output_variable": "both_rows",
+          "group_by": ["species_iri", "primary_label"],
+          "aggregations": [
+            {"op": "count_distinct", "field": "acidity_label", "as": "label_kinds"}
+          ],
+          "offline_only": true
+        },
+        {
+          "type": "transform",
+          "transform": "filter_rows",
+          "name": "at_least_two_labels",
+          "input_variable": "both_rows",
+          "output_variable": "pka_pkb_rows",
+          "logic": "and",
+          "filters": [
+            {"field": "label_kinds", "op": "gte", "value": 2}
+          ],
+          "offline_only": true
+        }
+      ],
+      "answer_variable": "pka_pkb_rows"
+    },
+    {
+      "id": "mq16_uncertain_pka",
+      "title": "MQ16 — pK measurements tagged Uncertain",
+      "tags": ["expected_empty"],
+      "steps": [
+        {
+          "tool": "query_pka_enriched",
+          "args": {
+            "namespace": "ontospecies",
+            "reliability_fragment": "uncertain"
+          },
+          "output_variable": "pka_rows"
+        }
+      ],
+      "answer_variable": "pka_rows"
+    },
+    {
+      "id": "mq17_methylamine_provenance",
+      "title": "MQ17 — provenance refs for methylamine pKa",
+      "steps": [
+        {
+          "tool": "query_pka_with_provenance",
+          "args": {
+            "namespace": "ontospecies",
+            "species_fragment": "InChI=1S/CH5N/c1-2/h2H2,1H3"
+          },
+          "output_variable": "pka_rows"
+        }
+      ],
+      "answer_variable": "pka_rows"
+    },
+    {
+      "id": "mq18_perrin_compound_counts",
+      "title": "MQ18 — Perrin compounds and pK measurement counts",
+      "tags": ["expected_empty"],
+      "steps": [
+        {
+          "tool": "query_pka_enriched",
+          "args": {
+            "namespace": "ontospecies",
+            "ref_label_fragment": "Perrin"
+          },
+          "output_variable": "perrin_pool"
+        },
+        {
+          "type": "transform",
+          "transform": "group_aggregate",
+          "name": "perrin_counts",
+          "input_variable": "perrin_pool",
+          "output_variable": "compound_counts",
+          "group_by": ["species_iri", "primary_label"],
+          "aggregations": [
+            {"op": "count", "as": "pka_count"}
+          ],
+          "order_by": {"field": "pka_count", "order": "desc"},
+          "offline_only": true
+        }
+      ],
+      "answer_variable": "compound_counts"
+    },
+    {
+      "id": "mq19_acidity_ah",
+      "title": "MQ19 — pK measurements with acidity label AH",
+      "tags": ["expected_empty"],
+      "steps": [
+        {
+          "tool": "query_pka_enriched",
+          "args": {
+            "namespace": "ontospecies",
+            "acidity_label_fragment": "AH"
+          },
+          "output_variable": "pka_rows"
+        }
+      ],
+      "answer_variable": "pka_rows"
+    },
+    {
+      "id": "mq14_legacy_uncertain_pka",
+      "title": "MQ14 legacy — raw pKa corpus (pre-join)",
+      "tags": ["legacy"],
+      "steps": [
+        {
+          "tool": "query_species_pka",
+          "args": {
+            "namespace": "ontospecies"
+          },
+          "output_variable": "pka_rows"
+        }
+      ],
+      "answer_variable": "pka_rows"
+    },
+    {
+      "id": "mq21_h2o2_reactions",
+      "title": "MQ21 — mechanisms with H2O2 reactions",
+      "steps": [
+        {
+          "tool": "traverse_mechanism_reactions",
+          "args": {
+            "namespace": "ontokin",
+            "reaction_fragment": "H2O2"
+          },
+          "output_variable": "reactions"
+        }
+      ],
+      "answer_variable": "reactions"
+    },
+    {
+      "id": "mq22_o2_and_ar_mechanisms",
+      "title": "MQ22 — mechanisms containing both O2 and Ar reactions",
+      "steps": [
+        {
+          "tool": "traverse_mechanism_reactions",
+          "args": {
+            "namespace": "ontokin",
+            "reaction_fragment": "O2"
+          },
+          "output_variable": "o2_reactions"
+        },
+        {
+          "tool": "traverse_mechanism_reactions",
+          "args": {
+            "namespace": "ontokin",
+            "reaction_fragment": "Ar"
+          },
+          "output_variable": "ar_reactions"
+        },
+        {
+          "type": "transform",
+          "transform": "intersect_keys",
+          "name": "mechanisms_with_o2_and_ar",
+          "left_variable": "o2_reactions",
+          "right_variable": "ar_reactions",
+          "key": "mechanism",
+          "output_variable": "both_mechanisms",
+          "offline_only": true
+        }
+      ],
+      "answer_variable": "both_mechanisms"
+    },
+    {
+      "id": "mq26_h2_oh_rate_constants",
+      "title": "MQ26 — compare H2+OH rate constants across mechanisms",
+      "steps": [
+        {
+          "tool": "compare_rate_constants",
+          "args": {
+            "namespace": "ontokin",
+            "equation_fragment": "H2 + OH"
+          },
+          "output_variable": "rate_rows"
+        }
+      ],
+      "answer_variable": "rate_rows"
+    },
+    {
+      "id": "mq43_h2s_guest",
+      "title": "MQ43 — zeolite materials with H2S guest formula",
+      "steps": [
+        {
+          "tool": "filter_by_literal",
+          "args": {
+            "namespace": "ontozeolite",
+            "class_local": "ZeoliticMaterial",
+            "property_local": "hasGuestFormula",
+            "value_fragment": "H2S"
+          },
+          "output_variable": "materials"
+        }
+      ],
+      "answer_variable": "materials"
+    },
+    {
+      "id": "mq34_framework_aen",
+      "title": "MQ34 — zeolitic materials for framework AEN",
+      "steps": [
+        {
+          "tool": "filter_by_literal",
+          "args": {
+            "namespace": "ontozeolite",
+            "class_local": "ZeoliticMaterial",
+            "property_local": "hasFrameworkCode",
+            "value_fragment": "AEN"
+          },
+          "output_variable": "materials"
+        }
+      ],
+      "answer_variable": "materials"
+    },
+    {
+      "id": "mq41_zeolite_area_volume",
+      "title": "MQ41 — zeolites with occupiable area >500 and unit cell volume <200 (endpoint gap: no numeric props)",
+      "steps": [
+        {
+          "tool": "list_zeolite_numeric_props",
+          "args": {
+            "namespace": "ontozeolite"
+          },
+          "output_variable": "numeric_rows"
+        },
+        {
+          "type": "transform",
+          "transform": "filter_rows",
+          "name": "area_volume_filter",
+          "input_variable": "numeric_rows",
+          "output_variable": "filtered_materials",
+          "logic": "and",
+          "filters": [
+            {"field": "occupiable_area", "op": "gt", "value": 500},
+            {"field": "unit_cell_volume", "op": "lt", "value": 200}
+          ],
+          "offline_only": true
+        }
+      ],
+      "answer_variable": "filtered_materials"
+    },
+    {
+      "id": "mq31_zpe_species",
+      "title": "MQ31 — zero-point energy for species fragment 663e4fd4",
+      "steps": [
+        {
+          "tool": "query_calculation_results",
+          "args": {
+            "namespace": "ontocompchem",
+            "species_label": "663e4fd4",
+            "result_kinds": ["zpe"]
+          },
+          "output_variable": "zpe_rows"
+        }
+      ],
+      "answer_variable": "zpe_rows"
+    },
+    {
+      "id": "mq32_homo_lumo",
+      "title": "MQ32 — HOMO/LUMO for species fragment 663e4fd4",
+      "steps": [
+        {
+          "tool": "query_calculation_results",
+          "args": {
+            "namespace": "ontocompchem",
+            "species_label": "663e4fd4",
+            "result_kinds": ["homo", "lumo"]
+          },
+          "output_variable": "orbital_rows"
+        }
+      ],
+      "answer_variable": "orbital_rows"
+    },
+    {
+      "id": "mq33_rotational_constants",
+      "title": "MQ33 — rotational constants for species fragment 798ae810",
+      "steps": [
+        {
+          "tool": "query_calculation_results",
+          "args": {
+            "namespace": "ontocompchem",
+            "species_label": "798ae810",
+            "result_kinds": ["rotational"]
+          },
+          "output_variable": "rotational_rows"
+        }
+      ],
+      "answer_variable": "rotational_rows"
+    }
+  ]
+}

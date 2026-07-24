@@ -1,0 +1,5 @@
+# Competency Test GUI (install on top of requirements-docker.txt or local venv)
+-r requirements-docker.txt
+streamlit>=1.28,<2
+pandas>=2.0,<3
+plotly>=5.18,<6

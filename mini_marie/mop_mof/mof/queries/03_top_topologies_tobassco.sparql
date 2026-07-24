@@ -1,0 +1,10 @@
+PREFIX mofs: <https://www.theworldavatar.com/kg/ontomofs_vkg/>
+SELECT ?topology (COUNT(?mof) AS ?count)
+WHERE {
+  ?mof a mofs:MetalOrganicFramework ;
+       mofs:hasSourcedb "Tobassco" ;
+       mofs:hasRCSRSym ?topology .
+}
+GROUP BY ?topology
+ORDER BY DESC(?count)
+LIMIT 15

@@ -1,0 +1,62 @@
+{
+  "mof-twa": {
+    "command": "python",
+    "args": ["-m", "mini_marie.mop_mof.mof.main"],
+    "transport": "stdio"
+  },
+  "twa-city": {
+    "command": "python",
+    "args": ["-m", "mini_marie.zaha.twa_city.main"],
+    "transport": "stdio"
+  },
+  "twa-mops": {
+    "command": "python",
+    "args": ["-m", "mini_marie.mop_mof.mops.main"],
+    "transport": "stdio"
+  },
+  "sg-old": {
+    "command": "python",
+    "args": ["-m", "mini_marie.zaha.sg_old.main"],
+    "transport": "stdio"
+  },
+  "kg-catalog": {
+    "command": "python",
+    "args": ["-m", "mini_marie.kg_catalog.main"],
+    "transport": "stdio"
+  },
+  "chemistry-ontospecies": {
+    "command": "python",
+    "args": ["-m", "mini_marie.marie.chemistry.ontospecies.main"],
+    "transport": "stdio"
+  },
+  "chemistry-ontokin": {
+    "command": "python",
+    "args": ["-m", "mini_marie.marie.chemistry.ontokin.main"],
+    "transport": "stdio"
+  },
+  "chemistry-ontocompchem": {
+    "command": "python",
+    "args": ["-m", "mini_marie.marie.chemistry.ontocompchem.main"],
+    "transport": "stdio"
+  },
+  "chemistry-ontozeolite": {
+    "command": "python",
+    "args": ["-m", "mini_marie.marie.chemistry.ontozeolite.main"],
+    "transport": "stdio"
+  },
+  "chemistry-ontomops": {
+    "command": "python",
+    "args": ["-m", "mini_marie.marie.chemistry.ontomops.main"],
+    "transport": "stdio"
+  },
+  "chemistry-ontoprovenance": {
+    "command": "python",
+    "args": ["-m", "mini_marie.marie.chemistry.ontoprovenance.main"],
+    "transport": "stdio"
+  },
+  "chemistry-ontopesscan": {
+    "command": "python",
+    "args": ["-m", "mini_marie.marie.chemistry.ontopesscan.main"],
+    "transport": "stdio"
+  }
+}

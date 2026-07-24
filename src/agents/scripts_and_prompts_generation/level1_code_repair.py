@@ -1,0 +1,668 @@
+"""Shared Level-1 (ruff / compile / machine-validation) repair helpers.
+
+Used by the medical semantic MCP closed loop and reusable by JSON-patch flows.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import re
+import subprocess
+import sys
+import textwrap
+import time
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Callable
+
+from models.LLMCreator import LLMCreator
+from models.ModelConfig import ModelConfig
+from src.agents.scripts_and_prompts_generation.agentic_generation_validation import (
+    build_validation_report,
+)
+
+_SCRIPT_FILE_RE = re.compile(r"^([A-Za-z0-9_.-]+\.(?:md|py)):\s*(.+)$", re.DOTALL)
+
+
+@dataclass
+class CheckResult:
+    name: str
+    ok: bool
+    returncode: int = 0
+    stdout: str = ""
+    stderr: str = ""
+
+
+@dataclass
+class LLMJsonResult:
+    data: dict[str, Any]
+    elapsed_seconds: float
+    token_usage: dict[str, Any]
+
+
+def _env_int(name: str, default: int) -> int:
+    raw = os.environ.get(name, "").strip()
+    if not raw:
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        return default
+    return value if value > 0 else default
+
+
+def escape_nul_bytes(text: str) -> str:
+    return text.replace("\x00", "\\x00")
+
+
+def run_command(
+    args: list[str],
+    cwd: Path,
+    timeout: int = 120,
+    env: dict[str, str] | None = None,
+) -> CheckResult:
+    completed = subprocess.run(
+        args,
+        cwd=str(cwd),
+        text=True,
+        capture_output=True,
+        timeout=timeout,
+        env=env,
+    )
+    return CheckResult(
+        name=" ".join(args),
+        ok=completed.returncode == 0,
+        returncode=completed.returncode,
+        stdout=completed.stdout,
+        stderr=completed.stderr,
+    )
+
+
+def ensure_git_repo(directory: Path) -> None:
+    directory.mkdir(parents=True, exist_ok=True)
+    if not (directory / ".git").exists():
+        run_command(["git", "init", "-q"], cwd=directory)
+
+
+def group_validation_failures(failures: list[str]) -> dict[str, list[str]]:
+    """Map basename (e.g. main.py) -> machine validation messages."""
+    by_file: dict[str, list[str]] = {}
+    for raw in failures or []:
+        line = raw.strip()
+        if not line:
+            continue
+        match = _SCRIPT_FILE_RE.match(line)
+        if match:
+            by_file.setdefault(match.group(1), []).append(match.group(2).strip())
+            continue
+        prefix = "Foreign ontology symbols found:"
+        if line.startswith(prefix):
+            rest = line[len(prefix) :].strip()
+            for segment in rest.split(";"):
+                segment = segment.strip()
+                if ": " not in segment:
+                    continue
+                fn, msg = segment.split(": ", 1)
+                fn = fn.strip()
+                if fn.endswith((".py", ".md")):
+                    by_file.setdefault(fn, []).append(
+                        f"foreign symbols / leakage: {msg.strip()}"
+                    )
+    return by_file
+
+
+def _response_text(response: Any) -> str:
+    content = getattr(response, "content", response)
+    if isinstance(content, list):
+        return "\n".join(str(item) for item in content)
+    return str(content)
+
+
+def _token_usage(response: Any) -> dict[str, Any]:
+    usage = getattr(response, "usage_metadata", None)
+    if isinstance(usage, dict) and usage:
+        return usage
+    metadata = getattr(response, "response_metadata", None)
+    if isinstance(metadata, dict):
+        token_usage = metadata.get("token_usage")
+        if isinstance(token_usage, dict):
+            return token_usage
+    return {}
+
+
+def extract_json_object(text: str) -> dict[str, Any]:
+    stripped = text.strip()
+    if stripped.startswith("```"):
+        lines = stripped.splitlines()
+        if lines and lines[0].startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].strip() == "```":
+            lines = lines[:-1]
+        stripped = "\n".join(lines).strip()
+    try:
+        data = json.loads(stripped)
+    except json.JSONDecodeError:
+        start = stripped.find("{")
+        end = stripped.rfind("}")
+        if start < 0 or end <= start:
+            raise
+        data = json.loads(stripped[start : end + 1])
+    if not isinstance(data, dict):
+        raise ValueError("LLM response must be a JSON object")
+    return data
+
+
+def invoke_json(model: str, prompt: str) -> LLMJsonResult:
+    last_detail = ""
+    for attempt in range(1, 4):
+        llm = LLMCreator(
+            model=model,
+            remote_model=True,
+            model_config=ModelConfig(
+                max_tokens=_env_int("TWA_GENERATION_MAX_TOKENS", 32000),
+                timeout=_env_int("TWA_GENERATION_TIMEOUT", 600),
+                temperature=0,
+                top_p=0.1,
+            ),
+        ).setup_llm()
+        effective_prompt = prompt
+        if attempt > 1:
+            effective_prompt = (
+                prompt
+                + "\n\nPrevious response was not parseable JSON. Return only one valid JSON object "
+                + "with the exact requested keys. Escape all newlines and quotes inside JSON string values. "
+                + f"Previous parse error detail: {last_detail}"
+            )
+        started = time.perf_counter()
+        response = llm.invoke(effective_prompt)
+        elapsed = time.perf_counter() - started
+        raw = _response_text(response)
+        try:
+            data = extract_json_object(raw)
+        except (json.JSONDecodeError, ValueError) as exc:
+            preview = (raw or "").replace("\r", "")[:800]
+            last_detail = f"len={len(raw or '')} preview={preview!r}"
+            if attempt == 3:
+                raise RuntimeError(
+                    f"LLM did not return a JSON object ({last_detail})"
+                ) from exc
+            continue
+        return LLMJsonResult(
+            data=data,
+            elapsed_seconds=elapsed,
+            token_usage=_token_usage(response),
+        )
+    raise RuntimeError("LLM did not return a JSON object")
+
+
+def check_python_file(path: Path) -> list[CheckResult]:
+    scripts_dir = path.parent.resolve()
+    return [
+        run_command(
+            [sys.executable, "-m", "ruff", "format", path.name], cwd=scripts_dir
+        ),
+        run_command(
+            [sys.executable, "-m", "ruff", "check", path.name], cwd=scripts_dir
+        ),
+        run_command(
+            [
+                sys.executable,
+                "-c",
+                (
+                    "import ast,pathlib;"
+                    f"ast.parse(pathlib.Path({path.name!r}).read_text(encoding='utf-8'))"
+                ),
+            ],
+            cwd=scripts_dir,
+        ),
+    ]
+
+
+def apply_unified_diff(directory: Path, file_name: str, patch_unified_diff: str) -> CheckResult:
+    ensure_git_repo(directory)
+    patch_path = directory / f"{file_name}.repair.patch"
+    patch_path.write_text(
+        escape_nul_bytes(patch_unified_diff).rstrip() + "\n", encoding="utf-8"
+    )
+    return run_command(
+        ["git", "apply", "--recount", "--whitespace=nowarn", patch_path.name],
+        cwd=directory,
+    )
+
+
+def _repair_prompt(file_name: str, feedback: str) -> str:
+    return textwrap.dedent(
+        f"""
+        You are repairing `{file_name}` in the Level-1 code repair loop.
+
+        Return only a valid JSON object with this exact shape:
+        {{"patch_unified_diff": "<unified diff usable by git apply>"}}
+
+        Requirements:
+        - Patch `{file_name}` only.
+        - Use standard unified diff with a/{file_name} and b/{file_name} paths.
+        - The patch must start with `diff --git a/{file_name} b/{file_name}`.
+        - Do not use Cursor/ApplyPatch format. Never output `*** Begin Patch`.
+        - Prefer the smallest possible patch that fixes ruff/import/syntax/contract issues.
+        - Return only JSON. No Markdown fences, no explanations, no extra keys.
+
+        Validation feedback:
+        {feedback}
+        """
+    ).strip()
+
+
+def _file_feedback(results: list[CheckResult], path: Path) -> str:
+    return "\n\n".join(
+        [
+            f"Current file contents for {path.name}:\n```\n"
+            f"{path.read_text(encoding='utf-8', errors='replace')}\n```",
+            "Check results:",
+            *[
+                json.dumps(
+                    {
+                        "name": result.name,
+                        "ok": result.ok,
+                        "returncode": result.returncode,
+                        "stdout": result.stdout[-4000:],
+                        "stderr": result.stderr[-4000:],
+                    },
+                    indent=2,
+                )
+                for result in results
+            ],
+        ]
+    )
+
+
+def repair_python_file_with_llm(
+    *,
+    model: str,
+    path: Path,
+    max_repairs: int,
+    sticky_feedback: str,
+) -> dict[str, Any]:
+    """LLM unified-diff repair until ruff/compile pass or budget exhausted."""
+    started = time.perf_counter()
+    directory = path.parent
+    ensure_git_repo(directory)
+    llm_calls: list[dict[str, Any]] = []
+    history: list[dict[str, Any]] = []
+    results = check_python_file(path)
+    history.append({"phase": "baseline", "ok": all(item.ok for item in results)})
+    repairs = 0
+    while not all(item.ok for item in results) and repairs < max_repairs:
+        repairs += 1
+        prompt = _repair_prompt(
+            path.name, sticky_feedback + "\n\n" + _file_feedback(results, path)
+        )
+        repair = invoke_json(model, prompt)
+        llm_calls.append(
+            {
+                "phase": f"repair_{repairs}",
+                "elapsed_seconds": round(repair.elapsed_seconds, 3),
+                "token_usage": repair.token_usage,
+            }
+        )
+        patch_unified_diff = repair.data.get("patch_unified_diff")
+        if not isinstance(patch_unified_diff, str) or not patch_unified_diff.strip():
+            history.append(
+                {"phase": f"repair_{repairs}", "patch_applied": False, "ok": False}
+            )
+            break
+        patch_result = apply_unified_diff(directory, path.name, patch_unified_diff)
+        if not patch_result.ok:
+            results = [*results, patch_result]
+            history.append(
+                {"phase": f"repair_{repairs}", "patch_applied": False, "ok": False}
+            )
+            continue
+        results = check_python_file(path)
+        history.append(
+            {
+                "phase": f"repair_{repairs}",
+                "patch_applied": True,
+                "ok": all(item.ok for item in results),
+            }
+        )
+    return {
+        "file": str(path),
+        "ok": all(item.ok for item in results),
+        "elapsed_seconds": round(time.perf_counter() - started, 3),
+        "repairs": repairs,
+        "llm_calls": llm_calls,
+        "history": history,
+        "final_checks": [
+            {
+                "name": result.name,
+                "ok": result.ok,
+                "returncode": result.returncode,
+                "stdout": result.stdout[-2000:],
+                "stderr": result.stderr[-2000:],
+            }
+            for result in results
+        ],
+    }
+
+
+def _semantic_repair_prompt(file_name: str, feedback: str) -> str:
+    return textwrap.dedent(
+        f"""
+        You are repairing `{file_name}` for a **semantic / reasoner** failure.
+        The file may already pass ruff and py_compile — that is not enough.
+
+        Return only a valid JSON object with this exact shape:
+        {{"patch_unified_diff": "<unified diff usable by git apply>"}}
+
+        Requirements:
+        - Patch `{file_name}` only.
+        - Use standard unified diff with a/{file_name} and b/{file_name} paths.
+        - The patch must start with `diff --git a/{file_name} b/{file_name}`.
+        - Do not use Cursor/ApplyPatch format. Never output `*** Begin Patch`.
+        - Fix the ontology/property defect described in the feedback (restore valid
+          T-Box property locals; remove invented property names).
+        - Keep the file ruff/py_compile clean after the patch.
+        - Prefer the smallest possible patch.
+        - Return only JSON. No Markdown fences, no explanations, no extra keys.
+
+        Semantic / reasoner feedback:
+        {feedback}
+        """
+    ).strip()
+
+
+def repair_python_file_with_llm_for_goal(
+    *,
+    model: str,
+    path: Path,
+    max_repairs: int,
+    sticky_feedback: str,
+    goal_met: Callable[[Path], bool],
+) -> dict[str, Any]:
+    """Force LLM patches until ``goal_met(path)`` even when ruff already passes.
+
+    Used for non-trivial semantic defects that do not fail Level-1 lint/compile.
+    """
+    started = time.perf_counter()
+    directory = path.parent
+    ensure_git_repo(directory)
+    llm_calls: list[dict[str, Any]] = []
+    history: list[dict[str, Any]] = []
+    results = check_python_file(path)
+    met = bool(goal_met(path))
+    history.append(
+        {
+            "phase": "baseline",
+            "ruff_ok": all(item.ok for item in results),
+            "goal_met": met,
+        }
+    )
+    repairs = 0
+    while (not met or not all(item.ok for item in results)) and repairs < max_repairs:
+        repairs += 1
+        prompt = _semantic_repair_prompt(
+            path.name,
+            sticky_feedback
+            + "\n\n"
+            + _file_feedback(results, path)
+            + f"\n\nGoal currently met: {met}",
+        )
+        repair = invoke_json(model, prompt)
+        llm_calls.append(
+            {
+                "phase": f"repair_{repairs}",
+                "elapsed_seconds": round(repair.elapsed_seconds, 3),
+                "token_usage": repair.token_usage,
+            }
+        )
+        patch_unified_diff = repair.data.get("patch_unified_diff")
+        if not isinstance(patch_unified_diff, str) or not patch_unified_diff.strip():
+            history.append(
+                {
+                    "phase": f"repair_{repairs}",
+                    "patch_applied": False,
+                    "goal_met": met,
+                    "ok": False,
+                }
+            )
+            break
+        patch_result = apply_unified_diff(directory, path.name, patch_unified_diff)
+        if not patch_result.ok:
+            results = [*results, patch_result]
+            history.append(
+                {
+                    "phase": f"repair_{repairs}",
+                    "patch_applied": False,
+                    "goal_met": met,
+                    "ok": False,
+                }
+            )
+            continue
+        results = check_python_file(path)
+        met = bool(goal_met(path))
+        history.append(
+            {
+                "phase": f"repair_{repairs}",
+                "patch_applied": True,
+                "ruff_ok": all(item.ok for item in results),
+                "goal_met": met,
+                "ok": met and all(item.ok for item in results),
+            }
+        )
+    return {
+        "file": str(path),
+        "ok": met and all(item.ok for item in results),
+        "goal_met": met,
+        "elapsed_seconds": round(time.perf_counter() - started, 3),
+        "repairs": repairs,
+        "llm_calls": llm_calls,
+        "history": history,
+        "final_checks": [
+            {
+                "name": result.name,
+                "ok": result.ok,
+                "returncode": result.returncode,
+                "stdout": result.stdout[-2000:],
+                "stderr": result.stderr[-2000:],
+            }
+            for result in results
+        ],
+    }
+
+
+def run_ruff_on_scripts(scripts_dir: Path) -> dict[str, Any]:
+    """Format/check/compile every *.py under scripts_dir (except attempt backups)."""
+    results: list[dict[str, Any]] = []
+    ok = True
+    for path in sorted(scripts_dir.glob("*.py")):
+        if path.name.startswith("main_part_") or "_attempt_" in path.name:
+            continue
+        file_results = check_python_file(path)
+        file_ok = all(item.ok for item in file_results)
+        ok = ok and file_ok
+        results.append(
+            {
+                "file": path.name,
+                "ok": file_ok,
+                "checks": [
+                    {
+                        "name": item.name,
+                        "ok": item.ok,
+                        "stdout": item.stdout[-1000:],
+                        "stderr": item.stderr[-1000:],
+                    }
+                    for item in file_results
+                ],
+            }
+        )
+    return {"ok": ok, "files": results}
+
+
+def autofix_ruff_on_scripts(scripts_dir: Path) -> dict[str, Any]:
+    """Non-LLM Level-1: ruff format + ruff check --fix on all package scripts."""
+    applied: list[dict[str, Any]] = []
+    for path in sorted(scripts_dir.glob("*.py")):
+        if path.name.startswith("main_part_") or "_attempt_" in path.name:
+            continue
+        fmt = run_command(
+            [sys.executable, "-m", "ruff", "format", path.name], cwd=scripts_dir
+        )
+        fix = run_command(
+            [sys.executable, "-m", "ruff", "check", "--fix", path.name],
+            cwd=scripts_dir,
+        )
+        applied.append(
+            {
+                "file": path.name,
+                "format_ok": fmt.ok,
+                "fix_ok": fix.ok,
+                "fix_stdout": fix.stdout[-1000:],
+                "fix_stderr": fix.stderr[-1000:],
+            }
+        )
+    recheck = run_ruff_on_scripts(scripts_dir)
+    return {"applied": applied, "recheck": recheck}
+
+
+def level1_repair_loop(
+    *,
+    context: Any,
+    model: str,
+    max_ruff_repairs: int,
+    allow_llm: bool,
+    log: Callable[[str], None] | None = None,
+) -> dict[str, Any]:
+    """Run ruff/compile then machine validation with optional LLM patch repairs."""
+    _log = log or (lambda _msg: None)
+    scripts_dir = Path(context.scripts_dir).resolve()
+    prompts_dir = Path(context.prompts_dir).resolve()
+    ensure_git_repo(scripts_dir)
+    if prompts_dir.is_dir():
+        ensure_git_repo(prompts_dir)
+
+    history: list[dict[str, Any]] = []
+    ruff_report = run_ruff_on_scripts(scripts_dir)
+    history.append({"phase": "ruff_initial", "ok": ruff_report["ok"], "report": ruff_report})
+
+    if not ruff_report["ok"]:
+        _log("[level1] applying non-LLM ruff format/check --fix")
+        autofix = autofix_ruff_on_scripts(scripts_dir)
+        ruff_report = autofix["recheck"]
+        history.append(
+            {
+                "phase": "ruff_autofix",
+                "ok": ruff_report["ok"],
+                "applied": autofix["applied"],
+            }
+        )
+
+    if not ruff_report["ok"] and allow_llm and max_ruff_repairs > 0:
+        for item in ruff_report["files"]:
+            if item["ok"]:
+                continue
+            path = scripts_dir / item["file"]
+            _log(f"[level1] ruff LLM repair → {path.name}")
+            repair = repair_python_file_with_llm(
+                model=model,
+                path=path,
+                max_repairs=max_ruff_repairs,
+                sticky_feedback="Fix ruff format/check and py_compile failures.",
+            )
+            history.append({"phase": "ruff_llm_repair", "file": path.name, **repair})
+
+    validation_report = build_validation_report(
+        context, foreign_contracts=None, write_report=True
+    )
+    history.append(
+        {
+            "phase": "validation_initial",
+            "ok": bool(validation_report.get("ok")),
+            "failures": list(validation_report.get("failures") or []),
+        }
+    )
+
+    repairs_done = 0
+    while (
+        not validation_report.get("ok")
+        and allow_llm
+        and repairs_done < max_ruff_repairs
+    ):
+        failures = list(validation_report.get("failures") or [])
+        grouped = group_validation_failures(failures)
+        if not grouped:
+            _log("[level1] validation failures not mapped to files; stopping")
+            history.append(
+                {
+                    "phase": "validation_unmapped",
+                    "failures": failures,
+                }
+            )
+            break
+        repairs_done += 1
+        full_failures = "\n".join(failures)
+        fb = validation_report.get("feedback") or {}
+        extra = "\n".join(
+            (fb.get("prompt_agent") or []) + (fb.get("coding_agent") or [])
+        )
+        round_repairs: list[dict[str, Any]] = []
+        for fname, msgs in sorted(grouped.items()):
+            path = (
+                scripts_dir / fname
+                if (scripts_dir / fname).is_file()
+                else prompts_dir / fname
+            )
+            if not path.is_file() or not path.name.endswith(".py"):
+                # Minimal harness loop only patches Python; prompt failures are reported.
+                continue
+            sticky = (
+                "Machine validation reported the following for this file:\n"
+                + "\n".join(f"- {m}" for m in msgs)
+                + "\n\nFull failure bundle:\n"
+                + full_failures
+                + "\n\nStructured feedback:\n"
+                + extra
+            )
+            _log(f"[level1] validation LLM repair → {fname}")
+            round_repairs.append(
+                repair_python_file_with_llm(
+                    model=model,
+                    path=path,
+                    max_repairs=1,
+                    sticky_feedback=sticky,
+                )
+            )
+        history.append(
+            {"phase": f"validation_repair_{repairs_done}", "repairs": round_repairs}
+        )
+        ruff_report = run_ruff_on_scripts(scripts_dir)
+        history.append(
+            {
+                "phase": f"ruff_after_validation_{repairs_done}",
+                "ok": ruff_report["ok"],
+            }
+        )
+        validation_report = build_validation_report(
+            context, foreign_contracts=None, write_report=True
+        )
+        history.append(
+            {
+                "phase": f"validation_after_repair_{repairs_done}",
+                "ok": bool(validation_report.get("ok")),
+                "failures": list(validation_report.get("failures") or []),
+            }
+        )
+
+    final_ruff = run_ruff_on_scripts(scripts_dir)
+    ok = bool(final_ruff.get("ok")) and bool(validation_report.get("ok"))
+    return {
+        "ok": ok,
+        "ruff": final_ruff,
+        "validation": {
+            "ok": bool(validation_report.get("ok")),
+            "failures": list(validation_report.get("failures") or []),
+            "warnings": list(validation_report.get("warnings") or []),
+            "report_path": getattr(context, "report_path", None),
+        },
+        "history": history,
+    }

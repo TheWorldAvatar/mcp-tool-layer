@@ -1,0 +1,49 @@
+{
+  "id": "WF_TOP50_NON_DOMESTIC_LOCATIONS",
+  "question": "Find the tallest 50 non-domestic buildings and their locations and names",
+  "city": "bremen",
+  "top_n": 50,
+  "usage_type": "Non-Domestic",
+  "online_limit": 10,
+  "offline_cap": 500000,
+  "steps": [
+    {
+      "id": "call_1_by_usage",
+      "comment": "All Non-Domestic buildings ranked by height; online LIMIT 10, offline full set (~4k).",
+      "tool": "buildings_by_usage",
+      "args": {
+        "city": "$city",
+        "usage_type": "$usage_type"
+      },
+      "extract": {
+        "usage_ranked_rows": { "pick": "all_rows" },
+        "top_building_iris": { "pick": "column", "field": "building" }
+      }
+    },
+    {
+      "id": "call_2_top_n",
+      "type": "transform",
+      "name": "ensure_top_n",
+      "transform": "top_n_by_field",
+      "input_variable": "usage_ranked_rows",
+      "field": "height",
+      "n": "$top_n",
+      "order": "desc",
+      "output_field": "building",
+      "output_variable": "top_building_iris",
+      "also_store_rows": "top_building_rows"
+    },
+    {
+      "id": "call_3_locations",
+      "tool": "fetch_building_locations",
+      "args": {
+        "city": "$city",
+        "building_iris": "$top_building_iris"
+      },
+      "extract": {
+        "location_rows": { "pick": "all_rows" }
+      }
+    }
+  ],
+  "final_summary": "Top $top_n tallest $usage_type buildings in $city with WKT locations and rdfs:label names."
+}

@@ -1,0 +1,10 @@
+PREFIX bldg: <http://www.opengis.net/citygml/building/2.0/>
+SELECT
+  (COUNT(?b) AS ?buildings_with_height)
+  (MIN(?h) AS ?min_height)
+  (MAX(?h) AS ?max_height)
+  (AVG(?h) AS ?avg_height)
+WHERE {
+  ?b a bldg:Building ;
+     bldg:measuredHeight ?h .
+}

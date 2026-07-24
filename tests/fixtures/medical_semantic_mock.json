@@ -1,0 +1,48 @@
+{
+  "document_md": "Patient: Erika Mustermann — Fallnummer 987654321.\nOP-Datum: 15.03.2026.\nZugang: VATS.\nEingriff: Lobektomie (5-324).\nTeam: Operateur_in Dr. Anna Schmidt, Assistent_in Dr. Ben Keller.\nDiagnose: NSCLC.\nPathologie: R0, Stadium IB.\n",
+  "hints": {
+    "PatientInfo": {
+      "label": "Patient Erika Mustermann",
+      "Name": "Erika Mustermann",
+      "Fall_Nr": "987654321"
+    },
+    "CaseTimeline": {
+      "label": "Timeline 15.03.2026",
+      "OP_Datum": "15.03.2026"
+    },
+    "SurgicalApproach": {
+      "label": "Approach VATS",
+      "VATS": "1",
+      "offen": "-",
+      "RATS": "-"
+    },
+    "Procedure": {
+      "label": "Procedure Lobektomie",
+      "Lobektomie_Bilobektomie_5_324_5_325": "1"
+    },
+    "SurgicalTeam": {
+      "label": "Team Schmidt Keller",
+      "Operateur_in": "Dr. Anna Schmidt",
+      "Assistent_in": "Dr. Ben Keller"
+    },
+    "Diagnosis": {
+      "label": "Diagnosis NSCLC",
+      "NSCLC": "1"
+    },
+    "PathologyOutcome": {
+      "label": "Pathology R0 IB",
+      "R0": "1",
+      "Stadium": "IB"
+    }
+  },
+  "coverage": [
+    "MedicalCase",
+    "PatientInfo",
+    "CaseTimeline",
+    "SurgicalApproach",
+    "Procedure",
+    "SurgicalTeam",
+    "Diagnosis",
+    "PathologyOutcome"
+  ]
+}

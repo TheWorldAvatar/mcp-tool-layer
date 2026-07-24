@@ -1,0 +1,12 @@
+PREFIX bldg: <http://www.opengis.net/citygml/building/2.0/>
+PREFIX geo: <http://www.opengis.net/ont/geosparql#>
+SELECT
+  (COUNT(?b) AS ?buildings_with_area)
+  (MIN(?area) AS ?min_area)
+  (MAX(?area) AS ?max_area)
+  (AVG(?area) AS ?avg_area)
+WHERE {
+  ?b a bldg:Building ;
+     bldg:lod0FootPrint ?fp .
+  ?fp geo:hasMetricArea ?area .
+}

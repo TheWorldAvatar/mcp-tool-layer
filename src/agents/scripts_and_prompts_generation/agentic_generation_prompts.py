@@ -27,7 +27,16 @@ Rules:
 - Do not leak workflow, chemistry, clinical, or benchmark-specific language unless the selected T-Box contains it.
 - Keep prompts explicit enough for downstream agents to produce valid JSON hints and valid RDF-building actions.
 - State datatype and value-shape rules only when they are derived from the selected T-Box or generation contract.
+- If the T-Box annotates datatype fields with value kinds such as binary checklist vs free-text fallback, ensure generated extraction prompts state that binary/canonical checklist fields have higher priority than free-text fallback fields for the same source fact, and that every binary checklist field must be evaluated before returning JSON.
 - Do not merely describe changes. The task is complete only after prompt artifacts were inspected and revised or explicitly accepted.
+"""
+
+PROMPT_DIAGNOSIS_AGENT_SYSTEM = """You are a diagnostic agent for ontology-driven prompt enhancement.
+
+Compare the complete mock source, gold hints, predicted hints, hint and graph differences, repeat outcomes, T-Box contract, and actual prompt inventory.
+Determine whether each failure is caused by a prompt instruction gap, a non-prompt implementation defect, unstable model behaviour, or insufficient evidence.
+You—not a keyword router—must select the existing prompt files that own each actionable problem and explain why.
+Return JSON only. Never propose fixture-specific prompt rules; express repairs as general T-Box/contract-derived intent.
 """
 
 
@@ -74,6 +83,21 @@ def build_prompt_task_prompt(
     return (
         PROMPT_AGENT_SYSTEM
         + "\nGenerate or revise the requested prompt artifact using the workspace MCP tools.\n"
+        + json.dumps(payload, indent=2, ensure_ascii=False)
+    )
+
+
+def build_prompt_diagnosis_task_prompt(*, payload: dict[str, Any]) -> str:
+    """Build the read-only GPT diagnosis request."""
+    return (
+        PROMPT_DIAGNOSIS_AGENT_SYSTEM
+        + "\nRequired JSON keys: schema_version, status, summary, issues, "
+        "target_prompt_set, diagnostic_confidence. "
+        "status must be exactly one of: actionable, non_prompt_root_cause, "
+        "insufficient_evidence, ambiguous_targets. "
+        "Each issue must include issue_id, category, stage, evidence, root_cause, "
+        "target_prompts, must_preserve, and suggested_change. "
+        "Every selected target must exactly match a path in prompt_inventory.\n"
         + json.dumps(payload, indent=2, ensure_ascii=False)
     )
 

@@ -1,0 +1,27 @@
+{
+  "id": "WF_TOBASSCO_CO2_CORPUS_SHARE",
+  "question": "Tobassco CO2 coverage fraction of full MOF corpus plus uptake statistics",
+  "online_limit": 10,
+  "offline_cap": 500000,
+  "steps": [
+    {
+      "id": "call_1_total",
+      "tool": "get_mof_total_count",
+      "extract": {
+        "total_mofs": { "pick": "row_field", "field": "count", "index": 0 }
+      }
+    },
+    {
+      "id": "call_2_tobassco",
+      "tool": "get_tobassco_co2_coverage",
+      "extract": {
+        "tobassco_with_co2": { "pick": "row_field", "field": "with_co2", "index": 0 }
+      }
+    },
+    {
+      "id": "call_3_stats",
+      "tool": "get_tobassco_co2_uptake_stats"
+    }
+  ],
+  "final_summary": "Corpus total $total_mofs MOFs; Tobassco with CO2: $tobassco_with_co2."
+}

@@ -1,0 +1,8 @@
+{
+  "mode": "per_doi",
+  "description": "Re-run mop_derivation only after pubchempy install",
+  "meta_task_config": "configs/meta_task/meta_task_config.json",
+  "steps": [
+    "mop_derivation"
+  ]
+}

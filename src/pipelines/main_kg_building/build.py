@@ -1163,22 +1163,25 @@ def resolve_generated_file(path: str, project_root: str = ".") -> str:
         .replace("\\", "/")
         .rstrip("/")
     )
+    strict_root = os.environ.get("TWA_REQUIRE_GENERATED_ARTIFACT_ROOT") == "1"
     if rel.startswith("ai_generated_contents/"):
         if override_root:
             candidates.append(rel.replace("ai_generated_contents", override_root, 1))
-        candidates.append(
-            rel.replace("ai_generated_contents/", "ai_generated_contents_candidate/", 1)
-        )
-        candidates.append(rel)
+        if not strict_root:
+            candidates.append(
+                rel.replace("ai_generated_contents/", "ai_generated_contents_candidate/", 1)
+            )
+            candidates.append(rel)
     elif rel.startswith("ai_generated_contents_candidate/"):
         if override_root:
             candidates.append(
                 rel.replace("ai_generated_contents_candidate", override_root, 1)
             )
-        candidates.append(rel)
-        candidates.append(
-            rel.replace("ai_generated_contents_candidate/", "ai_generated_contents/", 1)
-        )
+        if not strict_root:
+            candidates.append(rel)
+            candidates.append(
+                rel.replace("ai_generated_contents_candidate/", "ai_generated_contents/", 1)
+            )
     else:
         candidates.append(rel)
 
@@ -1187,6 +1190,10 @@ def resolve_generated_file(path: str, project_root: str = ".") -> str:
         if c and os.path.exists(full):
             return full
     # Default to the first candidate even if it doesn't exist (caller may log)
+    if strict_root:
+        raise FileNotFoundError(
+            f"Required generated artifact is missing: {candidates[0]}"
+        )
     return os.path.join(project_root, candidates[0])
 
 
@@ -2247,7 +2254,9 @@ def _repair_published_entity_ttl_from_hints(
                 prop_name=prop_name,
             )
             for prop_name, prop_value in hinted_section.items()
-            if not isinstance(prop_value, (dict, list)) and prop_value is not None
+            if not isinstance(prop_value, (dict, list))
+            and prop_value is not None
+            and not str(prop_name).strip().endswith("_label")
         }
         if bool(spec.get("prune_unhinted_scalar_properties")):
             namespace = str(property_namespace_iri or "")
@@ -2291,6 +2300,20 @@ def _repair_published_entity_ttl_from_hints(
                     )
         for prop_name, prop_value in hinted_section.items():
             if isinstance(prop_value, (dict, list)) or prop_value is None:
+                continue
+            # Object-property hint parameters use a `_label` suffix so the
+            # generated constructor can resolve/create the target and emit the
+            # real object triple. They are never ontology datatype properties.
+            if str(prop_name).strip().endswith("_label"):
+                continue
+            # Hint JSON uses `label` for rdfs:label; never mint a domain `*:label` datatype.
+            if str(prop_name).strip() in {"label", "rdfs:label"}:
+                label_text = str(prop_value).strip()
+                if label_text and (target_node, RDFS.label, Literal(label_text)) not in g:
+                    for old in list(g.objects(target_node, RDFS.label)):
+                        if str(old).strip() != label_text:
+                            g.remove((target_node, RDFS.label, old))
+                    g.add((target_node, RDFS.label, Literal(label_text)))
                 continue
             prop = _resolve_hint_property_iri(
                 property_namespace_iri=property_namespace_iri,
@@ -2625,6 +2648,8 @@ async def run_kg_building_agent(
 
     # Replace placeholders in prompt
     prompt = kg_prompt.replace("{doi}", doi_hash)
+    # Legacy generated prompts used {hash}; keep both substitutions.
+    prompt = prompt.replace("{hash}", doi_hash)
     prompt = prompt.replace("{entity_label}", entity_label)
     prompt = prompt.replace("{entity_uri}", entity_uri)
     structured_hints = (
@@ -3058,17 +3083,28 @@ async def _process_iterations(
 
             # Run KG building agent
             try:
-                generated_materialized = _try_generated_materialize_hints(
-                    doi_hash=doi_hash,
-                    data_dir=data_dir,
-                    ontology_name=ontology_name,
-                    project_root=project_root,
-                    entity_label=entity_label,
-                    entity_safe=safe,
-                    hints_content=hints_content,
-                    intermediate_ttl=intermediate_ttl,
-                    response_file=response_file,
+                # Semantic MCP loop / tests can force the ReAct MCP path instead of
+                # the deterministic materialize_hints short-circuit.
+                force_react_kg = bool(
+                    config.get("force_react_kg") or config.get("skip_materialize_hints")
                 )
+                generated_materialized = False
+                if not force_react_kg:
+                    generated_materialized = _try_generated_materialize_hints(
+                        doi_hash=doi_hash,
+                        data_dir=data_dir,
+                        ontology_name=ontology_name,
+                        project_root=project_root,
+                        entity_label=entity_label,
+                        entity_safe=safe,
+                        hints_content=hints_content,
+                        intermediate_ttl=intermediate_ttl,
+                        response_file=response_file,
+                    )
+                elif force_react_kg:
+                    logger.info(
+                        "    🔁 force_react_kg enabled — skipping materialize_hints short-circuit"
+                    )
                 if not generated_materialized:
                     response = await run_kg_building_agent(
                         doi_hash=doi_hash,

@@ -125,6 +125,16 @@ The main pipeline entrypoint is `mop_main.py` (see its CLI help):
 python mop_main.py --help
 ```
 
+For organized medical vs MOP evaluation (separated datasets + per-model run folders), use the **scenario workspace**:
+
+```bash
+python scripts/bootstrap_scenario_datasets.py
+python scripts/start_scenario_run.py --domain mops --dataset eval30 --tag gpt-4.1
+python scripts/start_scenario_run.py --domain medical --dataset eval30 --tag gpt-4.1
+```
+
+See [scenarios/README.md](scenarios/README.md). Then run the printed `generic_main.py --config scenarios/.../pipeline.resolved.json` command.
+
 ## Prompt + MCP script generation
 
 Canonical regeneration uses **`agentic_generation_main`**, which writes deterministic MCP modules plus prompts and `iterations.json` under your chosen output root (often `ai_generated_contents_candidate/` when using `scripts/rebuild_pipeline_artifacts.sh`).
@@ -144,6 +154,33 @@ python -m src.agents.scripts_and_prompts_generation.agentic_generation_main \
   --output-root ai_generated_contents_candidate \
   --json
 ```
+
+### OntoSynthesis semantic and prompt-enhancement loops
+
+The semantic loop keeps generated Python/KG structure and prompt content as
+separate feedback channels. OM-2 quantity ranges are validated at generated
+script level and again on the materialized A-Box. Prompt enhancement runs the
+mock document through the real extraction/KG prompts, scores predicted hints
+against source-grounded fixture hints, and sends only content mismatches to the
+prompt agent:
+
+```bash
+python -m src.agents.scripts_and_prompts_generation.semantic_mcp_loop_ontosynthesis \
+  --fixture tests/fixtures/ontosynthesis_semantic_mock.json \
+  --abox-mode react \
+  --enhance-prompts \
+  --content-f1-threshold 0.95 \
+  --generation-model gpt-5 \
+  --model gpt-5 \
+  --max-outer 2 \
+  --json
+```
+
+Each iteration writes `content_score.json`, `content_feedback.md`, the oracle
+harness A-Box, and the ReAct A-Box. HermiT and generated-script checks remain
+independent gates. See
+`docs/mop_score_loss_diagnosis_0c57bac8.md` for the PubChem, OM-2, and
+Add-to-chemical failure analysis that motivated the loop.
 
 ### Medical ontology (example meta-task override)
 

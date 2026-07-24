@@ -1,0 +1,9 @@
+PREFIX bldg: <http://www.opengis.net/citygml/building/2.0/>
+PREFIX geo: <http://www.opengis.net/ont/geosparql#>
+SELECT ?building ?wkt
+WHERE {
+  ?building a bldg:Building ;
+            geo:hasGeometry ?g .
+  ?g geo:asWKT ?wkt .
+}
+LIMIT 3

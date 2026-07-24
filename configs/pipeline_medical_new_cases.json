@@ -1,0 +1,18 @@
+{
+  "mode": "per_doi",
+  "description": "Medical E2E for raw_data_new_medical (30 operative reports). Prefer scenarios/medical via scripts/start_scenario_run.py.",
+  "meta_task_config": "configs/meta_task/meta_task_config_medical_non_flat_v3_one_iter.json",
+  "data_dir": "data_medical_new_cases",
+  "test_mcp_config": "test_mcp_config_medical.json",
+  "vision_pdf_conversion": true,
+  "vision_model": "gpt-4o",
+  "vision_dpi": 150,
+  "steps": [
+    "pdf_conversion",
+    "stitching",
+    "top_entity_extraction",
+    "top_entity_kg_building",
+    "main_ontology_extractions",
+    "main_kg_building"
+  ]
+}

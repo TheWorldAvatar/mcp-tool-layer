@@ -1,0 +1,268 @@
+{
+  "domain": "medical",
+  "datasets": {
+    "eval30": {
+      "domain": "medical",
+      "dataset": "eval30",
+      "description": "30 operative-report evaluation cases",
+      "n_expected": 30,
+      "n_present": 30,
+      "cases": [
+        {
+          "case_id": "10062026 OPR10a",
+          "filename": "10062026 OPR10a.pdf",
+          "hash": "23a00605",
+          "split": "eval30",
+          "status": "present"
+        },
+        {
+          "case_id": "10062026 OPR11a",
+          "filename": "10062026 OPR11a.pdf",
+          "hash": "7db20b59",
+          "split": "eval30",
+          "status": "present"
+        },
+        {
+          "case_id": "10062026 OPR12a",
+          "filename": "10062026 OPR12a.pdf",
+          "hash": "4beb9c08",
+          "split": "eval30",
+          "status": "present"
+        },
+        {
+          "case_id": "10062026 OPR13a",
+          "filename": "10062026 OPR13a.pdf",
+          "hash": "36f46a9f",
+          "split": "eval30",
+          "status": "present"
+        },
+        {
+          "case_id": "10062026 OPR14a",
+          "filename": "10062026 OPR14a.pdf",
+          "hash": "7ba939bd",
+          "split": "eval30",
+          "status": "present"
+        },
+        {
+          "case_id": "10062026 OPR15a",
+          "filename": "10062026 OPR15a.pdf",
+          "hash": "d626d799",
+          "split": "eval30",
+          "status": "present"
+        },
+        {
+          "case_id": "10062026 OPR16a",
+          "filename": "10062026 OPR16a.pdf",
+          "hash": "55aa99e4",
+          "split": "eval30",
+          "status": "present"
+        },
+        {
+          "case_id": "10062026 OPR17a",
+          "filename": "10062026 OPR17a.pdf",
+          "hash": "5cc68f8c",
+          "split": "eval30",
+          "status": "present"
+        },
+        {
+          "case_id": "10062026 OPR18a",
+          "filename": "10062026 OPR18a.pdf",
+          "hash": "6cc343f0",
+          "split": "eval30",
+          "status": "present"
+        },
+        {
+          "case_id": "10062026 OPR19a",
+          "filename": "10062026 OPR19a.pdf",
+          "hash": "e7734aa9",
+          "split": "eval30",
+          "status": "present"
+        },
+        {
+          "case_id": "10062026 OPR1a",
+          "filename": "10062026 OPR1a.pdf",
+          "hash": "dc505658",
+          "split": "eval30",
+          "status": "present"
+        },
+        {
+          "case_id": "10062026 OPR20a",
+          "filename": "10062026 OPR20a.pdf",
+          "hash": "f6786c75",
+          "split": "eval30",
+          "status": "present"
+        },
+        {
+          "case_id": "10062026 OPR21a",
+          "filename": "10062026 OPR21a.pdf",
+          "hash": "13f6bdac",
+          "split": "eval30",
+          "status": "present"
+        },
+        {
+          "case_id": "10062026 OPR22a",
+          "filename": "10062026 OPR22a.pdf",
+          "hash": "e5371149",
+          "split": "eval30",
+          "status": "present"
+        },
+        {
+          "case_id": "10062026 OPR23a",
+          "filename": "10062026 OPR23a.pdf",
+          "hash": "dc9bb2b5",
+          "split": "eval30",
+          "status": "present"
+        },
+        {
+          "case_id": "10062026 OPR24a",
+          "filename": "10062026 OPR24a.pdf",
+          "hash": "b151acc8",
+          "split": "eval30",
+          "status": "present"
+        },
+        {
+          "case_id": "10062026 OPR25a",
+          "filename": "10062026 OPR25a.pdf",
+          "hash": "ec46f270",
+          "split": "eval30",
+          "status": "present"
+        },
+        {
+          "case_id": "10062026 OPR26a",
+          "filename": "10062026 OPR26a.pdf",
+          "hash": "a44317c5",
+          "split": "eval30",
+          "status": "present"
+        },
+        {
+          "case_id": "10062026 OPR27a",
+          "filename": "10062026 OPR27a.pdf",
+          "hash": "d20c4663",
+          "split": "eval30",
+          "status": "present"
+        },
+        {
+          "case_id": "10062026 OPR28a",
+          "filename": "10062026 OPR28a.pdf",
+          "hash": "4402a2e9",
+          "split": "eval30",
+          "status": "present"
+        },
+        {
+          "case_id": "10062026 OPR29a",
+          "filename": "10062026 OPR29a.pdf",
+          "hash": "c3bb4fd5",
+          "split": "eval30",
+          "status": "present"
+        },
+        {
+          "case_id": "10062026 OPR2a",
+          "filename": "10062026 OPR2a.pdf",
+          "hash": "f29211f2",
+          "split": "eval30",
+          "status": "present"
+        },
+        {
+          "case_id": "10062026 OPR30a",
+          "filename": "10062026 OPR30a.pdf",
+          "hash": "efc3129a",
+          "split": "eval30",
+          "status": "present"
+        },
+        {
+          "case_id": "10062026 OPR3a",
+          "filename": "10062026 OPR3a.pdf",
+          "hash": "3d11cbcc",
+          "split": "eval30",
+          "status": "present"
+        },
+        {
+          "case_id": "10062026 OPR4a",
+          "filename": "10062026 OPR4a.pdf",
+          "hash": "fc9a5bbe",
+          "split": "eval30",
+          "status": "present"
+        },
+        {
+          "case_id": "10062026 OPR5a",
+          "filename": "10062026 OPR5a.pdf",
+          "hash": "e288d25a",
+          "split": "eval30",
+          "status": "present"
+        },
+        {
+          "case_id": "10062026 OPR6a",
+          "filename": "10062026 OPR6a.pdf",
+          "hash": "933dc913",
+          "split": "eval30",
+          "status": "present"
+        },
+        {
+          "case_id": "10062026 OPR7a",
+          "filename": "10062026 OPR7a.pdf",
+          "hash": "fc9687ec",
+          "split": "eval30",
+          "status": "present"
+        },
+        {
+          "case_id": "10062026 OPR8a",
+          "filename": "10062026 OPR8a.pdf",
+          "hash": "5a95de8c",
+          "split": "eval30",
+          "status": "present"
+        },
+        {
+          "case_id": "10062026 OPR9a",
+          "filename": "10062026 OPR9a.pdf",
+          "hash": "33c5b4d2",
+          "split": "eval30",
+          "status": "present"
+        }
+      ]
+    },
+    "dev5": {
+      "domain": "medical",
+      "dataset": "dev5",
+      "description": "5 development operative reports",
+      "n_expected": 5,
+      "n_present": 5,
+      "cases": [
+        {
+          "case_id": "OP Bericht 1",
+          "filename": "OP Bericht 1.pdf",
+          "hash": "ec5d5219",
+          "split": "dev5",
+          "status": "present"
+        },
+        {
+          "case_id": "OP Bericht 2",
+          "filename": "OP Bericht 2.pdf",
+          "hash": "ce49a454",
+          "split": "dev5",
+          "status": "present"
+        },
+        {
+          "case_id": "OP Bericht 3",
+          "filename": "OP Bericht 3.pdf",
+          "hash": "4dd7b3a0",
+          "split": "dev5",
+          "status": "present"
+        },
+        {
+          "case_id": "OP Bericht 4",
+          "filename": "OP Bericht 4.pdf",
+          "hash": "eb7ead0d",
+          "split": "dev5",
+          "status": "present"
+        },
+        {
+          "case_id": "OP Bericht 5",
+          "filename": "OP Bericht 5.pdf",
+          "hash": "d2b47254",
+          "split": "dev5",
+          "status": "present"
+        }
+      ]
+    }
+  }
+}

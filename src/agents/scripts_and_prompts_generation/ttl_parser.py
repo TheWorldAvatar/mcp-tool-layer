@@ -10,11 +10,10 @@ Parses OWL/RDF ontology files and extracts a structured mapping of:
 Output is a clear, structured representation that can be consumed by code generation agents.
 """
 
-from rdflib import Graph, Namespace, RDF, RDFS, OWL, XSD
-from typing import Dict, List, Set, Tuple, Any
+from rdflib import BNode, Graph, RDF, RDFS, OWL
+from rdflib.collection import Collection
+from typing import Dict, List, Any
 import json
-from collections import defaultdict
-from pathlib import Path
 
 
 _GENERIC_INTEGRITY_ANNOTATION_FIELDS = {
@@ -258,7 +257,7 @@ def parse_ontology_ttl(ttl_path: str) -> Dict[str, Any]:
     try:
         g.parse(ttl_path, format="turtle")
     except Exception as e:
-        print(f"Warning: Error parsing as Turtle, trying as N3/Notation3...")
+        print("Warning: Error parsing as Turtle, trying as N3/Notation3...")
         print(f"Error: {e}")
         try:
             g.parse(ttl_path, format="n3")
@@ -311,6 +310,18 @@ def parse_ontology_ttl(ttl_path: str) -> Dict[str, Any]:
     
     properties = {}
 
+    def domain_locals(prop: Any) -> List[str]:
+        """Expand named and owl:unionOf property domains into class locals."""
+        result: List[str] = []
+        for domain in g.objects(prop, RDFS.domain):
+            members = list(g.objects(domain, OWL.unionOf)) if isinstance(domain, BNode) else []
+            nodes = list(Collection(g, members[0])) if members else [domain]
+            for node in nodes:
+                local = _get_local_name(node)
+                if local and local not in result:
+                    result.append(local)
+        return result
+
     # Extract datatype properties
     for prop in g.subjects(RDF.type, OWL.DatatypeProperty):
         prop_local = _get_local_name(prop)
@@ -318,8 +329,7 @@ def parse_ontology_ttl(ttl_path: str) -> Dict[str, Any]:
             continue
         
         # Get domain(s) - classes this property applies to
-        domains = [_get_local_name(d) for d in g.objects(prop, RDFS.domain) 
-                   if _get_local_name(d)]
+        domains = domain_locals(prop)
         
         # Get range - datatype
         ranges = list(g.objects(prop, RDFS.range))
@@ -328,6 +338,12 @@ def parse_ontology_ttl(ttl_path: str) -> Dict[str, Any]:
         integrity_annotations = _extract_integrity_annotations(g, prop)
         comment_vals = list(g.objects(prop, RDFS.comment))
         comment_text = str(comment_vals[0]) if comment_vals else ""
+        value_kinds = []
+        for pred, obj in g.predicate_objects(prop):
+            if _get_local_name(pred) == "valueKind":
+                text = str(obj).strip()
+                if text and text not in value_kinds:
+                    value_kinds.append(text)
         properties[prop_local] = {
             "iri": str(prop),
             "kind": "datatype",
@@ -335,6 +351,8 @@ def parse_ontology_ttl(ttl_path: str) -> Dict[str, Any]:
             "range": range_type,
             "comment": comment_text,
             "integrity_annotations": integrity_annotations,
+            "value_kind": value_kinds[0] if value_kinds else "",
+            "value_kinds": value_kinds,
         }
 
         # Add to each domain class
@@ -349,8 +367,7 @@ def parse_ontology_ttl(ttl_path: str) -> Dict[str, Any]:
             continue
         
         # Get domain(s)
-        domains = [_get_local_name(d) for d in g.objects(prop, RDFS.domain) 
-                   if _get_local_name(d)]
+        domains = domain_locals(prop)
         
         # Get range - object class
         ranges = list(g.objects(prop, RDFS.range))

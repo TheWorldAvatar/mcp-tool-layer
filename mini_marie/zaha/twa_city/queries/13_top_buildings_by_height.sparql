@@ -1,0 +1,15 @@
+PREFIX bldg: <http://www.opengis.net/citygml/building/2.0/>
+PREFIX be: <https://www.theworldavatar.com/kg/ontobuiltenv/>
+SELECT ?building ?height ?storeys ?usage_type ?label
+WHERE {
+  ?building a bldg:Building ;
+            bldg:measuredHeight ?height .
+  OPTIONAL { ?building bldg:storeysAboveGround ?storeys }
+  OPTIONAL {
+    ?building be:hasPropertyUsage ?u .
+    ?u a ?usage_type .
+  }
+  OPTIONAL { ?building <http://www.w3.org/2000/01/rdf-schema#label> ?label }
+}
+ORDER BY DESC(?height)
+LIMIT 15

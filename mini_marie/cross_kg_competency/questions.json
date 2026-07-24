@@ -1,0 +1,62 @@
+[
+  {
+    "id": "XQ01",
+    "question": "Across all mini_marie KG domains, which local caches exist and what are their relative sizes?",
+    "domains": ["catalog"],
+    "tools": ["kg_cache_status", "list_kg_domains"]
+  },
+  {
+    "id": "XQ02",
+    "question": "How many MetalOrganicFramework instances are in OntoMOFs vs how many emission individuals are in Singapore kb?",
+    "domains": ["mof", "sg_kb"],
+    "tools": ["get_mof_total_count", "get_sg_emission_stats"]
+  },
+  {
+    "id": "XQ03",
+    "question": "Does the Singapore company namespace contain operational Company instances or only ontology?",
+    "domains": ["sg_company"],
+    "tools": ["count_sg_company_instances", "get_sg_company_ontology_classes"]
+  },
+  {
+    "id": "XQ04",
+    "question": "How many Singapore carpark AvailableLots individuals are linked to a time series?",
+    "domains": ["sg_carpark"],
+    "tools": ["count_sg_carpark_with_timeseries", "get_sg_graph_stats"]
+  },
+  {
+    "id": "XQ05",
+    "question": "What land-use regulations exist in Singapore plot, and what zoning do they apply to?",
+    "domains": ["sg_plot"],
+    "tools": ["get_sg_plot_regulations"]
+  },
+  {
+    "id": "XQ06",
+    "question": "Compare graph size: smallest vs largest sg-old namespace by triple count.",
+    "domains": ["sg_carpark", "sg_plot", "sg_kb", "sg_company"],
+    "tools": ["get_sg_graph_stats"]
+  },
+  {
+    "id": "XQ07",
+    "question": "What is Tobassco CO2 uptake coverage in OntoMOFs (corpus-level)?",
+    "domains": ["mof"],
+    "tools": ["get_tobassco_co2_coverage"]
+  },
+  {
+    "id": "XQ08",
+    "question": "For Bremen city TWA: how many buildings are in the graph (if endpoint/cache available)?",
+    "domains": ["city"],
+    "tools": ["get_building_count"]
+  },
+  {
+    "id": "XQ09",
+    "question": "Sample Singapore emissions with numerical values — do they use OM-2 hasNumericalValue?",
+    "domains": ["sg_kb"],
+    "tools": ["get_sg_emission_samples"]
+  },
+  {
+    "id": "XQ10",
+    "question": "Cross-domain: MOF corpus uses ontomofs_vkg; Singapore carpark uses ontocarpark and ontotimeseries — list one example IRI from each via domain tools.",
+    "domains": ["mof", "sg_carpark"],
+    "tools": ["lookup_mof_by_mofid_fragment", "get_sg_carpark_list"]
+  }
+]

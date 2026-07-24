@@ -37,12 +37,27 @@
             "RATS"
           ],
           "Procedure": [
+            "atypische_Resektion_5_322",
             "Segmenresektion_5_323_4_7",
             "Lobektomie_Bilobektomie_5_324_5_325",
+            "Pneumonektomie_5_327",
+            "erw_Pneumonektomie_5_328",
             "offene_Dekortikation_5_344_0_5_344_11_5_344_13_5_345_1",
+            "VATS_Dekortikation_5_344_3_5_345_4",
+            "Pleurektomie_5_344_1_2_u_4_5",
+            "plast_Rekonstruktion_der_Brustwand_5_346",
+            "Trachearesektion_und_andere_Eingriffe_an_der_Trachea_5_314_5_316_5_319",
             "Mediastinaltumorresektion_5_342",
+            "Pleurodese_5_345_ohne_5_345_1_und_ohne_5_345_4",
             "Thymektomie",
-            "ICMB"
+            "Mediastinoskopie_1_586_3_1_691_1_5_401_7_5_402_d",
+            "VAMLA_5_404_8",
+            "Thoraxdrainageneinlage_8_144_0_und_5_340_0",
+            "Angio_Bronchoplastik",
+            "ICMB",
+            "Haematomausraeumung",
+            "expl_Thorakotomie",
+            "sonst_Eingriff"
           ],
           "SurgicalTeam": [
             "Operateur_in",
@@ -50,13 +65,29 @@
           ],
           "Diagnosis": [
             "NSCLC",
+            "SCLC",
+            "NET",
+            "Metastasen",
+            "Art_der_Metastasen",
             "MG",
             "Thymom",
+            "Thymus_Ca",
+            "andere_Mediastinaltumoren",
+            "Art_des_Mediastinaltumors",
+            "Mesotheliom",
             "Empyem_Diagnose",
+            "Destroyed_Lung",
+            "Pneumothorax_Diagnose",
+            "Pleuraerguss",
+            "interstitielle_Lungenerkrankung",
+            "Thoraxtrauma_Haematothorax_Rippenfraktur",
             "sonst_Diagnose"
           ],
           "PathologyOutcome": [
-            "R0"
+            "Stadium",
+            "R0",
+            "R1",
+            "R2"
           ],
           "Complication": []
         },

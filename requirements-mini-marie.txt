@@ -1,0 +1,12 @@
+# mini_marie runtime (MCP servers, workflows, caches, optional GUIs)
+# Install from project root: pip install -r requirements-mini-marie.txt
+# Optional: requirements-gui.txt, requirements-kgqa.txt
+
+-r requirements-docker.txt
+
+rdflib>=7.1,<8
+python-dotenv>=1.0,<2
+httpx>=0.27,<1
+Flask>=2.2,<4
+flask-cors>=4,<6
+pandas>=2.0,<3

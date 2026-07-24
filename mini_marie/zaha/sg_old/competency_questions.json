@@ -1,0 +1,86 @@
+[
+  {
+    "id": "Q11",
+    "question": "How many Singapore buildings are in the Ontop cache?",
+    "domain": "sg",
+    "mcp_servers": ["sg-old"],
+    "tags": ["ontop", "buildings"]
+  },
+  {
+    "id": "Q12",
+    "question": "How many office buildings are there in Singapore?",
+    "domain": "sg",
+    "mcp_servers": ["sg-old"],
+    "tags": ["ontop", "buildings"]
+  },
+  {
+    "id": "Q13",
+    "question": "What percentage of Singapore land plots are residential vs commercial?",
+    "domain": "sg",
+    "mcp_servers": ["sg-old"],
+    "tags": ["ontop", "land_use"]
+  },
+  {
+    "id": "Q14",
+    "question": "How many commercial land plots are there in Singapore?",
+    "domain": "sg",
+    "mcp_servers": ["sg-old"],
+    "tags": ["ontop", "land_use"]
+  },
+  {
+    "id": "Q15",
+    "question": "What are the pollutant concentrations at Jurong Island?",
+    "domain": "sg",
+    "mcp_servers": ["sg-old"],
+    "tags": ["dispersion", "jurong", "pollutant"]
+  },
+  {
+    "id": "Q16",
+    "question": "What is the current speed of ship MMSI 563071320?",
+    "domain": "sg",
+    "mcp_servers": ["sg-old"],
+    "tags": ["ship", "timeseries"]
+  },
+  {
+    "id": "Q17",
+    "question": "What is the nearest carpark to CREATE Tower?",
+    "domain": "sg",
+    "mcp_servers": ["sg-old"],
+    "tags": ["carpark", "geocode"]
+  },
+  {
+    "id": "ZQ_GFA",
+    "question": "How many land lots do not exceed their maximum permitted GFA?",
+    "domain": "sg",
+    "mcp_servers": ["sg-old"],
+    "tags": ["gfa", "land_plot"]
+  },
+  {
+    "id": "ZQ_GFA_LU",
+    "question": "Which land-use categories have plots exceeding maximum permitted GFA?",
+    "domain": "sg",
+    "mcp_servers": ["sg-old"],
+    "tags": ["gfa", "land_use"]
+  },
+  {
+    "id": "ZQ_ABBOTT",
+    "question": "Show the footprint map for Abbott Manufacturing Singapore.",
+    "domain": "sg",
+    "mcp_servers": ["sg-old"],
+    "tags": ["footprint", "building"]
+  },
+  {
+    "id": "ZQ_JURONG",
+    "question": "Are Jurong Island pollutant concentrations available in the Singapore KG?",
+    "domain": "sg",
+    "mcp_servers": ["sg-old"],
+    "tags": ["jurong", "dispersion"]
+  },
+  {
+    "id": "ZQ_CREATE",
+    "question": "Which carpark is nearest to CREATE Tower?",
+    "domain": "sg",
+    "mcp_servers": ["sg-old"],
+    "tags": ["carpark", "create"]
+  }
+]

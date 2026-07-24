@@ -1,0 +1,10 @@
+{
+  "mode": "per_doi",
+  "description": "KG building only for isolation test",
+  "meta_task_config": "configs/meta_task/meta_task_config_medical_non_flat_v3_one_iter.json",
+  "data_dir": "data_medical_new_cases",
+  "test_mcp_config": "test_mcp_config_medical.json",
+  "steps": [
+    "main_kg_building"
+  ]
+}

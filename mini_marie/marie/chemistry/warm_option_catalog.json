@@ -1,0 +1,258 @@
+{
+  "version": 1,
+  "description": "Full-space warm dimensions: each entry expands tool(base_args) x options. Use --missing-only to warm only uncached variants.",
+  "dimensions": [
+    {
+      "id": "ontospecies_formula_equals",
+      "namespace": "ontospecies",
+      "tool": "filter_by_literal",
+      "base_args": {
+        "namespace": "ontospecies",
+        "class_local": "Species",
+        "property_local": "hasMolecularFormula",
+        "match": "equals"
+      },
+      "vary": "value_fragment",
+      "options": ["C6H8O6", "C2H6O2", "C3H9N", "CH4N2O", "C3H7NO"]
+    },
+    {
+      "id": "ontospecies_use_contains",
+      "namespace": "ontospecies",
+      "tool": "filter_by_literal",
+      "base_args": {
+        "namespace": "ontospecies",
+        "class_local": "Species",
+        "property_local": "hasUse",
+        "match": "contains"
+      },
+      "vary": "value_fragment",
+      "options": ["3-amino-2-propanol", "solvent", "catalyst"]
+    },
+    {
+      "id": "ontospecies_pka_smiles",
+      "namespace": "ontospecies",
+      "tool": "get_linked_values",
+      "options": [
+        {
+          "namespace": "ontospecies",
+          "class_local": "Species",
+          "subject_label": "C=CC(=O)O",
+          "link_property": "hasDissociationConstants",
+          "identifier_type": "smiles"
+        },
+        {
+          "namespace": "ontospecies",
+          "class_local": "Species",
+          "subject_label": "CCCC(=O)O",
+          "link_property": "hasDissociationConstants",
+          "identifier_type": "smiles"
+        },
+        {
+          "namespace": "ontospecies",
+          "class_local": "Species",
+          "subject_label": "C=CC(=O)O",
+          "link_property": "hasDissociationConstants",
+          "identifier_type": "smiles",
+          "include_metadata": true
+        }
+      ]
+    },
+    {
+      "id": "ontospecies_hbond_smiles",
+      "namespace": "ontospecies",
+      "tool": "get_linked_values",
+      "options": [
+        {
+          "namespace": "ontospecies",
+          "class_local": "Species",
+          "subject_label": "C(CO)O",
+          "link_property": "hasHydrogenBondDonorCount",
+          "value_properties": ["hasHydrogenBondAcceptorCount"],
+          "identifier_type": "smiles"
+        }
+      ]
+    },
+    {
+      "id": "ontospecies_pka_inchi",
+      "namespace": "ontospecies",
+      "tool": "get_linked_values",
+      "options": [
+        {
+          "namespace": "ontospecies",
+          "class_local": "Species",
+          "subject_label": "InChI=1S/C6H15N/c1-5(2)7-6(3)4/h5-7H,1-4H3",
+          "link_property": "hasDissociationConstants",
+          "identifier_type": "inchi"
+        },
+        {
+          "namespace": "ontospecies",
+          "class_local": "Species",
+          "subject_label": "InChI=1S/C2H6N2/c1-2(3)4/h1H3,(H3,3,4)",
+          "link_property": "hasDissociationConstants",
+          "identifier_type": "inchi"
+        },
+        {
+          "namespace": "ontospecies",
+          "class_local": "Species",
+          "subject_label": "InChI=1S/CH5N/c1-2/h2H2,1H3",
+          "link_property": "hasDissociationConstants",
+          "identifier_type": "inchi"
+        }
+      ]
+    },
+    {
+      "id": "ontospecies_count",
+      "namespace": "ontospecies",
+      "tool": "count_instances",
+      "options": [
+        {
+          "namespace": "ontospecies",
+          "class_local": "Species"
+        },
+        {
+          "namespace": "ontospecies",
+          "class_local": "Species",
+          "required_property": "hasDissociationConstants"
+        }
+      ]
+    },
+    {
+      "id": "ontokin_reaction_fragment",
+      "namespace": "ontokin",
+      "tool": "traverse_mechanism_reactions",
+      "base_args": {"namespace": "ontokin"},
+      "vary": "reaction_fragment",
+      "options": [
+        "H2O2",
+        "H2 + OH",
+        "H2O",
+        "O2",
+        "Ar",
+        "OH",
+        "HO2",
+        "H2",
+        "H + OH + M = H2O + M",
+        "HO2 + H = O + H2O"
+      ]
+    },
+    {
+      "id": "ontokin_mechanism_iri",
+      "namespace": "ontokin",
+      "tool": "traverse_mechanism_reactions",
+      "base_args": {"namespace": "ontokin"},
+      "vary": "mechanism_iri_fragment",
+      "options": [
+        "90098-26Ev73",
+        "10.1002/kin.20026",
+        "10.1016/j.combustflame.2007.10.024"
+      ]
+    },
+    {
+      "id": "ontokin_count",
+      "namespace": "ontokin",
+      "tool": "count_instances",
+      "options": [
+        {"namespace": "ontokin", "class_local": "GasPhaseReaction"},
+        {"namespace": "ontokin", "class_local": "ReactionMechanism"}
+      ]
+    },
+    {
+      "id": "ontocompchem_results",
+      "namespace": "ontocompchem",
+      "tool": "query_calculation_results",
+      "options": [
+        {
+          "namespace": "ontocompchem",
+          "species_label": "798ae810",
+          "result_kinds": ["rotational"]
+        },
+        {
+          "namespace": "ontocompchem",
+          "species_label": "663e4fd4",
+          "result_kinds": ["homo", "lumo"]
+        },
+        {
+          "namespace": "ontocompchem",
+          "species_label": "663e4fd4",
+          "result_kinds": ["zpe"]
+        },
+        {
+          "namespace": "ontocompchem",
+          "species_label": "663e4fd4",
+          "result_kinds": ["rotational"],
+          "method_fragment": "B3LYP",
+          "basis_fragment": "cc-pVDZ"
+        }
+      ]
+    },
+    {
+      "id": "ontozeolite_framework_materials",
+      "namespace": "ontozeolite",
+      "tool": "filter_by_literal",
+      "base_args": {
+        "namespace": "ontozeolite",
+        "class_local": "ZeoliticMaterial",
+        "property_local": "hasFrameworkCode"
+      },
+      "vary": "value_fragment",
+      "options_from": "framework_codes"
+    },
+    {
+      "id": "ontozeolite_reference_property",
+      "namespace": "ontozeolite",
+      "tool": "query_zeolite_property",
+      "base_args": {
+        "namespace": "ontozeolite",
+        "property_local": "isReferenceZeolite"
+      },
+      "vary": "framework_code",
+      "options": ["SFN", "FAU", "MFI", "LTA", "AEN", "MOR", "FER", "CHA", "BEA"]
+    },
+    {
+      "id": "ontozeolite_lattice_system",
+      "namespace": "ontozeolite",
+      "tool": "filter_by_literal",
+      "base_args": {
+        "namespace": "ontozeolite",
+        "class_local": "ZeoliticMaterial",
+        "property_local": "hasLatticeSystem",
+        "match": "contains"
+      },
+      "vary": "value_fragment",
+      "options": ["triclinic", "monoclinic", "orthorhombic", "cubic"]
+    },
+    {
+      "id": "ontozeolite_guest_species",
+      "namespace": "ontozeolite",
+      "tool": "filter_by_literal",
+      "base_args": {
+        "namespace": "ontozeolite",
+        "class_local": "ZeoliticMaterial",
+        "property_local": "hasGuestSpecies",
+        "match": "contains"
+      },
+      "vary": "value_fragment",
+      "options": ["H2S", "H2O", "NH3"]
+    },
+    {
+      "id": "ontozeolite_count",
+      "namespace": "ontozeolite",
+      "tool": "count_instances",
+      "options": [
+        {"namespace": "ontozeolite", "class_local": "ZeoliteFramework"},
+        {"namespace": "ontozeolite", "class_local": "ZeoliticMaterial"}
+      ]
+    },
+    {
+      "id": "ontoprovenance_person",
+      "namespace": "ontoprovenance",
+      "tool": "lookup_individuals",
+      "base_args": {
+        "namespace": "ontoprovenance",
+        "class_local": "Person"
+      },
+      "vary": "label_fragment",
+      "options": ["Marinov", "Perrin", "Smith", "Kraft"]
+    }
+  ]
+}

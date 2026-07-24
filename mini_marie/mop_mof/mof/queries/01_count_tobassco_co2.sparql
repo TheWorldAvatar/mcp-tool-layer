@@ -1,0 +1,7 @@
+PREFIX mofs: <https://www.theworldavatar.com/kg/ontomofs_vkg/>
+SELECT (COUNT(?mof) AS ?with_co2)
+WHERE {
+  ?mof a mofs:MetalOrganicFramework ;
+       mofs:hasSourcedb "Tobassco" ;
+       mofs:hasPredAdsorptionUptake_CO2P15T298mmolg ?co2 .
+}

@@ -1287,11 +1287,19 @@ def build_validation_report(
     *,
     foreign_contracts: list[dict[str, Any]] | None = None,
     write_report: bool = True,
+    prompts_required: bool = False,
+    extra_failures: list[str] | None = None,
 ) -> dict[str, Any]:
     scripts_dir = Path(context.scripts_dir)
     prompts_dir = Path(context.prompts_dir)
     failures: list[str] = []
     warnings: list[str] = []
+    failures.extend(str(item) for item in (extra_failures or []))
+    prompt_files = sorted(prompts_dir.glob("*.md")) if prompts_dir.is_dir() else []
+    if prompts_required and not prompt_files:
+        failures.append(
+            "Prompt enhancement requires existing prompt artifacts; prompt validation cannot be skipped"
+        )
 
     for fn in (
         _syntax_report,

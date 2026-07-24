@@ -1,0 +1,32 @@
+{
+  "mcpServers": {
+    "mof-twa": {
+      "type": "stdio",
+      "command": "docker",
+      "args": [
+        "compose",
+        "-f",
+        "REPO_ROOT/docker-compose.yml",
+        "run",
+        "--rm",
+        "-i",
+        "mof-twa"
+      ],
+      "cwd": "REPO_ROOT"
+    },
+    "twa-city": {
+      "type": "stdio",
+      "command": "docker",
+      "args": [
+        "compose",
+        "-f",
+        "REPO_ROOT/docker-compose.yml",
+        "run",
+        "--rm",
+        "-i",
+        "twa-city"
+      ],
+      "cwd": "REPO_ROOT"
+    }
+  }
+}

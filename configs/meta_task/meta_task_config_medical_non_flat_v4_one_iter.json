@@ -1,0 +1,220 @@
+{
+  "ontologies": {
+    "main": {
+      "name": "medical",
+      "description": "Non-flat medical case schema for extraction (hierarchical T-Box v4 (paraphrased examples), single downstream main iteration).",
+      "ttl_file": "medical_case/medical_case_schema_de_non_flat_v4.ttl",
+      "complex_pipeline": true,
+      "use_om2_units": false,
+      "output": {
+        "dir": "{ontology_name}_output",
+        "top_ttl_name": "top.ttl",
+        "entity_ttl_pattern": "{entity_safe}.ttl"
+      },
+      "runtime_policies": {
+        "prompt_field_allowlist": {
+          "MedicalCase": [
+            "hasDiagnosis_label",
+            "hasPathologyOutcome_label",
+            "hasPatientInfo_label",
+            "hasProcedure_label",
+            "hasSurgicalApproach_label",
+            "hasSurgicalTeam_label",
+            "hasTimeline_label"
+          ],
+          "PatientInfo": [
+            "Name",
+            "Fall_Nr",
+            "Geburtsdatum",
+            "Alter"
+          ],
+          "CaseTimeline": [
+            "OP_Datum"
+          ],
+          "SurgicalApproach": [
+            "offen",
+            "VATS",
+            "RATS"
+          ],
+          "Procedure": [
+            "atypische_Resektion_5_322",
+            "Segmenresektion_5_323_4_7",
+            "Lobektomie_Bilobektomie_5_324_5_325",
+            "Pneumonektomie_5_327",
+            "erw_Pneumonektomie_5_328",
+            "offene_Dekortikation_5_344_0_5_344_11_5_344_13_5_345_1",
+            "VATS_Dekortikation_5_344_3_5_345_4",
+            "Pleurektomie_5_344_1_2_u_4_5",
+            "plast_Rekonstruktion_der_Brustwand_5_346",
+            "Trachearesektion_und_andere_Eingriffe_an_der_Trachea_5_314_5_316_5_319",
+            "Mediastinaltumorresektion_5_342",
+            "Pleurodese_5_345_ohne_5_345_1_und_ohne_5_345_4",
+            "Thymektomie",
+            "Mediastinoskopie_1_586_3_1_691_1_5_401_7_5_402_d",
+            "VAMLA_5_404_8",
+            "Thoraxdrainageneinlage_8_144_0_und_5_340_0",
+            "Angio_Bronchoplastik",
+            "ICMB",
+            "Haematomausraeumung",
+            "expl_Thorakotomie",
+            "sonst_Eingriff"
+          ],
+          "SurgicalTeam": [
+            "Operateur_in",
+            "Assistent_in"
+          ],
+          "Diagnosis": [
+            "NSCLC",
+            "SCLC",
+            "NET",
+            "Metastasen",
+            "Art_der_Metastasen",
+            "MG",
+            "Thymom",
+            "Thymus_Ca",
+            "andere_Mediastinaltumoren",
+            "Art_des_Mediastinaltumors",
+            "Mesotheliom",
+            "Empyem_Diagnose",
+            "Destroyed_Lung",
+            "Pneumothorax_Diagnose",
+            "Pleuraerguss",
+            "interstitielle_Lungenerkrankung",
+            "Thoraxtrauma_Haematothorax_Rippenfraktur",
+            "sonst_Diagnose"
+          ],
+          "PathologyOutcome": [
+            "Stadium",
+            "R0",
+            "R1",
+            "R2"
+          ],
+          "Complication": []
+        },
+        "iter1_top_entity_kg": {
+          "global_state_entity_name": "top",
+          "prompt_rules": {
+            "doi_argument_source": "document_identifier",
+            "top_level_entity_name": "top",
+            "forbid_human_readable_label_as_doi": true
+          }
+        },
+        "main_entity_kg": {
+          "runtime_context": {
+            "lock_to_global_state_entity_name": true
+          },
+          "publish": {
+            "merge_top_ttl_into_entity_ttl": true,
+            "top_entity_context_name": "top",
+            "prefer_composite_intermediate": true,
+            "hint_reconciliation": {
+              "optional_links": [
+                {
+                  "predicate_iri": "https://www.theworldavatar.com/kg/medical/hasDiagnosis",
+                  "target_class_iri": "https://www.theworldavatar.com/kg/medical/Diagnosis"
+                },
+                {
+                  "predicate_iri": "https://www.theworldavatar.com/kg/medical/hasComplication",
+                  "target_class_iri": "https://www.theworldavatar.com/kg/medical/Complication"
+                },
+                {
+                  "predicate_iri": "https://www.theworldavatar.com/kg/medical/hasPathologyOutcome",
+                  "target_class_iri": "https://www.theworldavatar.com/kg/medical/PathologyOutcome"
+                }
+              ],
+              "mutually_exclusive_property_groups": [
+                {
+                  "target_class_iri": "https://www.theworldavatar.com/kg/medical/SurgicalApproach",
+                  "property_iris": [
+                    "https://www.theworldavatar.com/kg/medical/offen",
+                    "https://www.theworldavatar.com/kg/medical/VATS",
+                    "https://www.theworldavatar.com/kg/medical/RATS"
+                  ]
+                }
+              ]
+            }
+          },
+          "shell_validation": {
+            "top_entity_class_iri": "https://www.theworldavatar.com/kg/medical/MedicalCase",
+            "require_entity_uri_subject": true,
+            "required_links": [
+              {
+                "predicate_iri": "https://www.theworldavatar.com/kg/medical/hasTimeline",
+                "target_class_iri": "https://www.theworldavatar.com/kg/medical/CaseTimeline",
+                "min_count": 1,
+                "repair_mode": "attach_singleton_if_missing"
+              },
+              {
+                "predicate_iri": "https://www.theworldavatar.com/kg/medical/hasSurgicalApproach",
+                "target_class_iri": "https://www.theworldavatar.com/kg/medical/SurgicalApproach",
+                "min_count": 1,
+                "repair_mode": "attach_singleton_if_missing"
+              },
+              {
+                "predicate_iri": "https://www.theworldavatar.com/kg/medical/hasPatientInfo",
+                "target_class_iri": "https://www.theworldavatar.com/kg/medical/PatientInfo",
+                "min_count": 1,
+                "repair_mode": "attach_singleton_if_missing"
+              },
+              {
+                "predicate_iri": "https://www.theworldavatar.com/kg/medical/hasSurgicalTeam",
+                "target_class_iri": "https://www.theworldavatar.com/kg/medical/SurgicalTeam",
+                "min_count": 1,
+                "repair_mode": "attach_singleton_if_missing"
+              },
+              {
+                "predicate_iri": "https://www.theworldavatar.com/kg/medical/hasProcedure",
+                "target_class_iri": "https://www.theworldavatar.com/kg/medical/Procedure",
+                "min_count": 1,
+                "repair_mode": "attach_singleton_if_missing",
+                "prune_unhinted_scalar_properties": true
+              }
+            ]
+          },
+          "prompt_rules": {
+            "require_top_entity_reuse": true,
+            "forbid_new_top_entity_creation": true,
+            "require_required_links_before_export": true
+          }
+        },
+        "identifier_handling": {
+          "prefer_global_state_for_nonhash": true,
+          "preserve_hash_regex": "^[0-9a-f]{8}$",
+          "fallback_to_global_state_patterns": [
+            "^Fallnummer\\b",
+            "^Fall-Nr\\.?\\b",
+            "^Patient\\b",
+            "OP-Datum"
+          ]
+        },
+        "top_entity_extraction": {
+          "invalidate_top_entities_txt_substrings": [
+            "No ChemicalSynthesis",
+            "ChemicalSynthesis instances",
+            "ontosyn:ChemicalSynthesis"
+          ],
+          "count_lines_starting_with": [
+            "MedicalCase"
+          ]
+        },
+        "iteration_plan": {
+          "max_main_iterations": 1,
+          "forbid_sub_iterations": true,
+          "iterations_blueprint_path": "configs/meta_task/medical_non_flat_v3_one_iter_blueprint.json",
+          "postprocess_overrides": {
+            "2": {
+              "model_config_key": "extraction_balanced",
+              "use_agent": false
+            }
+          },
+          "llm_prompt_hint": "For this non-flat medical case schema, use exactly 1 downstream main iteration (iteration_number 2 only). Iteration 2 must cover all non-flat medical classes and links in one pass. Do not create one iteration per class. Do not emit sub_iterations, enrichment iterations, merge iterations, or iteration numbers such as 3, 4, 3.1, 31, 4.1, or 41."
+        }
+      },
+      "mcp_set_name": "generated_ontology_mcps.json",
+      "mcp_list": [
+        "medical_mcp"
+      ]
+    },
+    "extensions": []
+  }
+}

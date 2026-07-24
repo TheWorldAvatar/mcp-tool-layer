@@ -1,0 +1,10 @@
+[server]
+headless = true
+port = 8502
+address = "localhost"
+
+[browser]
+gatherUsageStats = false
+
+[client]
+showErrorDetails = true

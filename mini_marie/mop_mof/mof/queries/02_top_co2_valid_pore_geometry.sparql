@@ -1,0 +1,13 @@
+PREFIX mofs: <https://www.theworldavatar.com/kg/ontomofs_vkg/>
+SELECT ?mofid ?pld ?lcd ?co2_uptake
+WHERE {
+  ?mof a mofs:MetalOrganicFramework ;
+       mofs:hasMofidV1 ?mofid ;
+       mofs:hasSourcedb "Tobassco" ;
+       mofs:hasPredAdsorptionUptake_CO2P15T298mmolg ?co2_uptake .
+  OPTIONAL { ?mof mofs:hasPLD ?pld }
+  OPTIONAL { ?mof mofs:hasLCD ?lcd }
+  FILTER(?pld > 0 && ?lcd > 0)
+}
+ORDER BY DESC(?co2_uptake)
+LIMIT 10

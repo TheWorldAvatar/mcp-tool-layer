@@ -3,12 +3,12 @@
     "command": "python",
     "args": [
       "-m",
-      "ai_generated_contents_pipeline_bundle.scripts.ontosynthesis.main"
+      "ai_generated_contents_candidate.scripts.ontosynthesis.main"
     ],
     "transport": "stdio"
   },
   "enhanced_websearch": {
-    "command": "python",
+    "command": "C:\\\\Users\\\\xz378\\\\AppData\\\\Local\\\\anaconda3\\\\envs\\\\mcp_layer\\\\python.exe",
     "args": [
       "-m",
       "src.mcp_servers.enhanced_websearch.main"

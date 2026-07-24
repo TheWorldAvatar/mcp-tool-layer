@@ -1,0 +1,13 @@
+PREFIX bldg: <http://www.opengis.net/citygml/building/2.0/>
+SELECT ?p ?o
+WHERE {
+  {
+    SELECT ?b
+    WHERE {
+      ?b a bldg:Building ;
+         bldg:measuredHeight ?h .
+    }
+    LIMIT 1
+  }
+  ?b ?p ?o .
+}

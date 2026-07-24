@@ -1,0 +1,8 @@
+PREFIX bldg: <http://www.opengis.net/citygml/building/2.0/>
+SELECT ?building ?addr_p ?addr_o
+WHERE {
+  ?building a bldg:Building ;
+            bldg:address ?addr .
+  ?addr ?addr_p ?addr_o .
+}
+LIMIT 25

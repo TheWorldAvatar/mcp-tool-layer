@@ -73,22 +73,27 @@ def resolve_generated_file(path: str) -> str:
     path = (path or "").replace("\\", "/")
     candidates: list[str] = []
     override_root = os.environ.get("TWA_GENERATED_ARTIFACT_ROOT", "").strip().replace("\\", "/").rstrip("/")
+    strict_root = os.environ.get("TWA_REQUIRE_GENERATED_ARTIFACT_ROOT") == "1"
     if path.startswith("ai_generated_contents/"):
         if override_root:
             candidates.append(path.replace("ai_generated_contents", override_root, 1))
-        candidates.append(path.replace("ai_generated_contents/", "ai_generated_contents_candidate/", 1))
-        candidates.append(path)
+        if not strict_root:
+            candidates.append(path.replace("ai_generated_contents/", "ai_generated_contents_candidate/", 1))
+            candidates.append(path)
     elif path.startswith("ai_generated_contents_candidate/"):
         if override_root:
             candidates.append(path.replace("ai_generated_contents_candidate", override_root, 1))
-        candidates.append(path)
-        candidates.append(path.replace("ai_generated_contents_candidate/", "ai_generated_contents/", 1))
+        if not strict_root:
+            candidates.append(path)
+            candidates.append(path.replace("ai_generated_contents_candidate/", "ai_generated_contents/", 1))
     else:
         candidates.append(path)
 
     for p in candidates:
         if p and os.path.exists(p):
             return p
+    if strict_root:
+        raise FileNotFoundError(f"Required generated artifact is missing: {candidates[0]}")
     return candidates[0]
 
 
@@ -1132,6 +1137,33 @@ async def run_extraction(
             "the operation",
         ]
         return any(marker in lowered for marker in markers)
+
+    def _required_tool_activity_errors(metadata: dict | None) -> list[str]:
+        validation = extraction_validation or {}
+        groups = validation.get("required_executed_tool_groups") or []
+        if not groups:
+            return []
+        activity = (metadata or {}).get("tool_activity") or {}
+        executed = {
+            str(name).strip()
+            for name in (activity.get("executed_tool_names") or [])
+            if str(name).strip()
+        }
+        errors: list[str] = []
+        for group in groups:
+            if not isinstance(group, dict):
+                continue
+            candidates = {
+                str(name).strip()
+                for name in (group.get("any_of") or [])
+                if str(name).strip()
+            }
+            if candidates and executed.isdisjoint(candidates):
+                errors.append(
+                    f"{group.get('name') or 'required MCP lookup'} requires one of "
+                    f"{sorted(candidates)}; executed={sorted(executed)}"
+                )
+        return errors
     
     # Extract with retries (increased to 5 attempts)
     max_retries = 5
@@ -1150,23 +1182,6 @@ async def run_extraction(
                     + last_validation_error
                     + "\nReturn corrected extraction hints only. Preserve all source-supported fields required by the feedback.\n"
                 )
-            # If this extraction iteration was configured to use MCP tools but the toolchain
-            # is not viable in the current environment (e.g., Windows without Docker / missing binaries),
-            # we can pre-emptively fall back to simple LLM.
-            if (
-                allow_agent_fallback
-                and use_agent
-                and mcp_tools
-                and any(t in set(mcp_tools) for t in ("ccdc", "enhanced_websearch"))
-            ):
-                logger.warning(
-                    f"    ⚠️  iter{iter_num} extraction configured with external MCP tools "
-                    f"{mcp_tools}. Falling back to simple LLM for portability."
-                )
-                use_agent = False
-                agent = None
-                allow_agent_fallback = False
-
             if use_agent and mcp_tools and mcp_set_name:
                 # Use agent with MCP tools (e.g., for iter2)
                 # Create agent only once on first attempt, reuse for retries
@@ -1182,8 +1197,14 @@ async def run_extraction(
                     )
                 
                 logger.info(f"    🔍 Running agent extraction (attempt {attempt + 1}/{max_retries})")
-                result, _meta = await agent.run(effective_prompt, recursion_limit=600)
+                result, agent_meta = await agent.run(effective_prompt, recursion_limit=600)
                 content = _normalize_llm_content(result)
+                tool_activity_errors = _required_tool_activity_errors(agent_meta)
+                if tool_activity_errors:
+                    raise ValueError(
+                        "Agent did not execute required MCP lookup tools: "
+                        + "; ".join(tool_activity_errors)
+                    )
             else:
                 # Use simple LLM (e.g., for iter3, iter4)
                 logger.info(f"    🔍 Running simple LLM extraction (attempt {attempt + 1}/{max_retries})")
@@ -1195,6 +1216,7 @@ async def run_extraction(
                     ).setup_llm()
                 result = await llm.ainvoke(effective_prompt)
                 content = _normalize_llm_content(result)
+                agent_meta = {}
                 needs_revision = _needs_revision(content)
                 near_miss_properties = _has_near_miss_property_names(content, prompt)
                 generic_step_types = bool(_generic_ordered_member_type_errors(content, extraction_validation))
@@ -1331,6 +1353,15 @@ async def run_extraction(
                 if use_agent:
                     f.write(f"**Mode**: Agent with MCP tools\n\n")
                     f.write(f"**MCP Tools**: {mcp_tools}\n\n")
+                    tool_activity = (agent_meta or {}).get("tool_activity") or {}
+                    f.write(
+                        "**Executed MCP Tools**: "
+                        f"{tool_activity.get('executed_tool_name_set') or []}\n\n"
+                    )
+                    f.write(
+                        "**MCP Tool Calls**: "
+                        f"{tool_activity.get('tool_message_count') or 0}\n\n"
+                    )
                 else:
                     f.write(f"**Mode**: Simple LLM\n\n")
                 f.write("---\n\n")

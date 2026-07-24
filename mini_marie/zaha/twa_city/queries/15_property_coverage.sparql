@@ -1,0 +1,23 @@
+PREFIX bldg: <http://www.opengis.net/citygml/building/2.0/>
+PREFIX be: <https://www.theworldavatar.com/kg/ontobuiltenv/>
+PREFIX geo: <http://www.opengis.net/ont/geosparql#>
+SELECT ?metric ?count
+WHERE {
+  { SELECT ("total_buildings" AS ?metric) (COUNT(?b) AS ?count) WHERE { ?b a bldg:Building } }
+  UNION
+  { SELECT ("with_height" AS ?metric) (COUNT(?b) AS ?count) WHERE { ?b a bldg:Building ; bldg:measuredHeight ?h } }
+  UNION
+  { SELECT ("with_storeys" AS ?metric) (COUNT(?b) AS ?count) WHERE { ?b a bldg:Building ; bldg:storeysAboveGround ?s } }
+  UNION
+  { SELECT ("with_address" AS ?metric) (COUNT(?b) AS ?count) WHERE { ?b a bldg:Building ; bldg:address ?a } }
+  UNION
+  { SELECT ("with_usage" AS ?metric) (COUNT(?b) AS ?count) WHERE { ?b a bldg:Building ; be:hasPropertyUsage ?u } }
+  UNION
+  { SELECT ("with_geometry" AS ?metric) (COUNT(DISTINCT ?b) AS ?count) WHERE { ?b a bldg:Building ; geo:hasGeometry ?g } }
+  UNION
+  { SELECT ("with_footprint_area" AS ?metric) (COUNT(?b) AS ?count)
+    WHERE { ?b a bldg:Building ; bldg:lod0FootPrint ?fp . ?fp geo:hasMetricArea ?area } }
+  UNION
+  { SELECT ("with_label" AS ?metric) (COUNT(?b) AS ?count)
+    WHERE { ?b a bldg:Building ; <http://www.w3.org/2000/01/rdf-schema#label> ?label } }
+}

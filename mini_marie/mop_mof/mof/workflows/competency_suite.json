@@ -1,0 +1,323 @@
+{
+  "id": "MOF_COMPETENCY_SUITE",
+  "description": "Human-made competency questions (CompetencyQs.md) as cached atomic workflows",
+  "online_limit": 10,
+  "offline_cap": 500000,
+  "workflows": [
+    {
+      "id": "CQ01_PLD_UIO66",
+      "question": "Average and variance PLD of UiO-66",
+      "steps": [{ "tool": "get_pld_stats_by_mof_name", "args": { "mof_name": "UiO-66" } }]
+    },
+    {
+      "id": "CQ02_ZN_SOURCES",
+      "question": "Zn MOFs by source database",
+      "steps": [
+        {
+          "tool": "get_mofs_by_metal",
+          "args": { "metal": "Zn", "list_sources": true }
+        }
+      ]
+    },
+    {
+      "id": "CQ02B_ZN_CORE_FILTER",
+      "question": "Zn MOFs in CoRE databases (list + filter_rows), then source stats for comparison",
+      "metal": "Zn",
+      "db_substring": "core",
+      "steps": [
+        {
+          "id": "list_zn_mofs",
+          "tool": "get_mofs_by_metal",
+          "args": { "metal": "$metal" },
+          "extract": { "zn_pool": { "pick": "all_rows" } }
+        },
+        {
+          "id": "filter_core",
+          "type": "transform",
+          "transform": "filter_rows",
+          "name": "core_database_filter",
+          "input_variable": "zn_pool",
+          "output_variable": "core_zn_rows",
+          "filters": [
+            { "field": "sourcedb", "op": "icontains", "value": "$db_substring" }
+          ]
+        },
+        {
+          "id": "zn_source_stats",
+          "tool": "get_mofs_by_metal",
+          "args": { "metal": "$metal", "list_sources": true },
+          "extract": { "zn_source_stats": { "pick": "all_rows" } }
+        }
+      ],
+      "final_summary": "CoRE-filtered Zn MOF rows=$core_zn_rows (pool size after filter); all Zn source stats=$zn_source_stats"
+    },
+    {
+      "id": "CQ02C_ZN_CORE_GROUP_RESIDUAL",
+      "question": "Zn CoRE MOFs: filter + GROUP BY sourcedb (local) + residual total MOF count (SPARQL)",
+      "metal": "Zn",
+      "db_substring": "core",
+      "steps": [
+        {
+          "tool": "get_mofs_by_metal",
+          "args": { "metal": "$metal" },
+          "extract": { "zn_pool": { "pick": "all_rows" } }
+        },
+        {
+          "type": "transform",
+          "transform": "filter_rows",
+          "input_variable": "zn_pool",
+          "output_variable": "core_zn_rows",
+          "filters": [
+            { "field": "sourcedb", "op": "icontains", "value": "$db_substring" }
+          ]
+        },
+        {
+          "type": "transform",
+          "transform": "group_aggregate",
+          "name": "count_by_source",
+          "input_variable": "core_zn_rows",
+          "output_variable": "core_zn_by_source",
+          "group_by": ["sourcedb"],
+          "aggregations": [
+            { "op": "count_distinct", "field": "mof", "as": "count" }
+          ],
+          "order_by": { "field": "count", "order": "desc" }
+        },
+        {
+          "type": "sparql",
+          "name": "total_mof_count",
+          "offline_only": true,
+          "query": "PREFIX mofs: <https://www.theworldavatar.com/kg/ontomofs_vkg/>\nSELECT (COUNT(DISTINCT ?mof) AS ?count) WHERE { ?mof a mofs:MetalOrganicFramework . }",
+          "extract": { "total_mof_count": { "pick": "row_field", "field": "count", "index": 0 } }
+        }
+      ],
+      "final_summary": "CoRE Zn groups=$core_zn_by_source; corpus MOF count=$total_mof_count"
+    },
+    {
+      "id": "CQ03_CU_EXPERIMENTAL",
+      "question": "Experimental Cu MOF count",
+      "steps": [
+        {
+          "tool": "get_mofs_by_metal",
+          "args": { "metal": "Cu", "count_only": true, "experimental_only": true }
+        }
+      ]
+    },
+    {
+      "id": "CQ04_SYNTHESIS_UIO66",
+      "question": "UiO-66 synthesis routes",
+      "steps": [
+        { "tool": "get_synthesis_by_mof_name", "args": { "mof_name": "uio-66" } }
+      ]
+    },
+    {
+      "id": "CQ05_IDENTITY_DUT67",
+      "question": "DUT-67 identity (space group, sources)",
+      "steps": [{ "tool": "get_mof_identity_by_name", "args": { "mof_name": "DUT-67" } }]
+    },
+    {
+      "id": "CQ06_TOPOLOGY_ZIF8",
+      "question": "ZIF-8 topology",
+      "steps": [{ "tool": "get_mof_identity_by_name", "args": { "mof_name": "ZIF-8" } }]
+    },
+    {
+      "id": "CQ07_SAME_TOPO_ZIF8",
+      "question": "MOFs with same topology as ZIF-8 (probe + offline local join)",
+      "steps": [
+        { "tool": "get_mof_identity_by_name", "args": { "mof_name": "ZIF-8" } },
+        {
+          "tool": "get_mofs_with_same_topology_as",
+          "args": { "reference_name": "ZIF-8" }
+        },
+        {
+          "tool": "get_mofs_with_same_topology_as",
+          "args": { "reference_name": "ZIF-8", "count_only": true },
+          "extract": { "sparql_count": { "pick": "row_field", "field": "count", "index": 0 } }
+        },
+        {
+          "type": "local_join",
+          "join": "topology_from_identity",
+          "reference_name": "ZIF-8",
+          "output_variable": "topology",
+          "offline_only": true
+        },
+        {
+          "type": "local_join",
+          "join": "same_topology_count_local",
+          "topology": "$topology",
+          "exclude_reference": "ZIF-8",
+          "offline_only": true,
+          "extract": { "local_count": { "pick": "row_field", "field": "count", "index": 0 } }
+        }
+      ],
+      "final_summary": "topology=$topology; corpus_count=$sparql_count; facet_sample_count=$local_count"
+    },
+    {
+      "id": "CQ08_LINKER_HKUST",
+      "question": "HKUST-1 linker SMILES",
+      "steps": [{ "tool": "get_linkers_by_mof_name", "args": { "mof_name": "HKUST-1" } }]
+    },
+    {
+      "id": "CQ09_HYPO_MIL53",
+      "question": "Hypothetical MOFs same topology as MIL-53",
+      "steps": [
+        {
+          "tool": "count_hypothetical_same_topology_as",
+          "args": { "reference_name": "MIL-53" }
+        }
+      ]
+    },
+    {
+      "id": "CQ10_EXP_PCU",
+      "question": "Experimental pcu MOF count",
+      "steps": [{ "tool": "count_experimental_by_topology", "args": { "topology": "pcu" } }]
+    },
+    {
+      "id": "CQ11_PORE_HKUST",
+      "question": "HKUST-1 pore metrics",
+      "steps": [{ "tool": "get_pore_metrics_by_mof_name", "args": { "mof_name": "HKUST-1" } }]
+    },
+    {
+      "id": "CQ12_GSA_2500",
+      "question": "MOFs with GSA >= 2500",
+      "steps": [{ "tool": "get_mofs_by_gsa_min", "args": { "min_gsa": 2500 } }]
+    },
+    {
+      "id": "CQ13_DOI_MIL101",
+      "question": "MIL-101 publications",
+      "steps": [{ "tool": "get_publications_by_mof_name", "args": { "mof_name": "mil-101" } }]
+    },
+    {
+      "id": "CQ14_ASA_MIL53",
+      "question": "MIL-53 ASA",
+      "steps": [{ "tool": "get_asa_by_mof_name", "args": { "mof_name": "mil-53" } }]
+    },
+    {
+      "id": "CQ15_DENSITY_DUT67",
+      "question": "DUT-67 density / pore stats",
+      "steps": [{ "tool": "get_pore_metrics_by_mof_name", "args": { "mof_name": "DUT-67" } }]
+    },
+    {
+      "id": "CQ16_LCD_LT20",
+      "question": "MOFs with LCD < 20 Å",
+      "steps": [{ "tool": "get_mofs_by_lcd_max", "args": { "max_lcd_angstrom": 20 } }]
+    },
+    {
+      "id": "CQ17_SOLVENTS",
+      "question": "Top synthesis solvents (excl. DMF/DMA/HF)",
+      "steps": [{ "tool": "get_top_synthesis_solvents", "args": {} }]
+    },
+    {
+      "id": "CQ_D1_ZR_COOH",
+      "question": "Zr + carboxylate linker MOFs",
+      "steps": [{ "tool": "get_mofs_by_metal_and_linker", "args": {} }]
+    },
+    {
+      "id": "CQ_D2_PCU_ALL",
+      "question": "pcu topology across sources",
+      "steps": [{ "tool": "get_mofs_by_topology_all_sources", "args": { "topology": "pcu" } }]
+    },
+    {
+      "id": "CQ_D3_ZIF8_REFCODES_SYNTH",
+      "question": "ZIF-8 refcodes then synthesis filtered by refcode (join_rows offline)",
+      "steps": [
+        {
+          "tool": "get_refcodes_by_mof_name",
+          "args": { "mof_name": "ZIF-8" },
+          "extract": {
+            "refcodes": { "pick": "column", "field": "refcode" }
+          }
+        },
+        {
+          "tool": "get_synthesis_by_mof_name",
+          "args": { "mof_name": "ZIF-8" },
+          "extract": { "synthesis_rows": { "pick": "all_rows" } }
+        },
+        {
+          "type": "transform",
+          "transform": "join_rows",
+          "name": "synthesis_by_refcodes",
+          "left_variable": "synthesis_rows",
+          "right_variable": "refcodes",
+          "left_key": "refcode",
+          "right_is_list": true,
+          "how": "inner",
+          "output_variable": "filtered_synthesis",
+          "offline_only": true,
+          "extract": { "filtered_synthesis_rows": { "pick": "all_rows" } }
+        }
+      ],
+      "final_summary": "Refcodes=$refcodes; filtered synthesis rows=$filtered_synthesis_rows"
+    },
+    {
+      "id": "CQ_D4_AQUEOUS",
+      "question": "Aqueous low-temperature syntheses",
+      "steps": [{ "tool": "get_aqueous_low_temp_syntheses", "args": {} }]
+    },
+    {
+      "id": "CQ_D5_WATER_STABLE",
+      "question": "Water-stable MOFs",
+      "steps": [{ "tool": "get_water_stable_mofs", "args": {} }]
+    },
+    {
+      "id": "CQ_D6_THERMAL",
+      "question": "Thermally stable MOFs",
+      "steps": [{ "tool": "get_thermal_stable_mofs", "args": {} }]
+    },
+    {
+      "id": "CQ_D7_BINARY_UPTAKE",
+      "question": "High binary gas uptake MOFs",
+      "steps": [{ "tool": "get_high_binary_gas_uptake_mofs", "args": {} }]
+    },
+    {
+      "id": "CQ_MORE03_NIST_ADSORPTION_CHEM",
+      "question": "NIST adsorption MOFs joined to CoRE chemistry and optional Tobassco functional groups (More Q3)",
+      "steps": [
+        {
+          "id": "warm_nist",
+          "tool": "get_nist_exp_adsorption_rows",
+          "args": {},
+          "extract": { "nist_pool": { "pick": "all_rows" } }
+        },
+        {
+          "id": "warm_core",
+          "tool": "get_core_name_chemistry_rows",
+          "args": {},
+          "extract": { "core_pool": { "pick": "all_rows" } }
+        },
+        {
+          "id": "warm_tob",
+          "tool": "get_tobassco_func_groups_by_mofid",
+          "args": {},
+          "extract": { "tob_pool": { "pick": "all_rows" } }
+        },
+        {
+          "type": "transform",
+          "transform": "multi_join_rows",
+          "name": "nist_core_tob_join",
+          "left_variable": "nist_pool",
+          "output_variable": "enriched_rows",
+          "offline_only": true,
+          "joins": [
+            {
+              "right_variable": "core_pool",
+              "left_key": "name_lc",
+              "right_key": "name_lc",
+              "how": "inner",
+              "right_prefix": "core_"
+            },
+            {
+              "right_variable": "tob_pool",
+              "left_key": "core_mofid",
+              "right_key": "mofid",
+              "how": "left",
+              "right_prefix": "tob_"
+            }
+          ],
+          "extract": { "result_rows": { "pick": "all_rows" } }
+        }
+      ],
+      "final_summary": "NIST+CoRE+Tobassco enriched rows=$result_rows (count in workflow result)"
+    }
+  ]
+}

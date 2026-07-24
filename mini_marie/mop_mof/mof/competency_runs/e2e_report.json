@@ -1,0 +1,3124 @@
+{
+  "generated_at": "2026-06-01T15:43:00.589884+00:00",
+  "suite_id": "MOF_COMPETENCY_SUITE",
+  "online_limit": 10,
+  "offline_cap": 500000,
+  "cache_dir": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\data\\mini_marie_cache\\mof_competency",
+  "cache_db": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\data\\mini_marie_cache\\mof_competency\\competency_cache.sqlite",
+  "total_wall_ms": 631919,
+  "workflows_tested": 24,
+  "online_pass": 24,
+  "offline_pass": 24,
+  "cases": [
+    {
+      "workflow_id": "CQ01_PLD_UIO66",
+      "question": "Average and variance PLD of UiO-66",
+      "online": {
+        "status": "pass",
+        "elapsed_ms": 967,
+        "wall_ms": 968,
+        "recording": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ01_PLD_UIO66_online_1780327949.json",
+        "answer": "get_pld_stats_by_mof_name: 1 rows",
+        "answer_digest": {
+          "mode": "online",
+          "summary_text": "get_pld_stats_by_mof_name: 1 rows",
+          "authoritative": {
+            "avgPLD": "3.806825",
+            "variance": "0.03655484882500026",
+            "pore_metrics": {
+              "avgPLD": "3.806825",
+              "variance": "0.03655484882500026",
+              "n": "4"
+            }
+          },
+          "steps": [
+            {
+              "step": 1,
+              "type": "tool",
+              "name": "get_pld_stats_by_mof_name",
+              "status": "pass",
+              "row_count": 1,
+              "elapsed_ms": 966,
+              "from_cache": false,
+              "result": {
+                "avgPLD": "3.806825",
+                "variance": "0.03655484882500026",
+                "n": "4"
+              }
+            }
+          ],
+          "variables": {},
+          "total_elapsed_ms": 967
+        },
+        "cache_stats": {
+          "db_path": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\data\\mini_marie_cache\\mof_competency\\competency_cache.sqlite",
+          "counts": {
+            "atomic_calls": 7,
+            "facet_identity": 1774,
+            "facet_synthesis": 0,
+            "facet_topology_mof": 160,
+            "facet_metal_source": 0,
+            "facet_linker": 0,
+            "facet_refcodes": 0
+          }
+        },
+        "step_timings_ms": [
+          966
+        ]
+      },
+      "offline": {
+        "status": "pass",
+        "elapsed_ms": 958,
+        "wall_ms": 968,
+        "recording": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ01_PLD_UIO66_offline_1780327950.json",
+        "answer": "get_pld_stats_by_mof_name: 1 rows",
+        "answer_digest": {
+          "mode": "offline",
+          "summary_text": "get_pld_stats_by_mof_name: 1 rows",
+          "authoritative": {
+            "avgPLD": "3.806825",
+            "variance": "0.03655484882500026",
+            "pore_metrics": {
+              "avgPLD": "3.806825",
+              "variance": "0.03655484882500026",
+              "n": "4"
+            }
+          },
+          "steps": [
+            {
+              "step": 1,
+              "type": "tool",
+              "name": "get_pld_stats_by_mof_name",
+              "status": "pass",
+              "row_count": 1,
+              "elapsed_ms": 958,
+              "from_cache": false,
+              "result": {
+                "avgPLD": "3.806825",
+                "variance": "0.03655484882500026",
+                "n": "4"
+              }
+            }
+          ],
+          "variables": {},
+          "total_elapsed_ms": 958
+        },
+        "cache_stats": {
+          "db_path": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\data\\mini_marie_cache\\mof_competency\\competency_cache.sqlite",
+          "counts": {
+            "atomic_calls": 8,
+            "facet_identity": 1774,
+            "facet_synthesis": 0,
+            "facet_topology_mof": 160,
+            "facet_metal_source": 0,
+            "facet_linker": 0,
+            "facet_refcodes": 0
+          }
+        },
+        "step_timings_ms": [
+          958
+        ],
+        "replayed_from_online": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ01_PLD_UIO66_online_1780327949.json"
+      }
+    },
+    {
+      "workflow_id": "CQ02_ZN_SOURCES",
+      "question": "Zn MOFs by source database",
+      "online": {
+        "status": "pass",
+        "elapsed_ms": 7575,
+        "wall_ms": 7590,
+        "recording": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ02_ZN_SOURCES_online_1780327958.json",
+        "answer": "get_mofs_by_metal: 7 rows",
+        "answer_digest": {
+          "mode": "online",
+          "summary_text": "get_mofs_by_metal: 7 rows",
+          "authoritative": {
+            "count": "137795",
+            "count_source": "get_mofs_by_metal"
+          },
+          "steps": [
+            {
+              "step": 1,
+              "type": "tool",
+              "name": "get_mofs_by_metal",
+              "status": "pass",
+              "row_count": 7,
+              "elapsed_ms": 7575,
+              "from_cache": false,
+              "result_sample": [
+                {
+                  "sourcedb": "Tobassco",
+                  "count": "137795"
+                },
+                {
+                  "sourcedb": "ARC_MOF 2025",
+                  "count": "66453"
+                },
+                {
+                  "sourcedb": "QMOF_2025",
+                  "count": "4789"
+                }
+              ]
+            }
+          ],
+          "variables": {},
+          "total_elapsed_ms": 7575
+        },
+        "cache_stats": {
+          "db_path": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\data\\mini_marie_cache\\mof_competency\\competency_cache.sqlite",
+          "counts": {
+            "atomic_calls": 9,
+            "facet_identity": 1774,
+            "facet_synthesis": 0,
+            "facet_topology_mof": 160,
+            "facet_metal_source": 7,
+            "facet_linker": 0,
+            "facet_refcodes": 0
+          }
+        },
+        "step_timings_ms": [
+          7575
+        ]
+      },
+      "offline": {
+        "status": "pass",
+        "elapsed_ms": 7484,
+        "wall_ms": 7494,
+        "recording": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ02_ZN_SOURCES_offline_1780327965.json",
+        "answer": "get_mofs_by_metal: 7 rows",
+        "answer_digest": {
+          "mode": "offline",
+          "summary_text": "get_mofs_by_metal: 7 rows",
+          "authoritative": {
+            "count": "137795",
+            "count_source": "get_mofs_by_metal"
+          },
+          "steps": [
+            {
+              "step": 1,
+              "type": "tool",
+              "name": "get_mofs_by_metal",
+              "status": "pass",
+              "row_count": 7,
+              "elapsed_ms": 7484,
+              "from_cache": false,
+              "result_sample": [
+                {
+                  "sourcedb": "Tobassco",
+                  "count": "137795"
+                },
+                {
+                  "sourcedb": "ARC_MOF 2025",
+                  "count": "66453"
+                },
+                {
+                  "sourcedb": "QMOF_2025",
+                  "count": "4789"
+                }
+              ]
+            }
+          ],
+          "variables": {},
+          "total_elapsed_ms": 7484
+        },
+        "cache_stats": {
+          "db_path": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\data\\mini_marie_cache\\mof_competency\\competency_cache.sqlite",
+          "counts": {
+            "atomic_calls": 10,
+            "facet_identity": 1774,
+            "facet_synthesis": 0,
+            "facet_topology_mof": 160,
+            "facet_metal_source": 14,
+            "facet_linker": 0,
+            "facet_refcodes": 0
+          }
+        },
+        "step_timings_ms": [
+          7484
+        ],
+        "replayed_from_online": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ02_ZN_SOURCES_online_1780327958.json"
+      }
+    },
+    {
+      "workflow_id": "CQ03_CU_EXPERIMENTAL",
+      "question": "Experimental Cu MOF count",
+      "online": {
+        "status": "pass",
+        "elapsed_ms": 6379,
+        "wall_ms": 6389,
+        "recording": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ03_CU_EXPERIMENTAL_online_1780327972.json",
+        "answer": "get_mofs_by_metal: 1 rows",
+        "answer_digest": {
+          "mode": "online",
+          "summary_text": "get_mofs_by_metal: 1 rows",
+          "authoritative": {
+            "count": "9325",
+            "count_source": "get_mofs_by_metal"
+          },
+          "steps": [
+            {
+              "step": 1,
+              "type": "tool",
+              "name": "get_mofs_by_metal",
+              "status": "pass",
+              "row_count": 1,
+              "elapsed_ms": 6378,
+              "from_cache": false,
+              "result": {
+                "count": "9325"
+              }
+            }
+          ],
+          "variables": {},
+          "total_elapsed_ms": 6379
+        },
+        "cache_stats": {
+          "db_path": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\data\\mini_marie_cache\\mof_competency\\competency_cache.sqlite",
+          "counts": {
+            "atomic_calls": 11,
+            "facet_identity": 1774,
+            "facet_synthesis": 0,
+            "facet_topology_mof": 160,
+            "facet_metal_source": 14,
+            "facet_linker": 0,
+            "facet_refcodes": 0
+          }
+        },
+        "step_timings_ms": [
+          6378
+        ]
+      },
+      "offline": {
+        "status": "pass",
+        "elapsed_ms": 6461,
+        "wall_ms": 6473,
+        "recording": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ03_CU_EXPERIMENTAL_offline_1780327978.json",
+        "answer": "get_mofs_by_metal: 1 rows",
+        "answer_digest": {
+          "mode": "offline",
+          "summary_text": "get_mofs_by_metal: 1 rows",
+          "authoritative": {
+            "count": "9325",
+            "count_source": "get_mofs_by_metal"
+          },
+          "steps": [
+            {
+              "step": 1,
+              "type": "tool",
+              "name": "get_mofs_by_metal",
+              "status": "pass",
+              "row_count": 1,
+              "elapsed_ms": 6460,
+              "from_cache": false,
+              "result": {
+                "count": "9325"
+              }
+            }
+          ],
+          "variables": {},
+          "total_elapsed_ms": 6461
+        },
+        "cache_stats": {
+          "db_path": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\data\\mini_marie_cache\\mof_competency\\competency_cache.sqlite",
+          "counts": {
+            "atomic_calls": 12,
+            "facet_identity": 1774,
+            "facet_synthesis": 0,
+            "facet_topology_mof": 160,
+            "facet_metal_source": 14,
+            "facet_linker": 0,
+            "facet_refcodes": 0
+          }
+        },
+        "step_timings_ms": [
+          6460
+        ],
+        "replayed_from_online": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ03_CU_EXPERIMENTAL_online_1780327972.json"
+      }
+    },
+    {
+      "workflow_id": "CQ04_SYNTHESIS_UIO66",
+      "question": "UiO-66 synthesis routes",
+      "online": {
+        "status": "pass",
+        "elapsed_ms": 18526,
+        "wall_ms": 18537,
+        "recording": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ04_SYNTHESIS_UIO66_online_1780327997.json",
+        "answer": "get_synthesis_by_mof_name: 10 rows",
+        "answer_digest": {
+          "mode": "online",
+          "summary_text": "get_synthesis_by_mof_name: 10 rows",
+          "authoritative": {},
+          "steps": [
+            {
+              "step": 1,
+              "type": "tool",
+              "name": "get_synthesis_by_mof_name",
+              "status": "pass",
+              "row_count": 10,
+              "elapsed_ms": 18525,
+              "from_cache": false,
+              "result_sample": [
+                {
+                  "name": "reo Hf-UiO-66",
+                  "sourcedb": "CSD MOF Collection",
+                  "refcode": "WIYFUJ",
+                  "solvent": "Solvothermal synthesis",
+                  "doi": "10.5517/ccdc.csd.cc2dn4ks"
+                },
+                {
+                  "name": "UiO-66(Ce)-Fumarate",
+                  "sourcedb": "CSD MOF Collection",
+                  "refcode": "BUPVEP",
+                  "doi": "10.5517/cc13szhc"
+                },
+                {
+                  "name": "Tb(F)-UiO-66",
+                  "sourcedb": "CSD MOF Collection",
+                  "refcode": "CIHMIT",
+                  "doi": "10.5517/ccdc.csd.cc29614q"
+                }
+              ]
+            }
+          ],
+          "variables": {},
+          "total_elapsed_ms": 18526
+        },
+        "cache_stats": {
+          "db_path": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\data\\mini_marie_cache\\mof_competency\\competency_cache.sqlite",
+          "counts": {
+            "atomic_calls": 13,
+            "facet_identity": 1774,
+            "facet_synthesis": 10,
+            "facet_topology_mof": 160,
+            "facet_metal_source": 14,
+            "facet_linker": 0,
+            "facet_refcodes": 0
+          }
+        },
+        "step_timings_ms": [
+          18525
+        ]
+      },
+      "offline": {
+        "status": "pass",
+        "elapsed_ms": 19957,
+        "wall_ms": 19970,
+        "recording": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ04_SYNTHESIS_UIO66_offline_1780328017.json",
+        "answer": "get_synthesis_by_mof_name: 8117 rows",
+        "answer_digest": {
+          "mode": "offline",
+          "summary_text": "get_synthesis_by_mof_name: 8117 rows",
+          "authoritative": {},
+          "steps": [
+            {
+              "step": 1,
+              "type": "tool",
+              "name": "get_synthesis_by_mof_name",
+              "status": "pass",
+              "row_count": 8117,
+              "elapsed_ms": 19957,
+              "from_cache": false,
+              "result_sample": [
+                {
+                  "name": "reo Hf-UiO-66",
+                  "sourcedb": "CSD MOF Collection",
+                  "refcode": "WIYFUJ",
+                  "solvent": "Solvothermal synthesis",
+                  "doi": "10.5517/ccdc.csd.cc2dn4ks"
+                },
+                {
+                  "name": "UiO-66(Ce)-Fumarate",
+                  "sourcedb": "CSD MOF Collection",
+                  "refcode": "BUPVEP",
+                  "doi": "10.5517/cc13szhc"
+                },
+                {
+                  "name": "Tb(F)-UiO-66",
+                  "sourcedb": "CSD MOF Collection",
+                  "refcode": "CIHMIT",
+                  "doi": "10.5517/ccdc.csd.cc29614q"
+                }
+              ]
+            }
+          ],
+          "variables": {},
+          "total_elapsed_ms": 19957
+        },
+        "cache_stats": {
+          "db_path": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\data\\mini_marie_cache\\mof_competency\\competency_cache.sqlite",
+          "counts": {
+            "atomic_calls": 14,
+            "facet_identity": 1774,
+            "facet_synthesis": 8127,
+            "facet_topology_mof": 160,
+            "facet_metal_source": 14,
+            "facet_linker": 0,
+            "facet_refcodes": 0
+          }
+        },
+        "step_timings_ms": [
+          19957
+        ],
+        "replayed_from_online": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ04_SYNTHESIS_UIO66_online_1780327997.json"
+      }
+    },
+    {
+      "workflow_id": "CQ05_IDENTITY_DUT67",
+      "question": "DUT-67 identity (space group, sources)",
+      "online": {
+        "status": "pass",
+        "elapsed_ms": 7627,
+        "wall_ms": 7633,
+        "recording": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ05_IDENTITY_DUT67_online_1780328024.json",
+        "answer": "get_mof_identity_by_name: 6 rows",
+        "answer_digest": {
+          "mode": "online",
+          "summary_text": "get_mof_identity_by_name: 6 rows",
+          "authoritative": {},
+          "steps": [
+            {
+              "step": 1,
+              "type": "tool",
+              "name": "get_mof_identity_by_name",
+              "status": "pass",
+              "row_count": 6,
+              "elapsed_ms": 7627,
+              "from_cache": false,
+              "result_sample": [
+                {
+                  "name": "DUT-67",
+                  "sourcedb": "CoRE MOF 2025",
+                  "topology": "reo",
+                  "space_group": "225",
+                  "refcode": "FIJPAT",
+                  "mofid": "[O-]C(=O)c1ccc(s1)C(=O)[O-].[O]12[Zr]34[O]5[Zr]62[O]2[Zr]71[O]4[Zr]14[O]3[Zr]35[O]6[Zr]2([O]71)[O]43 MOFid-v1.reo.cat0"
+                },
+                {
+                  "name": "DUT-67",
+                  "sourcedb": "CSD MOF Collection",
+                  "refcode": "FIJPAT"
+                },
+                {
+                  "name": "DUT-67",
+                  "sourcedb": "CoRE MOF 2025",
+                  "topology": "reo",
+                  "space_group": "225",
+                  "refcode": "XICNOO",
+                  "mofid": "[O-]C(=O)c1ccc(s1)C(=O)[O-].[O]12[Zr]34[O]5[Zr]62[O]2[Zr]71[O]4[Zr]14[O]3[Zr]35[O]6[Zr]2([O]71)[O]43 MOFid-v1.reo.cat0"
+                }
+              ]
+            }
+          ],
+          "variables": {},
+          "total_elapsed_ms": 7627
+        },
+        "cache_stats": {
+          "db_path": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\data\\mini_marie_cache\\mof_competency\\competency_cache.sqlite",
+          "counts": {
+            "atomic_calls": 15,
+            "facet_identity": 1780,
+            "facet_synthesis": 8127,
+            "facet_topology_mof": 160,
+            "facet_metal_source": 14,
+            "facet_linker": 0,
+            "facet_refcodes": 0
+          }
+        },
+        "step_timings_ms": [
+          7627
+        ]
+      },
+      "offline": {
+        "status": "pass",
+        "elapsed_ms": 7607,
+        "wall_ms": 7618,
+        "recording": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ05_IDENTITY_DUT67_offline_1780328032.json",
+        "answer": "get_mof_identity_by_name: 6 rows",
+        "answer_digest": {
+          "mode": "offline",
+          "summary_text": "get_mof_identity_by_name: 6 rows",
+          "authoritative": {},
+          "steps": [
+            {
+              "step": 1,
+              "type": "tool",
+              "name": "get_mof_identity_by_name",
+              "status": "pass",
+              "row_count": 6,
+              "elapsed_ms": 7606,
+              "from_cache": false,
+              "result_sample": [
+                {
+                  "name": "DUT-67",
+                  "sourcedb": "CoRE MOF 2025",
+                  "topology": "reo",
+                  "space_group": "225",
+                  "refcode": "FIJPAT",
+                  "mofid": "[O-]C(=O)c1ccc(s1)C(=O)[O-].[O]12[Zr]34[O]5[Zr]62[O]2[Zr]71[O]4[Zr]14[O]3[Zr]35[O]6[Zr]2([O]71)[O]43 MOFid-v1.reo.cat0"
+                },
+                {
+                  "name": "DUT-67",
+                  "sourcedb": "CSD MOF Collection",
+                  "refcode": "FIJPAT"
+                },
+                {
+                  "name": "DUT-67",
+                  "sourcedb": "CoRE MOF 2025",
+                  "topology": "reo",
+                  "space_group": "225",
+                  "refcode": "XICNOO",
+                  "mofid": "[O-]C(=O)c1ccc(s1)C(=O)[O-].[O]12[Zr]34[O]5[Zr]62[O]2[Zr]71[O]4[Zr]14[O]3[Zr]35[O]6[Zr]2([O]71)[O]43 MOFid-v1.reo.cat0"
+                }
+              ]
+            }
+          ],
+          "variables": {},
+          "total_elapsed_ms": 7607
+        },
+        "cache_stats": {
+          "db_path": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\data\\mini_marie_cache\\mof_competency\\competency_cache.sqlite",
+          "counts": {
+            "atomic_calls": 16,
+            "facet_identity": 1786,
+            "facet_synthesis": 8127,
+            "facet_topology_mof": 160,
+            "facet_metal_source": 14,
+            "facet_linker": 0,
+            "facet_refcodes": 0
+          }
+        },
+        "step_timings_ms": [
+          7606
+        ],
+        "replayed_from_online": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ05_IDENTITY_DUT67_online_1780328024.json"
+      }
+    },
+    {
+      "workflow_id": "CQ06_TOPOLOGY_ZIF8",
+      "question": "ZIF-8 topology",
+      "online": {
+        "status": "pass",
+        "elapsed_ms": 1,
+        "wall_ms": 13,
+        "recording": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ06_TOPOLOGY_ZIF8_online_1780328032.json",
+        "answer": "get_mof_identity_by_name: 10 rows",
+        "answer_digest": {
+          "mode": "online",
+          "summary_text": "get_mof_identity_by_name: 10 rows",
+          "authoritative": {},
+          "steps": [
+            {
+              "step": 1,
+              "type": "tool",
+              "name": "get_mof_identity_by_name",
+              "status": "pass",
+              "row_count": 10,
+              "elapsed_ms": 1,
+              "from_cache": true,
+              "result_sample": [
+                {
+                  "name": "ZIF-8",
+                  "sourcedb": "CoRE MOF 2025",
+                  "topology": "sod",
+                  "space_group": "1",
+                  "refcode": "EWIDUK",
+                  "mofid": "CC1=NC=C[N]1.[Zn] MOFid-v1.sod.cat0"
+                },
+                {
+                  "name": "ZIF-8",
+                  "sourcedb": "CoRE MOF 2025",
+                  "topology": "sod",
+                  "space_group": "4",
+                  "refcode": "FAWCEN",
+                  "mofid": "CC1=NC=C[N]1.[Zn] MOFid-v1.sod.cat0"
+                },
+                {
+                  "name": "ZIF-8",
+                  "sourcedb": "CoRE MOF 2025",
+                  "topology": "sod",
+                  "space_group": "4",
+                  "refcode": "FAWCEN01",
+                  "mofid": "CC1=NC=C[N]1.[Zn] MOFid-v1.sod.cat0"
+                }
+              ]
+            }
+          ],
+          "variables": {},
+          "total_elapsed_ms": 1
+        },
+        "cache_stats": {
+          "db_path": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\data\\mini_marie_cache\\mof_competency\\competency_cache.sqlite",
+          "counts": {
+            "atomic_calls": 16,
+            "facet_identity": 1786,
+            "facet_synthesis": 8127,
+            "facet_topology_mof": 160,
+            "facet_metal_source": 14,
+            "facet_linker": 0,
+            "facet_refcodes": 0
+          }
+        },
+        "step_timings_ms": [
+          1
+        ]
+      },
+      "offline": {
+        "status": "pass",
+        "elapsed_ms": 8408,
+        "wall_ms": 8409,
+        "recording": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ06_TOPOLOGY_ZIF8_offline_1780328040.json",
+        "answer": "get_mof_identity_by_name: 1764 rows",
+        "answer_digest": {
+          "mode": "offline",
+          "summary_text": "get_mof_identity_by_name: 1764 rows",
+          "authoritative": {},
+          "steps": [
+            {
+              "step": 1,
+              "type": "tool",
+              "name": "get_mof_identity_by_name",
+              "status": "pass",
+              "row_count": 1764,
+              "elapsed_ms": 8407,
+              "from_cache": false,
+              "result_sample": [
+                {
+                  "name": "ZIF-8",
+                  "sourcedb": "CoRE MOF 2025",
+                  "topology": "sod",
+                  "space_group": "1",
+                  "refcode": "EWIDUK",
+                  "mofid": "CC1=NC=C[N]1.[Zn] MOFid-v1.sod.cat0"
+                },
+                {
+                  "name": "ZIF-8",
+                  "sourcedb": "CoRE MOF 2025",
+                  "topology": "sod",
+                  "space_group": "4",
+                  "refcode": "FAWCEN",
+                  "mofid": "CC1=NC=C[N]1.[Zn] MOFid-v1.sod.cat0"
+                },
+                {
+                  "name": "ZIF-8",
+                  "sourcedb": "CoRE MOF 2025",
+                  "topology": "sod",
+                  "space_group": "4",
+                  "refcode": "FAWCEN01",
+                  "mofid": "CC1=NC=C[N]1.[Zn] MOFid-v1.sod.cat0"
+                }
+              ]
+            }
+          ],
+          "variables": {},
+          "total_elapsed_ms": 8408
+        },
+        "cache_stats": {
+          "db_path": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\data\\mini_marie_cache\\mof_competency\\competency_cache.sqlite",
+          "counts": {
+            "atomic_calls": 17,
+            "facet_identity": 3550,
+            "facet_synthesis": 8127,
+            "facet_topology_mof": 160,
+            "facet_metal_source": 14,
+            "facet_linker": 0,
+            "facet_refcodes": 0
+          }
+        },
+        "step_timings_ms": [
+          8407
+        ],
+        "replayed_from_online": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ06_TOPOLOGY_ZIF8_online_1780328032.json"
+      }
+    },
+    {
+      "workflow_id": "CQ07_SAME_TOPO_ZIF8",
+      "question": "MOFs with same topology as ZIF-8 (probe + offline local join)",
+      "online": {
+        "status": "pass",
+        "elapsed_ms": 1,
+        "wall_ms": 9,
+        "recording": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ07_SAME_TOPO_ZIF8_online_1780328040.json",
+        "answer": "topology=$topology; corpus_count=150; facet_sample_count=$local_count",
+        "answer_digest": {
+          "mode": "online",
+          "summary_text": "topology=$topology; corpus_count=150; facet_sample_count=$local_count",
+          "authoritative": {
+            "count": "150",
+            "count_source": "get_mofs_with_same_topology_as",
+            "sparql_count": "150"
+          },
+          "steps": [
+            {
+              "step": 1,
+              "type": "tool",
+              "name": "get_mof_identity_by_name",
+              "status": "pass",
+              "row_count": 10,
+              "elapsed_ms": 0,
+              "from_cache": true,
+              "result_sample": [
+                {
+                  "name": "ZIF-8",
+                  "sourcedb": "CoRE MOF 2025",
+                  "topology": "sod",
+                  "space_group": "1",
+                  "refcode": "EWIDUK",
+                  "mofid": "CC1=NC=C[N]1.[Zn] MOFid-v1.sod.cat0"
+                },
+                {
+                  "name": "ZIF-8",
+                  "sourcedb": "CoRE MOF 2025",
+                  "topology": "sod",
+                  "space_group": "4",
+                  "refcode": "FAWCEN",
+                  "mofid": "CC1=NC=C[N]1.[Zn] MOFid-v1.sod.cat0"
+                },
+                {
+                  "name": "ZIF-8",
+                  "sourcedb": "CoRE MOF 2025",
+                  "topology": "sod",
+                  "space_group": "4",
+                  "refcode": "FAWCEN01",
+                  "mofid": "CC1=NC=C[N]1.[Zn] MOFid-v1.sod.cat0"
+                }
+              ]
+            },
+            {
+              "step": 2,
+              "type": "tool",
+              "name": "get_mofs_with_same_topology_as",
+              "status": "pass",
+              "row_count": 10,
+              "elapsed_ms": 0,
+              "from_cache": true,
+              "result_sample": [
+                {
+                  "mof": "https://www.theworldavatar.com/kg/ontomofs_vkg/mof_2000%5BCu%5D%5Bsod%5D3%5BASR%5D1",
+                  "source": "CoRE MOF 2025",
+                  "topology": "sod"
+                },
+                {
+                  "mof": "https://www.theworldavatar.com/kg/ontomofs_vkg/mof_2000%5BCu%5D%5Bsod%5D3%5BFSR%5D1",
+                  "source": "CoRE MOF 2025",
+                  "topology": "sod"
+                },
+                {
+                  "mof": "https://www.theworldavatar.com/kg/ontomofs_vkg/mof_2001%5BCu%5D%5Bsod%5D3%5BASR%5D1",
+                  "source": "CoRE MOF 2025",
+                  "topology": "sod"
+                }
+              ]
+            },
+            {
+              "step": 3,
+              "type": "tool",
+              "name": "get_mofs_with_same_topology_as",
+              "status": "pass",
+              "row_count": 1,
+              "elapsed_ms": 0,
+              "from_cache": true,
+              "result": {
+                "count": "150",
+                "topology": "sod"
+              }
+            },
+            {
+              "step": 4,
+              "type": "local_join",
+              "name": "local_join",
+              "status": "skipped",
+              "row_count": 0,
+              "elapsed_ms": 0,
+              "from_cache": null
+            },
+            {
+              "step": 5,
+              "type": "local_join",
+              "name": "local_join",
+              "status": "skipped",
+              "row_count": 0,
+              "elapsed_ms": 0,
+              "from_cache": null
+            }
+          ],
+          "variables": {
+            "sparql_count": "150"
+          },
+          "total_elapsed_ms": 1
+        },
+        "cache_stats": {
+          "db_path": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\data\\mini_marie_cache\\mof_competency\\competency_cache.sqlite",
+          "counts": {
+            "atomic_calls": 17,
+            "facet_identity": 3550,
+            "facet_synthesis": 8127,
+            "facet_topology_mof": 160,
+            "facet_metal_source": 14,
+            "facet_linker": 0,
+            "facet_refcodes": 0
+          }
+        },
+        "step_timings_ms": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "offline": {
+        "status": "pass",
+        "elapsed_ms": 26936,
+        "wall_ms": 26938,
+        "recording": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ07_SAME_TOPO_ZIF8_offline_1780328067.json",
+        "answer": "topology=sod; corpus_count=150; facet_sample_count=150",
+        "answer_digest": {
+          "mode": "offline",
+          "summary_text": "topology=sod; corpus_count=150; facet_sample_count=150",
+          "authoritative": {
+            "count": "150",
+            "count_source": "same_topology_count_local",
+            "sparql_count": "150",
+            "topology": "sod",
+            "local_count": "150"
+          },
+          "steps": [
+            {
+              "step": 1,
+              "type": "tool",
+              "name": "get_mof_identity_by_name",
+              "status": "pass",
+              "row_count": 1764,
+              "elapsed_ms": 8512,
+              "from_cache": false,
+              "result_sample": [
+                {
+                  "name": "ZIF-8",
+                  "sourcedb": "CoRE MOF 2025",
+                  "topology": "sod",
+                  "space_group": "1",
+                  "refcode": "EWIDUK",
+                  "mofid": "CC1=NC=C[N]1.[Zn] MOFid-v1.sod.cat0"
+                },
+                {
+                  "name": "ZIF-8",
+                  "sourcedb": "CoRE MOF 2025",
+                  "topology": "sod",
+                  "space_group": "4",
+                  "refcode": "FAWCEN",
+                  "mofid": "CC1=NC=C[N]1.[Zn] MOFid-v1.sod.cat0"
+                },
+                {
+                  "name": "ZIF-8",
+                  "sourcedb": "CoRE MOF 2025",
+                  "topology": "sod",
+                  "space_group": "4",
+                  "refcode": "FAWCEN01",
+                  "mofid": "CC1=NC=C[N]1.[Zn] MOFid-v1.sod.cat0"
+                }
+              ]
+            },
+            {
+              "step": 2,
+              "type": "tool",
+              "name": "get_mofs_with_same_topology_as",
+              "status": "pass",
+              "row_count": 150,
+              "elapsed_ms": 9710,
+              "from_cache": false,
+              "result_sample": [
+                {
+                  "mof": "https://www.theworldavatar.com/kg/ontomofs_vkg/mof_2000%5BCu%5D%5Bsod%5D3%5BASR%5D1",
+                  "source": "CoRE MOF 2025",
+                  "topology": "sod"
+                },
+                {
+                  "mof": "https://www.theworldavatar.com/kg/ontomofs_vkg/mof_2000%5BCu%5D%5Bsod%5D3%5BFSR%5D1",
+                  "source": "CoRE MOF 2025",
+                  "topology": "sod"
+                },
+                {
+                  "mof": "https://www.theworldavatar.com/kg/ontomofs_vkg/mof_2001%5BCu%5D%5Bsod%5D3%5BASR%5D1",
+                  "source": "CoRE MOF 2025",
+                  "topology": "sod"
+                }
+              ]
+            },
+            {
+              "step": 3,
+              "type": "tool",
+              "name": "get_mofs_with_same_topology_as",
+              "status": "pass",
+              "row_count": 1,
+              "elapsed_ms": 8703,
+              "from_cache": false,
+              "result": {
+                "count": "150",
+                "topology": "sod"
+              }
+            },
+            {
+              "step": 4,
+              "type": "local_join",
+              "name": "topology_from_identity",
+              "status": "pass",
+              "row_count": 1,
+              "elapsed_ms": 5,
+              "from_cache": null,
+              "result": {
+                "topology": "sod",
+                "sources": 3538
+              }
+            },
+            {
+              "step": 5,
+              "type": "local_join",
+              "name": "same_topology_count_local",
+              "status": "pass",
+              "row_count": 1,
+              "elapsed_ms": 5,
+              "from_cache": null,
+              "result": {
+                "count": "150",
+                "topology": "sod"
+              }
+            }
+          ],
+          "variables": {
+            "sparql_count": "150",
+            "topology": "sod",
+            "local_count": "150"
+          },
+          "total_elapsed_ms": 26936
+        },
+        "cache_stats": {
+          "db_path": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\data\\mini_marie_cache\\mof_competency\\competency_cache.sqlite",
+          "counts": {
+            "atomic_calls": 19,
+            "facet_identity": 3550,
+            "facet_synthesis": 8127,
+            "facet_topology_mof": 310,
+            "facet_metal_source": 14,
+            "facet_linker": 0,
+            "facet_refcodes": 0
+          }
+        },
+        "step_timings_ms": [
+          8512,
+          9710,
+          8703,
+          5,
+          5
+        ],
+        "replayed_from_online": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ07_SAME_TOPO_ZIF8_online_1780328040.json"
+      }
+    },
+    {
+      "workflow_id": "CQ08_LINKER_HKUST",
+      "question": "HKUST-1 linker SMILES",
+      "online": {
+        "status": "pass",
+        "elapsed_ms": 4997,
+        "wall_ms": 5005,
+        "recording": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ08_LINKER_HKUST_online_1780328072.json",
+        "answer": "get_linkers_by_mof_name: 1 rows",
+        "answer_digest": {
+          "mode": "online",
+          "summary_text": "get_linkers_by_mof_name: 1 rows",
+          "authoritative": {},
+          "steps": [
+            {
+              "step": 1,
+              "type": "tool",
+              "name": "get_linkers_by_mof_name",
+              "status": "pass",
+              "row_count": 1,
+              "elapsed_ms": 4997,
+              "from_cache": false,
+              "result": {
+                "linker": "[O-]C(=O)c1cc(cc(c1)C(=O)[O-])C(=O)[O-]",
+                "source": "CoRE MOF 2025"
+              }
+            }
+          ],
+          "variables": {},
+          "total_elapsed_ms": 4997
+        },
+        "cache_stats": {
+          "db_path": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\data\\mini_marie_cache\\mof_competency\\competency_cache.sqlite",
+          "counts": {
+            "atomic_calls": 20,
+            "facet_identity": 3550,
+            "facet_synthesis": 8127,
+            "facet_topology_mof": 310,
+            "facet_metal_source": 14,
+            "facet_linker": 1,
+            "facet_refcodes": 0
+          }
+        },
+        "step_timings_ms": [
+          4997
+        ]
+      },
+      "offline": {
+        "status": "pass",
+        "elapsed_ms": 4853,
+        "wall_ms": 4860,
+        "recording": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ08_LINKER_HKUST_offline_1780328077.json",
+        "answer": "get_linkers_by_mof_name: 1 rows",
+        "answer_digest": {
+          "mode": "offline",
+          "summary_text": "get_linkers_by_mof_name: 1 rows",
+          "authoritative": {},
+          "steps": [
+            {
+              "step": 1,
+              "type": "tool",
+              "name": "get_linkers_by_mof_name",
+              "status": "pass",
+              "row_count": 1,
+              "elapsed_ms": 4852,
+              "from_cache": false,
+              "result": {
+                "linker": "[O-]C(=O)c1cc(cc(c1)C(=O)[O-])C(=O)[O-]",
+                "source": "CoRE MOF 2025"
+              }
+            }
+          ],
+          "variables": {},
+          "total_elapsed_ms": 4853
+        },
+        "cache_stats": {
+          "db_path": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\data\\mini_marie_cache\\mof_competency\\competency_cache.sqlite",
+          "counts": {
+            "atomic_calls": 21,
+            "facet_identity": 3550,
+            "facet_synthesis": 8127,
+            "facet_topology_mof": 310,
+            "facet_metal_source": 14,
+            "facet_linker": 2,
+            "facet_refcodes": 0
+          }
+        },
+        "step_timings_ms": [
+          4852
+        ],
+        "replayed_from_online": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ08_LINKER_HKUST_online_1780328072.json"
+      }
+    },
+    {
+      "workflow_id": "CQ09_HYPO_MIL53",
+      "question": "Hypothetical MOFs same topology as MIL-53",
+      "online": {
+        "status": "pass",
+        "elapsed_ms": 5177,
+        "wall_ms": 5190,
+        "recording": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ09_HYPO_MIL53_online_1780328082.json",
+        "answer": "count_hypothetical_same_topology_as: 1 rows",
+        "answer_digest": {
+          "mode": "online",
+          "summary_text": "count_hypothetical_same_topology_as: 1 rows",
+          "authoritative": {
+            "count": "3320",
+            "count_source": "count_hypothetical_same_topology_as"
+          },
+          "steps": [
+            {
+              "step": 1,
+              "type": "tool",
+              "name": "count_hypothetical_same_topology_as",
+              "status": "pass",
+              "row_count": 1,
+              "elapsed_ms": 5175,
+              "from_cache": false,
+              "result": {
+                "count": "3320"
+              }
+            }
+          ],
+          "variables": {},
+          "total_elapsed_ms": 5177
+        },
+        "cache_stats": {
+          "db_path": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\data\\mini_marie_cache\\mof_competency\\competency_cache.sqlite",
+          "counts": {
+            "atomic_calls": 22,
+            "facet_identity": 3550,
+            "facet_synthesis": 8127,
+            "facet_topology_mof": 310,
+            "facet_metal_source": 14,
+            "facet_linker": 2,
+            "facet_refcodes": 0
+          }
+        },
+        "step_timings_ms": [
+          5175
+        ]
+      },
+      "offline": {
+        "status": "pass",
+        "elapsed_ms": 5228,
+        "wall_ms": 5240,
+        "recording": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ09_HYPO_MIL53_offline_1780328088.json",
+        "answer": "count_hypothetical_same_topology_as: 1 rows",
+        "answer_digest": {
+          "mode": "offline",
+          "summary_text": "count_hypothetical_same_topology_as: 1 rows",
+          "authoritative": {
+            "count": "3320",
+            "count_source": "count_hypothetical_same_topology_as"
+          },
+          "steps": [
+            {
+              "step": 1,
+              "type": "tool",
+              "name": "count_hypothetical_same_topology_as",
+              "status": "pass",
+              "row_count": 1,
+              "elapsed_ms": 5227,
+              "from_cache": false,
+              "result": {
+                "count": "3320"
+              }
+            }
+          ],
+          "variables": {},
+          "total_elapsed_ms": 5228
+        },
+        "cache_stats": {
+          "db_path": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\data\\mini_marie_cache\\mof_competency\\competency_cache.sqlite",
+          "counts": {
+            "atomic_calls": 23,
+            "facet_identity": 3550,
+            "facet_synthesis": 8127,
+            "facet_topology_mof": 310,
+            "facet_metal_source": 14,
+            "facet_linker": 2,
+            "facet_refcodes": 0
+          }
+        },
+        "step_timings_ms": [
+          5227
+        ],
+        "replayed_from_online": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ09_HYPO_MIL53_online_1780328082.json"
+      }
+    },
+    {
+      "workflow_id": "CQ10_EXP_PCU",
+      "question": "Experimental pcu MOF count",
+      "online": {
+        "status": "pass",
+        "elapsed_ms": 1246,
+        "wall_ms": 1252,
+        "recording": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ10_EXP_PCU_online_1780328089.json",
+        "answer": "count_experimental_by_topology: 1 rows",
+        "answer_digest": {
+          "mode": "online",
+          "summary_text": "count_experimental_by_topology: 1 rows",
+          "authoritative": {
+            "count": "1778",
+            "count_source": "count_experimental_by_topology"
+          },
+          "steps": [
+            {
+              "step": 1,
+              "type": "tool",
+              "name": "count_experimental_by_topology",
+              "status": "pass",
+              "row_count": 1,
+              "elapsed_ms": 1245,
+              "from_cache": false,
+              "result": {
+                "count": "1778"
+              }
+            }
+          ],
+          "variables": {},
+          "total_elapsed_ms": 1246
+        },
+        "cache_stats": {
+          "db_path": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\data\\mini_marie_cache\\mof_competency\\competency_cache.sqlite",
+          "counts": {
+            "atomic_calls": 24,
+            "facet_identity": 3550,
+            "facet_synthesis": 8127,
+            "facet_topology_mof": 310,
+            "facet_metal_source": 14,
+            "facet_linker": 2,
+            "facet_refcodes": 0
+          }
+        },
+        "step_timings_ms": [
+          1245
+        ]
+      },
+      "offline": {
+        "status": "pass",
+        "elapsed_ms": 1542,
+        "wall_ms": 1561,
+        "recording": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ10_EXP_PCU_offline_1780328090.json",
+        "answer": "count_experimental_by_topology: 1 rows",
+        "answer_digest": {
+          "mode": "offline",
+          "summary_text": "count_experimental_by_topology: 1 rows",
+          "authoritative": {
+            "count": "1778",
+            "count_source": "count_experimental_by_topology"
+          },
+          "steps": [
+            {
+              "step": 1,
+              "type": "tool",
+              "name": "count_experimental_by_topology",
+              "status": "pass",
+              "row_count": 1,
+              "elapsed_ms": 1541,
+              "from_cache": false,
+              "result": {
+                "count": "1778"
+              }
+            }
+          ],
+          "variables": {},
+          "total_elapsed_ms": 1542
+        },
+        "cache_stats": {
+          "db_path": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\data\\mini_marie_cache\\mof_competency\\competency_cache.sqlite",
+          "counts": {
+            "atomic_calls": 25,
+            "facet_identity": 3550,
+            "facet_synthesis": 8127,
+            "facet_topology_mof": 310,
+            "facet_metal_source": 14,
+            "facet_linker": 2,
+            "facet_refcodes": 0
+          }
+        },
+        "step_timings_ms": [
+          1541
+        ],
+        "replayed_from_online": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ10_EXP_PCU_online_1780328089.json"
+      }
+    },
+    {
+      "workflow_id": "CQ11_PORE_HKUST",
+      "question": "HKUST-1 pore metrics",
+      "online": {
+        "status": "pass",
+        "elapsed_ms": 5251,
+        "wall_ms": 5263,
+        "recording": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ11_PORE_HKUST_online_1780328096.json",
+        "answer": "get_pore_metrics_by_mof_name: 1 rows",
+        "answer_digest": {
+          "mode": "online",
+          "summary_text": "get_pore_metrics_by_mof_name: 1 rows",
+          "authoritative": {
+            "avgPLD": "6.475232222222222",
+            "maxLCD": "13.25485",
+            "avgDensity": "0.9099097537712757",
+            "pore_metrics": {
+              "maxLCD": "13.25485",
+              "avgPLD": "6.475232222222222",
+              "avgDensity": "0.9099097537712757",
+              "n": "1249"
+            }
+          },
+          "steps": [
+            {
+              "step": 1,
+              "type": "tool",
+              "name": "get_pore_metrics_by_mof_name",
+              "status": "pass",
+              "row_count": 1,
+              "elapsed_ms": 5250,
+              "from_cache": false,
+              "result": {
+                "maxLCD": "13.25485",
+                "avgPLD": "6.475232222222222",
+                "avgDensity": "0.9099097537712757",
+                "n": "1249"
+              }
+            }
+          ],
+          "variables": {},
+          "total_elapsed_ms": 5251
+        },
+        "cache_stats": {
+          "db_path": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\data\\mini_marie_cache\\mof_competency\\competency_cache.sqlite",
+          "counts": {
+            "atomic_calls": 26,
+            "facet_identity": 3550,
+            "facet_synthesis": 8127,
+            "facet_topology_mof": 310,
+            "facet_metal_source": 14,
+            "facet_linker": 2,
+            "facet_refcodes": 0
+          }
+        },
+        "step_timings_ms": [
+          5250
+        ]
+      },
+      "offline": {
+        "status": "pass",
+        "elapsed_ms": 5084,
+        "wall_ms": 5100,
+        "recording": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ11_PORE_HKUST_offline_1780328101.json",
+        "answer": "get_pore_metrics_by_mof_name: 1 rows",
+        "answer_digest": {
+          "mode": "offline",
+          "summary_text": "get_pore_metrics_by_mof_name: 1 rows",
+          "authoritative": {
+            "avgPLD": "6.475232222222222",
+            "maxLCD": "13.25485",
+            "avgDensity": "0.9099097537712757",
+            "pore_metrics": {
+              "maxLCD": "13.25485",
+              "avgPLD": "6.475232222222222",
+              "avgDensity": "0.9099097537712757",
+              "n": "1249"
+            }
+          },
+          "steps": [
+            {
+              "step": 1,
+              "type": "tool",
+              "name": "get_pore_metrics_by_mof_name",
+              "status": "pass",
+              "row_count": 1,
+              "elapsed_ms": 5084,
+              "from_cache": false,
+              "result": {
+                "maxLCD": "13.25485",
+                "avgPLD": "6.475232222222222",
+                "avgDensity": "0.9099097537712757",
+                "n": "1249"
+              }
+            }
+          ],
+          "variables": {},
+          "total_elapsed_ms": 5084
+        },
+        "cache_stats": {
+          "db_path": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\data\\mini_marie_cache\\mof_competency\\competency_cache.sqlite",
+          "counts": {
+            "atomic_calls": 27,
+            "facet_identity": 3550,
+            "facet_synthesis": 8127,
+            "facet_topology_mof": 310,
+            "facet_metal_source": 14,
+            "facet_linker": 2,
+            "facet_refcodes": 0
+          }
+        },
+        "step_timings_ms": [
+          5084
+        ],
+        "replayed_from_online": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ11_PORE_HKUST_online_1780328096.json"
+      }
+    },
+    {
+      "workflow_id": "CQ12_GSA_2500",
+      "question": "MOFs with GSA >= 2500",
+      "online": {
+        "status": "pass",
+        "elapsed_ms": 23694,
+        "wall_ms": 23709,
+        "recording": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ12_GSA_2500_online_1780328124.json",
+        "answer": "get_mofs_by_gsa_min: 10 rows",
+        "answer_digest": {
+          "mode": "online",
+          "summary_text": "get_mofs_by_gsa_min: 10 rows",
+          "authoritative": {},
+          "steps": [
+            {
+              "step": 1,
+              "type": "tool",
+              "name": "get_mofs_by_gsa_min",
+              "status": "pass",
+              "row_count": 10,
+              "elapsed_ms": 23694,
+              "from_cache": false,
+              "result_sample": [
+                {
+                  "mof": "https://www.theworldavatar.com/kg/ontomofs_vkg/mof_tobmof-1833",
+                  "gsa": "9810",
+                  "source": "MOFx-DB Tobacco"
+                },
+                {
+                  "mof": "https://www.theworldavatar.com/kg/ontomofs_vkg/mof_tobmof-1785",
+                  "gsa": "9757",
+                  "source": "MOFx-DB Tobacco"
+                },
+                {
+                  "mof": "https://www.theworldavatar.com/kg/ontomofs_vkg/mof_tobmof-701",
+                  "gsa": "9750",
+                  "source": "MOFx-DB Tobacco"
+                }
+              ]
+            }
+          ],
+          "variables": {},
+          "total_elapsed_ms": 23694
+        },
+        "cache_stats": {
+          "db_path": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\data\\mini_marie_cache\\mof_competency\\competency_cache.sqlite",
+          "counts": {
+            "atomic_calls": 28,
+            "facet_identity": 3550,
+            "facet_synthesis": 8127,
+            "facet_topology_mof": 310,
+            "facet_metal_source": 14,
+            "facet_linker": 2,
+            "facet_refcodes": 0
+          }
+        },
+        "step_timings_ms": [
+          23694
+        ]
+      },
+      "offline": {
+        "status": "pass",
+        "elapsed_ms": 78374,
+        "wall_ms": 78388,
+        "recording": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ12_GSA_2500_offline_1780328203.json",
+        "answer": "get_mofs_by_gsa_min: 433701 rows",
+        "answer_digest": {
+          "mode": "offline",
+          "summary_text": "get_mofs_by_gsa_min: 433701 rows",
+          "authoritative": {},
+          "steps": [
+            {
+              "step": 1,
+              "type": "tool",
+              "name": "get_mofs_by_gsa_min",
+              "status": "pass",
+              "row_count": 433701,
+              "elapsed_ms": 78372,
+              "from_cache": false,
+              "result_sample": [
+                {
+                  "mof": "https://www.theworldavatar.com/kg/ontomofs_vkg/mof_tobmof-1833",
+                  "gsa": "9810",
+                  "source": "MOFx-DB Tobacco"
+                },
+                {
+                  "mof": "https://www.theworldavatar.com/kg/ontomofs_vkg/mof_tobmof-1785",
+                  "gsa": "9757",
+                  "source": "MOFx-DB Tobacco"
+                },
+                {
+                  "mof": "https://www.theworldavatar.com/kg/ontomofs_vkg/mof_tobmof-701",
+                  "gsa": "9750",
+                  "source": "MOFx-DB Tobacco"
+                }
+              ]
+            }
+          ],
+          "variables": {},
+          "total_elapsed_ms": 78374
+        },
+        "cache_stats": {
+          "db_path": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\data\\mini_marie_cache\\mof_competency\\competency_cache.sqlite",
+          "counts": {
+            "atomic_calls": 29,
+            "facet_identity": 3550,
+            "facet_synthesis": 8127,
+            "facet_topology_mof": 310,
+            "facet_metal_source": 14,
+            "facet_linker": 2,
+            "facet_refcodes": 0
+          }
+        },
+        "step_timings_ms": [
+          78372
+        ],
+        "replayed_from_online": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ12_GSA_2500_online_1780328124.json"
+      }
+    },
+    {
+      "workflow_id": "CQ13_DOI_MIL101",
+      "question": "MIL-101 publications",
+      "online": {
+        "status": "pass",
+        "elapsed_ms": 6080,
+        "wall_ms": 6082,
+        "recording": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ13_DOI_MIL101_online_1780328209.json",
+        "answer": "get_publications_by_mof_name: 1 rows",
+        "answer_digest": {
+          "mode": "online",
+          "summary_text": "get_publications_by_mof_name: 1 rows",
+          "authoritative": {},
+          "steps": [
+            {
+              "step": 1,
+              "type": "tool",
+              "name": "get_publications_by_mof_name",
+              "status": "pass",
+              "row_count": 1,
+              "elapsed_ms": 6079,
+              "from_cache": false,
+              "result": {
+                "doi": "10.1126/science.1116275",
+                "source": "CoRE MOF 2025",
+                "name": "MIL-101"
+              }
+            }
+          ],
+          "variables": {},
+          "total_elapsed_ms": 6080
+        },
+        "cache_stats": {
+          "db_path": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\data\\mini_marie_cache\\mof_competency\\competency_cache.sqlite",
+          "counts": {
+            "atomic_calls": 30,
+            "facet_identity": 3550,
+            "facet_synthesis": 8127,
+            "facet_topology_mof": 310,
+            "facet_metal_source": 14,
+            "facet_linker": 2,
+            "facet_refcodes": 0
+          }
+        },
+        "step_timings_ms": [
+          6079
+        ]
+      },
+      "offline": {
+        "status": "pass",
+        "elapsed_ms": 5670,
+        "wall_ms": 5758,
+        "recording": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ13_DOI_MIL101_offline_1780328215.json",
+        "answer": "get_publications_by_mof_name: 1 rows",
+        "answer_digest": {
+          "mode": "offline",
+          "summary_text": "get_publications_by_mof_name: 1 rows",
+          "authoritative": {},
+          "steps": [
+            {
+              "step": 1,
+              "type": "tool",
+              "name": "get_publications_by_mof_name",
+              "status": "pass",
+              "row_count": 1,
+              "elapsed_ms": 5669,
+              "from_cache": false,
+              "result": {
+                "doi": "10.1126/science.1116275",
+                "source": "CoRE MOF 2025",
+                "name": "MIL-101"
+              }
+            }
+          ],
+          "variables": {},
+          "total_elapsed_ms": 5670
+        },
+        "cache_stats": {
+          "db_path": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\data\\mini_marie_cache\\mof_competency\\competency_cache.sqlite",
+          "counts": {
+            "atomic_calls": 31,
+            "facet_identity": 3550,
+            "facet_synthesis": 8127,
+            "facet_topology_mof": 310,
+            "facet_metal_source": 14,
+            "facet_linker": 2,
+            "facet_refcodes": 0
+          }
+        },
+        "step_timings_ms": [
+          5669
+        ],
+        "replayed_from_online": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ13_DOI_MIL101_online_1780328209.json"
+      }
+    },
+    {
+      "workflow_id": "CQ14_ASA_MIL53",
+      "question": "MIL-53 ASA",
+      "online": {
+        "status": "pass",
+        "elapsed_ms": 3304,
+        "wall_ms": 3305,
+        "recording": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ14_ASA_MIL53_online_1780328219.json",
+        "answer": "get_asa_by_mof_name: 10 rows",
+        "answer_digest": {
+          "mode": "online",
+          "summary_text": "get_asa_by_mof_name: 10 rows",
+          "authoritative": {},
+          "steps": [
+            {
+              "step": 1,
+              "type": "tool",
+              "name": "get_asa_by_mof_name",
+              "status": "pass",
+              "row_count": 10,
+              "elapsed_ms": 3303,
+              "from_cache": false,
+              "result_sample": [
+                {
+                  "name": "MIL-53",
+                  "source": "CoRE MOF 2025",
+                  "asa": "212.527"
+                },
+                {
+                  "name": "MIL-53-Fe-lt",
+                  "source": "CoRE MOF 2025",
+                  "asa": "0"
+                },
+                {
+                  "name": "MIL-53as",
+                  "source": "CoRE MOF 2025",
+                  "asa": "239.514"
+                }
+              ]
+            }
+          ],
+          "variables": {},
+          "total_elapsed_ms": 3304
+        },
+        "cache_stats": {
+          "db_path": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\data\\mini_marie_cache\\mof_competency\\competency_cache.sqlite",
+          "counts": {
+            "atomic_calls": 32,
+            "facet_identity": 3550,
+            "facet_synthesis": 8127,
+            "facet_topology_mof": 310,
+            "facet_metal_source": 14,
+            "facet_linker": 2,
+            "facet_refcodes": 0
+          }
+        },
+        "step_timings_ms": [
+          3303
+        ]
+      },
+      "offline": {
+        "status": "pass",
+        "elapsed_ms": 3336,
+        "wall_ms": 3343,
+        "recording": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ14_ASA_MIL53_offline_1780328222.json",
+        "answer": "get_asa_by_mof_name: 40 rows",
+        "answer_digest": {
+          "mode": "offline",
+          "summary_text": "get_asa_by_mof_name: 40 rows",
+          "authoritative": {},
+          "steps": [
+            {
+              "step": 1,
+              "type": "tool",
+              "name": "get_asa_by_mof_name",
+              "status": "pass",
+              "row_count": 40,
+              "elapsed_ms": 3336,
+              "from_cache": false,
+              "result_sample": [
+                {
+                  "name": "MIL-53",
+                  "source": "CoRE MOF 2025",
+                  "asa": "212.527"
+                },
+                {
+                  "name": "MIL-53-Fe-lt",
+                  "source": "CoRE MOF 2025",
+                  "asa": "0"
+                },
+                {
+                  "name": "MIL-53as",
+                  "source": "CoRE MOF 2025",
+                  "asa": "239.514"
+                }
+              ]
+            }
+          ],
+          "variables": {},
+          "total_elapsed_ms": 3336
+        },
+        "cache_stats": {
+          "db_path": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\data\\mini_marie_cache\\mof_competency\\competency_cache.sqlite",
+          "counts": {
+            "atomic_calls": 33,
+            "facet_identity": 3550,
+            "facet_synthesis": 8127,
+            "facet_topology_mof": 310,
+            "facet_metal_source": 14,
+            "facet_linker": 2,
+            "facet_refcodes": 0
+          }
+        },
+        "step_timings_ms": [
+          3336
+        ],
+        "replayed_from_online": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ14_ASA_MIL53_online_1780328219.json"
+      }
+    },
+    {
+      "workflow_id": "CQ15_DENSITY_DUT67",
+      "question": "DUT-67 density / pore stats",
+      "online": {
+        "status": "pass",
+        "elapsed_ms": 5462,
+        "wall_ms": 5469,
+        "recording": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ15_DENSITY_DUT67_online_1780328227.json",
+        "answer": "get_pore_metrics_by_mof_name: 1 rows",
+        "answer_digest": {
+          "mode": "online",
+          "summary_text": "get_pore_metrics_by_mof_name: 1 rows",
+          "authoritative": {
+            "avgPLD": "6.736873333333333",
+            "maxLCD": "19.61611",
+            "avgDensity": "0.9686868092004491",
+            "pore_metrics": {
+              "maxLCD": "19.61611",
+              "avgPLD": "6.736873333333333",
+              "avgDensity": "0.9686868092004491",
+              "n": "6"
+            }
+          },
+          "steps": [
+            {
+              "step": 1,
+              "type": "tool",
+              "name": "get_pore_metrics_by_mof_name",
+              "status": "pass",
+              "row_count": 1,
+              "elapsed_ms": 5461,
+              "from_cache": false,
+              "result": {
+                "maxLCD": "19.61611",
+                "avgPLD": "6.736873333333333",
+                "avgDensity": "0.9686868092004491",
+                "n": "6"
+              }
+            }
+          ],
+          "variables": {},
+          "total_elapsed_ms": 5462
+        },
+        "cache_stats": {
+          "db_path": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\data\\mini_marie_cache\\mof_competency\\competency_cache.sqlite",
+          "counts": {
+            "atomic_calls": 34,
+            "facet_identity": 3550,
+            "facet_synthesis": 8127,
+            "facet_topology_mof": 310,
+            "facet_metal_source": 14,
+            "facet_linker": 2,
+            "facet_refcodes": 0
+          }
+        },
+        "step_timings_ms": [
+          5461
+        ]
+      },
+      "offline": {
+        "status": "pass",
+        "elapsed_ms": 5060,
+        "wall_ms": 5069,
+        "recording": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ15_DENSITY_DUT67_offline_1780328232.json",
+        "answer": "get_pore_metrics_by_mof_name: 1 rows",
+        "answer_digest": {
+          "mode": "offline",
+          "summary_text": "get_pore_metrics_by_mof_name: 1 rows",
+          "authoritative": {
+            "avgPLD": "6.736873333333333",
+            "maxLCD": "19.61611",
+            "avgDensity": "0.9686868092004491",
+            "pore_metrics": {
+              "maxLCD": "19.61611",
+              "avgPLD": "6.736873333333333",
+              "avgDensity": "0.9686868092004491",
+              "n": "6"
+            }
+          },
+          "steps": [
+            {
+              "step": 1,
+              "type": "tool",
+              "name": "get_pore_metrics_by_mof_name",
+              "status": "pass",
+              "row_count": 1,
+              "elapsed_ms": 5059,
+              "from_cache": false,
+              "result": {
+                "maxLCD": "19.61611",
+                "avgPLD": "6.736873333333333",
+                "avgDensity": "0.9686868092004491",
+                "n": "6"
+              }
+            }
+          ],
+          "variables": {},
+          "total_elapsed_ms": 5060
+        },
+        "cache_stats": {
+          "db_path": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\data\\mini_marie_cache\\mof_competency\\competency_cache.sqlite",
+          "counts": {
+            "atomic_calls": 35,
+            "facet_identity": 3550,
+            "facet_synthesis": 8127,
+            "facet_topology_mof": 310,
+            "facet_metal_source": 14,
+            "facet_linker": 2,
+            "facet_refcodes": 0
+          }
+        },
+        "step_timings_ms": [
+          5059
+        ],
+        "replayed_from_online": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ15_DENSITY_DUT67_online_1780328227.json"
+      }
+    },
+    {
+      "workflow_id": "CQ16_LCD_LT20",
+      "question": "MOFs with LCD < 20 Å",
+      "online": {
+        "status": "pass",
+        "elapsed_ms": 4601,
+        "wall_ms": 4608,
+        "recording": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ16_LCD_LT20_online_1780328237.json",
+        "answer": "get_mofs_by_lcd_max: 10 rows",
+        "answer_digest": {
+          "mode": "online",
+          "summary_text": "get_mofs_by_lcd_max: 10 rows",
+          "authoritative": {},
+          "steps": [
+            {
+              "step": 1,
+              "type": "tool",
+              "name": "get_mofs_by_lcd_max",
+              "status": "pass",
+              "row_count": 10,
+              "elapsed_ms": 4600,
+              "from_cache": false,
+              "result_sample": [
+                {
+                  "mof": "https://www.theworldavatar.com/kg/ontomofs_vkg/mof_1360_bio_fairen_grp",
+                  "lcd": "0.00823",
+                  "source": "Biocompatibility Fairen Group"
+                },
+                {
+                  "mof": "https://www.theworldavatar.com/kg/ontomofs_vkg/mof_1334_bio_fairen_grp",
+                  "lcd": "0.2705",
+                  "source": "Biocompatibility Fairen Group"
+                },
+                {
+                  "mof": "https://www.theworldavatar.com/kg/ontomofs_vkg/mof_DB2-mof_4059",
+                  "lcd": "0.31541",
+                  "source": "ARC_MOF 2025"
+                }
+              ]
+            }
+          ],
+          "variables": {},
+          "total_elapsed_ms": 4601
+        },
+        "cache_stats": {
+          "db_path": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\data\\mini_marie_cache\\mof_competency\\competency_cache.sqlite",
+          "counts": {
+            "atomic_calls": 36,
+            "facet_identity": 3550,
+            "facet_synthesis": 8127,
+            "facet_topology_mof": 310,
+            "facet_metal_source": 14,
+            "facet_linker": 2,
+            "facet_refcodes": 0
+          }
+        },
+        "step_timings_ms": [
+          4600
+        ]
+      },
+      "offline": {
+        "status": "pass",
+        "elapsed_ms": 53679,
+        "wall_ms": 53692,
+        "recording": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ16_LCD_LT20_offline_1780328291.json",
+        "answer": "get_mofs_by_lcd_max: 500000 rows",
+        "answer_digest": {
+          "mode": "offline",
+          "summary_text": "get_mofs_by_lcd_max: 500000 rows",
+          "authoritative": {},
+          "steps": [
+            {
+              "step": 1,
+              "type": "tool",
+              "name": "get_mofs_by_lcd_max",
+              "status": "pass",
+              "row_count": 500000,
+              "elapsed_ms": 53678,
+              "from_cache": false,
+              "result_sample": [
+                {
+                  "mof": "https://www.theworldavatar.com/kg/ontomofs_vkg/mof_1360_bio_fairen_grp",
+                  "lcd": "0.00823",
+                  "source": "Biocompatibility Fairen Group"
+                },
+                {
+                  "mof": "https://www.theworldavatar.com/kg/ontomofs_vkg/mof_1334_bio_fairen_grp",
+                  "lcd": "0.2705",
+                  "source": "Biocompatibility Fairen Group"
+                },
+                {
+                  "mof": "https://www.theworldavatar.com/kg/ontomofs_vkg/mof_DB2-mof_4059",
+                  "lcd": "0.31541",
+                  "source": "ARC_MOF 2025"
+                }
+              ]
+            }
+          ],
+          "variables": {},
+          "total_elapsed_ms": 53679
+        },
+        "cache_stats": {
+          "db_path": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\data\\mini_marie_cache\\mof_competency\\competency_cache.sqlite",
+          "counts": {
+            "atomic_calls": 37,
+            "facet_identity": 3550,
+            "facet_synthesis": 8127,
+            "facet_topology_mof": 310,
+            "facet_metal_source": 14,
+            "facet_linker": 2,
+            "facet_refcodes": 0
+          }
+        },
+        "step_timings_ms": [
+          53678
+        ],
+        "replayed_from_online": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ16_LCD_LT20_online_1780328237.json"
+      }
+    },
+    {
+      "workflow_id": "CQ17_SOLVENTS",
+      "question": "Top synthesis solvents (excl. DMF/DMA/HF)",
+      "online": {
+        "status": "pass",
+        "elapsed_ms": 474,
+        "wall_ms": 476,
+        "recording": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ17_SOLVENTS_online_1780328292.json",
+        "answer": "get_top_synthesis_solvents: 10 rows",
+        "answer_digest": {
+          "mode": "online",
+          "summary_text": "get_top_synthesis_solvents: 10 rows",
+          "authoritative": {
+            "count": "2158",
+            "count_source": "get_top_synthesis_solvents"
+          },
+          "steps": [
+            {
+              "step": 1,
+              "type": "tool",
+              "name": "get_top_synthesis_solvents",
+              "status": "pass",
+              "row_count": 10,
+              "elapsed_ms": 474,
+              "from_cache": false,
+              "result_sample": [
+                {
+                  "solvent": "H2O",
+                  "count": "2158"
+                },
+                {
+                  "solvent": "water",
+                  "count": "1777"
+                },
+                {
+                  "solvent": "H2O; NaOH",
+                  "count": "1285"
+                }
+              ]
+            }
+          ],
+          "variables": {},
+          "total_elapsed_ms": 474
+        },
+        "cache_stats": {
+          "db_path": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\data\\mini_marie_cache\\mof_competency\\competency_cache.sqlite",
+          "counts": {
+            "atomic_calls": 38,
+            "facet_identity": 3550,
+            "facet_synthesis": 8127,
+            "facet_topology_mof": 310,
+            "facet_metal_source": 14,
+            "facet_linker": 2,
+            "facet_refcodes": 0
+          }
+        },
+        "step_timings_ms": [
+          474
+        ]
+      },
+      "offline": {
+        "status": "pass",
+        "elapsed_ms": 1806,
+        "wall_ms": 1889,
+        "recording": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ17_SOLVENTS_offline_1780328294.json",
+        "answer": "get_top_synthesis_solvents: 8454 rows",
+        "answer_digest": {
+          "mode": "offline",
+          "summary_text": "get_top_synthesis_solvents: 8454 rows",
+          "authoritative": {
+            "count": "2158",
+            "count_source": "get_top_synthesis_solvents"
+          },
+          "steps": [
+            {
+              "step": 1,
+              "type": "tool",
+              "name": "get_top_synthesis_solvents",
+              "status": "pass",
+              "row_count": 8454,
+              "elapsed_ms": 1805,
+              "from_cache": false,
+              "result_sample": [
+                {
+                  "solvent": "H2O",
+                  "count": "2158"
+                },
+                {
+                  "solvent": "water",
+                  "count": "1777"
+                },
+                {
+                  "solvent": "H2O; NaOH",
+                  "count": "1285"
+                }
+              ]
+            }
+          ],
+          "variables": {},
+          "total_elapsed_ms": 1806
+        },
+        "cache_stats": {
+          "db_path": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\data\\mini_marie_cache\\mof_competency\\competency_cache.sqlite",
+          "counts": {
+            "atomic_calls": 39,
+            "facet_identity": 3550,
+            "facet_synthesis": 8127,
+            "facet_topology_mof": 310,
+            "facet_metal_source": 14,
+            "facet_linker": 2,
+            "facet_refcodes": 0
+          }
+        },
+        "step_timings_ms": [
+          1805
+        ],
+        "replayed_from_online": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ17_SOLVENTS_online_1780328292.json"
+      }
+    },
+    {
+      "workflow_id": "CQ_D1_ZR_COOH",
+      "question": "Zr + carboxylate linker MOFs",
+      "online": {
+        "status": "pass",
+        "elapsed_ms": 10244,
+        "wall_ms": 10246,
+        "recording": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ_D1_ZR_COOH_online_1780328304.json",
+        "answer": "get_mofs_by_metal_and_linker: 10 rows",
+        "answer_digest": {
+          "mode": "online",
+          "summary_text": "get_mofs_by_metal_and_linker: 10 rows",
+          "authoritative": {},
+          "steps": [
+            {
+              "step": 1,
+              "type": "tool",
+              "name": "get_mofs_by_metal_and_linker",
+              "status": "pass",
+              "row_count": 10,
+              "elapsed_ms": 10244,
+              "from_cache": false,
+              "result_sample": [
+                {
+                  "mof": "https://www.theworldavatar.com/kg/ontomofs_vkg/mof_qmof-1693606",
+                  "node": "[O]12[Zr]34[OH]5[Zr]62[OH]2[Zr]71[OH]4[Zr]14[O]3[Zr]35[O]6[Zr]2([O]71)[OH]43",
+                  "linker": "OC(=O)c1c(C(=O)O)c(C(=O)[O-])c2c(c1C(=O)[O-])cccc2; [O-]C(=O)c1c(N)c(N)c(c(c1N)N)C(=O)[O-]",
+                  "sourcedb": "QMOF_2025"
+                },
+                {
+                  "mof": "https://www.theworldavatar.com/kg/ontomofs_vkg/mof_qmof-19945d1",
+                  "node": "[O]12[Zr]34[OH]5[Zr]62[OH]2[Zr]71[OH]4[Zr]14[O]3[Zr]35[O]6[Zr]2([O]71)[OH]43",
+                  "linker": "[O-]C(=O)c1c(O)c(O)c(c2c1c(O)c(O)c(c2O)O)C(=O)[O-]; [O-]C(=O)c1cc(C(=O)O)c(cc1C(=O)O)C(=O)[O-]",
+                  "sourcedb": "QMOF_2025"
+                },
+                {
+                  "mof": "https://www.theworldavatar.com/kg/ontomofs_vkg/mof_qmof-2239292",
+                  "node": "[O]12[Zr]34[OH]5[Zr]62[OH]2[Zr]71[OH]4[Zr]14[O]3[Zr]35[O]6[Zr]2([O]71)[OH]43",
+                  "linker": "OC(=O)c1cc(cc2c1cc(cc2C(=O)O)C(=O)[O-])C(=O)[O-]; [O-]C(=O)c1sc2c(c1F)sc(c2F)C(=O)[O-]",
+                  "sourcedb": "QMOF_2025"
+                }
+              ]
+            }
+          ],
+          "variables": {},
+          "total_elapsed_ms": 10244
+        },
+        "cache_stats": {
+          "db_path": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\data\\mini_marie_cache\\mof_competency\\competency_cache.sqlite",
+          "counts": {
+            "atomic_calls": 40,
+            "facet_identity": 3550,
+            "facet_synthesis": 8127,
+            "facet_topology_mof": 310,
+            "facet_metal_source": 14,
+            "facet_linker": 2,
+            "facet_refcodes": 0
+          }
+        },
+        "step_timings_ms": [
+          10244
+        ]
+      },
+      "offline": {
+        "status": "pass",
+        "elapsed_ms": 10540,
+        "wall_ms": 10559,
+        "recording": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ_D1_ZR_COOH_offline_1780328315.json",
+        "answer": "get_mofs_by_metal_and_linker: 22 rows",
+        "answer_digest": {
+          "mode": "offline",
+          "summary_text": "get_mofs_by_metal_and_linker: 22 rows",
+          "authoritative": {},
+          "steps": [
+            {
+              "step": 1,
+              "type": "tool",
+              "name": "get_mofs_by_metal_and_linker",
+              "status": "pass",
+              "row_count": 22,
+              "elapsed_ms": 10539,
+              "from_cache": false,
+              "result_sample": [
+                {
+                  "mof": "https://www.theworldavatar.com/kg/ontomofs_vkg/mof_qmof-1693606",
+                  "node": "[O]12[Zr]34[OH]5[Zr]62[OH]2[Zr]71[OH]4[Zr]14[O]3[Zr]35[O]6[Zr]2([O]71)[OH]43",
+                  "linker": "OC(=O)c1c(C(=O)O)c(C(=O)[O-])c2c(c1C(=O)[O-])cccc2; [O-]C(=O)c1c(N)c(N)c(c(c1N)N)C(=O)[O-]",
+                  "sourcedb": "QMOF_2025"
+                },
+                {
+                  "mof": "https://www.theworldavatar.com/kg/ontomofs_vkg/mof_qmof-19945d1",
+                  "node": "[O]12[Zr]34[OH]5[Zr]62[OH]2[Zr]71[OH]4[Zr]14[O]3[Zr]35[O]6[Zr]2([O]71)[OH]43",
+                  "linker": "[O-]C(=O)c1c(O)c(O)c(c2c1c(O)c(O)c(c2O)O)C(=O)[O-]; [O-]C(=O)c1cc(C(=O)O)c(cc1C(=O)O)C(=O)[O-]",
+                  "sourcedb": "QMOF_2025"
+                },
+                {
+                  "mof": "https://www.theworldavatar.com/kg/ontomofs_vkg/mof_qmof-2239292",
+                  "node": "[O]12[Zr]34[OH]5[Zr]62[OH]2[Zr]71[OH]4[Zr]14[O]3[Zr]35[O]6[Zr]2([O]71)[OH]43",
+                  "linker": "OC(=O)c1cc(cc2c1cc(cc2C(=O)O)C(=O)[O-])C(=O)[O-]; [O-]C(=O)c1sc2c(c1F)sc(c2F)C(=O)[O-]",
+                  "sourcedb": "QMOF_2025"
+                }
+              ]
+            }
+          ],
+          "variables": {},
+          "total_elapsed_ms": 10540
+        },
+        "cache_stats": {
+          "db_path": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\data\\mini_marie_cache\\mof_competency\\competency_cache.sqlite",
+          "counts": {
+            "atomic_calls": 41,
+            "facet_identity": 3550,
+            "facet_synthesis": 8127,
+            "facet_topology_mof": 310,
+            "facet_metal_source": 14,
+            "facet_linker": 2,
+            "facet_refcodes": 0
+          }
+        },
+        "step_timings_ms": [
+          10539
+        ],
+        "replayed_from_online": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ_D1_ZR_COOH_online_1780328304.json"
+      }
+    },
+    {
+      "workflow_id": "CQ_D2_PCU_ALL",
+      "question": "pcu topology across sources",
+      "online": {
+        "status": "pass",
+        "elapsed_ms": 26912,
+        "wall_ms": 26922,
+        "recording": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ_D2_PCU_ALL_online_1780328341.json",
+        "answer": "get_mofs_by_topology_all_sources: 10 rows",
+        "answer_digest": {
+          "mode": "online",
+          "summary_text": "get_mofs_by_topology_all_sources: 10 rows",
+          "authoritative": {},
+          "steps": [
+            {
+              "step": 1,
+              "type": "tool",
+              "name": "get_mofs_by_topology_all_sources",
+              "status": "pass",
+              "row_count": 10,
+              "elapsed_ms": 26911,
+              "from_cache": false,
+              "result_sample": [
+                {
+                  "mofid": "[Cd].c1ncn(c1)CCn1cncc1 MOFid-v1.pcu.cat0",
+                  "metal": "[Cd]",
+                  "linker": "c1ncn(c1)CCn1cncc1",
+                  "topology": "pcu",
+                  "sourcedb": "CoRE MOF 2025"
+                },
+                {
+                  "mofid": "O=C(c1ccc(cc1)C(=O)Nc1ccncc1)Nc1ccncc1.[Cd].[O-]C(=O)c1ccc(s1)C(=O)[O-] MOFid-v1.pcu.cat1",
+                  "metal": "[Cd]",
+                  "linker": "O=C(c1ccc(cc1)C(=O)Nc1ccncc1)Nc1ccncc1; [O-]C(=O)c1ccc(s1)C(=O)[O-]",
+                  "topology": "pcu",
+                  "sourcedb": "CoRE MOF 2025"
+                },
+                {
+                  "mofid": "O1OC=c2c(=C1)c(ccc2c1ccncc1)c1ccncc1.[Cd].[O-]C(=O)c1ccc(cc1)c1ccc(cc1)C(=O)[O-] MOFid-v1.pcu.cat1",
+                  "metal": "[Cd]",
+                  "linker": "O1OC=c2c(=C1)c(ccc2c1ccncc1)c1ccncc1; [O-]C(=O)c1ccc(cc1)c1ccc(cc1)C(=O)[O-]",
+                  "topology": "pcu",
+                  "sourcedb": "CoRE MOF 2025"
+                }
+              ]
+            }
+          ],
+          "variables": {},
+          "total_elapsed_ms": 26912
+        },
+        "cache_stats": {
+          "db_path": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\data\\mini_marie_cache\\mof_competency\\competency_cache.sqlite",
+          "counts": {
+            "atomic_calls": 42,
+            "facet_identity": 3550,
+            "facet_synthesis": 8127,
+            "facet_topology_mof": 310,
+            "facet_metal_source": 14,
+            "facet_linker": 2,
+            "facet_refcodes": 0
+          }
+        },
+        "step_timings_ms": [
+          26911
+        ]
+      },
+      "offline": {
+        "status": "pass",
+        "elapsed_ms": 73465,
+        "wall_ms": 73483,
+        "recording": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ_D2_PCU_ALL_offline_1780328415.json",
+        "answer": "get_mofs_by_topology_all_sources: 272711 rows",
+        "answer_digest": {
+          "mode": "offline",
+          "summary_text": "get_mofs_by_topology_all_sources: 272711 rows",
+          "authoritative": {},
+          "steps": [
+            {
+              "step": 1,
+              "type": "tool",
+              "name": "get_mofs_by_topology_all_sources",
+              "status": "pass",
+              "row_count": 272711,
+              "elapsed_ms": 73464,
+              "from_cache": false,
+              "result_sample": [
+                {
+                  "mofid": "[Cd].c1ncn(c1)CCn1cncc1 MOFid-v1.pcu.cat0",
+                  "metal": "[Cd]",
+                  "linker": "c1ncn(c1)CCn1cncc1",
+                  "topology": "pcu",
+                  "sourcedb": "CoRE MOF 2025"
+                },
+                {
+                  "mofid": "O=C(c1ccc(cc1)C(=O)Nc1ccncc1)Nc1ccncc1.[Cd].[O-]C(=O)c1ccc(s1)C(=O)[O-] MOFid-v1.pcu.cat1",
+                  "metal": "[Cd]",
+                  "linker": "O=C(c1ccc(cc1)C(=O)Nc1ccncc1)Nc1ccncc1; [O-]C(=O)c1ccc(s1)C(=O)[O-]",
+                  "topology": "pcu",
+                  "sourcedb": "CoRE MOF 2025"
+                },
+                {
+                  "mofid": "O1OC=c2c(=C1)c(ccc2c1ccncc1)c1ccncc1.[Cd].[O-]C(=O)c1ccc(cc1)c1ccc(cc1)C(=O)[O-] MOFid-v1.pcu.cat1",
+                  "metal": "[Cd]",
+                  "linker": "O1OC=c2c(=C1)c(ccc2c1ccncc1)c1ccncc1; [O-]C(=O)c1ccc(cc1)c1ccc(cc1)C(=O)[O-]",
+                  "topology": "pcu",
+                  "sourcedb": "CoRE MOF 2025"
+                }
+              ]
+            }
+          ],
+          "variables": {},
+          "total_elapsed_ms": 73465
+        },
+        "cache_stats": {
+          "db_path": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\data\\mini_marie_cache\\mof_competency\\competency_cache.sqlite",
+          "counts": {
+            "atomic_calls": 43,
+            "facet_identity": 3550,
+            "facet_synthesis": 8127,
+            "facet_topology_mof": 310,
+            "facet_metal_source": 14,
+            "facet_linker": 2,
+            "facet_refcodes": 0
+          }
+        },
+        "step_timings_ms": [
+          73464
+        ],
+        "replayed_from_online": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ_D2_PCU_ALL_online_1780328341.json"
+      }
+    },
+    {
+      "workflow_id": "CQ_D3_ZIF8_REFCODES_SYNTH",
+      "question": "ZIF-8 refcodes then synthesis (cached local join offline)",
+      "online": {
+        "status": "pass",
+        "elapsed_ms": 37600,
+        "wall_ms": 37601,
+        "recording": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ_D3_ZIF8_REFCODES_SYNTH_online_1780328453.json",
+        "answer": "Refcodes=EWIDUK; filtered offline rows=$filtered_synthesis",
+        "answer_digest": {
+          "mode": "online",
+          "summary_text": "Refcodes=EWIDUK; filtered offline rows=$filtered_synthesis",
+          "authoritative": {
+            "refcodes": "EWIDUK"
+          },
+          "steps": [
+            {
+              "step": 1,
+              "type": "tool",
+              "name": "get_refcodes_by_mof_name",
+              "status": "pass",
+              "row_count": 10,
+              "elapsed_ms": 18850,
+              "from_cache": false,
+              "result_sample": [
+                {
+                  "refcode": "EWIDUK",
+                  "sourcedb": "CoRE MOF 2025"
+                },
+                {
+                  "refcode": "FAWCEN",
+                  "sourcedb": "CoRE MOF 2025"
+                },
+                {
+                  "refcode": "FAWCEN01",
+                  "sourcedb": "CoRE MOF 2025"
+                }
+              ]
+            },
+            {
+              "step": 2,
+              "type": "tool",
+              "name": "get_synthesis_by_mof_name",
+              "status": "pass",
+              "row_count": 10,
+              "elapsed_ms": 18749,
+              "from_cache": false,
+              "result_sample": [
+                {
+                  "name": "ZIF-8",
+                  "sourcedb": "CoRE MOF 2025",
+                  "refcode": "EWIDUK",
+                  "doi": "10.1002/cssc.201100261"
+                },
+                {
+                  "name": "ZIF-8",
+                  "sourcedb": "CoRE MOF 2025",
+                  "refcode": "FAWCEN",
+                  "doi": "10.1021/jp303907p"
+                },
+                {
+                  "name": "ZIF-8",
+                  "sourcedb": "CoRE MOF 2025",
+                  "refcode": "FAWCEN01",
+                  "doi": "10.1021/jp303907p"
+                }
+              ]
+            },
+            {
+              "step": 3,
+              "type": "local_join",
+              "name": "local_join",
+              "status": "skipped",
+              "row_count": 0,
+              "elapsed_ms": 0,
+              "from_cache": null
+            }
+          ],
+          "variables": {
+            "refcodes": "EWIDUK"
+          },
+          "total_elapsed_ms": 37600
+        },
+        "cache_stats": {
+          "db_path": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\data\\mini_marie_cache\\mof_competency\\competency_cache.sqlite",
+          "counts": {
+            "atomic_calls": 45,
+            "facet_identity": 3550,
+            "facet_synthesis": 8137,
+            "facet_topology_mof": 310,
+            "facet_metal_source": 14,
+            "facet_linker": 2,
+            "facet_refcodes": 10
+          }
+        },
+        "step_timings_ms": [
+          18850,
+          18749,
+          0
+        ]
+      },
+      "offline": {
+        "status": "pass",
+        "elapsed_ms": 38797,
+        "wall_ms": 38874,
+        "recording": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ_D3_ZIF8_REFCODES_SYNTH_offline_1780328492.json",
+        "answer": "Refcodes=EWIDUK; filtered offline rows={'name_lc': 'zif-8', 'refcode': 'EWIDUK', 'sourcedb': 'CoRE MOF 2025', 'method': '', 'solvent': '', 'temp': '', 'yield_val': '', 'doi': '10.1002/cssc.201100261'}",
+        "answer_digest": {
+          "mode": "offline",
+          "summary_text": "Refcodes=EWIDUK; filtered offline rows={'name_lc': 'zif-8', 'refcode': 'EWIDUK', 'sourcedb': 'CoRE MOF 2025', 'method': '', 'solvent': '', 'temp': '', 'yield_val': '', 'doi': '10.1002/cssc.201100261'}",
+          "authoritative": {
+            "refcodes": "EWIDUK"
+          },
+          "steps": [
+            {
+              "step": 1,
+              "type": "tool",
+              "name": "get_refcodes_by_mof_name",
+              "status": "pass",
+              "row_count": 21,
+              "elapsed_ms": 18806,
+              "from_cache": false,
+              "result_sample": [
+                {
+                  "refcode": "EWIDUK",
+                  "sourcedb": "CoRE MOF 2025"
+                },
+                {
+                  "refcode": "FAWCEN",
+                  "sourcedb": "CoRE MOF 2025"
+                },
+                {
+                  "refcode": "FAWCEN01",
+                  "sourcedb": "CoRE MOF 2025"
+                }
+              ]
+            },
+            {
+              "step": 2,
+              "type": "tool",
+              "name": "get_synthesis_by_mof_name",
+              "status": "pass",
+              "row_count": 2930,
+              "elapsed_ms": 19985,
+              "from_cache": false,
+              "result_sample": [
+                {
+                  "name": "ZIF-8",
+                  "sourcedb": "CoRE MOF 2025",
+                  "refcode": "EWIDUK",
+                  "doi": "10.1002/cssc.201100261"
+                },
+                {
+                  "name": "ZIF-8",
+                  "sourcedb": "CoRE MOF 2025",
+                  "refcode": "FAWCEN",
+                  "doi": "10.1021/jp303907p"
+                },
+                {
+                  "name": "ZIF-8",
+                  "sourcedb": "CoRE MOF 2025",
+                  "refcode": "FAWCEN01",
+                  "doi": "10.1021/jp303907p"
+                }
+              ]
+            },
+            {
+              "step": 3,
+              "type": "local_join",
+              "name": "synthesis_by_refcodes_local",
+              "status": "pass",
+              "row_count": 2940,
+              "elapsed_ms": 5,
+              "from_cache": null,
+              "result_sample": [
+                {
+                  "name_lc": "zif-8",
+                  "refcode": "EWIDUK",
+                  "sourcedb": "CoRE MOF 2025",
+                  "method": "",
+                  "solvent": "",
+                  "temp": "",
+                  "yield_val": "",
+                  "doi": "10.1002/cssc.201100261"
+                },
+                {
+                  "name_lc": "zif-8",
+                  "refcode": "FAWCEN",
+                  "sourcedb": "CoRE MOF 2025",
+                  "method": "",
+                  "solvent": "",
+                  "temp": "",
+                  "yield_val": "",
+                  "doi": "10.1021/jp303907p"
+                },
+                {
+                  "name_lc": "zif-8",
+                  "refcode": "FAWCEN01",
+                  "sourcedb": "CoRE MOF 2025",
+                  "method": "",
+                  "solvent": "",
+                  "temp": "",
+                  "yield_val": "",
+                  "doi": "10.1021/jp303907p"
+                }
+              ]
+            }
+          ],
+          "variables": {
+            "refcodes": "EWIDUK",
+            "filtered_synthesis": {
+              "name_lc": "zif-8",
+              "refcode": "EWIDUK",
+              "sourcedb": "CoRE MOF 2025",
+              "method": "",
+              "solvent": "",
+              "temp": "",
+              "yield_val": "",
+              "doi": "10.1002/cssc.201100261"
+            }
+          },
+          "total_elapsed_ms": 38797
+        },
+        "cache_stats": {
+          "db_path": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\data\\mini_marie_cache\\mof_competency\\competency_cache.sqlite",
+          "counts": {
+            "atomic_calls": 47,
+            "facet_identity": 3550,
+            "facet_synthesis": 11067,
+            "facet_topology_mof": 310,
+            "facet_metal_source": 14,
+            "facet_linker": 2,
+            "facet_refcodes": 31
+          }
+        },
+        "step_timings_ms": [
+          18806,
+          19985,
+          5
+        ],
+        "replayed_from_online": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ_D3_ZIF8_REFCODES_SYNTH_online_1780328453.json"
+      }
+    },
+    {
+      "workflow_id": "CQ_D4_AQUEOUS",
+      "question": "Aqueous low-temperature syntheses",
+      "online": {
+        "status": "pass",
+        "elapsed_ms": 4364,
+        "wall_ms": 4365,
+        "recording": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ_D4_AQUEOUS_online_1780328497.json",
+        "answer": "get_aqueous_low_temp_syntheses: 10 rows",
+        "answer_digest": {
+          "mode": "online",
+          "summary_text": "get_aqueous_low_temp_syntheses: 10 rows",
+          "authoritative": {},
+          "steps": [
+            {
+              "step": 1,
+              "type": "tool",
+              "name": "get_aqueous_low_temp_syntheses",
+              "status": "pass",
+              "row_count": 10,
+              "elapsed_ms": 4363,
+              "from_cache": false,
+              "result_sample": [
+                {
+                  "mof": "https://www.theworldavatar.com/kg/ontomofs_vkg/mof_18728_park_syn_mof",
+                  "temperature": "293.15",
+                  "temperatureUnit": "Kelvin",
+                  "solvents": "0; acetic acid; hydrochloric acid; water",
+                  "method": "Mechanochemical",
+                  "sourcedb": "Park_Syn"
+                },
+                {
+                  "mof": "https://www.theworldavatar.com/kg/ontomofs_vkg/mof_24522_park_syn_mof",
+                  "temperature": "293.15",
+                  "temperatureUnit": "Kelvin",
+                  "solvents": "distilled water; dry ethyl ether",
+                  "sourcedb": "Park_Syn"
+                },
+                {
+                  "mof": "https://www.theworldavatar.com/kg/ontomofs_vkg/mof_29059_park_syn_mof",
+                  "temperature": "293.15",
+                  "temperatureUnit": "Kelvin",
+                  "solvents": "H2O; NaHCO3; NaNO2; concentrated hydrochloric acid; methylene chloride; water",
+                  "sourcedb": "Park_Syn"
+                }
+              ]
+            }
+          ],
+          "variables": {},
+          "total_elapsed_ms": 4364
+        },
+        "cache_stats": {
+          "db_path": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\data\\mini_marie_cache\\mof_competency\\competency_cache.sqlite",
+          "counts": {
+            "atomic_calls": 48,
+            "facet_identity": 3550,
+            "facet_synthesis": 11067,
+            "facet_topology_mof": 310,
+            "facet_metal_source": 14,
+            "facet_linker": 2,
+            "facet_refcodes": 31
+          }
+        },
+        "step_timings_ms": [
+          4363
+        ]
+      },
+      "offline": {
+        "status": "pass",
+        "elapsed_ms": 5016,
+        "wall_ms": 5035,
+        "recording": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ_D4_AQUEOUS_offline_1780328502.json",
+        "answer": "get_aqueous_low_temp_syntheses: 1188 rows",
+        "answer_digest": {
+          "mode": "offline",
+          "summary_text": "get_aqueous_low_temp_syntheses: 1188 rows",
+          "authoritative": {},
+          "steps": [
+            {
+              "step": 1,
+              "type": "tool",
+              "name": "get_aqueous_low_temp_syntheses",
+              "status": "pass",
+              "row_count": 1188,
+              "elapsed_ms": 5016,
+              "from_cache": false,
+              "result_sample": [
+                {
+                  "mof": "https://www.theworldavatar.com/kg/ontomofs_vkg/mof_18728_park_syn_mof",
+                  "temperature": "293.15",
+                  "temperatureUnit": "Kelvin",
+                  "solvents": "0; acetic acid; hydrochloric acid; water",
+                  "method": "Mechanochemical",
+                  "sourcedb": "Park_Syn"
+                },
+                {
+                  "mof": "https://www.theworldavatar.com/kg/ontomofs_vkg/mof_24522_park_syn_mof",
+                  "temperature": "293.15",
+                  "temperatureUnit": "Kelvin",
+                  "solvents": "distilled water; dry ethyl ether",
+                  "sourcedb": "Park_Syn"
+                },
+                {
+                  "mof": "https://www.theworldavatar.com/kg/ontomofs_vkg/mof_29059_park_syn_mof",
+                  "temperature": "293.15",
+                  "temperatureUnit": "Kelvin",
+                  "solvents": "H2O; NaHCO3; NaNO2; concentrated hydrochloric acid; methylene chloride; water",
+                  "sourcedb": "Park_Syn"
+                }
+              ]
+            }
+          ],
+          "variables": {},
+          "total_elapsed_ms": 5016
+        },
+        "cache_stats": {
+          "db_path": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\data\\mini_marie_cache\\mof_competency\\competency_cache.sqlite",
+          "counts": {
+            "atomic_calls": 49,
+            "facet_identity": 3550,
+            "facet_synthesis": 11067,
+            "facet_topology_mof": 310,
+            "facet_metal_source": 14,
+            "facet_linker": 2,
+            "facet_refcodes": 31
+          }
+        },
+        "step_timings_ms": [
+          5016
+        ],
+        "replayed_from_online": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ_D4_AQUEOUS_online_1780328497.json"
+      }
+    },
+    {
+      "workflow_id": "CQ_D5_WATER_STABLE",
+      "question": "Water-stable MOFs",
+      "online": {
+        "status": "pass",
+        "elapsed_ms": 4979,
+        "wall_ms": 4984,
+        "recording": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ_D5_WATER_STABLE_online_1780328507.json",
+        "answer": "get_water_stable_mofs: 10 rows",
+        "answer_digest": {
+          "mode": "online",
+          "summary_text": "get_water_stable_mofs: 10 rows",
+          "authoritative": {},
+          "steps": [
+            {
+              "step": 1,
+              "type": "tool",
+              "name": "get_water_stable_mofs",
+              "status": "pass",
+              "row_count": 10,
+              "elapsed_ms": 4977,
+              "from_cache": false,
+              "result_sample": [
+                {
+                  "mof": "https://www.theworldavatar.com/kg/ontomofs_vkg/mof_2014%5BMn%5D%5Bgfy%5D3%5BASR%5D1",
+                  "name": "-",
+                  "water_pred": "1",
+                  "sourcedb": "CoRE MOF 2025"
+                },
+                {
+                  "mof": "https://www.theworldavatar.com/kg/ontomofs_vkg/mof_2014%5BMn%5D%5Bgfy%5D3%5BASR%5D2",
+                  "name": "-",
+                  "water_pred": "1",
+                  "sourcedb": "CoRE MOF 2025"
+                },
+                {
+                  "mof": "https://www.theworldavatar.com/kg/ontomofs_vkg/mof_2014%5BMn%5D%5Bgfy%5D3%5BFSR%5D1",
+                  "name": "-",
+                  "water_pred": "1",
+                  "sourcedb": "CoRE MOF 2025"
+                }
+              ]
+            }
+          ],
+          "variables": {},
+          "total_elapsed_ms": 4979
+        },
+        "cache_stats": {
+          "db_path": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\data\\mini_marie_cache\\mof_competency\\competency_cache.sqlite",
+          "counts": {
+            "atomic_calls": 50,
+            "facet_identity": 3550,
+            "facet_synthesis": 11067,
+            "facet_topology_mof": 310,
+            "facet_metal_source": 14,
+            "facet_linker": 2,
+            "facet_refcodes": 31
+          }
+        },
+        "step_timings_ms": [
+          4977
+        ]
+      },
+      "offline": {
+        "status": "pass",
+        "elapsed_ms": 11063,
+        "wall_ms": 11085,
+        "recording": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ_D5_WATER_STABLE_offline_1780328518.json",
+        "answer": "get_water_stable_mofs: 7120 rows",
+        "answer_digest": {
+          "mode": "offline",
+          "summary_text": "get_water_stable_mofs: 7120 rows",
+          "authoritative": {},
+          "steps": [
+            {
+              "step": 1,
+              "type": "tool",
+              "name": "get_water_stable_mofs",
+              "status": "pass",
+              "row_count": 7120,
+              "elapsed_ms": 11062,
+              "from_cache": false,
+              "result_sample": [
+                {
+                  "mof": "https://www.theworldavatar.com/kg/ontomofs_vkg/mof_2014%5BMn%5D%5Bgfy%5D3%5BASR%5D1",
+                  "name": "-",
+                  "water_pred": "1",
+                  "sourcedb": "CoRE MOF 2025"
+                },
+                {
+                  "mof": "https://www.theworldavatar.com/kg/ontomofs_vkg/mof_2014%5BMn%5D%5Bgfy%5D3%5BASR%5D2",
+                  "name": "-",
+                  "water_pred": "1",
+                  "sourcedb": "CoRE MOF 2025"
+                },
+                {
+                  "mof": "https://www.theworldavatar.com/kg/ontomofs_vkg/mof_2014%5BMn%5D%5Bgfy%5D3%5BFSR%5D1",
+                  "name": "-",
+                  "water_pred": "1",
+                  "sourcedb": "CoRE MOF 2025"
+                }
+              ]
+            }
+          ],
+          "variables": {},
+          "total_elapsed_ms": 11063
+        },
+        "cache_stats": {
+          "db_path": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\data\\mini_marie_cache\\mof_competency\\competency_cache.sqlite",
+          "counts": {
+            "atomic_calls": 51,
+            "facet_identity": 3550,
+            "facet_synthesis": 11067,
+            "facet_topology_mof": 310,
+            "facet_metal_source": 14,
+            "facet_linker": 2,
+            "facet_refcodes": 31
+          }
+        },
+        "step_timings_ms": [
+          11062
+        ],
+        "replayed_from_online": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ_D5_WATER_STABLE_online_1780328507.json"
+      }
+    },
+    {
+      "workflow_id": "CQ_D6_THERMAL",
+      "question": "Thermally stable MOFs",
+      "online": {
+        "status": "pass",
+        "elapsed_ms": 7223,
+        "wall_ms": 7227,
+        "recording": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ_D6_THERMAL_online_1780328525.json",
+        "answer": "get_thermal_stable_mofs: 10 rows",
+        "answer_digest": {
+          "mode": "online",
+          "summary_text": "get_thermal_stable_mofs: 10 rows",
+          "authoritative": {},
+          "steps": [
+            {
+              "step": 1,
+              "type": "tool",
+              "name": "get_thermal_stable_mofs",
+              "status": "pass",
+              "row_count": 10,
+              "elapsed_ms": 7222,
+              "from_cache": false,
+              "result_sample": [
+                {
+                  "mof": "https://www.theworldavatar.com/kg/ontomofs_vkg/mof_720_mofsimplify_thermal",
+                  "refcode": "IFAREN",
+                  "thermal": "654.3239796",
+                  "sourcedb": "MOFSimplify Thermal Dataset",
+                  "doi": "10.1021/ic701573r"
+                },
+                {
+                  "mof": "https://www.theworldavatar.com/kg/ontomofs_vkg/mof_389_mofsimplify_thermal",
+                  "refcode": "EQERIC",
+                  "thermal": "639.1312089",
+                  "sourcedb": "MOFSimplify Thermal Dataset",
+                  "doi": "10.1039/c1cc10899a"
+                },
+                {
+                  "mof": "https://www.theworldavatar.com/kg/ontomofs_vkg/mof_719_mofsimplify_thermal",
+                  "refcode": "IFAQUC",
+                  "thermal": "634.8680022",
+                  "sourcedb": "MOFSimplify Thermal Dataset",
+                  "doi": "10.1021/ic701573r"
+                }
+              ]
+            }
+          ],
+          "variables": {},
+          "total_elapsed_ms": 7223
+        },
+        "cache_stats": {
+          "db_path": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\data\\mini_marie_cache\\mof_competency\\competency_cache.sqlite",
+          "counts": {
+            "atomic_calls": 52,
+            "facet_identity": 3550,
+            "facet_synthesis": 11067,
+            "facet_topology_mof": 310,
+            "facet_metal_source": 14,
+            "facet_linker": 2,
+            "facet_refcodes": 31
+          }
+        },
+        "step_timings_ms": [
+          7222
+        ]
+      },
+      "offline": {
+        "status": "pass",
+        "elapsed_ms": 7932,
+        "wall_ms": 7943,
+        "recording": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ_D6_THERMAL_offline_1780328533.json",
+        "answer": "get_thermal_stable_mofs: 986 rows",
+        "answer_digest": {
+          "mode": "offline",
+          "summary_text": "get_thermal_stable_mofs: 986 rows",
+          "authoritative": {},
+          "steps": [
+            {
+              "step": 1,
+              "type": "tool",
+              "name": "get_thermal_stable_mofs",
+              "status": "pass",
+              "row_count": 986,
+              "elapsed_ms": 7931,
+              "from_cache": false,
+              "result_sample": [
+                {
+                  "mof": "https://www.theworldavatar.com/kg/ontomofs_vkg/mof_720_mofsimplify_thermal",
+                  "refcode": "IFAREN",
+                  "thermal": "654.3239796",
+                  "sourcedb": "MOFSimplify Thermal Dataset",
+                  "doi": "10.1021/ic701573r"
+                },
+                {
+                  "mof": "https://www.theworldavatar.com/kg/ontomofs_vkg/mof_389_mofsimplify_thermal",
+                  "refcode": "EQERIC",
+                  "thermal": "639.1312089",
+                  "sourcedb": "MOFSimplify Thermal Dataset",
+                  "doi": "10.1039/c1cc10899a"
+                },
+                {
+                  "mof": "https://www.theworldavatar.com/kg/ontomofs_vkg/mof_719_mofsimplify_thermal",
+                  "refcode": "IFAQUC",
+                  "thermal": "634.8680022",
+                  "sourcedb": "MOFSimplify Thermal Dataset",
+                  "doi": "10.1021/ic701573r"
+                }
+              ]
+            }
+          ],
+          "variables": {},
+          "total_elapsed_ms": 7932
+        },
+        "cache_stats": {
+          "db_path": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\data\\mini_marie_cache\\mof_competency\\competency_cache.sqlite",
+          "counts": {
+            "atomic_calls": 53,
+            "facet_identity": 3550,
+            "facet_synthesis": 11067,
+            "facet_topology_mof": 310,
+            "facet_metal_source": 14,
+            "facet_linker": 2,
+            "facet_refcodes": 31
+          }
+        },
+        "step_timings_ms": [
+          7931
+        ],
+        "replayed_from_online": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ_D6_THERMAL_online_1780328525.json"
+      }
+    },
+    {
+      "workflow_id": "CQ_D7_BINARY_UPTAKE",
+      "question": "High binary gas uptake MOFs",
+      "online": {
+        "status": "pass",
+        "elapsed_ms": 7006,
+        "wall_ms": 7011,
+        "recording": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ_D7_BINARY_UPTAKE_online_1780328540.json",
+        "answer": "get_high_binary_gas_uptake_mofs: 10 rows",
+        "answer_digest": {
+          "mode": "online",
+          "summary_text": "get_high_binary_gas_uptake_mofs: 10 rows",
+          "authoritative": {},
+          "steps": [
+            {
+              "step": 1,
+              "type": "tool",
+              "name": "get_high_binary_gas_uptake_mofs",
+              "status": "pass",
+              "row_count": 10,
+              "elapsed_ms": 7006,
+              "from_cache": false,
+              "result_sample": [
+                {
+                  "mofid": "N=N.O=C1N(c2ccc(c(c2)C(C)C)C(=O)[O-])C(=O)c2c3c1ccc1c3c(cc2)c2c3c1ccc1c3c(cc2)C(=O)N(C1=O)c1ccc(c(c1)C(C)C)C(=O)[O-].[Cu][Cu].[O-]C(=O)C=CC(=O)[O-] MOFid-v1.nbo.cat0",
+                  "postcomb": "7.022769",
+                  "precomb": "10.696522",
+                  "source": "ARC_MOF 2025"
+                },
+                {
+                  "mofid": "N=CC=N.[Cd].[O-]C(=O)c1cc2ccc3c4c2c(c1)ccc4cc(c3)C(=O)[O-] MOFid-v1.ERROR,wmp.cat0",
+                  "postcomb": "6.886547",
+                  "precomb": "12.612147",
+                  "source": "ARC_MOF 2025"
+                },
+                {
+                  "mofid": "CC(=O)c1cc2c(C(=O)C)c3cncc4c3c3c2c2c1cc1cncc5c1c2c1c3c(c4)c(cc1c5C(=O)C)C(=O)C.[O-]C(=O)c1cc(C(=O)[O-])c2c(c1)c1ccc3c(c1cc2)cc(cc3C(=O)[O-])C(=O)[O-].[Zn][Zn] MOFid-v1.fsc.cat0",
+                  "postcomb": "6.824588",
+                  "precomb": "12.148323",
+                  "source": "ARC_MOF 2025"
+                }
+              ]
+            }
+          ],
+          "variables": {},
+          "total_elapsed_ms": 7006
+        },
+        "cache_stats": {
+          "db_path": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\data\\mini_marie_cache\\mof_competency\\competency_cache.sqlite",
+          "counts": {
+            "atomic_calls": 54,
+            "facet_identity": 3550,
+            "facet_synthesis": 11067,
+            "facet_topology_mof": 310,
+            "facet_metal_source": 14,
+            "facet_linker": 2,
+            "facet_refcodes": 31
+          }
+        },
+        "step_timings_ms": [
+          7006
+        ]
+      },
+      "offline": {
+        "status": "pass",
+        "elapsed_ms": 39859,
+        "wall_ms": 39874,
+        "recording": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ_D7_BINARY_UPTAKE_offline_1780328580.json",
+        "answer": "get_high_binary_gas_uptake_mofs: 127137 rows",
+        "answer_digest": {
+          "mode": "offline",
+          "summary_text": "get_high_binary_gas_uptake_mofs: 127137 rows",
+          "authoritative": {},
+          "steps": [
+            {
+              "step": 1,
+              "type": "tool",
+              "name": "get_high_binary_gas_uptake_mofs",
+              "status": "pass",
+              "row_count": 127137,
+              "elapsed_ms": 39858,
+              "from_cache": false,
+              "result_sample": [
+                {
+                  "mofid": "N=N.O=C1N(c2ccc(c(c2)C(C)C)C(=O)[O-])C(=O)c2c3c1ccc1c3c(cc2)c2c3c1ccc1c3c(cc2)C(=O)N(C1=O)c1ccc(c(c1)C(C)C)C(=O)[O-].[Cu][Cu].[O-]C(=O)C=CC(=O)[O-] MOFid-v1.nbo.cat0",
+                  "postcomb": "7.022769",
+                  "precomb": "10.696522",
+                  "source": "ARC_MOF 2025"
+                },
+                {
+                  "mofid": "N=CC=N.[Cd].[O-]C(=O)c1cc2ccc3c4c2c(c1)ccc4cc(c3)C(=O)[O-] MOFid-v1.ERROR,wmp.cat0",
+                  "postcomb": "6.886547",
+                  "precomb": "12.612147",
+                  "source": "ARC_MOF 2025"
+                },
+                {
+                  "mofid": "CC(=O)c1cc2c(C(=O)C)c3cncc4c3c3c2c2c1cc1cncc5c1c2c1c3c(c4)c(cc1c5C(=O)C)C(=O)C.[O-]C(=O)c1cc(C(=O)[O-])c2c(c1)c1ccc3c(c1cc2)cc(cc3C(=O)[O-])C(=O)[O-].[Zn][Zn] MOFid-v1.fsc.cat0",
+                  "postcomb": "6.824588",
+                  "precomb": "12.148323",
+                  "source": "ARC_MOF 2025"
+                }
+              ]
+            }
+          ],
+          "variables": {},
+          "total_elapsed_ms": 39859
+        },
+        "cache_stats": {
+          "db_path": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\data\\mini_marie_cache\\mof_competency\\competency_cache.sqlite",
+          "counts": {
+            "atomic_calls": 55,
+            "facet_identity": 3550,
+            "facet_synthesis": 11067,
+            "facet_topology_mof": 310,
+            "facet_metal_source": 14,
+            "facet_linker": 2,
+            "facet_refcodes": 31
+          }
+        },
+        "step_timings_ms": [
+          39858
+        ],
+        "replayed_from_online": "C:\\Users\\xz378\\Documents\\GitHub\\MCP-enhanced-MOPs-Extraction_Reproduction\\mini_marie\\mof_case\\competency_runs\\CQ_D7_BINARY_UPTAKE_online_1780328540.json"
+      }
+    }
+  ]
+}

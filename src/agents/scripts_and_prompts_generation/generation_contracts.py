@@ -197,6 +197,24 @@ def build_generation_contract_bundle(
     shell_validation = (main_entity_kg.get("shell_validation") or {}) if isinstance(main_entity_kg, dict) else {}
     top_class_iri = str(shell_validation.get("top_entity_class_iri") or "").strip()
 
+    # Extension ontologies often omit shell_validation. Infer a stable top class
+    # from the T-Box when the runtime policy does not declare one.
+    if not top_class_iri:
+        preferred_locals = {
+            "ontomops": ("MetalOrganicPolyhedron",),
+            "ontospecies": ("Species",),
+        }.get(onto_name.lower(), ())
+        class_iris_by_local = {
+            _local_name(cls): str(cls)
+            for cls in graph.subjects(RDF.type, OWL.Class)
+            if isinstance(cls, URIRef)
+        }
+        for local in preferred_locals:
+            candidate = class_iris_by_local.get(local, "")
+            if candidate:
+                top_class_iri = candidate
+                break
+
     return {
         "ontology_name": onto_name,
         "ttl_file": ttl_file,
@@ -414,8 +432,25 @@ def validate_generated_artifacts(
             for marker in ("_read_global_state", "_ensure_required_top_links_before_export"):
                 if marker not in base_text:
                     failures.append(f"{base_files[0].name}: missing required top-link helper/import `{marker}`")
-        if contract_bundle.get("om2_quantity_properties") and "_normalize_om2_unit_alias" not in base_text:
-            failures.append(f"{base_files[0].name}: missing OM-2 unit alias normalizer")
+        if contract_bundle.get("om2_quantity_properties"):
+            for marker in (
+                "OM2_UNIT_MAP",
+                "OM2.hasNumericalValue",
+                "OM2.hasUnit",
+            ):
+                if marker not in base_text:
+                    failures.append(
+                        f"{base_files[0].name}: missing OM-2 quantity contract marker `{marker}`"
+                    )
+            for helper in (
+                "_normalize_om2_unit_alias",
+                "_resolve_om2_unit",
+                "_find_or_create_om2_quantity",
+            ):
+                if re.search(rf"def\s+{re.escape(helper)}\s*\(", base_text) is None:
+                    failures.append(
+                        f"{base_files[0].name}: missing OM-2 helper definition `{helper}`"
+                    )
     else:
         warnings.append("No generated creation base module found")
 
@@ -543,25 +578,36 @@ def validate_generated_artifacts(
                 for node in entity_mod.body
                 if isinstance(node, ast.FunctionDef) and node.name.startswith("create_")
             }
-            for fn_name, ctor_src in create_sources.items():
-                if "_find_or_create_om2_quantity" not in ctor_src:
-                    continue
-                for spec in quantity_props:
-                    prop_local = str((spec or {}).get("predicate_local") or "").strip()
-                    if not prop_local:
-                        continue
-                    prop_markers = {
-                        prop_local,
-                        _lower_initial(prop_local),
-                        _snake(prop_local),
-                    }
-                    if not any(marker in ctor_src for marker in prop_markers):
-                        continue
-                    link_pattern = rf"g\.add\(\s*\(\s*iri\s*,\s*[A-Z][A-Z0-9_]*\.{re.escape(prop_local)}\s*,"
-                    if re.search(link_pattern, ctor_src) is None:
+            for spec in quantity_props:
+                prop_local = str((spec or {}).get("predicate_local") or "").strip()
+                range_local = _local_name((spec or {}).get("range_iris"))
+                domain_locals = [
+                    value.strip()
+                    for value in str((spec or {}).get("domain_locals") or "").split(",")
+                    if value.strip()
+                ]
+                for domain_local in domain_locals:
+                    ctor_src = create_sources.get(f"create_{domain_local}") or ""
+                    if not ctor_src:
                         failures.append(
-                            f"{fn_name}: OM-2 quantity for `{prop_local}` must be linked "
-                            f"from the created entity"
+                            f"Missing constructor create_{domain_local} for OM-2 "
+                            f"`{prop_local}` -> `{range_local}`"
+                        )
+                        continue
+                    if "_find_or_create_om2_quantity" not in ctor_src:
+                        failures.append(
+                            f"create_{domain_local}: OM-2 property `{prop_local}` must use "
+                            "`_find_or_create_om2_quantity`"
+                        )
+                    if f"NS.{range_local}" in ctor_src or f"NS[{range_local!r}]" in ctor_src:
+                        failures.append(
+                            f"create_{domain_local}: OM-2 range `{range_local}` must not be "
+                            "minted/typed in the ontology namespace"
+                        )
+                    if prop_local not in ctor_src or "_add_object" not in ctor_src:
+                        failures.append(
+                            f"create_{domain_local}: OM-2 quantity for `{prop_local}` must "
+                            "be linked from the created entity"
                         )
 
     if prompts and prompts.exists():

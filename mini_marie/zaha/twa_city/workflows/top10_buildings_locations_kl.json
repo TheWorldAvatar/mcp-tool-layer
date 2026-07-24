@@ -1,0 +1,46 @@
+{
+  "id": "WF_TOP10_LOCATIONS_DIRECT",
+  "question": "Find the locations of the 10 highest buildings in Kaiserslautern (2-step: rank then locate)",
+  "city": "kaiserslautern",
+  "top_n": 10,
+  "online_limit": 10,
+  "offline_cap": 500000,
+  "steps": [
+    {
+      "id": "call_1_rank",
+      "comment": "Single rank query online LIMIT 10; offline reruns without LIMIT then top-N transform.",
+      "tool": "rank_buildings_by_height",
+      "args": { "city": "$city" },
+      "extract": {
+        "ranked_rows": { "pick": "all_rows" },
+        "top_building_iris": { "pick": "column", "field": "building" }
+      }
+    },
+    {
+      "id": "call_2_rank_top_offline_only_note",
+      "comment": "When replaying offline with full rank results, apply top-N before locations.",
+      "type": "transform",
+      "name": "ensure_top_n",
+      "transform": "top_n_by_field",
+      "input_variable": "ranked_rows",
+      "field": "height",
+      "n": "$top_n",
+      "order": "desc",
+      "output_field": "building",
+      "output_variable": "top_building_iris",
+      "also_store_rows": "top_building_rows"
+    },
+    {
+      "id": "call_3_locations",
+      "tool": "fetch_building_locations",
+      "args": {
+        "city": "$city",
+        "building_iris": "$top_building_iris"
+      },
+      "extract": {
+        "location_rows": { "pick": "all_rows" }
+      }
+    }
+  ],
+  "final_summary": "Top $top_n tallest buildings in $city with WKT locations."
+}

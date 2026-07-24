@@ -1,0 +1,13 @@
+PREFIX bldg: <http://www.opengis.net/citygml/building/2.0/>
+SELECT ?p (COUNT(DISTINCT ?b) AS ?buildings)
+WHERE {
+  {
+    SELECT ?b
+    WHERE { ?b a bldg:Building }
+    LIMIT 500
+  }
+  ?b ?p ?o .
+}
+GROUP BY ?p
+ORDER BY DESC(?buildings)
+LIMIT 40

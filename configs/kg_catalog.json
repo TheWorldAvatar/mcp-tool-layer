@@ -1,0 +1,7 @@
+{
+  "kg-catalog": {
+    "command": "python",
+    "args": ["-m", "mini_marie.kg_catalog.main"],
+    "transport": "stdio"
+  }
+}

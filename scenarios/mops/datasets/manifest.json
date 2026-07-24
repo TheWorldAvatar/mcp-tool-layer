@@ -1,0 +1,307 @@
+{
+  "domain": "mops",
+  "dataset": "eval30",
+  "description": "30 chemistry paper pairs (main PDF + SI PDF)",
+  "n_expected": 30,
+  "n_present": 3,
+  "n_missing": 27,
+  "pairs": [
+    {
+      "slot": 1,
+      "doi": "10.1002/anie.201811027",
+      "stem": "10.1002_anie.201811027",
+      "main_pdf": "10.1002_anie.201811027.pdf",
+      "si_pdf": "10.1002_anie.201811027_si.pdf",
+      "hash": "a014d993",
+      "status": "present"
+    },
+    {
+      "slot": 2,
+      "doi": "10.1002/anie.202010824",
+      "stem": "10.1002_anie.202010824",
+      "main_pdf": "10.1002_anie.202010824.pdf",
+      "si_pdf": "10.1002_anie.202010824_si.pdf",
+      "hash": "88c21a74",
+      "status": "present"
+    },
+    {
+      "slot": 3,
+      "doi": "10.1021/acsami.7b18836",
+      "stem": "10.1021_acsami.7b18836",
+      "main_pdf": "10.1021_acsami.7b18836.pdf",
+      "si_pdf": "10.1021_acsami.7b18836_si.pdf",
+      "hash": "0c57bac8",
+      "status": "present"
+    },
+    {
+      "slot": 4,
+      "doi": "",
+      "stem": "",
+      "main_pdf": "",
+      "si_pdf": "",
+      "hash": "",
+      "status": "missing",
+      "note": "Fill DOI/stem and drop main+SI PDFs into eval30/, then update this slot."
+    },
+    {
+      "slot": 5,
+      "doi": "",
+      "stem": "",
+      "main_pdf": "",
+      "si_pdf": "",
+      "hash": "",
+      "status": "missing",
+      "note": "Fill DOI/stem and drop main+SI PDFs into eval30/, then update this slot."
+    },
+    {
+      "slot": 6,
+      "doi": "",
+      "stem": "",
+      "main_pdf": "",
+      "si_pdf": "",
+      "hash": "",
+      "status": "missing",
+      "note": "Fill DOI/stem and drop main+SI PDFs into eval30/, then update this slot."
+    },
+    {
+      "slot": 7,
+      "doi": "",
+      "stem": "",
+      "main_pdf": "",
+      "si_pdf": "",
+      "hash": "",
+      "status": "missing",
+      "note": "Fill DOI/stem and drop main+SI PDFs into eval30/, then update this slot."
+    },
+    {
+      "slot": 8,
+      "doi": "",
+      "stem": "",
+      "main_pdf": "",
+      "si_pdf": "",
+      "hash": "",
+      "status": "missing",
+      "note": "Fill DOI/stem and drop main+SI PDFs into eval30/, then update this slot."
+    },
+    {
+      "slot": 9,
+      "doi": "",
+      "stem": "",
+      "main_pdf": "",
+      "si_pdf": "",
+      "hash": "",
+      "status": "missing",
+      "note": "Fill DOI/stem and drop main+SI PDFs into eval30/, then update this slot."
+    },
+    {
+      "slot": 10,
+      "doi": "",
+      "stem": "",
+      "main_pdf": "",
+      "si_pdf": "",
+      "hash": "",
+      "status": "missing",
+      "note": "Fill DOI/stem and drop main+SI PDFs into eval30/, then update this slot."
+    },
+    {
+      "slot": 11,
+      "doi": "",
+      "stem": "",
+      "main_pdf": "",
+      "si_pdf": "",
+      "hash": "",
+      "status": "missing",
+      "note": "Fill DOI/stem and drop main+SI PDFs into eval30/, then update this slot."
+    },
+    {
+      "slot": 12,
+      "doi": "",
+      "stem": "",
+      "main_pdf": "",
+      "si_pdf": "",
+      "hash": "",
+      "status": "missing",
+      "note": "Fill DOI/stem and drop main+SI PDFs into eval30/, then update this slot."
+    },
+    {
+      "slot": 13,
+      "doi": "",
+      "stem": "",
+      "main_pdf": "",
+      "si_pdf": "",
+      "hash": "",
+      "status": "missing",
+      "note": "Fill DOI/stem and drop main+SI PDFs into eval30/, then update this slot."
+    },
+    {
+      "slot": 14,
+      "doi": "",
+      "stem": "",
+      "main_pdf": "",
+      "si_pdf": "",
+      "hash": "",
+      "status": "missing",
+      "note": "Fill DOI/stem and drop main+SI PDFs into eval30/, then update this slot."
+    },
+    {
+      "slot": 15,
+      "doi": "",
+      "stem": "",
+      "main_pdf": "",
+      "si_pdf": "",
+      "hash": "",
+      "status": "missing",
+      "note": "Fill DOI/stem and drop main+SI PDFs into eval30/, then update this slot."
+    },
+    {
+      "slot": 16,
+      "doi": "",
+      "stem": "",
+      "main_pdf": "",
+      "si_pdf": "",
+      "hash": "",
+      "status": "missing",
+      "note": "Fill DOI/stem and drop main+SI PDFs into eval30/, then update this slot."
+    },
+    {
+      "slot": 17,
+      "doi": "",
+      "stem": "",
+      "main_pdf": "",
+      "si_pdf": "",
+      "hash": "",
+      "status": "missing",
+      "note": "Fill DOI/stem and drop main+SI PDFs into eval30/, then update this slot."
+    },
+    {
+      "slot": 18,
+      "doi": "",
+      "stem": "",
+      "main_pdf": "",
+      "si_pdf": "",
+      "hash": "",
+      "status": "missing",
+      "note": "Fill DOI/stem and drop main+SI PDFs into eval30/, then update this slot."
+    },
+    {
+      "slot": 19,
+      "doi": "",
+      "stem": "",
+      "main_pdf": "",
+      "si_pdf": "",
+      "hash": "",
+      "status": "missing",
+      "note": "Fill DOI/stem and drop main+SI PDFs into eval30/, then update this slot."
+    },
+    {
+      "slot": 20,
+      "doi": "",
+      "stem": "",
+      "main_pdf": "",
+      "si_pdf": "",
+      "hash": "",
+      "status": "missing",
+      "note": "Fill DOI/stem and drop main+SI PDFs into eval30/, then update this slot."
+    },
+    {
+      "slot": 21,
+      "doi": "",
+      "stem": "",
+      "main_pdf": "",
+      "si_pdf": "",
+      "hash": "",
+      "status": "missing",
+      "note": "Fill DOI/stem and drop main+SI PDFs into eval30/, then update this slot."
+    },
+    {
+      "slot": 22,
+      "doi": "",
+      "stem": "",
+      "main_pdf": "",
+      "si_pdf": "",
+      "hash": "",
+      "status": "missing",
+      "note": "Fill DOI/stem and drop main+SI PDFs into eval30/, then update this slot."
+    },
+    {
+      "slot": 23,
+      "doi": "",
+      "stem": "",
+      "main_pdf": "",
+      "si_pdf": "",
+      "hash": "",
+      "status": "missing",
+      "note": "Fill DOI/stem and drop main+SI PDFs into eval30/, then update this slot."
+    },
+    {
+      "slot": 24,
+      "doi": "",
+      "stem": "",
+      "main_pdf": "",
+      "si_pdf": "",
+      "hash": "",
+      "status": "missing",
+      "note": "Fill DOI/stem and drop main+SI PDFs into eval30/, then update this slot."
+    },
+    {
+      "slot": 25,
+      "doi": "",
+      "stem": "",
+      "main_pdf": "",
+      "si_pdf": "",
+      "hash": "",
+      "status": "missing",
+      "note": "Fill DOI/stem and drop main+SI PDFs into eval30/, then update this slot."
+    },
+    {
+      "slot": 26,
+      "doi": "",
+      "stem": "",
+      "main_pdf": "",
+      "si_pdf": "",
+      "hash": "",
+      "status": "missing",
+      "note": "Fill DOI/stem and drop main+SI PDFs into eval30/, then update this slot."
+    },
+    {
+      "slot": 27,
+      "doi": "",
+      "stem": "",
+      "main_pdf": "",
+      "si_pdf": "",
+      "hash": "",
+      "status": "missing",
+      "note": "Fill DOI/stem and drop main+SI PDFs into eval30/, then update this slot."
+    },
+    {
+      "slot": 28,
+      "doi": "",
+      "stem": "",
+      "main_pdf": "",
+      "si_pdf": "",
+      "hash": "",
+      "status": "missing",
+      "note": "Fill DOI/stem and drop main+SI PDFs into eval30/, then update this slot."
+    },
+    {
+      "slot": 29,
+      "doi": "",
+      "stem": "",
+      "main_pdf": "",
+      "si_pdf": "",
+      "hash": "",
+      "status": "missing",
+      "note": "Fill DOI/stem and drop main+SI PDFs into eval30/, then update this slot."
+    },
+    {
+      "slot": 30,
+      "doi": "",
+      "stem": "",
+      "main_pdf": "",
+      "si_pdf": "",
+      "hash": "",
+      "status": "missing",
+      "note": "Fill DOI/stem and drop main+SI PDFs into eval30/, then update this slot."
+    }
+  ]
+}

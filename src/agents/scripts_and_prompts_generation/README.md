@@ -124,6 +124,59 @@ python -m src.agents.scripts_and_prompts_generation.fix_package_structure
 
 `mcp_main_script_creation_agent.py` still exists for older Docker/agent-driven flows, but new work should prefer `agentic_generation_main`.
 
+### 7) Semantic MCP loop (medical)
+
+Closed loop that **regenerates** the medical MCP each outer iteration, runs Level-1 **ruff/contract** repair, builds an A-Box from a mock OP note, then **requires HermiT** (plus OWL-RL checks) via [`scripts/validate_abox_with_reasoner.py`](../../../scripts/validate_abox_with_reasoner.py). Failures become sticky feedback for the next regenerate.
+
+**Default A-Box path (`--abox-mode react`):** write `document_md` as `*_stitched.md`, then run the real pipeline steps `top_entity_extraction` → `top_entity_kg_building` (ReAct) → `main_ontology_extractions` → `main_kg_building` with `force_react_kg` (skips `materialize_hints` short-circuit). Merge `medical_output/*.ttl` into `abox.ttl`.
+
+**Offline harness path (`--abox-mode harness`):** in-process `materialize_hints` only (no pipeline LLM).
+
+```bash
+# Full ReAct extract + KG on mock doc, HermiT gate (needs LLM credentials + owlready2/HermiT)
+python -m src.agents.scripts_and_prompts_generation.semantic_mcp_loop_medical \
+  --fixture tests/fixtures/medical_semantic_mock.json \
+  --abox-mode react \
+  --max-outer 2 \
+  --json
+
+# Offline harness dry path (still requires HermiT for pass)
+python -m src.agents.scripts_and_prompts_generation.semantic_mcp_loop_medical \
+  --abox-mode harness \
+  --no-llm \
+  --fixture tests/fixtures/medical_semantic_mock.json \
+  --max-ruff-repairs 0 \
+  --json
+```
+
+Artifacts land under `tmp/semantic_mcp_loop_medical/<run_id>/` (`iter_N/abox.ttl`, `runtime/`, `reasoner_report.json`, `semantic_feedback.md`, `summary.json`). Unittest: `python -m unittest tests.test_semantic_mcp_loop_medical_harness`.
+
+### 8) Semantic MCP loop (OntoSynthesis main-only) — LLM repair proof
+
+Same two-level idea as medical, scoped to **OntoSynthesis main only** (no OntoMOPs/OntoSpecies extension MCP). Default A-Box path is the **harness** (`materialize_hints`) so Level-1 / Level-2 repair signals stay clean. HermiT is required; unknown properties fail the gate (cross-ontology `Species` type noise is soft).
+
+**Non-trivial defects are healed only by LLM unified-diff patches** — not ruff autofix, not restore/undo, not regenerate-as-proof. `--prove-repairs` / `--exercise-*` require LLM credentials (`--no-llm` is rejected).
+
+```bash
+# Real OntoSyn run: LLM (gpt-5) regenerates MCP scripts + full T-Box mock fixture, then HermiT
+python -m src.agents.scripts_and_prompts_generation.semantic_mcp_loop_ontosynthesis \
+  --llm-agent-generation \
+  --generation-model gpt-5 \
+  --model gpt-5 \
+  --max-outer 2 \
+  --json
+
+# Preferred repair proof: inject syntax (L1) + BogusSemanticFailProp (L2); heal only via LLM
+python -m src.agents.scripts_and_prompts_generation.semantic_mcp_loop_ontosynthesis \
+  --prove-repairs \
+  --fixture tests/fixtures/ontosynthesis_semantic_mock.json \
+  --scripts-source ai_generated_contents_candidate/scripts/ontosynthesis \
+  --max-ruff-repairs 2 \
+  --json
+```
+
+Artifacts: `tmp/semantic_mcp_loop_ontosynthesis/prove_<run_id>/` (`level1_proof.json`, `semantic_proof.json`, `reasoner_*.json`, `summary.json`). Offline unittest covers inject/detect + `--no-llm` rejection: `python -m unittest tests.test_semantic_mcp_loop_ontosynthesis_harness`.
+
 ---
 
 ### Promotion: candidate → production (recommended practice)

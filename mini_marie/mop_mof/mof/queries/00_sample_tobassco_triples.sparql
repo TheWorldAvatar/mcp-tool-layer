@@ -1,0 +1,8 @@
+PREFIX mofs: <https://www.theworldavatar.com/kg/ontomofs_vkg/>
+SELECT ?mof ?p ?o
+WHERE {
+  ?mof a mofs:MetalOrganicFramework ;
+       mofs:hasSourcedb "Tobassco" .
+  ?mof ?p ?o .
+}
+LIMIT 40

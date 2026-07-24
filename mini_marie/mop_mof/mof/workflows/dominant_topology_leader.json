@@ -1,0 +1,43 @@
+{
+  "id": "WF_DOMINANT_TOPOLOGY_LEADER",
+  "question": "Dominant Tobassco topology, top CO2 MOF in that class, and its properties",
+  "online_limit": 10,
+  "offline_cap": 500000,
+  "steps": [
+    {
+      "id": "call_1_topologies",
+      "tool": "list_topology_counts",
+      "args": {},
+      "extract": {
+        "dominant_topology": { "pick": "row_field", "field": "topology", "index": 0 }
+      }
+    },
+    {
+      "id": "call_2_branch",
+      "tool": "rank_tobassco_by_topology",
+      "args": { "topology": "$dominant_topology" },
+      "extract": {
+        "branch_rows": { "pick": "all_rows" }
+      }
+    },
+    {
+      "id": "call_3_suffix",
+      "type": "transform",
+      "name": "leader_suffix",
+      "transform": "first_field_transform",
+      "input_variable": "branch_rows",
+      "field": "mofid",
+      "apply": "mofid_suffix",
+      "output_variable": "leader_mofid_suffix"
+    },
+    {
+      "id": "call_4_properties",
+      "tool": "fetch_mof_properties",
+      "args": { "mofid_fragment": "$leader_mofid_suffix" },
+      "extract": {
+        "property_rows": { "pick": "all_rows" }
+      }
+    }
+  ],
+  "final_summary": "Dominant topology $dominant_topology; leader MOFid suffix $leader_mofid_suffix."
+}

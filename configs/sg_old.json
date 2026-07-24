@@ -1,0 +1,7 @@
+{
+  "sg-old": {
+    "command": "python",
+    "args": ["-m", "mini_marie.zaha.sg_old.main"],
+    "transport": "stdio"
+  }
+}

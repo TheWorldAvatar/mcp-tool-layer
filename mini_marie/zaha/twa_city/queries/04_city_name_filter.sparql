@@ -1,0 +1,13 @@
+SELECT ?s ?p ?o
+WHERE {
+  ?s ?p ?o .
+  FILTER(
+    CONTAINS(LCASE(STR(?s)), "bremen") ||
+    CONTAINS(LCASE(STR(?o)), "bremen") ||
+    CONTAINS(LCASE(STR(?s)), "kaiserslautern") ||
+    CONTAINS(LCASE(STR(?o)), "kaiserslautern") ||
+    CONTAINS(LCASE(STR(?s)), "building") ||
+    CONTAINS(LCASE(STR(?o)), "building")
+  )
+}
+LIMIT 20

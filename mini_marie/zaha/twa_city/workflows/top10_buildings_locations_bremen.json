@@ -1,0 +1,51 @@
+{
+  "id": "WF_TOP10_LOCATIONS",
+  "question": "Find the locations of the 10 highest buildings in Bremen",
+  "city": "bremen",
+  "top_n": 10,
+  "online_limit": 10,
+  "offline_cap": 500000,
+  "online_limits": {
+    "list_buildings": 10,
+    "rank": 10
+  },
+  "steps": [
+    {
+      "id": "call_1_list_buildings",
+      "comment": "Online: probe with LIMIT 10. Offline: raised cap for full ranking pool.",
+      "tool": "list_buildings_with_height",
+      "args": { "city": "$city" },
+      "limit_key": "list_buildings",
+      "extract": {
+        "building_pool": { "pick": "all_rows" }
+      }
+    },
+    {
+      "id": "call_2_rank_top",
+      "comment": "In-memory top-N from call 1 output — avoids second SPARQL rank query.",
+      "type": "transform",
+      "name": "rank_top_by_height",
+      "transform": "top_n_by_field",
+      "input_variable": "building_pool",
+      "field": "height",
+      "n": "$top_n",
+      "order": "desc",
+      "output_field": "building",
+      "output_variable": "top_building_iris",
+      "also_store_rows": "top_building_rows"
+    },
+    {
+      "id": "call_3_locations",
+      "comment": "Fetch WKT footprints for the ranked building IRIs from call 2.",
+      "tool": "fetch_building_locations",
+      "args": {
+        "city": "$city",
+        "building_iris": "$top_building_iris"
+      },
+      "extract": {
+        "location_rows": { "pick": "all_rows" }
+      }
+    }
+  ],
+  "final_summary": "Top $top_n buildings in $city ranked by height; locations in location_rows / call_3."
+}

@@ -132,7 +132,7 @@ def run_pipeline(config_path: str, input_dir: Optional[str] = None,
 
     Args:
         config_path: Path to pipeline.json
-        input_dir: Directory containing input PDFs (defaults to 'raw_data')
+        input_dir: Directory containing input PDFs (CLI overrides config input_dir; else 'raw_data')
         only_hashes: If provided, only process these DOI hashes
         use_mcp: If True, use MCP-generated tools instead of regular step modules
         iter1: If True, stop after top_entity_kg_building step (iteration 1)
@@ -153,9 +153,9 @@ def run_pipeline(config_path: str, input_dir: Optional[str] = None,
     # determine ontology name, MCP tool sets, and output folder naming).
     effective_meta_task_config = meta_task_config or config.get("meta_task_config")
     
-    # Default input directory to raw_data if not provided
+    # Input PDFs: CLI --input-dir > pipeline JSON input_dir > raw_data
     if input_dir is None:
-        input_dir = "raw_data"
+        input_dir = config.get("input_dir") or "raw_data"
     
     # Filter steps if iter1 mode is enabled
     steps = config.get("steps", [])
@@ -557,7 +557,7 @@ def main():
     parser.add_argument(
         '--input-dir',
         type=str,
-        help='Directory containing input PDF files (default: raw_data)'
+        help='Directory containing input PDF files (overrides config input_dir; else config or raw_data)'
     )
     
     parser.add_argument(

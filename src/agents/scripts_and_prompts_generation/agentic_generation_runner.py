@@ -183,6 +183,27 @@ def _step_scoped_object_properties_for_class(
     return props
 
 
+def _om2_quantity_properties_for_class(
+    context: AgenticGenerationContext, class_local: str
+) -> dict[str, str]:
+    """Return OM-2 quantity properties whose T-Box domain includes this class."""
+    classes = context.parsed.get("classes") or {}
+    class_family = {class_local, *_class_ancestors(classes, class_local)}
+    out: dict[str, str] = {}
+    for spec in context.contract.get("om2_quantity_properties") or []:
+        prop = str((spec or {}).get("predicate_local") or "").strip()
+        range_iris = str((spec or {}).get("range_iris") or "").strip()
+        range_local = _local_name(range_iris)
+        domains = {
+            value.strip()
+            for value in str((spec or {}).get("domain_locals") or "").split(",")
+            if value.strip()
+        }
+        if prop and range_local and domains.intersection(class_family):
+            out[prop] = range_local
+    return out
+
+
 def _base_script(context: AgenticGenerationContext) -> str:
     ns = _namespace_uri(context)
     has_om2 = bool(context.contract.get("om2_quantity_properties"))
@@ -214,8 +235,72 @@ def _ensure_required_top_links_before_export() -> None:
     if has_om2:
         om2_helper = """
 
+OM2_UNIT_MAP = {
+    "c": OM2.degreeCelsius,
+    "°c": OM2.degreeCelsius,
+    "degree celsius": OM2.degreeCelsius,
+    "degrees celsius": OM2.degreeCelsius,
+    "h": OM2.hour,
+    "hr": OM2.hour,
+    "hrs": OM2.hour,
+    "hour": OM2.hour,
+    "hours": OM2.hour,
+    "min": OM2.minute,
+    "mins": OM2.minute,
+    "minute": OM2.minute,
+    "minutes": OM2.minute,
+    "s": OM2.second,
+    "sec": OM2.second,
+    "second": OM2.second,
+    "seconds": OM2.second,
+    "ml": OM2.millilitre,
+    "l": OM2.litre,
+    "bar": OM2.bar,
+    "pa": OM2.pascal,
+}
+
+
 def _normalize_om2_unit_alias(unit: str) -> str:
-    return str(unit or "").strip()
+    return re.sub(r"\\s+", " ", str(unit or "").strip().lower())
+
+
+def _resolve_om2_unit(unit: str):
+    normalized = _normalize_om2_unit_alias(unit)
+    resolved = OM2_UNIT_MAP.get(normalized)
+    if resolved is None:
+        raise ValueError(f"Unsupported OM-2 unit label: {unit!r}")
+    return resolved
+
+
+def _parse_om2_quantity_label(label: str) -> tuple[float, str]:
+    text = str(label or "").strip()
+    match = re.search(r"([-+]?\\d+(?:\\.\\d+)?)\\s*([^,;]+)$", text)
+    if not match:
+        raise ValueError(f"OM-2 quantity label must contain a number and unit: {label!r}")
+    return float(match.group(1)), match.group(2).strip()
+
+
+def _find_or_create_om2_quantity(quantity_class_local: str, label: str):
+    quantity_class = OM2[quantity_class_local]
+    label_text = str(label or "").strip()
+    existing = _find_by_type_and_label(quantity_class, label_text)
+    if existing is not None:
+        return existing
+    value, unit_label = _parse_om2_quantity_label(label_text)
+    iri = _mint_hash_iri(quantity_class_local, label_text)
+    GRAPH.add((iri, RDF.type, quantity_class))
+    GRAPH.add((iri, RDFS.label, Literal(label_text)))
+    GRAPH.add((iri, OM2.hasNumericalValue, Literal(value, datatype=XSD.double)))
+    GRAPH.add((iri, OM2.hasUnit, _resolve_om2_unit(unit_label)))
+    return iri
+"""
+    else:
+        om2_helper = """
+
+def _find_or_create_om2_quantity(quantity_class_local: str, label: str):
+    raise ValueError(
+        f"Ontology contract has no OM-2 quantity property for {quantity_class_local}: {label}"
+    )
 """
     return f"""from __future__ import annotations
 
@@ -271,10 +356,43 @@ def _data_root() -> Path:
     return Path(os.environ.get("TWA_AGENTIC_DATA_DIR") or "data")
 
 
+def _resolve_case_dirname(doi_value: str) -> str:
+    # Map a document id (hash or DOI) onto the pipeline case folder name.
+    raw = str(doi_value or "").strip() or "unknown"
+    safe = _safe_filename_component(raw)
+    root = _data_root()
+    mapping_path = root / "doi_to_hash.json"
+    if not mapping_path.exists():
+        return safe
+    try:
+        mapping = json.loads(mapping_path.read_text(encoding="utf-8"))
+    except Exception:
+        return safe
+    hashes = {{str(v).strip() for v in mapping.values() if str(v).strip()}}
+    if safe in hashes:
+        return safe
+    candidates = {{
+        raw,
+        safe,
+        raw.replace("_", "/"),
+        raw.replace("/", "_"),
+        safe.replace("_", "/"),
+    }}
+    for doi_key, hash_value in mapping.items():
+        key = str(doi_key or "").strip()
+        hashed = str(hash_value or "").strip()
+        if not key or not hashed:
+            continue
+        key_us = key.replace("/", "_")
+        if key in candidates or key_us in candidates or _safe_filename_component(key_us) == safe:
+            return hashed
+    return safe
+
+
 def _memory_paths(doi: str | None = None, entity_context: str | None = None) -> tuple[Path, Path]:
     doi_value = str(doi or CURRENT_DOI or "unknown").strip() or "unknown"
     entity_value = str(entity_context or CURRENT_ENTITY_CONTEXT or "top").strip() or "top"
-    doi_dir = _data_root() / _safe_filename_component(doi_value)
+    doi_dir = _data_root() / _resolve_case_dirname(doi_value)
     memory_dir = doi_dir / {memory_dir_name!r}
     exports_dir = doi_dir / "exports"
     memory_dir.mkdir(parents=True, exist_ok=True)
@@ -286,7 +404,7 @@ def _memory_paths(doi: str | None = None, entity_context: str | None = None) -> 
 
 def init_memory_wrapper(doi: str, top_level_entity_name: str = "top") -> str:
     global CURRENT_DOI, CURRENT_ENTITY_CONTEXT
-    CURRENT_DOI = str(doi or "").strip()
+    CURRENT_DOI = _resolve_case_dirname(str(doi or "").strip())
     CURRENT_ENTITY_CONTEXT = str(top_level_entity_name or "top").strip() or "top"
     GRAPH.remove((None, None, None))
     memory_ttl, _ = _memory_paths(CURRENT_DOI, CURRENT_ENTITY_CONTEXT)
@@ -323,13 +441,9 @@ def _mint_hash_iri(prefix: str, label: str) -> URIRef:
 
 
 def _add_quantity_label_metadata(iri, label: str) -> None:
-    text = str(label or "").strip()
-    match = re.match(r"^([-+]?\\d+(?:\\.\\d+)?)\\s+(.+)$", text)
-    if not match:
-        return
-    unit_local = re.sub(r"[^A-Za-z0-9]+", "_", match.group(2).strip()).strip("_") or "unit"
-    GRAPH.add((iri, OM2.hasNumericalValue, Literal(float(match.group(1)), datatype=XSD.double)))
-    GRAPH.add((iri, OM2.hasUnit, OM2[unit_local]))
+    # Backward-compatible helper for non-quantity targets. OM-2 object-property
+    # constructors use _find_or_create_om2_quantity directly.
+    return None
 
 
 def _split_label_scalar(label: str) -> tuple[str, str]:
@@ -485,6 +599,7 @@ from .{_py_name(context.ontology.name)}_creation_base import (
     _add_object,
     _create_entity,
     _find_by_type_and_label,
+    _find_or_create_om2_quantity,
     _format_success_json,
     _mint_hash_iri,
     _split_label_scalar,
@@ -515,6 +630,8 @@ from .{_py_name(context.ontology.name)}_creation_base import (
             if str(prop).strip() and str(range_local or "").strip()
         }
         object_props.update(_step_scoped_object_properties_for_class(context, cls))
+        quantity_props = _om2_quantity_properties_for_class(context, cls)
+        object_props.update(quantity_props)
         required_specs = required_by_domain.get(cls, [])
         required_prop_names = {
             str((spec or {}).get("predicate_local") or "").strip()
@@ -568,6 +685,17 @@ from .{_py_name(context.ontology.name)}_creation_base import (
                 if embedded_scalar_lines
                 else ""
             )
+            if prop in quantity_props:
+                object_lines.append(
+                    f"""    if {param_name}:
+        target_labels = {param_name} if isinstance({param_name}, list) else [{param_name}]
+        for target_label in target_labels:
+            if target_label is None or str(target_label).strip() == "":
+                continue
+            target = _find_or_create_om2_quantity({range_local!r}, str(target_label).strip())
+            _add_object(str(iri), {prop!r}, str(target))"""
+                )
+                continue
             object_lines.append(
                 f"""    if {param_name}:
         target_labels = {param_name} if isinstance({param_name}, list) else [{param_name}]
@@ -627,9 +755,13 @@ from .{_py_name(context.ontology.name)}_creation_base import (
                 _add_quantity_label_metadata(target, target_base_label){embedded_scalar_block}
             _add_object(str(iri), {prop_local!r}, str(target))"""
             )
+        # Skip OWL/RDFS builtins: parsers often surface owl:Thing as local "Thing",
+        # which must not be asserted as NS["Thing"] under the domain namespace.
+        _builtin_parents = {"Thing", "owl:Thing", "Resource", "rdfs:Resource"}
         parent_type_lines = "\n".join(
             f"    GRAPH.add((iri, RDF.type, NS[{parent!r}]))"
             for parent in _class_ancestors(classes, cls)
+            if parent not in _builtin_parents and parent in classes
         )
         body_lines = "\n".join(
             line
@@ -1328,11 +1460,60 @@ def _format_property_rows(context: AgenticGenerationContext, *, kind: str) -> st
         domains = ", ".join(str(x) for x in ((prop or {}).get("domains") or []))
         rng = str((prop or {}).get("range") or "")
         comment = str((prop or {}).get("comment") or "").strip()
+        value_kind = str((prop or {}).get("value_kind") or "").strip()
         row = f"- `{name}`: domains=[{domains}], range=`{rng}`"
+        if value_kind:
+            row += f", value_kind=`{value_kind}`"
         if comment:
             row += f"; comment={comment}"
         rows.append(row)
     return "\n".join(rows) if rows else "- None declared in the T-Box."
+
+
+def _format_value_kind_priority_contract(context: AgenticGenerationContext) -> str:
+    """Emit a T-Box-derived value-kind inventory and domain-agnostic priority rules."""
+    properties = context.parsed.get("properties") or {}
+    by_kind: dict[str, list[str]] = {}
+    for name, prop in sorted(properties.items()):
+        if (prop or {}).get("kind") != "datatype":
+            continue
+        if not _prompt_includes_property(context, name, prop or {}, kind="datatype"):
+            continue
+        value_kind = str((prop or {}).get("value_kind") or "").strip()
+        if not value_kind:
+            continue
+        by_kind.setdefault(value_kind, []).append(name)
+
+    if not by_kind:
+        return ""
+
+    lines = [
+        "Value-Kind Priority Contract:",
+        "- When the T-Box marks a datatype field with `value_kind`, treat that annotation as authoritative for extraction priority and value shape.",
+        "- `binary_checklist` fields outrank `free_text_fallback` and ordinary free-text fields for the same source fact: if a binary/canonical field fits, emit that field and do not park the same fact only in a catch-all/free-text fallback.",
+        "- For every `binary_checklist` field listed below, evaluate source evidence before returning JSON; emit the T-Box-configured active checklist value when supported, otherwise omit the field.",
+        "- For every `free_text_fallback` field listed below, emit text only for explicit source items that no binary/canonical sibling field covers; do not use fallbacks to restate facts already captured by binary fields.",
+        "- For `derived` fields, do not invent values from prose alone when the T-Box says they are computed from other extracted fields.",
+        "- Do not skip emitting a class section merely because only binary checklist fields are supported for that class; if any binary field is source-supported, emit the class section with those fields.",
+    ]
+    preferred_order = [
+        "binary_checklist",
+        "free_text_fallback",
+        "free_text",
+        "derived",
+    ]
+    for kind in preferred_order:
+        names = by_kind.get(kind) or []
+        if not names:
+            continue
+        joined = ", ".join(f"`{name}`" for name in names)
+        lines.append(f"- value_kind=`{kind}` fields: {joined}")
+    for kind, names in sorted(by_kind.items()):
+        if kind in preferred_order:
+            continue
+        joined = ", ".join(f"`{name}`" for name in names)
+        lines.append(f"- value_kind=`{kind}` fields: {joined}")
+    return "\n".join(lines)
 
 
 def _prompt_field_allowlist(context: AgenticGenerationContext) -> dict[str, set[str]]:
@@ -1760,6 +1941,25 @@ After entity creation and linking, call the export tool and ensure the emitted T
 def _iteration_extraction_prompt(
     context: AgenticGenerationContext, iteration: dict[str, Any]
 ) -> str:
+    external_tools = {
+        str(name).strip()
+        for name in (
+            iteration.get("extraction_mcp_tools")
+            or iteration.get("mcp_tools")
+            or []
+        )
+        if str(name).strip()
+    }
+    chemistry_enrichment = ""
+    if "pubchem" in external_tools or "enhanced_websearch" in external_tools:
+        chemistry_enrichment = """
+External Chemistry Enrichment:
+- For every extracted ChemicalInput, call a PubChem lookup tool using the source name or abbreviation before returning JSON.
+- Preserve the verbatim source label as `label`; put PubChem names and source abbreviations in `hasAlternativeNames`, deduplicated and semicolon-separated.
+- Put the PubChem molecular formula in `hasChemicalFormula`.
+- Use `google_search` only when PubChem cannot resolve the source label or when corroboration is needed; prefer authoritative PubChem or publisher pages over unsourced summaries.
+- External lookup results may enrich identity fields, but must not invent that a chemical participated in the synthesis unless the source document says it did.
+"""
     return f"""# Extraction Prompt: {context.ontology.name} Iteration {iteration.get("iteration_number")}
 
 Task:
@@ -1788,6 +1988,9 @@ Rules:
 - If a property comment says a field is not supported by a source phrase, requires a more specific source condition, or prefers a sibling/canonical field for that phrase, follow that comment even when the phrase contains words that otherwise resemble the field name.
 - If a property comment defines normalization examples or says which modifiers to keep or remove, emit the normalized value required by the comment rather than preserving the full source phrase.
 - If a class exposes a catch-all, other, note, or free-text datatype field and its T-Box comment says to use it for explicit items not covered by canonical fields, collect all source-listed unmatched items for that class in that field.
+- If the T-Box marks datatype fields with `value_kind=binary_checklist`, evaluate every such field for the relevant class against the source before returning JSON; binary/canonical checklist fields have higher priority than free-text or catch-all fallback fields for the same fact.
+- If the T-Box marks datatype fields with `value_kind=free_text_fallback`, use them only for explicit source items that no binary/canonical sibling field covers; never use a fallback to replace or hide a source-supported binary field.
+- When a linked class has only binary checklist fields supported by the source, still emit that class section and the corresponding top-entity `_label` link; do not drop the whole class because no free-text field was filled.
 - For identification or demographic fields, inspect source header blocks and nearby header tables before the main body when the class or property comments say those fields come from identifying or administrative source regions.
 - For short acronym-like datatype fields, if the exact acronym/token appears in source text in a relevant diagnosis, indication, observation, or field-value context and the T-Box comment says that token activates the field, emit the configured active checklist value for that field.
 - If source evidence supports any datatype field for a class linked from the current top entity, emit both the top-entity `_label` link to that class and the companion class section. After emitting one field for that linked class, scan the same structured source region for all other accepted fields of that class before returning JSON.
@@ -1816,8 +2019,11 @@ Rules:
 - Never emit schema placeholders or routing fields; use only the class sections and field names listed below.
 - Output only a compact JSON object, with no markdown fences or explanatory prose.
 
+{chemistry_enrichment}
 Materializable Hint Contract:
 {_format_materializable_hint_contract(context)}
+
+{_format_value_kind_priority_contract(context)}
 
 Linked Target Scalar Contract:
 {_format_linked_target_scalar_contract(context)}
@@ -1894,7 +2100,7 @@ Failure Condition:
 - If you have not called `export_memory`, or if no export result is available, state that KG building failed instead of saying the RDF graph was created or exported.
 
 Scoped Top Entity:
-- Document identifier value: `{{hash}}`
+- Document identifier value: `{{doi}}`
 - Class: `{top_local}`
 - Entity label value: `{{entity_label}}`
 - Entity URI value: `{{entity_uri}}`
@@ -1904,6 +2110,8 @@ Required Top-Level Links:
 
 Materializable Hint Contract:
 {_format_materializable_hint_contract(context)}
+
+{_format_value_kind_priority_contract(context)}
 
 Ordered-Member Integrity Contract:
 {_format_ordered_member_contract(context)}

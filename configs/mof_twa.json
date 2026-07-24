@@ -1,0 +1,10 @@
+{
+  "mof-twa": {
+    "command": "python",
+    "args": [
+      "-m",
+      "mini_marie.mop_mof.mof.main"
+    ],
+    "transport": "stdio"
+  }
+}

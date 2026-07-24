@@ -1,0 +1,48 @@
+{
+  "id": "WF_TOP10_LOCATIONS_JOIN",
+  "question": "Top 10 Bremen buildings with WKT via SQL cache join (offline)",
+  "city": "bremen",
+  "top_n": 10,
+  "online_limit": 10,
+  "steps": [
+    {
+      "id": "online_list_probe",
+      "comment": "Online: small probe. Offline: full height pool from facet.",
+      "tool": "list_buildings_with_height",
+      "args": { "city": "$city" },
+      "extract": { "building_pool": { "pick": "all_rows" } }
+    },
+    {
+      "id": "offline_pool",
+      "type": "local_join",
+      "join": "building_pool_from_cache",
+      "city": "$city",
+      "output_variable": "building_pool",
+      "offline_only": true
+    },
+    {
+      "id": "rank_top",
+      "type": "transform",
+      "transform": "top_n_by_field",
+      "input_variable": "building_pool",
+      "field": "height",
+      "n": "$top_n",
+      "order": "desc",
+      "output_field": "building",
+      "output_variable": "top_building_iris",
+      "also_store_rows": "top_building_rows"
+    },
+    {
+      "id": "sql_join_locations",
+      "comment": "Indexed SQL join on top-N building IRIs — no full location pool load.",
+      "type": "local_join",
+      "join": "buildings_with_locations_sql",
+      "city": "$city",
+      "building_iris_variable": "top_building_iris",
+      "output_variable": "buildings_with_wkt",
+      "offline_only": true,
+      "extract": { "location_join_rows": { "pick": "all_rows" } }
+    }
+  ],
+  "final_summary": "Top $top_n in $city with joined WKT: $location_join_rows"
+}

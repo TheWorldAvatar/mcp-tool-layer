@@ -1,0 +1,73 @@
+{
+  "source_repo": "https://github.com/TheWorldAvatar/ontology",
+  "namespaces": {
+    "ontospecies": [
+      {
+        "remote": "ontospecies/OntoSpecies_v2.owl",
+        "local": "ontospecies/OntoSpecies_v2.owl",
+        "ok": true,
+        "bytes": 206853
+      },
+      {
+        "remote": "ontospecies/OntoSpecies.owl",
+        "local": "ontospecies/OntoSpecies.owl",
+        "ok": true,
+        "bytes": 35671
+      }
+    ],
+    "ontokin": [
+      {
+        "remote": "ontokin/OntoKin.owl",
+        "local": "ontokin/OntoKin.owl",
+        "ok": true,
+        "bytes": 133293
+      }
+    ],
+    "ontocompchem": [
+      {
+        "remote": "ontocompchem/ontocompchem.owl",
+        "local": "ontocompchem/ontocompchem.owl",
+        "ok": true,
+        "bytes": 55221
+      }
+    ],
+    "ontozeolite": [
+      {
+        "remote": "ontozeolite/ontozeolite.owl",
+        "local": "ontozeolite/ontozeolite.owl",
+        "ok": true,
+        "bytes": 63742
+      },
+      {
+        "remote": "ontozeolite/ontocrystal.owl",
+        "local": "ontozeolite/ontocrystal.owl",
+        "ok": true,
+        "bytes": 100639
+      }
+    ],
+    "ontomops": [
+      {
+        "remote": "ontomops/ontomops-ogm.ttl",
+        "local": "ontomops/ontomops-ogm.ttl",
+        "ok": true,
+        "bytes": 19835
+      }
+    ],
+    "ontoprovenance": [
+      {
+        "remote": "ontoprovenance/OntoProvenance.owl",
+        "local": "ontoprovenance/OntoProvenance.owl",
+        "ok": true,
+        "bytes": 36368
+      }
+    ],
+    "ontopesscan": [
+      {
+        "remote": "ontopesscan/OntoPESScan.owl",
+        "local": "ontopesscan/OntoPESScan.owl",
+        "ok": true,
+        "bytes": 18591
+      }
+    ]
+  }
+}

@@ -1,0 +1,67 @@
+{
+  "document_md": "# Synthesis of UMC-1 (mock)\n\nDOI: 10.1021/acsami.7b18836\n\nZrCl4, H2BDC, N,N-dimethylformamide (DMF), and acetic acid were added in sequence.\nThe mixture was sonicated, then heated at 60 °C for 8 h.\nProduct: UMC-1.\n",
+  "hints": {
+    "__absent_classes__": ["Yield"],
+    "ChemicalInput": [
+      {"label": "ZrCl4"},
+      {"label": "H2BDC"},
+      {
+        "label": "DMF",
+        "hasAlternativeNames": "N,N-dimethylformamide"
+      },
+      {"label": "acetic acid"}
+    ],
+    "Add": [
+      {
+        "label": "Add ZrCl4",
+        "hasOrder": 1,
+        "hasAddedChemicalInput_label": "ZrCl4"
+      },
+      {
+        "label": "Add H2BDC",
+        "hasOrder": 2,
+        "hasAddedChemicalInput_label": "H2BDC"
+      },
+      {
+        "label": "Add DMF",
+        "hasOrder": 3,
+        "hasAddedChemicalInput_label": "DMF"
+      },
+      {
+        "label": "Add acetic acid",
+        "hasOrder": 4,
+        "hasAddedChemicalInput_label": "acetic acid"
+      }
+    ],
+    "Sonicate": [
+      {"label": "Sonicate mixture", "hasOrder": 5}
+    ],
+    "HeatChill": [
+      {
+        "label": "Heat at 60 °C for 8 h",
+        "hasOrder": 6,
+        "hasTargetTemperature_label": "60 °C",
+        "hasStepDuration_label": "8 h"
+      }
+    ],
+    "ChemicalOutput": {
+      "label": "UMC-1"
+    }
+  },
+  "critical_slots": [
+    {"class": "Add", "property": "hasOrder", "policy": "zero_fn"},
+    {"class": "Add", "property": "hasAddedChemicalInput_label", "policy": "zero_fn"},
+    {"class": "Sonicate", "property": "hasOrder", "policy": "zero_fn"},
+    {"class": "HeatChill", "property": "hasOrder", "policy": "zero_fn"},
+    {"class": "HeatChill", "property": "hasTargetTemperature_label", "policy": "zero_fn"},
+    {"class": "HeatChill", "property": "hasStepDuration_label", "policy": "zero_fn"},
+    {"class": "ChemicalInput", "property": "hasAlternativeNames", "policy": "zero_fn"}
+  ],
+  "coverage": [
+    "ChemicalSynthesis",
+    "Add",
+    "Sonicate",
+    "HeatChill",
+    "ChemicalOutput"
+  ]
+}

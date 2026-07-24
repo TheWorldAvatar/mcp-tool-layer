@@ -1,0 +1,10 @@
+{
+  "twa-city": {
+    "command": "python",
+    "args": [
+      "-m",
+      "mini_marie.zaha.twa_city.main"
+    ],
+    "transport": "stdio"
+  }
+}

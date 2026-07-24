@@ -1,0 +1,44 @@
+{
+  "domain": "medical",
+  "dataset": "dev5",
+  "description": "5 development operative reports",
+  "n_expected": 5,
+  "n_present": 5,
+  "cases": [
+    {
+      "case_id": "OP Bericht 1",
+      "filename": "OP Bericht 1.pdf",
+      "hash": "ec5d5219",
+      "split": "dev5",
+      "status": "present"
+    },
+    {
+      "case_id": "OP Bericht 2",
+      "filename": "OP Bericht 2.pdf",
+      "hash": "ce49a454",
+      "split": "dev5",
+      "status": "present"
+    },
+    {
+      "case_id": "OP Bericht 3",
+      "filename": "OP Bericht 3.pdf",
+      "hash": "4dd7b3a0",
+      "split": "dev5",
+      "status": "present"
+    },
+    {
+      "case_id": "OP Bericht 4",
+      "filename": "OP Bericht 4.pdf",
+      "hash": "eb7ead0d",
+      "split": "dev5",
+      "status": "present"
+    },
+    {
+      "case_id": "OP Bericht 5",
+      "filename": "OP Bericht 5.pdf",
+      "hash": "d2b47254",
+      "split": "dev5",
+      "status": "present"
+    }
+  ]
+}

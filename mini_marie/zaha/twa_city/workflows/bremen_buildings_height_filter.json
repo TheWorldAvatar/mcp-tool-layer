@@ -1,0 +1,28 @@
+{
+  "id": "WF_BREMEN_HEIGHT_FILTER",
+  "question": "Buildings in Bremen taller than a threshold (same cache, different min_height)",
+  "city": "bremen",
+  "min_height_m": 80,
+  "online_limit": 10,
+  "steps": [
+    {
+      "id": "list_pool",
+      "tool": "list_buildings_with_height",
+      "args": { "city": "$city" },
+      "extract": { "building_pool": { "pick": "all_rows" } }
+    },
+    {
+      "id": "filter_height",
+      "type": "transform",
+      "transform": "filter_rows",
+      "name": "height_threshold",
+      "input_variable": "building_pool",
+      "output_variable": "tall_buildings",
+      "also_store_rows": "tall_building_rows",
+      "filters": [
+        { "field": "height", "op": "gte", "value": "$min_height_m" }
+      ]
+    }
+  ],
+  "final_summary": "Buildings in $city with height >= $min_height_m: $tall_buildings (IRIs count in tall_building_rows)"
+}

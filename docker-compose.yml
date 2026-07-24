@@ -1,0 +1,137 @@
+# mini_marie: MCP servers (stdio) + workflow/benchmark CLI
+#
+# Build:  docker compose build
+# MCP:    see docker/README.md and docker/mcp.json.example
+# Bench:  docker compose --profile bench run --rm bench-city-complex
+
+x-mini-marie-common: &mini-marie-common
+  build: .
+  image: mini-marie:latest
+  environment:
+    PYTHONPATH: /app
+    MINI_MARIE_DATA_DIR: /app/data
+  volumes:
+    - mini_marie_data:/app/data
+
+services:
+  mof-twa:
+    <<: *mini-marie-common
+    command: ["python", "-m", "mini_marie.mop_mof.mof.main"]
+    stdin_open: true
+    tty: false
+
+  twa-city:
+    <<: *mini-marie-common
+    command: ["python", "-m", "mini_marie.zaha.twa_city.main"]
+    stdin_open: true
+    tty: false
+
+  twa-mops:
+    <<: *mini-marie-common
+    command: ["python", "-m", "mini_marie.mop_mof.mops.main"]
+    volumes:
+      - mini_marie_data:/app/data
+      - ./evaluation/data/merged_tll:/app/evaluation/data/merged_tll:ro
+    stdin_open: true
+    tty: false
+
+  sg-old:
+    <<: *mini-marie-common
+    command: ["python", "-m", "mini_marie.zaha.sg_old.main"]
+    stdin_open: true
+    tty: false
+
+  workflow-cli:
+    <<: *mini-marie-common
+    profiles: ["cli"]
+    entrypoint: ["/entrypoint.sh"]
+    command: ["python", "-c", "print('workflow-cli ready')"]
+
+  bench-city-complex:
+    <<: *mini-marie-common
+    profiles: ["bench"]
+    entrypoint: ["/entrypoint.sh"]
+    command: ["python", "-m", "mini_marie.zaha.twa_city.test_complex_replay"]
+
+  bench-mof-complex:
+    <<: *mini-marie-common
+    profiles: ["bench"]
+    entrypoint: ["/entrypoint.sh"]
+    command: ["python", "-m", "mini_marie.mop_mof.mof.test_complex_replay"]
+
+  bench-city-e2e:
+    <<: *mini-marie-common
+    profiles: ["bench"]
+    entrypoint: ["/entrypoint.sh"]
+    command: ["python", "-m", "mini_marie.zaha.twa_city.test_city_e2e"]
+
+  bench-mof-e2e:
+    <<: *mini-marie-common
+    profiles: ["bench"]
+    entrypoint: ["/entrypoint.sh"]
+    command: ["python", "-m", "mini_marie.mop_mof.mof.test_competency_e2e"]
+
+  bench-cache-city:
+    <<: *mini-marie-common
+    profiles: ["bench"]
+    entrypoint: ["/entrypoint.sh"]
+    command:
+      - python
+      - -m
+      - mini_marie.zaha.twa_city.benchmark_cache
+      - --workflow
+      - top50_non_domestic_locations_bremen
+      - --modes
+      - offline
+
+  bench-cache-mof:
+    <<: *mini-marie-common
+    profiles: ["bench"]
+    entrypoint: ["/entrypoint.sh"]
+    command:
+      - python
+      - -m
+      - mini_marie.mop_mof.mof.benchmark_cache
+      - --workflow
+      - CQ_D3_ZIF8_REFCODES_SYNTH
+      - --modes
+      - offline
+
+  competency-gui:
+    <<: *mini-marie-common
+    profiles: ["gui"]
+    ports:
+      - "8501:8501"
+    entrypoint: ["/entrypoint.sh"]
+    command:
+      - streamlit
+      - run
+      - mini_marie/competency_gui/app.py
+      - --server.address=0.0.0.0
+      - --server.port=8501
+      - --browser.gatherUsageStats=false
+
+  kgqa-gui:
+    <<: *mini-marie-common
+    profiles: ["kgqa"]
+    ports:
+      - "8502:8502"
+    env_file:
+      - .env
+    environment:
+      PYTHONPATH: /app
+      MINI_MARIE_DATA_DIR: /app/data
+      REMOTE_BASE_URL: ${REMOTE_BASE_URL}
+      REMOTE_API_KEY: ${REMOTE_API_KEY}
+    entrypoint: ["/entrypoint.sh"]
+    command:
+      - streamlit
+      - run
+      - mini_marie/kgqa/webapp/app.py
+      - --server.address=0.0.0.0
+      - --server.port=8502
+      - --browser.gatherUsageStats=false
+
+volumes:
+  mini_marie_data:
+    name: mini_marie_data

@@ -1,0 +1,24 @@
+PREFIX bldg: <http://www.opengis.net/citygml/building/2.0/>
+PREFIX geo: <http://www.opengis.net/ont/geosparql#>
+PREFIX be: <https://www.theworldavatar.com/kg/ontobuiltenv/>
+SELECT ?building ?height ?wkt ?usage_type ?label
+WHERE {
+  {
+    SELECT ?building (MAX(?h) AS ?height)
+    WHERE {
+      ?building a bldg:Building ;
+                bldg:measuredHeight ?h .
+    }
+    GROUP BY ?building
+    ORDER BY DESC(?height)
+    LIMIT 30
+  }
+  ?building geo:hasGeometry ?g .
+  ?g geo:asWKT ?wkt .
+  FILTER(CONTAINS(LCASE(STR(?wkt)), "polygon"))
+  OPTIONAL {
+    ?building be:hasPropertyUsage ?u .
+    ?u a ?usage_type .
+  }
+  OPTIONAL { ?building <http://www.w3.org/2000/01/rdf-schema#label> ?label }
+}

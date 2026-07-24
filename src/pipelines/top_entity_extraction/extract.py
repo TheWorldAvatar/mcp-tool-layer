@@ -39,22 +39,27 @@ def resolve_generated_file(path: str) -> str:
     path = (path or "").replace("\\", "/")
     candidates: list[str] = []
     override_root = os.environ.get("TWA_GENERATED_ARTIFACT_ROOT", "").strip().replace("\\", "/").rstrip("/")
+    strict_root = os.environ.get("TWA_REQUIRE_GENERATED_ARTIFACT_ROOT") == "1"
     if path.startswith("ai_generated_contents/"):
         if override_root:
             candidates.append(path.replace("ai_generated_contents", override_root, 1))
-        candidates.append(path.replace("ai_generated_contents/", "ai_generated_contents_candidate/", 1))
-        candidates.append(path)
+        if not strict_root:
+            candidates.append(path.replace("ai_generated_contents/", "ai_generated_contents_candidate/", 1))
+            candidates.append(path)
     elif path.startswith("ai_generated_contents_candidate/"):
         if override_root:
             candidates.append(path.replace("ai_generated_contents_candidate", override_root, 1))
-        candidates.append(path)
-        candidates.append(path.replace("ai_generated_contents_candidate/", "ai_generated_contents/", 1))
+        if not strict_root:
+            candidates.append(path)
+            candidates.append(path.replace("ai_generated_contents_candidate/", "ai_generated_contents/", 1))
     else:
         candidates.append(path)
 
     for p in candidates:
         if p and os.path.exists(p):
             return p
+    if strict_root:
+        raise FileNotFoundError(f"Required generated artifact is missing: {candidates[0]}")
     return candidates[0]
 
 

@@ -1,0 +1,50 @@
+{
+  "id": "WF_TOP10_TOBASSCO_CO2_PROPERTIES",
+  "question": "Top 10 Tobassco MOFs by CO2 uptake and property sheet for the leader",
+  "top_n": 10,
+  "online_limit": 10,
+  "offline_cap": 500000,
+  "steps": [
+    {
+      "id": "call_1_rank",
+      "tool": "rank_tobassco_co2",
+      "args": {},
+      "extract": {
+        "ranked_rows": { "pick": "all_rows" },
+        "leader_mofid": { "pick": "row_field", "field": "mofid", "index": 0 }
+      }
+    },
+    {
+      "id": "call_2_top_n",
+      "type": "transform",
+      "name": "ensure_top_n",
+      "transform": "top_n_by_field",
+      "input_variable": "ranked_rows",
+      "field": "co2_uptake",
+      "n": "$top_n",
+      "order": "desc",
+      "output_field": "mofid",
+      "output_variable": "top_mofids",
+      "also_store_rows": "top_rows"
+    },
+    {
+      "id": "call_3_leader_suffix",
+      "type": "transform",
+      "name": "leader_mofid_suffix",
+      "transform": "first_field_transform",
+      "input_variable": "top_rows",
+      "field": "mofid",
+      "apply": "mofid_suffix",
+      "output_variable": "leader_mofid_suffix"
+    },
+    {
+      "id": "call_4_properties",
+      "tool": "fetch_mof_properties",
+      "args": { "mofid_fragment": "$leader_mofid_suffix" },
+      "extract": {
+        "property_rows": { "pick": "all_rows" }
+      }
+    }
+  ],
+  "final_summary": "Top $top_n Tobassco CO2 MOFs; leader suffix $leader_mofid_suffix with property triples recorded."
+}

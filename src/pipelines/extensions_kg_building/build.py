@@ -684,8 +684,12 @@ async def run_extension_agent(
     logger.info(f"    🔍 Found placeholders in template: {sorted(placeholders)}")
     
     # Format extension prompt - provide both old and new placeholder names for compatibility
+    # Extension MCP servers persist under data/<case_id>/… and expect the
+    # document identifier passed to init_memory/materialize_hints to be the
+    # pipeline hash (see write_global_state). Keep slash/underscore DOIs as
+    # secondary placeholders for prompt context only.
     format_kwargs = {
-        "doi": doi_sl,
+        "doi": doi_hash,
         "hash": doi_hash,
         "doi_underscore": doi_us,
         "doi_slash": doi_sl,

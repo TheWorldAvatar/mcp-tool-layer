@@ -1,0 +1,9 @@
+PREFIX geo: <http://www.opengis.net/ont/geosparql#>
+SELECT ?p (COUNT(*) AS ?count)
+WHERE {
+  ?s ?p ?o .
+  FILTER(STRSTARTS(STR(?p), STR(geo:)))
+}
+GROUP BY ?p
+ORDER BY DESC(?count)
+LIMIT 20
