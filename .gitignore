@@ -4,6 +4,7 @@
 
 /data
 configs/mcp_configs.json
+configs/test_mcp_config_*_semantic_loop.json
 .env
 /models/__pycache__
 /__pycache__
@@ -120,6 +121,7 @@ guard_state.json
 /ai_generated_contents_agent_candidate_json_medical_nonflat_one_iter_20260510/
 /tmp_generated_quality_probe/
 /evaluation/ontomops_derivation_evaluation/reports_agentic/
+/evaluation/medical/medical_cases_new_*.csv
 
 # Generated bundles and end-to-end run workspaces
 /mini_marie_deploy/
@@ -144,3 +146,5 @@ guard_state.json
 /**/ai-generated-compentency-questions/
 /**/competency_eval_results.json
 /**/competency_eval_results.md
+/**/materialized_catalog.json
+/**/warm_option_catalog.discovered.json
