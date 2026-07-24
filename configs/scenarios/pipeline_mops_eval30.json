@@ -1,0 +1,19 @@
+{
+  "mode": "per_doi",
+  "description": "MOP / OntoSynthesis E2E for scenarios/mops/datasets/eval30. data_dir/input_dir are filled by scripts/start_scenario_run.py.",
+  "meta_task_config": "configs/meta_task/meta_task_config.json",
+  "input_dir": "scenarios/mops/datasets/eval30",
+  "data_dir": "scenarios/mops/runs/_PLACEHOLDER_/runtime",
+  "steps": [
+    "pdf_conversion",
+    "section_classification",
+    "stitching",
+    "top_entity_extraction",
+    "top_entity_kg_building",
+    "main_ontology_extractions",
+    "main_kg_building",
+    "extensions_extractions",
+    "extensions_kg_building",
+    "mop_derivation"
+  ]
+}

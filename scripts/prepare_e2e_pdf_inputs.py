@@ -2,16 +2,27 @@
 """
 Verify local PDF inputs for chemistry (OntoSynthesis / MOPs) and medical E2E runs.
 
-Uses the repo’s existing gitignored folders:
+Preferred scenario datasets (see ``scenarios/README.md``):
 
-- ``raw_data_mop/`` — chemistry evaluation PDFs (e.g. Angew. Chem. + ACS AMI pairs).
-- ``raw_data/`` — shared bucket that typically includes the same ACS AMI pair plus
-  medical operative reports ``OP Bericht 1.pdf`` … ``OP Bericht 5.pdf``.
+- ``scenarios/mops/datasets/eval30/`` — chemistry main+SI pairs (staged for 30).
+- ``scenarios/medical/datasets/eval30/`` — 30 operative-report cases.
+- ``scenarios/medical/datasets/dev5/`` — 5 development OP Bericht PDFs.
+
+Legacy folders still checked for compatibility:
+
+- ``raw_data_mop/`` — chemistry evaluation PDFs.
+- ``raw_data/`` — mixed bucket (chemistry + OP Bericht 1–5).
 
 No PDFs are copied or overwritten unless you pass ``--write-placeholders`` (only
 fills **missing** paths for empty-machine smoke tests; requires PyMuPDF).
 
-Suggested runs (outputs remain gitignored: ``data/``, ``data_medical_e2e/``, …):
+Suggested scenario runs:
+
+  python scripts/bootstrap_scenario_datasets.py
+  python scripts/start_scenario_run.py --domain mops --dataset eval30 --tag gpt-4.1
+  python scripts/start_scenario_run.py --domain medical --dataset eval30 --tag gpt-4.1
+
+Legacy one-off commands:
 
   python generic_main.py --config configs/pipeline.json \\
       --input-dir raw_data_mop --hash 0c57bac8
@@ -81,28 +92,47 @@ def main() -> int:
 
     raw_data = ROOT / "raw_data"
     raw_mop = ROOT / "raw_data_mop"
+    scen_mop = ROOT / "scenarios" / "mops" / "datasets" / "eval30"
+    scen_med30 = ROOT / "scenarios" / "medical" / "datasets" / "eval30"
+    scen_med5 = ROOT / "scenarios" / "medical" / "datasets" / "dev5"
 
-    chem_primary = raw_mop / f"{CHEM_DOI_STEM}.pdf"
-    chem_si_mop = raw_mop / f"{CHEM_DOI_STEM}_si.pdf"
-    med_main = raw_data / f"{MEDICAL_TITLE}.pdf"
+    chem_primary = scen_mop / f"{CHEM_DOI_STEM}.pdf"
+    if not chem_primary.is_file():
+        chem_primary = raw_mop / f"{CHEM_DOI_STEM}.pdf"
+    chem_si_mop = scen_mop / f"{CHEM_DOI_STEM}_si.pdf"
+    if not chem_si_mop.is_file():
+        chem_si_mop = raw_mop / f"{CHEM_DOI_STEM}_si.pdf"
+    med_main = scen_med5 / f"{MEDICAL_TITLE}.pdf"
+    if not med_main.is_file():
+        med_main = raw_data / f"{MEDICAL_TITLE}.pdf"
 
-    print(f"[check] Chemistry PDF dir: {raw_mop}")
+    print(f"[check] Scenario MOP dataset: {scen_mop}")
+    n_mop = len(list(scen_mop.glob("*.pdf"))) if scen_mop.is_dir() else 0
+    print(f"  [info] {n_mop} PDF files staged")
+    print(f"[check] Scenario medical eval30: {scen_med30}")
+    n_med = len(list(scen_med30.glob("*.pdf"))) if scen_med30.is_dir() else 0
+    print(f"  [info] {n_med} PDF files staged")
+    print(f"[check] Scenario medical dev5: {scen_med5}")
+    n_dev = len(list(scen_med5.glob("*.pdf"))) if scen_med5.is_dir() else 0
+    print(f"  [info] {n_dev} PDF files staged")
+
+    print(f"[check] Chemistry PDF (scenario or legacy): {chem_primary.parent}")
     if chem_primary.is_file():
         print(f"  [ok] {chem_primary.name}")
     else:
-        print(f"  [missing] {chem_primary.name} (needed for hash {CHEM_HASH} via {raw_mop})")
+        print(f"  [missing] {CHEM_DOI_STEM}.pdf (needed for hash {CHEM_HASH})")
 
     if chem_si_mop.is_file():
         print(f"  [ok] {chem_si_mop.name}")
     else:
-        print(f"  [optional] {chem_si_mop.name} (SI — optional for pipeline)")
+        print(f"  [optional] {CHEM_DOI_STEM}_si.pdf (SI — optional for pipeline)")
 
     # Same stem often duplicated under raw_data for mixed runs
     chem_rd = raw_data / f"{CHEM_DOI_STEM}.pdf"
     if chem_rd.is_file():
         print(f"[check] Also present under raw_data: {chem_rd.name}")
 
-    print(f"[check] Medical PDF dir: {raw_data}")
+    print(f"[check] Medical PDF (scenario or legacy): {med_main.parent}")
     if med_main.is_file():
         print(f"  [ok] {med_main.name} (hash ec5d5219)")
     else:
@@ -132,7 +162,13 @@ def main() -> int:
         print(f"[ok] Chemistry SI present under raw_data: {raw_data / (CHEM_DOI_STEM + '_si.pdf')}")
 
     print()
-    print("Suggested commands (set TWA_GENERATED_ARTIFACT_ROOT so prompts/sparql load from that bundle):")
+    print("Suggested scenario commands:")
+    print("  python scripts/bootstrap_scenario_datasets.py")
+    print("  python scripts/start_scenario_run.py --domain mops --dataset eval30 --tag gpt-4.1")
+    print("  python scripts/start_scenario_run.py --domain medical --dataset eval30 --tag gpt-4.1")
+    print("  python scripts/start_scenario_run.py --domain medical --dataset dev5 --tag gpt-4.1")
+    print()
+    print("Legacy one-off (set TWA_GENERATED_ARTIFACT_ROOT if needed):")
     print(
         '  PowerShell:  $env:TWA_GENERATED_ARTIFACT_ROOT="ai_generated_contents_pipeline_bundle"'
     )
