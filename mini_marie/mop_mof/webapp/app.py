@@ -2,7 +2,7 @@
 MOP Extraction Agent - Web Extension
 
 Flask web interface that extends the existing MOP extraction agent/pipeline in this repo.
-Provides a ChatGPT-style Q&A interface for querying the MOPs synthesis knowledge graph.
+Provides a ChatGPT-style Q&A interface for querying the MOPs synthesis TWA.
 """
 
 from flask import Flask, render_template, request, jsonify, session
@@ -23,7 +23,7 @@ load_dotenv()
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from mini_marie.marie_agent import MarieAgent
+from mini_marie.mop_mof.marie_agent import MarieAgent
 from src.utils.global_logger import get_logger
 
 app = Flask(__name__)
@@ -159,11 +159,11 @@ EXAMPLE_QUESTIONS = [
     {
         "category": "Corpus Statistics",
         "questions": [
-            "How many MOPs are in the knowledge graph?",
+            "How many MOPs are in the TWA?",
             "What are the most commonly used chemicals in MOPs synthesis?",
             "What types of synthesis steps are most frequent?",
-            "Give me statistics about the knowledge graph",
-            "Tell me what do you know about this knowledge graph, what is this KG about?",
+            "Give me statistics about the TWA",
+            "Tell me what do you know about this TWA, what is this TWA about?",
             "What is the most commonly used organic precursor used in sythensis of all mops?"
         ]
     }

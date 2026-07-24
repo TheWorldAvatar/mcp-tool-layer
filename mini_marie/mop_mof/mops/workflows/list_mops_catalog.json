@@ -1,0 +1,18 @@
+{
+  "id": "WF_LIST_MOPS_CATALOG",
+  "question": "List MOPs in the corpus (online sample, offline full catalog)",
+  "online_limit": 10,
+  "offline_cap": 50000,
+  "steps": [
+    {
+      "id": "call_1_list",
+      "tool": "list_mops",
+      "args": {},
+      "extract": {
+        "mop_rows": { "pick": "all_rows" },
+        "sample_labels": { "pick": "column", "field": "mopLabel" }
+      }
+    }
+  ],
+  "final_summary": "MOP catalog sample with labels in sample_labels (online LIMIT 10, offline full list)."
+}

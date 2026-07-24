@@ -1,8 +1,8 @@
 """
-MOPs Knowledge Graph MCP Server
+MOPs TWA MCP Server
 
-FastMCP server providing tools to query MOPs synthesis knowledge graph.
-Uses SPARQL queries from kg_operations.py
+FastMCP server providing tools to query MOPs synthesis TWA.
+Uses SPARQL queries from twa_operations.py
 """
 
 from fastmcp import FastMCP
@@ -13,12 +13,18 @@ from functools import wraps
 import threading
 
 # Import all operations
-from mini_marie.kg_server.kg_operations import (
+from mini_marie.mop_mof.mops.workflow_mcp import (
+    MCP_ONLINE_LIMIT,
+    list_workflows_text,
+    replay_workflow_offline,
+    run_workflow_online,
+)
+from mini_marie.mop_mof.mops.twa_operations import (
     lookup_synthesis_iri,
     lookup_mop_iri,
     lookup_by_ccdc,
     get_all_mops,
-    get_kg_statistics,
+    get_twa_statistics,
     get_synthesis_recipe,
     get_synthesis_steps,
     get_synthesis_temperatures,
@@ -62,9 +68,9 @@ from mini_marie.kg_server.kg_operations import (
 )
 
 # Set up logging
-def setup_mops_kg_logger():
-    """Set up a dedicated logger for MOPs KG MCP server."""
-    logger = logging.getLogger("mops_kg_mcp")
+def setup_mops_twa_logger():
+    """Set up a dedicated logger for MOPs TWA MCP server."""
+    logger = logging.getLogger("mops_twa_mcp")
     logger.setLevel(logging.INFO)
     
     # Prevent duplicate handlers
@@ -83,35 +89,35 @@ def setup_mops_kg_logger():
     console_handler.setFormatter(formatter)
     logger.addHandler(console_handler)
     
-    logger.info("MOPs KG MCP Server initialized")
+    logger.info("MOPs TWA MCP Server initialized")
     return logger
 
-logger = setup_mops_kg_logger()
+logger = setup_mops_twa_logger()
 
 # Custom decorator for logging tool calls
-def mops_kg_tool_logger(func):
-    """Decorator to log MOPs KG tool calls."""
+def mops_twa_tool_logger(func):
+    """Decorator to log MOPs TWA tool calls."""
     import asyncio
     
     if asyncio.iscoroutinefunction(func):
         @wraps(func)
         async def async_wrapper(*args, **kwargs):
             tool_name = func.__name__
-            logger.info(f"=== MOPs KG Tool Call (ASYNC): {tool_name} ===")
+            logger.info(f"=== MOPs TWA Tool Call (ASYNC): {tool_name} ===")
             logger.info(f"Arguments: args={args}, kwargs={kwargs}")
             
             try:
                 result = await func(*args, **kwargs)
                 result_preview = result[:500] if isinstance(result, str) and len(result) > 500 else result
                 logger.info(f"Result preview: {result_preview}")
-                logger.info(f"=== MOPs KG Tool Call Complete: {tool_name} ===")
+                logger.info(f"=== MOPs TWA Tool Call Complete: {tool_name} ===")
                 
                 for handler in logger.handlers:
                     handler.flush()
                 
                 return result
             except Exception as e:
-                logger.error(f"=== MOPs KG Tool Call Failed: {tool_name} ===")
+                logger.error(f"=== MOPs TWA Tool Call Failed: {tool_name} ===")
                 logger.error(f"Error: {str(e)}", exc_info=True)
                 
                 for handler in logger.handlers:
@@ -124,21 +130,21 @@ def mops_kg_tool_logger(func):
         @wraps(func)
         def sync_wrapper(*args, **kwargs):
             tool_name = func.__name__
-            logger.info(f"=== MOPs KG Tool Call (SYNC): {tool_name} ===")
+            logger.info(f"=== MOPs TWA Tool Call (SYNC): {tool_name} ===")
             logger.info(f"Arguments: args={args}, kwargs={kwargs}")
             
             try:
                 result = func(*args, **kwargs)
                 result_preview = result[:500] if isinstance(result, str) and len(result) > 500 else result
                 logger.info(f"Result preview: {result_preview}")
-                logger.info(f"=== MOPs KG Tool Call Complete: {tool_name} ===")
+                logger.info(f"=== MOPs TWA Tool Call Complete: {tool_name} ===")
                 
                 for handler in logger.handlers:
                     handler.flush()
                 
                 return result
             except Exception as e:
-                logger.error(f"=== MOPs KG Tool Call Failed: {tool_name} ===")
+                logger.error(f"=== MOPs TWA Tool Call Failed: {tool_name} ===")
                 logger.error(f"Error: {str(e)}", exc_info=True)
                 
                 for handler in logger.handlers:
@@ -152,7 +158,7 @@ def mops_kg_tool_logger(func):
 # MCP Server Setup
 # ============================================================================
 
-mcp = FastMCP(name="mops-kg")
+mcp = FastMCP(name="mops-twa")
 
 # Warm the local fuzzy index automatically on server startup (no tool call needed).
 # This runs in a background thread so the MCP server can accept requests immediately.
@@ -168,12 +174,12 @@ threading.Thread(target=_warmup_index_background, daemon=True).start()
 @mcp.prompt(name="instruction")
 def instruction_prompt():
     return (
-        "You have access to a comprehensive MOPs (Metal-Organic Polyhedra) knowledge graph with 30 research papers.\n\n"
+        "You have access to a comprehensive MOPs (Metal-Organic Polyhedra) TWA with 30 research papers.\n\n"
         "**Available Tools:**\n"
         "1. lookup_synthesis_by_name - Find synthesis procedure by name (e.g., 'VMOP-17', 'UMC-1')\n"
         "2. lookup_mop_by_name - Find MOP by name (e.g., 'CIAC-105', 'Cage ZrT-1')\n"
         "3. lookup_mop_by_ccdc - Find MOP by CCDC number\n"
-        "4. get_all_mops - List all MOPs in the knowledge graph\n"
+        "4. get_all_mops - List all MOPs in the TWA\n"
         "5. get_synthesis_recipe - Get complete recipe (chemicals, amounts) for a synthesis\n"
         "6. get_synthesis_steps - Get step-by-step procedure\n"
         "7. get_synthesis_temperatures - Get temperature conditions (optionally ordered)\n"
@@ -181,7 +187,11 @@ def instruction_prompt():
         "9. get_synthesis_products - Get MOP products from a synthesis\n"
         "10. get_mop_building_units - Get chemical building units (CBUs) for a MOP\n"
         "11. get_common_chemicals - Get most frequently used chemicals across corpus\n"
-        "12. get_kg_statistics - Get overall statistics (counts of MOPs, syntheses, etc.)\n\n"
+        "12. get_twa_statistics - Get overall statistics (counts of MOPs, syntheses, etc.)\n\n"
+        "**Scalable workflows (online probe → record → offline replay):**\n"
+        "13. list_workflows - available multi-step MOPs workflows\n"
+        "14. run_workflow_online(workflow_name) - LIMIT 10 on list steps; saves recording\n"
+        "15. replay_workflow_offline(recording_path) - full-scale replay without agent timeout\n\n"
         "**Atomic Step Tools:**\n"
         "13. get_synthesis_step_index - Step IRIs/labels/order/type for a synthesis\n"
         "14. get_synthesis_step_temperatures_atomic - Step-level temperatures (target/crystallization/any) with optional ordering\n"
@@ -219,7 +229,7 @@ def instruction_prompt():
         "40. get_hnmr_for_synthesis - HNMR shifts/solvent/temperature for a synthesis output\n"
         "41. get_common_hnmr_solvents - Most common HNMR solvents across corpus\n\n"
         "**Query Logic:**\n"
-        "The knowledge graph follows: Synthesis → Chemical Output → MOP\n"
+        "The TWA follows: Synthesis → Chemical Output → MOP\n"
         "Always start from synthesis when looking for relationships.\n\n"
         "**Important Notes:**\n"
         "- Entity names are case-sensitive\n"
@@ -232,7 +242,7 @@ def instruction_prompt():
 # Lookup Tools
 # ============================================================================
 
-@mops_kg_tool_logger
+@mops_twa_tool_logger
 @mcp.tool(name="lookup_synthesis_by_name", description="Find synthesis IRI and verify existence by name")
 async def lookup_synthesis_by_name(name: str) -> str:
     """Find synthesis IRI by its label/name."""
@@ -241,7 +251,7 @@ async def lookup_synthesis_by_name(name: str) -> str:
         return f"No synthesis found with name: {name}"
     return format_results_as_tsv(results)
 
-@mops_kg_tool_logger
+@mops_twa_tool_logger
 @mcp.tool(name="lookup_mop_by_name", description="Find MOP IRI and basic info by name")
 async def lookup_mop_by_name(name: str) -> str:
     """Find MOP IRI by its label/name."""
@@ -250,7 +260,7 @@ async def lookup_mop_by_name(name: str) -> str:
         return f"No MOP found with name: {name}"
     return format_results_as_tsv(results)
 
-@mops_kg_tool_logger
+@mops_twa_tool_logger
 @mcp.tool(name="lookup_mop_by_ccdc", description="Find MOP by CCDC number")
 async def lookup_mop_by_ccdc(ccdc_number: str) -> str:
     """Find MOPs by CCDC number."""
@@ -263,18 +273,18 @@ async def lookup_mop_by_ccdc(ccdc_number: str) -> str:
 # General Query Tools
 # ============================================================================
 
-@mops_kg_tool_logger
+@mops_twa_tool_logger
 @mcp.tool(name="get_all_mops", description="Get all MOPs with CCDC numbers and formulas")
 async def get_all_mops_tool(limit: int = 100) -> str:
     """Get all MOPs with their CCDC numbers and formulas."""
     results = get_all_mops(limit=limit)
     return format_results_as_tsv(results)
 
-@mops_kg_tool_logger
-@mcp.tool(name="get_kg_statistics", description="Get overall knowledge graph statistics")
-async def get_kg_statistics_tool() -> str:
-    """Get overall statistics about the knowledge graph."""
-    stats = get_kg_statistics()
+@mops_twa_tool_logger
+@mcp.tool(name="get_twa_statistics", description="Get overall TWA statistics")
+async def get_twa_statistics_tool() -> str:
+    """Get overall statistics about the TWA."""
+    stats = get_twa_statistics()
     stats_list = [{"metric": k, "value": str(v)} for k, v in stats.items()]
     return format_results_as_tsv(stats_list)
 
@@ -282,7 +292,7 @@ async def get_kg_statistics_tool() -> str:
 # Synthesis Query Tools
 # ============================================================================
 
-@mops_kg_tool_logger
+@mops_twa_tool_logger
 @mcp.tool(name="get_synthesis_recipe", description="Get complete recipe (chemicals, amounts, suppliers) for a synthesis")
 async def get_synthesis_recipe_tool(synthesis_name: str) -> str:
     """Get the complete recipe (chemical inputs) for a synthesis."""
@@ -291,7 +301,7 @@ async def get_synthesis_recipe_tool(synthesis_name: str) -> str:
         return f"No recipe found for synthesis: {synthesis_name}"
     return format_results_as_tsv(results)
 
-@mops_kg_tool_logger
+@mops_twa_tool_logger
 @mcp.tool(name="get_synthesis_steps", description="Get all synthesis steps and their types for a procedure")
 async def get_synthesis_steps_tool(synthesis_name: str) -> str:
     """Get all synthesis steps for a procedure."""
@@ -300,7 +310,7 @@ async def get_synthesis_steps_tool(synthesis_name: str) -> str:
         return f"No steps found for synthesis: {synthesis_name}"
     return format_results_as_tsv(results)
 
-@mops_kg_tool_logger
+@mops_twa_tool_logger
 @mcp.tool(name="get_synthesis_temperatures", description="Get temperature conditions for a synthesis (order: asc|desc|none)")
 async def get_synthesis_temperatures_tool(synthesis_name: str, order: str = "asc") -> str:
     """Get temperature conditions for a synthesis."""
@@ -310,7 +320,7 @@ async def get_synthesis_temperatures_tool(synthesis_name: str, order: str = "asc
         return f"No temperature data found for synthesis: {synthesis_name}"
     return format_results_as_tsv(results)
 
-@mops_kg_tool_logger
+@mops_twa_tool_logger
 @mcp.tool(name="get_synthesis_durations", description="Get duration/time conditions for synthesis steps (order: asc|desc|none)")
 async def get_synthesis_durations_tool(synthesis_name: str, order: str = "asc") -> str:
     """Get duration conditions for a synthesis."""
@@ -324,7 +334,7 @@ async def get_synthesis_durations_tool(synthesis_name: str, order: str = "asc") 
 # Atomic Step Query Tools
 # ============================================================================
 
-@mops_kg_tool_logger
+@mops_twa_tool_logger
 @mcp.tool(name="get_synthesis_step_index", description="Get step IRIs, labels, optional order and types for a synthesis")
 async def get_synthesis_step_index_tool(synthesis_name: str) -> str:
     results = get_synthesis_step_index(synthesis_name)
@@ -333,7 +343,7 @@ async def get_synthesis_step_index_tool(synthesis_name: str) -> str:
     return format_results_as_tsv(results)
 
 
-@mops_kg_tool_logger
+@mops_twa_tool_logger
 @mcp.tool(
     name="get_synthesis_step_temperatures_atomic",
     description="Get step-level temperatures. temperature_kind: target|crystallization|any. order: asc|desc|none",
@@ -349,7 +359,7 @@ async def get_synthesis_step_temperatures_atomic_tool(
     return format_results_as_tsv(results)
 
 
-@mops_kg_tool_logger
+@mops_twa_tool_logger
 @mcp.tool(
     name="get_synthesis_step_temperature_rates",
     description="Get step-level heating/cooling rates (order: asc|desc|none)",
@@ -364,7 +374,7 @@ async def get_synthesis_step_temperature_rates_tool(
     return format_results_as_tsv(results)
 
 
-@mops_kg_tool_logger
+@mops_twa_tool_logger
 @mcp.tool(
     name="get_synthesis_step_transferred_amounts",
     description="Get step-level transferred amounts (order: asc|desc|none)",
@@ -379,7 +389,7 @@ async def get_synthesis_step_transferred_amounts_tool(
     return format_results_as_tsv(results)
 
 
-@mops_kg_tool_logger
+@mops_twa_tool_logger
 @mcp.tool(
     name="get_synthesis_step_vessels",
     description="Get step-level vessel name/type/environment where available",
@@ -395,7 +405,7 @@ async def get_synthesis_step_vessels_tool(synthesis_name: str) -> str:
 # Characterisation Tools (OntoSpecies)
 # ============================================================================
 
-@mops_kg_tool_logger
+@mops_twa_tool_logger
 @mcp.tool(
     name="list_characterisation_species",
     description="List OntoSpecies species that have characterisation sessions (limit, order: asc|desc|none)",
@@ -407,7 +417,7 @@ async def list_characterisation_species_tool(limit: int = 100, order: str = "asc
     return format_results_as_tsv(results)
 
 
-@mops_kg_tool_logger
+@mops_twa_tool_logger
 @mcp.tool(
     name="list_syntheses_with_characterisation",
     description="List syntheses that have characterised species outputs (limit, order: asc|desc|none)",
@@ -419,7 +429,7 @@ async def list_syntheses_with_characterisation_tool(limit: int = 100, order: str
     return format_results_as_tsv(results)
 
 
-@mops_kg_tool_logger
+@mops_twa_tool_logger
 @mcp.tool(
     name="list_characterisation_devices",
     description="List characterisation devices discovered under characterisation sessions (limit)",
@@ -431,7 +441,7 @@ async def list_characterisation_devices_tool(limit: int = 100) -> str:
     return format_results_as_tsv(results)
 
 
-@mops_kg_tool_logger
+@mops_twa_tool_logger
 @mcp.tool(
     name="get_characterisation_for_synthesis",
     description="Get characterisation summary per species output of a synthesis (order: asc|desc|none; order_by: speciesLabel|ccdcVal|wpExp|wpCalc)",
@@ -447,7 +457,7 @@ async def get_characterisation_for_synthesis_tool(
     return format_results_as_tsv(results)
 
 
-@mops_kg_tool_logger
+@mops_twa_tool_logger
 @mcp.tool(
     name="get_characterisation_by_ccdc",
     description="Get characterisation summary for a CCDC number (order: asc|desc|none)",
@@ -459,7 +469,7 @@ async def get_characterisation_by_ccdc_tool(ccdc_number: str, order: str = "none
     return format_results_as_tsv(results)
 
 
-@mops_kg_tool_logger
+@mops_twa_tool_logger
 @mcp.tool(
     name="get_common_ir_materials",
     description="Get most commonly used materials for IR spectroscopy across the corpus (limit, order: asc|desc|none)",
@@ -475,7 +485,7 @@ async def get_common_ir_materials_tool(limit: int = 20, order: str = "desc") -> 
 # Local fuzzy lookup tools (backed by on-disk cached lists; no SPARQL)
 # ============================================================================
 
-@mops_kg_tool_logger
+@mops_twa_tool_logger
 @mcp.tool(
     name="refresh_local_fuzzy_index",
     description="Rebuild the local fuzzy index cache from the KG (force=true).",
@@ -485,7 +495,7 @@ async def refresh_local_fuzzy_index_tool() -> str:
     return "Local fuzzy index refreshed"
 
 
-@mops_kg_tool_logger
+@mops_twa_tool_logger
 @mcp.tool(
     name="fuzzy_lookup_synthesis_name",
     description="Fuzzy search synthesis names locally (limit, cutoff 0-1).",
@@ -497,7 +507,7 @@ async def fuzzy_lookup_synthesis_name_tool(query: str, limit: int = 10, cutoff: 
     return format_results_as_tsv(results)
 
 
-@mops_kg_tool_logger
+@mops_twa_tool_logger
 @mcp.tool(
     name="fuzzy_lookup_mop_name",
     description="Fuzzy search MOP names locally (limit, cutoff 0-1).",
@@ -509,7 +519,7 @@ async def fuzzy_lookup_mop_name_tool(query: str, limit: int = 10, cutoff: float 
     return format_results_as_tsv(results)
 
 
-@mops_kg_tool_logger
+@mops_twa_tool_logger
 @mcp.tool(
     name="fuzzy_lookup_chemical_name",
     description="Fuzzy search chemical input names locally (limit, cutoff 0-1).",
@@ -521,7 +531,7 @@ async def fuzzy_lookup_chemical_name_tool(query: str, limit: int = 10, cutoff: f
     return format_results_as_tsv(results)
 
 
-@mops_kg_tool_logger
+@mops_twa_tool_logger
 @mcp.tool(
     name="fuzzy_lookup_ir_material",
     description="Fuzzy search IR material names locally (limit, cutoff 0-1).",
@@ -533,7 +543,7 @@ async def fuzzy_lookup_ir_material_tool(query: str, limit: int = 10, cutoff: flo
     return format_results_as_tsv(results)
 
 
-@mops_kg_tool_logger
+@mops_twa_tool_logger
 @mcp.tool(
     name="get_syntheses_producing_mop",
     description="Given a MOP name (label), list synthesis labels that produce it.",
@@ -545,7 +555,7 @@ async def get_syntheses_producing_mop_tool(mop_name: str) -> str:
     return format_results_as_tsv(results)
 
 
-@mops_kg_tool_logger
+@mops_twa_tool_logger
 @mcp.tool(
     name="find_mops_by_cbu_formula_contains",
     description="Find MOPs by whether any CBU formula contains a substring (e.g., 'Zr'). Params: substring, limit, order.",
@@ -561,7 +571,7 @@ async def find_mops_by_cbu_formula_contains_tool(
     return format_results_as_tsv(results)
 
 
-@mops_kg_tool_logger
+@mops_twa_tool_logger
 @mcp.tool(name="get_synthesis_document_context", description="Get document context (section/anchor) for a synthesis")
 async def get_synthesis_document_context_tool(synthesis_name: str) -> str:
     results = get_synthesis_document_context(synthesis_name)
@@ -570,7 +580,7 @@ async def get_synthesis_document_context_tool(synthesis_name: str) -> str:
     return format_results_as_tsv(results)
 
 
-@mops_kg_tool_logger
+@mops_twa_tool_logger
 @mcp.tool(name="get_synthesis_inheritance", description="Get inheritance links for a synthesis (inherits_from / inherited_by)")
 async def get_synthesis_inheritance_tool(synthesis_name: str) -> str:
     results = get_synthesis_inheritance(synthesis_name)
@@ -579,7 +589,7 @@ async def get_synthesis_inheritance_tool(synthesis_name: str) -> str:
     return format_results_as_tsv(results)
 
 
-@mops_kg_tool_logger
+@mops_twa_tool_logger
 @mcp.tool(name="get_synthesis_yield", description="Get yield value(s) for a synthesis if present")
 async def get_synthesis_yield_tool(synthesis_name: str) -> str:
     results = get_synthesis_yield(synthesis_name)
@@ -588,7 +598,7 @@ async def get_synthesis_yield_tool(synthesis_name: str) -> str:
     return format_results_as_tsv(results)
 
 
-@mops_kg_tool_logger
+@mops_twa_tool_logger
 @mcp.tool(name="get_synthesis_equipment", description="Get process equipment used (global + per-step)")
 async def get_synthesis_equipment_tool(synthesis_name: str) -> str:
     results = get_synthesis_equipment(synthesis_name)
@@ -597,7 +607,7 @@ async def get_synthesis_equipment_tool(synthesis_name: str) -> str:
     return format_results_as_tsv(results)
 
 
-@mops_kg_tool_logger
+@mops_twa_tool_logger
 @mcp.tool(name="get_synthesis_step_parameters", description="Get free-text step parameters (ontosyn:hasParameter)")
 async def get_synthesis_step_parameters_tool(synthesis_name: str) -> str:
     results = get_synthesis_step_parameters(synthesis_name)
@@ -606,7 +616,7 @@ async def get_synthesis_step_parameters_tool(synthesis_name: str) -> str:
     return format_results_as_tsv(results)
 
 
-@mops_kg_tool_logger
+@mops_twa_tool_logger
 @mcp.tool(name="get_synthesis_step_vessel_environments", description="Get atmosphere/vessel environment per step (explicit only)")
 async def get_synthesis_step_vessel_environments_tool(synthesis_name: str) -> str:
     results = get_synthesis_step_vessel_environments(synthesis_name)
@@ -615,7 +625,7 @@ async def get_synthesis_step_vessel_environments_tool(synthesis_name: str) -> st
     return format_results_as_tsv(results)
 
 
-@mops_kg_tool_logger
+@mops_twa_tool_logger
 @mcp.tool(name="get_synthesis_drying_conditions", description="Get Dry step conditions (temp/pressure/agent)")
 async def get_synthesis_drying_conditions_tool(synthesis_name: str) -> str:
     results = get_synthesis_drying_conditions(synthesis_name)
@@ -624,7 +634,7 @@ async def get_synthesis_drying_conditions_tool(synthesis_name: str) -> str:
     return format_results_as_tsv(results)
 
 
-@mops_kg_tool_logger
+@mops_twa_tool_logger
 @mcp.tool(name="get_synthesis_evaporation_conditions", description="Get Evaporate step conditions (temp/pressure/target volume/removed species)")
 async def get_synthesis_evaporation_conditions_tool(synthesis_name: str) -> str:
     results = get_synthesis_evaporation_conditions(synthesis_name)
@@ -633,7 +643,7 @@ async def get_synthesis_evaporation_conditions_tool(synthesis_name: str) -> str:
     return format_results_as_tsv(results)
 
 
-@mops_kg_tool_logger
+@mops_twa_tool_logger
 @mcp.tool(name="get_synthesis_separation_solvents", description="Get Separate step solvents (extraction/phase separation media)")
 async def get_synthesis_separation_solvents_tool(synthesis_name: str) -> str:
     results = get_synthesis_separation_solvents(synthesis_name)
@@ -642,7 +652,7 @@ async def get_synthesis_separation_solvents_tool(synthesis_name: str) -> str:
     return format_results_as_tsv(results)
 
 
-@mops_kg_tool_logger
+@mops_twa_tool_logger
 @mcp.tool(name="get_hnmr_for_synthesis", description="HNMR shifts/solvent/temperature for species outputs of a synthesis")
 async def get_hnmr_for_synthesis_tool(synthesis_name: str) -> str:
     results = get_hnmr_for_synthesis(synthesis_name)
@@ -651,7 +661,7 @@ async def get_hnmr_for_synthesis_tool(synthesis_name: str) -> str:
     return format_results_as_tsv(results)
 
 
-@mops_kg_tool_logger
+@mops_twa_tool_logger
 @mcp.tool(name="get_common_hnmr_solvents", description="Most common HNMR solvents across the corpus (limit, order)")
 async def get_common_hnmr_solvents_tool(limit: int = 20, order: str = "desc") -> str:
     results = get_common_hnmr_solvents(limit=limit, order=order)
@@ -659,7 +669,7 @@ async def get_common_hnmr_solvents_tool(limit: int = 20, order: str = "desc") ->
         return "No HNMR solvent usage found"
     return format_results_as_tsv(results)
 
-@mops_kg_tool_logger
+@mops_twa_tool_logger
 @mcp.tool(name="get_synthesis_products", description="Get MOP products from a synthesis (Synthesis → Output → MOP)")
 async def get_synthesis_products_tool(synthesis_name: str) -> str:
     """Get MOP products from a synthesis."""
@@ -672,7 +682,7 @@ async def get_synthesis_products_tool(synthesis_name: str) -> str:
 # MOP Query Tools
 # ============================================================================
 
-@mops_kg_tool_logger
+@mops_twa_tool_logger
 @mcp.tool(name="get_mop_building_units", description="Get chemical building units (CBUs) for a specific MOP")
 async def get_mop_building_units_tool(mop_name: str) -> str:
     """Get chemical building units for a specific MOP."""
@@ -685,12 +695,58 @@ async def get_mop_building_units_tool(mop_name: str) -> str:
 # Corpus-Wide Query Tools
 # ============================================================================
 
-@mops_kg_tool_logger
+@mops_twa_tool_logger
 @mcp.tool(name="get_common_chemicals", description="Get most commonly used chemicals across all syntheses")
 async def get_common_chemicals_tool(limit: int = 20) -> str:
     """Get most commonly used chemicals across all syntheses."""
     results = get_common_chemicals(limit=limit)
     return format_results_as_tsv(results)
+
+
+@mops_twa_tool_logger
+@mcp.tool(
+    name="list_workflows",
+    description="List available multi-step MOPs TWA workflows for online probe and offline replay",
+)
+async def list_workflows_tool() -> str:
+    return list_workflows_text()
+
+
+@mops_twa_tool_logger
+@mcp.tool(
+    name="run_workflow_online",
+    description=(
+        "Run a recorded MOPs workflow online with LIMIT 10 on list SPARQL steps. "
+        "Returns compact TSV + recording_path for replay_workflow_offline."
+    ),
+)
+async def run_workflow_online_tool(
+    workflow_name: str,
+    online_limit: int = MCP_ONLINE_LIMIT,
+) -> str:
+    if online_limit > 20:
+        online_limit = MCP_ONLINE_LIMIT
+    return run_workflow_online(workflow_name, online_limit=online_limit)
+
+
+@mops_twa_tool_logger
+@mcp.tool(
+    name="replay_workflow_offline",
+    description="Replay a MOPs workflow from recording_path with limits removed/raised.",
+)
+async def replay_workflow_offline_tool(
+    recording_path: str,
+    offline_cap: int = 50_000,
+    workflow_name: str = "",
+    workflow_path: str = "",
+) -> str:
+    return replay_workflow_offline(
+        recording_path,
+        offline_cap=offline_cap,
+        workflow_name=workflow_name or None,
+        workflow_path=workflow_path or None,
+    )
+
 
 if __name__ == "__main__":
     mcp.run(transport="stdio")

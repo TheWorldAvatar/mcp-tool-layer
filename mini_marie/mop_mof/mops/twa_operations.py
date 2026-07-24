@@ -1,7 +1,7 @@
 """
-MOPs Knowledge Graph Operations
+MOPs TWA Operations
 
-Core functions for querying the MOPs knowledge graph using SPARQL.
+Core functions for querying the MOPs TWA using SPARQL.
 All functions are standalone and can be tested independently.
 """
 
@@ -14,6 +14,8 @@ import threading
 import time
 import difflib
 
+from mini_marie.cache_paths import merged_tll_dir, mini_marie_cache_root
+
 # Define namespaces
 ONTOMOPS = Namespace("https://www.theworldavatar.com/kg/ontomops/")
 ONTOSYN = Namespace("https://www.theworldavatar.com/kg/OntoSyn/")
@@ -23,16 +25,16 @@ RDFS = Namespace("http://www.w3.org/2000/01/rdf-schema#")
 
 logger = logging.getLogger(__name__)
 
-# Global knowledge graph (loaded once)
-_kg = None  # type: Optional[Graph]
+# Global TWA RDF graph (loaded once)
+_twa_graph = None  # type: Optional[Graph]
 
-# Local fuzzy index cache (built from KG, persisted to disk under /data which is gitignored)
+# Local fuzzy index cache (built from TWA, persisted to disk under /data which is gitignored)
 _label_index: Optional[Dict[str, Any]] = None
 _label_index_lock = threading.Lock()
 
-def load_knowledge_graph(data_path: str) -> Graph:
+def load_twa_graph(data_path: str) -> Graph:
     """
-    Load all merged TTL files into a single knowledge graph.
+    Load all merged TTL files into a single TWA.
     
     Args:
         data_path: Path to merged_tll directory
@@ -41,7 +43,7 @@ def load_knowledge_graph(data_path: str) -> Graph:
         RDF Graph with all loaded data
         
     Example:
-        >>> graph = load_knowledge_graph("evaluation/data/merged_tll")
+        >>> graph = load_twa_graph("evaluation/data/merged_tll")
         >>> print(f"Loaded {len(graph)} triples")
     """
     graph = Graph()
@@ -64,35 +66,26 @@ def load_knowledge_graph(data_path: str) -> Graph:
     logger.info(f"Loaded {ttl_count} TTL files with {len(graph)} triples")
     return graph
 
-def ensure_kg_loaded() -> Graph:
-    """Ensure knowledge graph is loaded (lazy loading)."""
-    global _kg  # pylint: disable=global-statement
-    if _kg is None:
-        # Default path relative to repo root
-        repo_root = Path(__file__).resolve().parents[2]
-        data_path = repo_root / "evaluation" / "data" / "merged_tll"
-        logger.info(f"Loading knowledge graph from: {data_path}")
-        _kg = load_knowledge_graph(str(data_path))
-    return _kg
-
-
-def _repo_root() -> Path:
-    return Path(__file__).resolve().parents[2]
+def ensure_twa_loaded() -> Graph:
+    """Ensure TWA is loaded (lazy loading)."""
+    global _twa_graph  # pylint: disable=global-statement
+    if _twa_graph is None:
+        data_path = merged_tll_dir()
+        logger.info(f"Loading TWA from: {data_path}")
+        _twa_graph = load_twa_graph(str(data_path))
+    return _twa_graph
 
 
 def _cache_dir() -> Path:
-    # /data is gitignored; this keeps generated indices out of the repo
-    d = _repo_root() / "data" / "mini_marie_cache"
-    d.mkdir(parents=True, exist_ok=True)
-    return d
+    return mini_marie_cache_root()
 
 
 def _index_path() -> Path:
-    return _cache_dir() / "kg_label_index.json"
+    return _cache_dir() / "twa_label_index.json"
 
 
 def _merged_ttl_dir() -> Path:
-    return _repo_root() / "evaluation" / "data" / "merged_tll"
+    return merged_tll_dir()
 
 
 def _latest_mtime_in_dir(p: Path) -> float:
@@ -116,10 +109,10 @@ def _latest_mtime_in_dir(p: Path) -> float:
 
 def _build_label_index() -> Dict[str, Any]:
     """
-    Build a local label index from the in-memory KG.
+    Build a local label index from the in-memory TWA graph.
     This runs full list queries once (no LIMIT), then persists to disk.
     """
-    kg = ensure_kg_loaded()
+    twa_graph = ensure_twa_loaded()
 
     # Full lists (no LIMIT)
     synth_q = """
@@ -164,7 +157,7 @@ def _build_label_index() -> Dict[str, Any]:
 
     def _labels(query: str) -> List[str]:
         out: List[str] = []
-        for row in kg.query(query):
+        for row in twa_graph.query(query):
             try:
                 v = str(row["label"]) if "label" in row.labels else str(row[0])
             except Exception:
@@ -183,7 +176,7 @@ def _build_label_index() -> Dict[str, Any]:
 
     def _strings(query: str, var: str) -> List[str]:
         out: List[str] = []
-        for row in kg.query(query):
+        for row in twa_graph.query(query):
             v = str(getattr(row, var)) if getattr(row, var, None) is not None else None
             if v:
                 v = v.strip()
@@ -206,7 +199,7 @@ def _build_label_index() -> Dict[str, Any]:
         "meta": {
             "built_at_unix": time.time(),
             "source_merged_ttl_latest_mtime": _latest_mtime_in_dir(_merged_ttl_dir()),
-            "triples": len(kg),
+            "triples": len(twa_graph),
         },
         "syntheses": syntheses,
         "mops": mops,
@@ -311,10 +304,10 @@ def execute_sparql(query: str) -> List[Dict[str, Any]]:
         >>> results = execute_sparql(query)
         >>> print(results)
     """
-    kg = ensure_kg_loaded()
+    twa_graph = ensure_twa_loaded()
     
     results = []
-    for row in kg.query(query):
+    for row in twa_graph.query(query):
         result_dict = {}
         for var in row.labels:
             value = row[var]
@@ -503,15 +496,15 @@ def get_all_mops(limit: int = 100) -> List[Dict[str, Any]]:
     """
     return execute_sparql(query)
 
-def get_kg_statistics() -> Dict[str, int]:
+def get_twa_statistics() -> Dict[str, int]:
     """
-    Get overall knowledge graph statistics.
+    Get overall TWA statistics.
     
     Returns:
         Dictionary with counts of MOPs, syntheses, steps, CBUs
         
     Example:
-        >>> stats = get_kg_statistics()
+        >>> stats = get_twa_statistics()
         >>> print(f"Total MOPs: {stats['total_mops']}")
         >>> print(f"Total Syntheses: {stats['total_syntheses']}")
     """
@@ -1836,29 +1829,28 @@ if __name__ == "__main__":
     import sys
     
     print("="*80)
-    print("MOPs Knowledge Graph Operations - Quick Test")
+    print("MOPs TWA Operations - Quick Test")
     print("="*80)
     
-    # Load KG
+    # Load TWA graph
     try:
-        repo_root = Path(__file__).resolve().parents[2]
-        data_path = repo_root / "evaluation" / "data" / "merged_tll"
+        data_path = merged_tll_dir()
         
         if not data_path.exists():
             print(f"❌ Data path not found: {data_path}")
             print("Please run: python scripts/merge_and_conversion_main.py")
             sys.exit(1)
         
-        print(f"\n📚 Loading knowledge graph from: {data_path}")
-        # Use ensure_kg_loaded to properly load the graph
-        kg = ensure_kg_loaded()
-        print(f"✓ Loaded {len(kg)} triples")
+        print(f"\n📚 Loading TWA from: {data_path}")
+        # Use ensure_twa_loaded to properly load the graph
+        twa_graph = ensure_twa_loaded()
+        print(f"✓ Loaded {len(twa_graph)} triples")
         
         # Test 1: Statistics
         print("\n" + "="*80)
         print("TEST 1: Get Statistics")
         print("="*80)
-        stats = get_kg_statistics()
+        stats = get_twa_statistics()
         for key, value in stats.items():
             print(f"  {key}: {value}")
         

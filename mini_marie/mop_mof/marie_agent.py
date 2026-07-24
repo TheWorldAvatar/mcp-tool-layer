@@ -2,7 +2,7 @@
 MARIE Agent - MOPs Analysis and Research Intelligence Engine
 
 An intelligent agent that answers questions about Metal-Organic Polyhedra (MOPs)
-synthesis using the MOPs Knowledge Graph through MCP tools.
+synthesis using the MOPs TWA through MCP tools.
 """
 
 import asyncio
@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Dict, Any, Tuple, Optional
 from models.BaseAgent import BaseAgent
 from models.ModelConfig import ModelConfig
+from mini_marie.cache_paths import configs_dir
 from src.utils.global_logger import get_logger
 
 
@@ -17,7 +18,7 @@ class MarieAgent:
     """
     MARIE (MOPs Analysis and Research Intelligence Engine) Agent
     
-    An intelligent assistant for querying MOPs synthesis knowledge graph.
+    An intelligent assistant for querying MOPs synthesis TWA.
     Provides natural language interface to complex SPARQL queries.
     """
     
@@ -28,7 +29,7 @@ class MarieAgent:
         model_config: Optional[ModelConfig] = None,
     ):
         """
-        Initialize MARIE agent with MOPs KG MCP server.
+        Initialize MARIE agent with MOPs TWA MCP server.
         
         Args:
             model_name: Name of the LLM model to use
@@ -41,8 +42,7 @@ class MarieAgent:
         self.remote_model = remote_model
         self.model_config = model_config
         
-        # Get path to MCP config in configs folder
-        self.config_path = Path(__file__).parent.parent / "configs" / "marie_kg.json"
+        self.config_path = configs_dir() / "marie_twa.json"
         
         self.logger.info("MARIE agent initialized successfully")
     
@@ -84,7 +84,7 @@ class MarieAgent:
                 remote_model=self.remote_model,
                 model_config=self.model_config,
                 mcp_set_name=str(self.config_path),
-                mcp_tools=["mops-kg"],
+                mcp_tools=["mops-twa"],
                 structured_output=False,
             )
 
@@ -129,12 +129,12 @@ class MarieAgent:
         context = f"""
 You are MARIE (MOPs Analysis and Research Intelligence Engine), an expert assistant for Metal-Organic Polyhedra (MOPs) synthesis.
 
-You have access to a comprehensive knowledge graph containing 30 research papers with detailed synthesis procedures, chemical building units, reaction conditions, and characterization data.
+You have access to a comprehensive TWA containing 30 research papers with detailed synthesis procedures, chemical building units, reaction conditions, and characterization data.
 
 {memory_block}
 
 **Your Task:**
-Answer the following question using the MOPs knowledge graph tools:
+Answer the following question using the MOPs TWA tools:
 
 {question}
 
@@ -286,13 +286,13 @@ Please provide a comprehensive, well-structured answer.
     
     async def get_corpus_statistics(self) -> Tuple[str, Dict[str, Any]]:
         """
-        Get overall statistics about the knowledge graph.
+        Get overall statistics about the TWA.
         
         Returns:
             Tuple of (statistics_report, metadata)
         """
         question = """
-        Provide comprehensive statistics about the MOPs knowledge graph.
+        Provide comprehensive statistics about the MOPs TWA.
         
         Include:
         1. Total number of MOPs

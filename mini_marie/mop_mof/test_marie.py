@@ -12,7 +12,7 @@ from pathlib import Path
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from mini_marie.marie_agent import MarieAgent
+from mini_marie.mop_mof.marie_agent import MarieAgent
 
 
 async def test_basic_query():
@@ -23,7 +23,7 @@ async def test_basic_query():
     
     marie = MarieAgent(model_name="gpt-4o-mini")
     
-    question = "How many MOPs are in the knowledge graph?"
+    question = "How many MOPs are in the TWA?"
     print(f"\nQuestion: {question}")
     print("-" * 80)
     

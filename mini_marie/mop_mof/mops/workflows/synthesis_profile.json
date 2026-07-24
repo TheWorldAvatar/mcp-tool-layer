@@ -1,0 +1,35 @@
+{
+  "id": "WF_SYNTHESIS_PROFILE",
+  "question": "Lookup synthesis, recipe, and steps for a named procedure",
+  "synthesis_name": "VMOP-17",
+  "seed_variables": { "synthesis_name": "VMOP-17" },
+  "online_limit": 10,
+  "offline_cap": 50000,
+  "steps": [
+    {
+      "id": "call_1_lookup",
+      "tool": "lookup_synthesis",
+      "args": { "name": "$synthesis_name" },
+      "extract": {
+        "synthesis_iri": { "pick": "row_field", "field": "synthesis", "index": 0 }
+      }
+    },
+    {
+      "id": "call_2_recipe",
+      "tool": "get_synthesis_recipe",
+      "args": { "synthesis_name": "$synthesis_name" },
+      "extract": {
+        "recipe_rows": { "pick": "all_rows" }
+      }
+    },
+    {
+      "id": "call_3_steps",
+      "tool": "get_synthesis_steps",
+      "args": { "synthesis_name": "$synthesis_name" },
+      "extract": {
+        "step_rows": { "pick": "all_rows" }
+      }
+    }
+  ],
+  "final_summary": "Profile for synthesis $synthesis_name (lookup + recipe + steps)."
+}
