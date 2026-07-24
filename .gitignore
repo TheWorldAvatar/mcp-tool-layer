@@ -9,6 +9,9 @@ configs/mcp_configs.json
 /__pycache__
 *.pyc
 *.log
+*.rar
+*.bak.*
+**/.ipynb_checkpoints/
 /demo/mk_demo
 /mcp_tool_layer.egg-info
 /sandbox
@@ -99,6 +102,13 @@ guard_state.json
 /.cursor_pipeline_last_run.log
 /medical_case
 /raw_data_mop
+/raw_data_mops
+/raw_data_new_medical
+# Scenario workspace: keep manifests/READMEs; ignore PDFs, GT binaries, and run outputs
+/scenarios/*/runs/
+/scenarios/**/datasets/**/*.pdf
+/scenarios/**/datasets/**/*.xlsx
+/scenarios/**/datasets/**/*.xls
 /ai_generated_contents_llm_agent_medical
 /ai_generated_contents_llm_agent_medical_thirdparty_test/prompts
 /ai_generated_contents_order_enforcement_check/prompts
@@ -110,3 +120,27 @@ guard_state.json
 /ai_generated_contents_agent_candidate_json_medical_nonflat_one_iter_20260510/
 /tmp_generated_quality_probe/
 /evaluation/ontomops_derivation_evaluation/reports_agentic/
+
+# Generated bundles and end-to-end run workspaces
+/mini_marie_deploy/
+/e2e_generated_artifacts_*/
+/data_ontosyn_real_three_e2e/
+
+# Local IDE/MCP configuration and one-off scratch outputs
+/.cursor/
+/_retest_failed_questions.py
+/_run_mixed_questions.py
+/reasoner_tmp.ttl
+/tmp_*.json
+/tmp_*.md
+
+# Runtime reports, probes, maps, and generated competency outputs
+**/competency_runs/**
+!**/competency_runs/.gitignore
+**/workflow_runs/**
+!**/workflow_runs/.gitignore
+/**/probe_results*.json
+/**/maps/*.html
+/**/ai-generated-compentency-questions/
+/**/competency_eval_results.json
+/**/competency_eval_results.md
