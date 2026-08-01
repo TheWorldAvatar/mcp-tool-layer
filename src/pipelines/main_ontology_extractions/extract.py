@@ -146,6 +146,20 @@ def resolve_file_path(path_template: str, doi_hash: str, entity_safe: str, data_
     return os.path.join(data_dir, doi_hash, resolved)
 
 
+def _write_text_with_parent(path: str, content: str) -> None:
+    """Write text while tolerating concurrent runtime-directory cleanup."""
+    parent = os.path.dirname(path)
+    for attempt in range(2):
+        os.makedirs(parent, exist_ok=True)
+        try:
+            with open(path, "w", encoding="utf-8") as handle:
+                handle.write(content)
+            return
+        except FileNotFoundError:
+            if attempt:
+                raise
+
+
 def _strip_code_fences_block(text: str) -> str:
     stripped = (text or "").strip()
     if stripped.startswith("```") and stripped.endswith("```"):
@@ -420,6 +434,63 @@ def load_paper_content(doi_hash: str, data_dir: str = "data") -> str:
     return content
 
 
+def bind_runtime_context(
+    prompt_template: str,
+    *,
+    doi_hash: str = "",
+    entity_label: str,
+    entity_uri: str,
+    source_text: str,
+    iteration_input: str = "",
+) -> str:
+    """Bind the complete pipeline-owned extraction runtime envelope."""
+    declared_doi = "{doi}" in prompt_template or "{hash}" in prompt_template
+    declared_label = "{entity_label}" in prompt_template
+    declared_uri = "{entity_uri}" in prompt_template
+    prompt = prompt_template.replace("{doi}", doi_hash).replace("{hash}", doi_hash)
+    prompt = prompt.replace("{entity_label}", entity_label)
+    prompt = prompt.replace("{entity_uri}", entity_uri)
+    declared_source = "{paper_content}" in prompt or "{context}" in prompt
+    prompt = prompt.replace("{paper_content}", source_text)
+    prompt = prompt.replace("{context}", source_text)
+    declared_iteration_input = "{iteration_input}" in prompt
+    prompt = prompt.replace("{iteration_input}", iteration_input)
+
+    additions: list[str] = []
+    missing_identity: list[str] = []
+    if doi_hash and not declared_doi:
+        missing_identity.append(f"Document DOI/hash: {doi_hash}")
+    if not declared_label:
+        missing_identity.append(f"Current entity label: {entity_label}")
+    if not declared_uri:
+        missing_identity.append(f"Current entity exact URI: {entity_uri}")
+    if missing_identity:
+        additions.extend(
+            [
+                "---- PIPELINE-INJECTED ENTITY RUNTIME CONTEXT: BEGIN ----",
+                *missing_identity,
+                "---- PIPELINE-INJECTED ENTITY RUNTIME CONTEXT: END ----",
+            ]
+        )
+    if not declared_source:
+        additions.extend(
+            [
+                "---- PIPELINE-INJECTED SOURCE TEXT: BEGIN ----",
+                source_text,
+                "---- PIPELINE-INJECTED SOURCE TEXT: END ----",
+            ]
+        )
+    if iteration_input and not declared_iteration_input:
+        additions.extend(
+            [
+                "---- PIPELINE-INJECTED ITERATION INPUT: BEGIN ----",
+                iteration_input,
+                "---- PIPELINE-INJECTED ITERATION INPUT: END ----",
+            ]
+        )
+    return prompt.rstrip() + ("\n\n" + "\n".join(additions) + "\n" if additions else "")
+
+
 async def run_pre_extraction(
     doi_hash: str,
     entity_label: str,
@@ -452,11 +523,13 @@ async def run_pre_extraction(
     
     logger.info(f"    🔍 Running pre-extraction for '{entity_label}'...")
     
-    # Format prompt - CRITICAL: Replace all placeholders
-    prompt = prompt_template.replace("{entity_label}", entity_label)
-    prompt = prompt.replace("{entity_uri}", entity_uri)
-    prompt = prompt.replace("{paper_content}", paper_content)
-    prompt = prompt.replace("{context}", paper_content)
+    prompt = bind_runtime_context(
+        prompt_template,
+        doi_hash=doi_hash,
+        entity_label=entity_label,
+        entity_uri=entity_uri,
+        source_text=paper_content,
+    )
     
     # Save full prompt for debugging in organized subfolder
     prompts_dir = os.path.join(data_dir, doi_hash, "prompts", f"iter{iter_num}_pre_extraction")
@@ -561,6 +634,7 @@ async def run_extraction(
     mcp_set_name: str = None,
     freshness_paths: List[str] | None = None,
     extraction_validation: dict | None = None,
+    iteration_input: str = "",
 ) -> str:
     """
     Run extraction (hints generation) for an entity.
@@ -582,11 +656,14 @@ async def run_extraction(
     
     logger.info(f"    🔍 Running extraction for '{entity_label}'...")
     
-    # Format prompt
-    prompt = prompt_template.replace("{entity_label}", entity_label)
-    prompt = prompt.replace("{entity_uri}", entity_uri)
-    prompt = prompt.replace("{paper_content}", source_text)
-    prompt = prompt.replace("{context}", source_text)
+    prompt = bind_runtime_context(
+        prompt_template,
+        doi_hash=doi_hash,
+        entity_label=entity_label,
+        entity_uri=entity_uri,
+        source_text=source_text,
+        iteration_input=iteration_input,
+    )
     
     # Save full prompt for debugging in organized subfolder
     safe = _safe_name(entity_label)
@@ -595,19 +672,21 @@ async def run_extraction(
     os.makedirs(prompts_dir, exist_ok=True)
     prompt_file = os.path.join(prompts_dir, f"{safe}.md")
     try:
-        with open(prompt_file, 'w', encoding='utf-8') as f:
-            f.write(f"# Iteration {iter_num} Extraction Prompt\n\n")
-            f.write(f"**Entity**: {entity_label}\n\n")
-            f.write(f"**Entity URI**: {entity_uri}\n\n")
-            f.write(f"**Model**: {get_extraction_model(model_key)}\n\n")
-            if use_agent:
-                f.write(f"**Mode**: Agent with MCP tools\n\n")
-                f.write(f"**MCP Tools**: {mcp_tools}\n\n")
-                f.write(f"**MCP Set**: {mcp_set_name}\n\n")
-            else:
-                f.write(f"**Mode**: Simple LLM\n\n")
-            f.write("---\n\n")
-            f.write(prompt)
+        mode = (
+            f"**Mode**: Agent with MCP tools\n\n"
+            f"**MCP Tools**: {mcp_tools}\n\n"
+            f"**MCP Set**: {mcp_set_name}\n\n"
+            if use_agent
+            else "**Mode**: Simple LLM\n\n"
+        )
+        _write_text_with_parent(
+            prompt_file,
+            f"# Iteration {iter_num} Extraction Prompt\n\n"
+            f"**Entity**: {entity_label}\n\n"
+            f"**Entity URI**: {entity_uri}\n\n"
+            f"**Model**: {get_extraction_model(model_key)}\n\n"
+            f"{mode}---\n\n{prompt}",
+        )
         logger.info(f"    💾 Saved prompt to: {prompt_file}")
     except Exception as e:
         logger.warning(f"    ⚠️  Failed to save prompt: {e}")
@@ -1217,120 +1296,61 @@ async def run_extraction(
                 result = await llm.ainvoke(effective_prompt)
                 content = _normalize_llm_content(result)
                 agent_meta = {}
-                needs_revision = _needs_revision(content)
-                near_miss_properties = _has_near_miss_property_names(content, prompt)
-                generic_step_types = bool(_generic_ordered_member_type_errors(content, extraction_validation))
-                missing_required_members = bool(_configured_required_member_errors(content, source_text, extraction_validation))
-                revision_reasons: list[str] = ["strict compliance pass"]
-                if needs_revision:
-                    revision_reasons.append("draft formatting drift")
-                if near_miss_properties:
-                    revision_reasons.append("near-miss property names")
-                if generic_step_types:
-                    revision_reasons.append("generic parent step labels")
-                if missing_required_members:
-                    revision_reasons.append("configured required member evidence")
-                logger.info(
-                    "    🧹 Revising extraction draft into strict hints for '%s' (%s)",
-                    entity_label,
-                    ", ".join(revision_reasons),
-                )
-                revision_prompt = _build_revision_prompt(
-                    original_prompt=effective_prompt,
-                    original_source=source_text,
-                    draft_output=content,
-                )
-                revised = await llm.ainvoke(revision_prompt)
-                revised_content = _normalize_llm_content(revised)
-                if revised_content and revised_content.strip():
-                    content = revised_content
-                audit_prompt = _build_support_audit_prompt(
-                    original_prompt=effective_prompt,
-                    original_source=source_text,
-                    candidate_output=content,
-                )
-                audited = await llm.ainvoke(audit_prompt)
-                audited_content = _normalize_llm_content(audited)
-                audited_payload = _parse_structured_output(audited_content)
-                if isinstance(audited_payload, dict) and "supported_output" in audited_payload:
-                    supported_output = audited_payload.get("supported_output")
-                    if isinstance(supported_output, (dict, list)):
-                        is_empty = (
-                            isinstance(supported_output, dict) and len(supported_output) == 0
-                        ) or (
-                            isinstance(supported_output, list) and len(supported_output) == 0
+                # Preserve the model's representation. Semantic quality is assessed later by
+                # the format-independent LLM extraction judge, not by shape-normalizing passes.
+                legacy_diagnostics = {
+                    "generic_ordered_member_types": _generic_ordered_member_type_errors(
+                        content, extraction_validation
+                    ),
+                    "configured_required_members": _configured_required_member_errors(
+                        content, source_text, extraction_validation
+                    ),
+                    "add_input_amounts": (
+                        _add_input_amount_errors(content, source_text)
+                        if iter_num == 3
+                        else []
+                    ),
+                    "heat_chill_sealing_inheritance": (
+                        _heat_chill_sealing_inheritance_errors(content)
+                        if iter_num == 3
+                        else []
+                    ),
+                }
+                for diagnostic_name, findings in legacy_diagnostics.items():
+                    if findings:
+                        logger.warning(
+                            "    Non-blocking legacy extraction diagnostic %s: %s",
+                            diagnostic_name,
+                            "; ".join(findings[:5]),
                         )
-                        if is_empty:
-                            logger.warning(
-                                "    Audit returned empty supported_output; keeping pre-audit content for '%s'",
-                                entity_label,
-                            )
-                        else:
-                            content = _dump_json_compact(supported_output)
-                if iter_num == 3:
-                    content = _canonicalize_iter3_hints(content)
-                generic_step_errors = _generic_ordered_member_type_errors(content, extraction_validation)
-                if generic_step_errors:
-                    raise ValueError(
-                        "Extraction used configured generic parent/container labels instead of concrete member types: "
-                        + "; ".join(generic_step_errors[:5])
-                    )
-                required_member_errors = _configured_required_member_errors(content, source_text, extraction_validation)
-                if required_member_errors:
-                    raise ValueError(
-                        "Extraction missed configured source-supported required members: "
-                        + "; ".join(required_member_errors[:5])
-                    )
-                amount_errors = _add_input_amount_errors(content, source_text) if iter_num == 3 else []
-                if amount_errors:
-                    raise ValueError(
-                        "Iter3 extraction omitted explicit ChemicalInput amounts on Add steps: "
-                        + "; ".join(amount_errors[:5])
-                    )
-                sealing_errors = _heat_chill_sealing_inheritance_errors(content) if iter_num == 3 else []
-                if sealing_errors:
-                    raise ValueError(
-                        "Iter3 extraction omitted inherited HeatChill sealing fields: "
-                        + "; ".join(sealing_errors[:5])
-                    )
             
             # CRITICAL VALIDATION: Check if content is meaningful
             if not content or not content.strip():
                 raise ValueError(f"LLM returned empty content for entity '{entity_label}'")
 
             short_marker = is_marker_only_optional_output(content)
-            marker_only_empty = False
             if short_marker:
                 logger.warning(
-                    "    Extraction returned marker-only output %r; treating as empty optional hints for '%s'",
+                    "    Non-blocking marker-only extraction diagnostic %r for '%s'",
                     content.strip(),
                     entity_label,
                 )
-                content = "{}"
-                marker_only_empty = True
-            
-            if len(content.strip()) < _MIN_EXTRACTION_CHARS and not marker_only_empty:
-                logger.error(
-                    "    Extraction too short: type=%s len(raw)=%s repr=%s",
-                    type(content).__name__,
-                    len(content) if content is not None else None,
-                    repr(content)[:500],
-                )
-                raise ValueError(
-                    f"LLM returned suspiciously short content ({len(content)} chars) for entity '{entity_label}'"
-                )
 
-            ok_hint_payload, hint_errors = validate_hint_payload(content, allow_empty=marker_only_empty)
+            try:
+                ok_hint_payload, hint_errors = validate_hint_payload(
+                    content, allow_empty=short_marker
+                )
+            except ValueError as exc:
+                ok_hint_payload, hint_errors = False, [str(exc)]
             if not ok_hint_payload:
-                raise ValueError(
-                    f"Extraction payload failed structured validation for entity '{entity_label}': "
-                    + "; ".join(hint_errors[:3])
+                logger.warning(
+                    "    Non-blocking extraction representation diagnostic for '%s': %s",
+                    entity_label,
+                    "; ".join(hint_errors[:3]),
                 )
             
             # Save result to hints file
-            os.makedirs(os.path.dirname(hints_file), exist_ok=True)
-            with open(hints_file, 'w', encoding='utf-8') as f:
-                f.write(content)
+            _write_text_with_parent(hints_file, content)
             
             # CRITICAL: Verify file was actually written
             if not os.path.exists(hints_file):
@@ -1417,6 +1437,48 @@ async def run_extraction(
 # This module ONLY handles extraction (hints generation)
 
 
+def _write_extraction_completion_marker(marker_file: str) -> None:
+    """Write the step marker while preserving its non-fatal failure semantics."""
+    try:
+        with open(marker_file, 'w') as f:
+            f.write("completed\n")
+        logger.info("  📌 Created completion marker")
+    except Exception as e:
+        logger.warning(f"  ⚠️  Failed to create completion marker: {e}")
+
+
+def _run_extractions_entity_first(
+    doi_hash: str,
+    config: dict,
+    top_entities: list,
+    marker_file: str,
+) -> bool:
+    """Process every main iteration and enrichment for one entity at a time."""
+    successful_writes: list[int] = []
+    all_ok = True
+    for entity in top_entities:
+        child_config = dict(config)
+        child_config["_entity_first_entity_safe"] = _safe_name(
+            entity.get("label", "")
+        )
+        child_config["_entity_first_successful_writes"] = successful_writes
+        if not run_step(doi_hash, child_config):
+            all_ok = False
+
+    if not all_ok:
+        return False
+    if sum(successful_writes) <= 0:
+        logger.error(
+            "❌ Main ontology extractions produced no hints files; "
+            "refusing to create completion marker"
+        )
+        return False
+
+    _write_extraction_completion_marker(marker_file)
+    logger.info(f"✅ Main Ontology Extractions completed for {doi_hash}")
+    return True
+
+
 def run_step(doi_hash: str, config: dict) -> bool:
     """
     Main entry point for the main ontology extractions pipeline step.
@@ -1465,17 +1527,39 @@ def run_step(doi_hash: str, config: dict) -> bool:
     if not top_entities:
         logger.error("❌ No top entities found")
         return False
+
+    selected_entity_safe = config.get("_entity_first_entity_safe")
+    if selected_entity_safe:
+        top_entities = [
+            entity
+            for entity in top_entities
+            if _safe_name(entity.get("label", "")) == selected_entity_safe
+        ]
+        if not top_entities:
+            logger.error(
+                "❌ Selected entity not found for entity-first extraction: %s",
+                selected_entity_safe,
+            )
+            return False
     
     logger.info(f"  🎯 Processing {len(top_entities)} top-level entities")
 
     # Check if step is already completed. Marker is only trusted if the current
     # per-entity iteration set has actually produced all expected hints files.
     marker_file = os.path.join(doi_folder, ".main_ontology_extractions_done")
-    if os.path.exists(marker_file):
+    if not selected_entity_safe and os.path.exists(marker_file):
         if _expected_hint_files_exist(doi_hash, iterations, top_entities, data_dir, iterations_config_path):
             logger.info(f"  ⏭️  Main ontology extractions already completed (marker exists)")
             return True
         logger.warning("  🔁 Marker exists but required hints are missing; re-running main ontology extractions")
+
+    if not selected_entity_safe:
+        return _run_extractions_entity_first(
+            doi_hash=doi_hash,
+            config=config,
+            top_entities=top_entities,
+            marker_file=marker_file,
+        )
     
     # Load paper content
     paper_content, paper_source_paths = load_paper_content_with_sources(doi_hash, data_dir)
@@ -1566,6 +1650,28 @@ def run_step(doi_hash: str, config: dict) -> bool:
                 logger.info(f"    📝 Extraction for iteration {iter_num}")
                 extraction_prompt = load_prompt(extraction_prompt_path)
                 if extraction_prompt:
+                    iteration_input = ""
+                    iteration_input_template = (
+                        (iteration.get("inputs") or {}).get("file_path")
+                        if isinstance(iteration.get("inputs"), dict)
+                        else None
+                    )
+                    if iteration_input_template:
+                        iteration_input_path = resolve_file_path(
+                            str(iteration_input_template),
+                            doi_hash,
+                            safe,
+                            data_dir,
+                        )
+                        try:
+                            iteration_input = Path(iteration_input_path).read_text(
+                                encoding="utf-8"
+                            )
+                        except FileNotFoundError:
+                            logger.warning(
+                                "    ⚠️  Configured iteration input is missing for "
+                                f"'{entity_label}': {iteration_input_path}"
+                            )
                     # Determine if this iteration uses agent for extraction
                     # (iter2 uses agent, iter3/4 use simple LLM)
                     extraction_uses_agent = use_agent and (
@@ -1604,6 +1710,7 @@ def run_step(doi_hash: str, config: dict) -> bool:
                             mcp_set_name=extraction_mcp_set,
                             freshness_paths=hint_freshness,
                             extraction_validation=iteration.get("extraction_validation") or {},
+                            iteration_input=iteration_input,
                         ))
                     except Exception as e:
                         logger.error(f"    ❌ Extraction failed: {e}")
@@ -1704,10 +1811,14 @@ def run_step(doi_hash: str, config: dict) -> bool:
                     source_text = paper_content
                 
                 # Format enrichment prompt
-                enrichment_prompt = sub_extraction_prompt
-                enrichment_prompt += f"\n\nEntity: {entity_label}\n\n"
-                enrichment_prompt += f"Iter{enriches} Results (for guidance):\n{base_hints}\n\n"
-                enrichment_prompt += f"Text:\n{source_text}"
+                enrichment_prompt = bind_runtime_context(
+                    sub_extraction_prompt,
+                    doi_hash=doi_hash,
+                    entity_label=entity_label,
+                    entity_uri=str(entity.get("uri") or ""),
+                    source_text=source_text,
+                    iteration_input=base_hints,
+                )
                 
                 # Save enrichment prompt in organized subfolder
                 prompts_dir = os.path.join(data_dir, doi_hash, "prompts", f"iter{sub_iter_num}_enrichment")
@@ -1835,17 +1946,17 @@ def run_step(doi_hash: str, config: dict) -> bool:
                 
                 logger.info(f"    ✅ Enrichment completed for sub-iteration {sub_iter_num}")
     
+    successful_writes = config.get("_entity_first_successful_writes")
+    if isinstance(successful_writes, list):
+        successful_writes.append(successful_hint_writes)
+        return True
+
     if successful_hint_writes <= 0:
         logger.error("❌ Main ontology extractions produced no hints files; refusing to create completion marker")
         return False
 
     # Create completion marker
-    try:
-        with open(marker_file, 'w') as f:
-            f.write("completed\n")
-        logger.info(f"  📌 Created completion marker")
-    except Exception as e:
-        logger.warning(f"  ⚠️  Failed to create completion marker: {e}")
+    _write_extraction_completion_marker(marker_file)
     
     logger.info(f"✅ Main Ontology Extractions completed for {doi_hash}")
     return True

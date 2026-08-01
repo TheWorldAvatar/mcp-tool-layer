@@ -11,9 +11,6 @@ import json
 import re
 from pathlib import Path
 from typing import List, Optional
-from rdflib import Graph, URIRef  # type: ignore[reportMissingImports]
-from rdflib.namespace import RDFS  # type: ignore[reportMissingImports]
-
 # Add project root to path
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 if project_root not in sys.path:
@@ -22,6 +19,9 @@ if project_root not in sys.path:
 from src.utils.global_logger import get_logger
 from src.utils.extraction_models import get_extraction_model
 from src.pipelines.structured_extraction import validate_top_entity_lines
+from src.agents.scripts_and_prompts_generation.generation_contracts import (
+    build_ontology_publish_contract,
+)
 from models.LLMCreator import LLMCreator
 from models.ModelConfig import ModelConfig
 import asyncio
@@ -91,6 +91,26 @@ def load_extraction_prompt(ontology_name: str, iteration: int = 1) -> str:
         return f.read()
 
 
+def bind_paper_content(prompt_template: str, paper_content: str) -> str:
+    """Bind pipeline-owned source text without requiring a template placeholder.
+
+    Generated prompts may explicitly place ``{paper_content}`` beside their task
+    instructions. For legacy or externally supplied prompt artifacts that omit
+    that marker, the extraction pipeline still owns the source-text channel and
+    appends an unambiguous runtime boundary. This keeps the prompt artifact
+    immutable during execution while ensuring the model always receives the
+    source it is expected to extract from.
+    """
+    if "{paper_content}" in prompt_template:
+        return prompt_template.replace("{paper_content}", paper_content)
+    return (
+        prompt_template.rstrip()
+        + "\n\n---- PIPELINE-INJECTED SOURCE TEXT: BEGIN ----\n"
+        + paper_content
+        + "\n---- PIPELINE-INJECTED SOURCE TEXT: END ----\n"
+    )
+
+
 def _top_entities_txt_is_stale(existing: str, invalidate_substrings: list) -> bool:
     """True if cached top_entities.txt should be discarded (wrong domain / placeholder)."""
     if not (existing or "").strip():
@@ -121,6 +141,54 @@ def _normalize_top_entity_output(
     identifier_code_regex: Optional[str] = None,
 ) -> str:
     """Normalize verbose top-entity lines to stable concise identifiers when possible."""
+    text = str(content or "").strip()
+    if text.startswith("```") and text.endswith("```"):
+        text = re.sub(r"^```(?:json)?\s*", "", text, flags=re.IGNORECASE)
+        text = re.sub(r"\s*```$", "", text)
+    if text[:1] in {"[", "{"}:
+        try:
+            payload = json.loads(text)
+        except (json.JSONDecodeError, TypeError):
+            payload = None
+        if isinstance(payload, dict) and any(
+            isinstance(value, list) for value in payload.values()
+        ):
+            items = [
+                {"class": class_local, **item}
+                for class_local, values in payload.items()
+                if not line_prefixes or class_local in line_prefixes
+                for item in (values if isinstance(values, list) else [])
+                if isinstance(item, dict)
+            ]
+        else:
+            items = payload if isinstance(payload, list) else [payload]
+        structured_lines: list[str] = []
+        default_prefix = next(
+            iter(tuple(p for p in (line_prefixes or []) if p)), "Entity"
+        )
+        for index, item in enumerate(items, start=1):
+            if not isinstance(item, dict):
+                continue
+            prefix = str(
+                item.get("class")
+                or item.get("type")
+                or item.get("entity_type")
+                or default_prefix
+            ).rsplit(":", 1)[-1]
+            if line_prefixes and prefix not in line_prefixes:
+                prefix = default_prefix
+            label = str(
+                item.get("entity_label")
+                or item.get("label")
+                or item.get("name")
+                or item.get("identifier")
+                or item.get("id")
+                or ""
+            ).strip()
+            if label:
+                structured_lines.append(f"{prefix}-{index} [{label}]")
+        if structured_lines:
+            text = "\n".join(structured_lines)
     normalized: list[str] = []
     seen: set[str] = set()
     prefixes = tuple(p for p in (line_prefixes or []) if p)
@@ -130,7 +198,7 @@ def _normalize_top_entity_output(
         code_re = re.compile(identifier_code_regex or r"\b[A-Z][A-Z0-9]{1,}(?:[-_]\d+[A-Za-z0-9]*)\b")
     except re.error:
         code_re = re.compile(r"\b[A-Z][A-Z0-9]{1,}(?:[-_]\d+[A-Za-z0-9]*)\b")
-    for raw_line in (content or "").splitlines():
+    for raw_line in text.splitlines():
         line = raw_line.strip()
         if not line:
             continue
@@ -173,20 +241,95 @@ def _local_name(iri: str) -> str:
     return text.rstrip("/").rsplit("/", 1)[-1]
 
 
-def _load_top_entity_contract(meta_config: dict, main_ontology: dict) -> tuple[str, str]:
-    policies = (main_ontology.get("runtime_policies") or {}) if isinstance(main_ontology, dict) else {}
-    shell_validation = ((policies.get("main_entity_kg") or {}).get("shell_validation") or {})
-    top_class_iri = str(shell_validation.get("top_entity_class_iri") or "").strip()
-    ttl_file = str(main_ontology.get("ttl_file") or "").strip()
-    if not top_class_iri or not ttl_file or not os.path.exists(ttl_file):
-        return top_class_iri, ""
+def _load_top_entity_contract(
+    meta_task_config_path: str, ontology_name: str
+) -> tuple[str, str]:
+    """Load only an explicitly machine-declared top role from the T-Box contract."""
     try:
-        graph = Graph()
-        graph.parse(ttl_file, format="turtle")
-        comment = "\n".join(str(c or "") for c in graph.objects(URIRef(top_class_iri), RDFS.comment)).strip()
-        return top_class_iri, comment
+        contract = build_ontology_publish_contract(
+            meta_task_config_path=meta_task_config_path,
+            ontology_name=ontology_name,
+        )
     except Exception:
-        return top_class_iri, ""
+        return "", ""
+    role = contract.get("top_role") or {}
+    if str(role.get("status") or "") != "known":
+        return "", ""
+    return str(role.get("class_iri") or "").strip(), ""
+
+
+def _resolve_selected_top_class_iri(
+    meta_task_config_path: str,
+    ontology_name: str,
+    selected_class_local: str,
+) -> str:
+    """Resolve the pipeline-selected class local without selecting a class."""
+    selected = str(selected_class_local or "").strip()
+    if not selected:
+        return ""
+    contract = build_ontology_publish_contract(
+        meta_task_config_path=meta_task_config_path,
+        ontology_name=ontology_name,
+    )
+    matches = [
+        str(item.get("class_iri") or "")
+        for item in contract.get("classes") or []
+        if _local_name(str(item.get("class_iri") or "")) == selected
+    ]
+    if len(matches) != 1:
+        raise ValueError(
+            "Pipeline-selected top class must resolve to exactly one T-Box class: "
+            f"{selected!r} matched {matches}"
+        )
+    return matches[0]
+
+
+def _write_top_class_selection(
+    *,
+    doi_dir: str,
+    class_local: str,
+    class_iri: str,
+    source: str,
+) -> None:
+    """Persist the authoritative top-class choice made by the pipeline."""
+    selection = {
+        "schema_version": "top-entity-selection.v1",
+        "class_local": str(class_local),
+        "class_iri": str(class_iri),
+        "source": str(source),
+    }
+    Path(doi_dir, "top_entity_selection.json").write_text(
+        json.dumps(selection, indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+
+def _persist_and_validate_top_class_selection(
+    *,
+    doi_dir: str,
+    class_local: str,
+    class_iri: str,
+    source: str = "pipeline_runtime_policy",
+) -> bool:
+    """Enforce top-class lineage as a successful extraction postcondition."""
+    if not str(class_local or "").strip() or not str(class_iri or "").strip():
+        return False
+    _write_top_class_selection(
+        doi_dir=doi_dir,
+        class_local=class_local,
+        class_iri=class_iri,
+        source=source,
+    )
+    try:
+        persisted = json.loads(
+            Path(doi_dir, "top_entity_selection.json").read_text(encoding="utf-8")
+        )
+    except (OSError, json.JSONDecodeError):
+        return False
+    return bool(
+        str(persisted.get("class_local") or "").strip() == str(class_local).strip()
+        and str(persisted.get("class_iri") or "").strip() == str(class_iri).strip()
+    )
 
 
 async def _revise_top_entities_against_tbox(
@@ -294,6 +437,16 @@ async def extract_top_entities(
             list(count_lines_starting_with or []),
         )
         if existing.strip() and ok_existing and not placeholder_doc and not stale_wrong_domain:
+            selected_local = (
+                _local_name(top_class_iri)
+                or (count_lines_starting_with or [""])[0]
+            )
+            _write_top_class_selection(
+                doi_dir=doi_dir,
+                class_local=selected_local,
+                class_iri=top_class_iri,
+                source="pipeline_runtime_policy",
+            )
             logger.info(f"⏭️  Top entities already extracted: {output_file}")
             return True
         if stale_wrong_domain:
@@ -355,8 +508,10 @@ async def extract_top_entities(
         logger.error(f"❌ {e}")
         return False
     
-    # Build full prompt
-    full_prompt = f"{extraction_prompt}\n\n{paper_content}"
+    # The pipeline owns source loading and injection. A prompt can declare the
+    # preferred placement through {paper_content}, but an externally supplied
+    # artifact is still executable without mutating it to add that marker.
+    full_prompt = bind_paper_content(extraction_prompt, paper_content)
     
     # Save full prompt for reproducibility
     prompt_save_path = os.path.join(doi_dir, "iter1_full_prompt.md")
@@ -414,6 +569,16 @@ async def extract_top_entities(
             os.makedirs(doi_dir, exist_ok=True)
             with open(output_file, 'w', encoding='utf-8') as f:
                 f.write(content)
+            selected_local = (
+                _local_name(top_class_iri)
+                or (count_lines_starting_with or [""])[0]
+            )
+            _write_top_class_selection(
+                doi_dir=doi_dir,
+                class_local=selected_local,
+                class_iri=top_class_iri,
+                source="pipeline_runtime_policy",
+            )
             
             logger.info(f"✅ Top entities saved to: {output_file}")
             
@@ -455,11 +620,16 @@ def run_step(doi_hash: str, config: dict) -> bool:
     
     # Load meta config to get main ontology
     try:
-        meta_config = load_meta_config(config.get("meta_task_config", "configs/meta_task/meta_task_config.json"))
+        meta_task_config_path = config.get(
+            "meta_task_config", "configs/meta_task/meta_task_config.json"
+        )
+        meta_config = load_meta_config(meta_task_config_path)
         main_ontology = meta_config.get("ontologies", {}).get("main", {})
         ontology_name = main_ontology.get("name", "ontosynthesis")
         logger.info(f"   Using ontology: {ontology_name}")
-        top_class_iri, top_class_comment = _load_top_entity_contract(meta_config, main_ontology)
+        top_class_iri, top_class_comment = _load_top_entity_contract(
+            meta_task_config_path, ontology_name
+        )
         policies = (main_ontology.get("runtime_policies") or {}) if isinstance(main_ontology, dict) else {}
         te_pol = (policies.get("top_entity_extraction") or {}) if isinstance(policies, dict) else {}
         invalidate_subs = te_pol.get("invalidate_top_entities_txt_substrings") or []
@@ -469,6 +639,15 @@ def run_step(doi_hash: str, config: dict) -> bool:
             iter1_rules = (iter1_pol.get("prompt_rules") or {}) if isinstance(iter1_pol, dict) else {}
             top_name = str(iter1_rules.get("top_level_entity_name") or "").strip()
             count_prefixes = [top_name] if top_name else []
+        selected_class_local = (
+            str(count_prefixes[0]).strip() if len(count_prefixes or []) == 1 else ""
+        )
+        if not top_class_iri and selected_class_local:
+            top_class_iri = _resolve_selected_top_class_iri(
+                meta_task_config_path,
+                ontology_name,
+                selected_class_local,
+            )
         identifier_code_regex = te_pol.get("identifier_code_regex")
     except Exception as e:
         logger.error(f"❌ Failed to load meta config: {e}")
@@ -490,6 +669,21 @@ def run_step(doi_hash: str, config: dict) -> bool:
         )
         
         if success:
+            selected_class_local = (
+                _local_name(top_class_iri)
+                or (str(count_prefixes[0]).strip() if len(count_prefixes or []) == 1 else "")
+            )
+            selection_ok = _persist_and_validate_top_class_selection(
+                doi_dir=os.path.join(data_dir, doi_hash),
+                class_local=selected_class_local,
+                class_iri=top_class_iri,
+            )
+            if not selection_ok:
+                logger.error(
+                    "❌ Top Entity Extraction cannot succeed without complete "
+                    "pipeline top-class selection lineage"
+                )
+                return False
             logger.info(f"✅ Top Entity Extraction completed: {doi_hash}")
         else:
             logger.error(f"❌ Top Entity Extraction failed: {doi_hash}")

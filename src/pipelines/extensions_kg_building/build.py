@@ -685,7 +685,7 @@ async def run_extension_agent(
     
     # Format extension prompt - provide both old and new placeholder names for compatibility
     # Extension MCP servers persist under data/<case_id>/… and expect the
-    # document identifier passed to init_memory/materialize_hints to be the
+    # document identifier passed to init_memory to be the
     # pipeline hash (see write_global_state). Keep slash/underscore DOIs as
     # secondary placeholders for prompt context only.
     format_kwargs = {

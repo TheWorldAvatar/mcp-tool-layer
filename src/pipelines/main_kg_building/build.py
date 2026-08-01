@@ -17,16 +17,14 @@ import hashlib
 import re
 import types
 import unicodedata
-from datetime import datetime
 from pathlib import Path
 from filelock import FileLock
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import Any, Dict, List, Optional
 from rdflib import Graph, URIRef, Literal, Namespace
 from rdflib.namespace import RDF, RDFS
 
 from models.ModelConfig import ModelConfig
 from src.utils.global_logger import get_logger
-from src.utils.extraction_models import get_extraction_model
 from src.pipelines.utils.ttl_publisher import (
     enforce_published_graph_hygiene_file,
     get_main_ontology_name,
@@ -34,15 +32,21 @@ from src.pipelines.utils.ttl_publisher import (
     load_meta_task_config,
     publish_top_ttl,
     publish_ttl,
-    _normalize_medical_composite_graph,
 )
 from src.pipelines.utils.ordered_member_integrity import (
     enforce_ordered_member_integrity_file,
     load_all_runtime_ordered_member_profiles,
 )
-
-if TYPE_CHECKING:
-    from models.BaseAgent import BaseAgent
+from src.pipelines.utils.top_entity_identity import (
+    entity_scope_name,
+    hydrate_and_validate_top_entity_types,
+    load_selected_top_class,
+    persist_entity_identity_sidecars,
+)
+from src.agents.scripts_and_prompts_generation.generation_contracts import (
+    build_ontology_publish_contract,
+)
+from src.agents.scripts_and_prompts_generation.fixed_om2_runtime import OM2_UNIT_MAP
 
 logger = get_logger("pipeline", "MainKGBuilding")
 OM2 = Namespace("http://www.ontology-of-units-of-measure.org/resource/om-2/")
@@ -130,7 +134,11 @@ def _resolve_expected_top_entity_uri(
     entity_label: str = "",
     label_key_suffixes_to_strip: Optional[list[str]] = None,
 ) -> str:
-    """Resolve the canonical top entity URI from the current graph."""
+    """Resolve a top entity without overriding an explicit scoped URI."""
+    explicit_uri = str(entity_uri or "").strip()
+    if explicit_uri:
+        return explicit_uri
+
     class_iri = str(top_class_iri or "").strip()
     typed_entities = [
         s
@@ -138,45 +146,11 @@ def _resolve_expected_top_entity_uri(
         if class_iri and isinstance(s, URIRef)
     ]
     if not typed_entities:
-        return str(entity_uri or "").strip()
-
-    explicit_uri = str(entity_uri or "").strip()
-    if explicit_uri:
-        explicit_ref = URIRef(explicit_uri)
-        if explicit_ref in typed_entities:
-            return explicit_uri
-
-    label_keys: list[str] = []
-    if entity_label:
-        label_key = _normalize_entity_label_key(
-            entity_label, label_key_suffixes_to_strip
-        )
-        if label_key:
-            label_keys.append(label_key)
-    if explicit_uri:
-        explicit_label_key = _normalize_entity_label_key(
-            _first_label(g, URIRef(explicit_uri)), label_key_suffixes_to_strip
-        )
-        if explicit_label_key and explicit_label_key not in label_keys:
-            label_keys.append(explicit_label_key)
-
-    for label_key in label_keys:
-        matched = [
-            node
-            for node in typed_entities
-            if _normalize_entity_label_key(
-                _first_label(g, node), label_key_suffixes_to_strip
-            )
-            == label_key
-        ]
-        if matched:
-            chosen = _choose_preferred_typed_target(g, matched)
-            if chosen is not None:
-                return str(chosen)
+        return ""
 
     if len(typed_entities) == 1:
         return str(typed_entities[0])
-    return explicit_uri
+    return ""
 
 
 def _load_top_shell_graph(
@@ -232,14 +206,9 @@ def _canonicalize_top_entities(
     doi_folder: str,
     ontology_name: str,
     meta_cfg: dict,
+    ontology_contract: Optional[dict] = None,
 ) -> list:
-    shell_validation = (
-        _get_main_entity_kg_policy(meta_cfg).get("shell_validation", {}) or {}
-    )
-    top_class_iri = str(shell_validation.get("top_entity_class_iri") or "").strip()
-    label_key_suffixes = shell_validation.get("label_key_suffixes_to_strip") or []
-    if not isinstance(label_key_suffixes, list):
-        label_key_suffixes = []
+    top_class_iri = _ontology_contract_top_class_iri(ontology_contract)
     if not top_class_iri or not isinstance(top_entities, list) or not top_entities:
         return top_entities
 
@@ -260,7 +229,6 @@ def _canonicalize_top_entities(
             top_class_iri=top_class_iri,
             entity_uri=str(entity.get("uri") or ""),
             entity_label=str(entity.get("label") or ""),
-            label_key_suffixes_to_strip=label_key_suffixes,
         )
         if resolved_uri and resolved_uri != str(entity.get("uri") or ""):
             logger.warning(
@@ -404,32 +372,6 @@ def _derive_placeholder_label_from_top_label(
     return normalized
 
 
-def _resolve_hint_property_iri(
-    *, property_namespace_iri: str, prop_name: str
-) -> URIRef:
-    text = str(prop_name or "").strip()
-    if not text:
-        return URIRef(property_namespace_iri)
-    if text.startswith("http://") or text.startswith("https://"):
-        return URIRef(text)
-    local = text.rsplit(":", 1)[-1] if ":" in text and "://" not in text else text
-    return URIRef(f"{property_namespace_iri}{local}")
-
-
-def _materialize_placeholder_target(
-    g: Graph,
-    *,
-    target_cls: URIRef,
-    label: str,
-) -> URIRef:
-    local_name = _local_name(str(target_cls)) or "Thing"
-    digest = hashlib.sha1(f"{local_name}:{label}".encode("utf-8")).hexdigest()
-    node = URIRef(f"https://www.theworldavatar.com/kg/instance/{local_name}/{digest}")
-    g.add((node, RDF.type, target_cls))
-    g.add((node, RDFS.label, Literal(label)))
-    return node
-
-
 def _looks_placeholder_label(text: str) -> bool:
     lowered = str(text or "").strip().lower()
     if not lowered:
@@ -456,9 +398,13 @@ def _first_integer_object(g: Graph, node: URIRef, pred: URIRef) -> Optional[int]
     return None
 
 
-def _preferred_ordered_member_targets(g: Graph, *, target_cls: URIRef) -> list[URIRef]:
+def _preferred_ordered_member_targets(
+    g: Graph, *, target_cls: URIRef, order_predicate_iri: str
+) -> list[URIRef]:
     """Choose one concrete node per semantic member, preferring richer subclassed nodes."""
-    order_pred = URIRef(f"{_namespace_iri(str(target_cls))}hasOrder")
+    if not str(order_predicate_iri or "").strip():
+        return []
+    order_pred = URIRef(order_predicate_iri)
     typed_targets = sorted(
         {s for s in g.subjects(RDF.type, target_cls) if isinstance(s, URIRef)}, key=str
     )
@@ -485,18 +431,25 @@ def _preferred_ordered_member_targets(g: Graph, *, target_cls: URIRef) -> list[U
 
 
 def _get_hint_reconciliation_specs(main_entity_policy: dict) -> list[dict]:
-    shell_validation = (main_entity_policy or {}).get("shell_validation", {}) or {}
     publish_policy = (main_entity_policy or {}).get("publish", {}) or {}
     hint_reconciliation = publish_policy.get("hint_reconciliation", {}) or {}
     optional_links = hint_reconciliation.get("optional_links", []) or []
 
     specs: list[dict] = []
-    for raw_spec, optional in (
-        *((spec, False) for spec in (shell_validation.get("required_links", []) or [])),
-        *((spec, True) for spec in optional_links),
-    ):
+    for raw_spec in optional_links:
         pred_iri = str((raw_spec or {}).get("predicate_iri") or "").strip()
         target_class_iri = str((raw_spec or {}).get("target_class_iri") or "").strip()
+        property_namespace_iri = str(
+            (raw_spec or {}).get("property_namespace_iri") or ""
+        ).strip()
+        allowed_scalar_property_iris = [
+            str(value).strip()
+            for value in (raw_spec or {}).get("allowed_scalar_property_iris", [])
+            if str(value).strip()
+        ]
+        order_predicate_iri = str(
+            (raw_spec or {}).get("order_predicate_iri") or ""
+        ).strip()
         if not (pred_iri and target_class_iri):
             continue
         specs.append(
@@ -505,12 +458,10 @@ def _get_hint_reconciliation_specs(main_entity_policy: dict) -> list[dict]:
                 or _local_name(target_class_iri),
                 "predicate_iri": pred_iri,
                 "target_class_iri": target_class_iri,
-                "property_namespace_iri": str(
-                    (raw_spec or {}).get("property_namespace_iri") or ""
-                ).strip()
-                or _namespace_iri(target_class_iri)
-                or _namespace_iri(pred_iri),
-                "optional": optional,
+                "property_namespace_iri": property_namespace_iri,
+                "allowed_scalar_property_iris": allowed_scalar_property_iris,
+                "order_predicate_iri": order_predicate_iri,
+                "optional": True,
                 "ordered_member": bool((raw_spec or {}).get("ordered_member")),
                 "prune_unhinted_scalar_properties": bool(
                     (raw_spec or {}).get("prune_unhinted_scalar_properties")
@@ -518,6 +469,23 @@ def _get_hint_reconciliation_specs(main_entity_policy: dict) -> list[dict]:
             }
         )
     return specs
+
+
+def _ontology_contract_top_class_iri(ontology_contract: Optional[dict]) -> str:
+    """Return only an explicitly machine-declared top-role class."""
+    contract = ontology_contract or {}
+    for key in ("top_role", "top_entity"):
+        role = contract.get(key)
+        if not isinstance(role, dict):
+            continue
+        class_iri = str(role.get("class_iri") or role.get("class") or "").strip()
+        if class_iri and str(role.get("source") or "").strip() in {
+            "tbox",
+            "owl_restriction",
+            "machine",
+        }:
+            return class_iri
+    return ""
 
 
 def _get_hint_exclusive_property_groups(main_entity_policy: dict) -> list[dict]:
@@ -724,10 +692,30 @@ def _augment_kg_prompt_with_runtime_rules(
     doi_hash: str,
     main_entity_policy: dict,
     hints_content: str = "",
+    ontology_contract: Optional[dict] = None,
 ) -> str:
     prompt_rules = (main_entity_policy or {}).get("prompt_rules", {}) or {}
-    shell_validation = (main_entity_policy or {}).get("shell_validation", {}) or {}
-    lines: list[str] = []
+    om2_unit_aliases = ", ".join(sorted(OM2_UNIT_MAP))
+    ordered_profile = (ontology_contract or {}).get("ordered_member_profile", {}) or {}
+    ordering_locals = [
+        str(value).strip()
+        for value in ordered_profile.get("single_valued_ordering_properties", []) or []
+        if str(value).strip()
+    ]
+    lines: list[str] = [
+        "Generic MCP execution rules (authoritative for every KG-building run):",
+        "- Treat the exposed MCP tool inventory and schemas as the only callable API. Never invent a tool name, parameter name, positional argument, or capability mentioned only in prose.",
+        "- Inspect each tool schema before calling it and pass exactly its declared arguments. If the required operation is not exposed, stop with a structured failure instead of guessing.",
+        "- `init_memory` only opens or resumes the current DOI/entity scope and is idempotent. It has no reset mode. Call it before mutation when needed; repeated calls must never be used to clear state.",
+        "- A transport-level successful tool call is not a semantic success. Any structured result with `ok=false` or status `rejected`, `error`, or `failed` must be treated as failure and corrected before continuing.",
+        "- Ensure the scoped top entity exists in the active graph with its required T-Box-derived type before adding relationships to it. Reuse its supplied IRI and do not create a competing root.",
+        "- Before creating or linking an entity that may have been produced by an earlier iteration, call the corresponding exposed `check_existing_<Class>` tool. Match its returned labels and types to the current source evidence and reuse the returned IRI. Call the class creator only when no matching persisted entity exists and the current hints require a new individual.",
+        "- Resolve every child IRI from a successful creator result or persisted graph evidence. Never guess UUIDs, use labels as IRIs, or pass unresolved local references to relationship tools.",
+        f"- For OM-2 quantity tools, follow the exposed tool schema and use one of these runtime-supported unit aliases: {om2_unit_aliases}. Preserve any source quantity that the tool can represent; if a value or unit is rejected, correct it from source evidence or omit that unsupported assertion rather than guessing.",
+        "- Materialize the meaning of all supplied extraction evidence regardless of whether that evidence is JSON, text, nested, flat, ID-based, label-based, or reference-based. Representation is not a reason to omit a grounded fact.",
+        "- Before export, verify that all attempted writes succeeded and that the active graph contains substantive A-Box facts for this scope. Do not export or claim success for a T-Box-only or empty A-Box graph.",
+        "- The final MCP tool call must be `export_memory`, after all validation and mutation calls. Do not call any tool after it. Its successful result must contain non-empty A-Box Turtle and the scoped top entity; otherwise stop with a structured failure.",
+    ]
 
     if prompt_rules.get("require_top_entity_reuse"):
         lines.append(
@@ -736,15 +724,17 @@ def _augment_kg_prompt_with_runtime_rules(
     if prompt_rules.get("forbid_new_top_entity_creation"):
         lines.append("- Do not create a second top-level entity for this case.")
     if prompt_rules.get("require_required_links_before_export"):
-        for spec in shell_validation.get("required_links", []) or []:
+        for spec in (ontology_contract or {}).get("required_links", []) or []:
             pred_iri = str((spec or {}).get("predicate_iri") or "").strip()
-            if pred_iri:
+            min_count = int((spec or {}).get("min_count") or 0)
+            if pred_iri and min_count > 0:
                 pred_name = pred_iri.rsplit("/", 1)[-1]
                 lines.append(
-                    f"- Before export, ensure the top-level entity `{entity_uri}` has the required link `{pred_name}` to the relevant sub-entity."
+                    f"- Before export, satisfy the T-Box cardinality for `{pred_name}` "
+                    f"(`{pred_iri}`): minimum {min_count} link(s) where the machine-readable contract applies."
                 )
     if lines:
-        lines.insert(0, "Config-derived graph integrity rules:")
+        lines.append("Config-derived graph integrity rules:")
         lines.append(
             f"- Use `{doi_hash}` as the document identifier/doi argument when relevant."
         )
@@ -752,19 +742,43 @@ def _augment_kg_prompt_with_runtime_rules(
         lines.append(
             "- Every explicit canonical field present in `ExtractedHints` must be materialized into the scoped KG before export; do not terminate with only placeholder shell entities."
         )
-        lines.append(
-            "- Ordered-member property fidelity is mandatory: for each hinted member with `hasOrder`, materialize each property on the member with that exact order and never copy, inherit, or reuse a property value from a different ordered member."
-        )
-        lines.append(
-            "- If two ordered members share the same class, still treat them as separate individuals with independent property values; each value must match the corresponding hint for that member order."
-        )
-        lines.append(
-            "- When an ordered member hint omits an optional property, do not populate that property by copying it from a previous or following member unless the prompt or T-Box explicitly states an inheritance rule for that property."
-        )
+        if ordering_locals:
+            ordering_names = ", ".join(f"`{name}`" for name in ordering_locals)
+            lines.append(
+                f"- Ordered-member property fidelity is mandatory for the T-Box ordering "
+                f"propert{'y' if len(ordering_locals) == 1 else 'ies'} {ordering_names}: "
+                "materialize each property on the member with that exact order and never copy, "
+                "inherit, or reuse a property value from a different ordered member."
+            )
+            lines.append(
+                "- For every ordered-member creator, pass the exact positive integer order from "
+                "the same hint directly in that creator call. The creator writes identity and "
+                "order atomically. Do not infer order from labels, invent a separate order setter, "
+                "or defer ordering to export or publisher repair."
+            )
+            lines.append(
+                "- If two ordered members share the same class, still treat them as separate "
+                "individuals with independent property values; each value must match the "
+                "corresponding hinted member."
+            )
+            lines.append(
+                "- When an ordered member hint omits an optional property, do not populate that "
+                "property by copying it from another member unless the prompt or T-Box explicitly "
+                "states an inheritance rule."
+            )
         hints_text = _strip_code_fences(hints_content)
+        ordering_pattern = (
+            "|".join(re.escape(name) for name in ordering_locals)
+            if ordering_locals
+            else r"(?!x)x"
+        )
         has_ordered_member_evidence = bool(
             re.search(r"<(?:step|member)\d+>", hints_text, flags=re.IGNORECASE)
-            or re.search(r"\bhasOrder\b", hints_text)
+            or re.search(
+                rf"(?<![A-Za-z0-9_])(?:{ordering_pattern})(?![A-Za-z0-9_])",
+                hints_text,
+                flags=re.IGNORECASE,
+            )
         )
         has_integrity_only_flags = bool(
             re.search(r"\bINTEGRITY_FLAGS\b", hints_text, flags=re.IGNORECASE)
@@ -777,78 +791,315 @@ def _augment_kg_prompt_with_runtime_rules(
             lines.append(
                 "- Treat integrity or validation flags in `ExtractedHints` as constraints on the graph, not as standalone evidence for creating new entities or replaying previously-created members."
             )
-        if re.search(r"\bhasParameter\s*:", hints_text, flags=re.IGNORECASE):
-            lines.append(
-                "- If `ExtractedHints` contain generic parameter lines such as "
-                "`hasParameter: name=value unit`, materialize them on the same ordered member. "
-                "Use the available creation-tool arguments whose local names best match the parameter "
-                "name and quantity kind, especially paired `<property>_value` and `<property>_unit` arguments; "
-                "do not drop a generic parameter line only because it is not already written as a concrete property."
-            )
         return kg_prompt.rstrip() + "\n\n" + "\n".join(lines) + "\n"
     return kg_prompt
-
-
-def _response_has_recoverable_kg_error(response_text: str) -> bool:
-    lowered = (response_text or "").lower()
-    recoverable_markers = (
-        "recoverable_kg_error",
-        "missing_subject",
-        "missing subject",
-        "container does not exist",
-        "subject entity might not exist",
-    )
-    return any(marker in lowered for marker in recoverable_markers)
-
-
-def _response_claims_persistence(response_text: str) -> bool:
-    lowered = (response_text or "").lower()
-    return any(
-        marker in lowered
-        for marker in (
-            "exported",
-            "successfully materialized",
-            "successfully created",
-            "rdf graph has been successfully",
-            "ttl",
-        )
-    )
 
 
 def _has_entity_persistence_artifact(
     *, doi_folder: str, entity_safe: str, entity_label: str
 ) -> bool:
+    return bool(
+        _entity_persistence_artifacts(
+            doi_folder=doi_folder,
+            entity_safe=entity_safe,
+            entity_label=entity_label,
+        )
+    )
+
+
+def _entity_persistence_artifacts(
+    *, doi_folder: str, entity_safe: str, entity_label: str
+) -> list[str]:
     mem_dir = os.path.join(doi_folder, "memory")
     candidates = [
         os.path.join(mem_dir, f"{entity_safe}.ttl"),
         os.path.join(mem_dir, f"{entity_safe.lower()}.ttl"),
         os.path.join(mem_dir, f"{entity_label}.ttl"),
     ]
-    if any(os.path.exists(path) for path in candidates):
-        return True
+    found = [path for path in candidates if os.path.exists(path)]
     exports_dir = os.path.join(doi_folder, "exports")
     if os.path.isdir(exports_dir):
         for name in os.listdir(exports_dir):
             if name.startswith(entity_safe) and name.endswith(".ttl"):
-                return True
-    return False
+                found.append(os.path.join(exports_dir, name))
+    return list(dict.fromkeys(found))
+
+
+def _artifact_fingerprints(paths: list[str]) -> dict[str, tuple[int, int]]:
+    """Capture mechanical file identity for per-attempt freshness checks."""
+    fingerprints: dict[str, tuple[int, int]] = {}
+    for path in paths:
+        try:
+            stat = os.stat(path)
+        except OSError:
+            continue
+        fingerprints[path] = (stat.st_mtime_ns, stat.st_size)
+    return fingerprints
+
+
+def _persisted_abox_entity_inventory(paths: list[str]) -> list[dict[str, Any]]:
+    """Return a compact, domain-independent identity inventory from persisted TTL."""
+    graph = Graph()
+    for path in paths:
+        try:
+            graph.parse(path, format="turtle")
+        except Exception:
+            continue
+    inventory: list[dict[str, Any]] = []
+    for subject in sorted(
+        {node for node in graph.subjects(RDF.type, None) if isinstance(node, URIRef)},
+        key=str,
+    ):
+        type_iris = sorted(
+            {
+                str(type_iri)
+                for type_iri in graph.objects(subject, RDF.type)
+                if isinstance(type_iri, URIRef)
+            }
+        )
+        labels = sorted({str(label) for label in graph.objects(subject, RDFS.label)})
+        if not type_iris:
+            continue
+        inventory.append(
+            {
+                "iri": str(subject),
+                "types": type_iris,
+                "labels": labels,
+            }
+        )
+    return inventory
 
 
 def _build_kg_recovery_prompt(
-    *, base_prompt: str, entity_label: str, entity_uri: str
+    *,
+    base_prompt: str,
+    entity_label: str,
+    entity_uri: str,
+    graph_mode: str,
+    prior_attempt_trace: dict[str, Any],
+    resume_artifact_path: str = "",
 ) -> str:
+    state_instruction = (
+        "- Open or resume the scoped graph with `init_memory` before mutation. It is "
+        "idempotent and accepts no reset/replace mode.\n"
+        "- Do not call arbitrary-path loader, reset, replace, or clearing tools. The "
+        "runtime resolves persisted state internally from DOI/entity scope.\n"
+    )
     return (
         base_prompt.rstrip()
         + "\n\nRecovery instructions for this retry:\n"
-        + f"- A previous attempt for `{entity_label}` failed because it did not leave a persisted entity TTL artifact.\n"
+        + f"- The previous attempt for `{entity_label}` did not produce the required persisted entity TTL artifact.\n"
+        + f"- Graph lifecycle mode: `{graph_mode}`.\n"
+        + state_instruction
         + "- You must use MCP tools in this retry. Do not answer in prose until after the export tool succeeds.\n"
-        + f"- First call `init_memory` with the document id and top-level entity name `{entity_label}`.\n"
-        + f"- Then create or reuse the scoped top-level entity `{entity_uri}` before creating or linking child entities.\n"
-        + "- Re-apply every explicit canonical field from `ExtractedHints` by calling the matching `create_*` and `add_*` tools.\n"
+        + "- Follow the exposed MCP tool schemas exactly. Do not assume parameter names or positional arguments.\n"
+        + "- Never call a tool solely because this prompt names it; first confirm that it exists in the exposed inventory.\n"
+        + "- Treat structured `ok=false` or status `rejected`, `error`, or `failed` as a failed mutation even when the transport reports success.\n"
+        + "- `init_memory` is idempotent open-or-resume and has no destructive mode.\n"
+        + f"- Create or reuse the scoped top-level entity `{entity_uri}` before creating or linking child entities.\n"
+        + "- Re-apply every source-grounded semantic fact from `ExtractedHints`, independent of its serialization shape, using only matching exposed tools.\n"
         + "- For ordered members, create each hinted member with its order scalar and link each member individually to the scoped top entity.\n"
-        + "- Finally call `export_memory`. If `export_memory` does not return TTL content or success, do not claim success.\n"
+        + "- Before export, confirm successful result envelopes and substantive scoped A-Box facts. Finally call `export_memory`; if it returns no A-Box TTL or no scoped top entity, do not claim success.\n"
         + "- Do not switch scope and do not create a second competing top-level entity.\n"
+        + "\nStructured trace from the previous attempt:\n"
+        + json.dumps(prior_attempt_trace, ensure_ascii=False, indent=2)
+        + "\n"
     )
+
+
+def _tool_trace_has_structured_failure(metadata: dict[str, Any]) -> bool:
+    """
+    Return whether structured failures remained unrecovered at the commit boundary.
+
+    ReAct may make a rejected exploratory call and then correct it. A successful
+    final ``export_memory`` is the transaction boundary; earlier rejections stay
+    in the trace as diagnostics but must not force a retry by themselves.
+    """
+    activity = (metadata or {}).get("tool_activity") or {}
+    saw_failure = False
+    for output in activity.get("tool_outputs") or []:
+        if not isinstance(output, dict):
+            continue
+        payload = output.get("structured_content")
+        output_failed = str(output.get("status") or "").casefold() == "error"
+        if isinstance(payload, dict):
+            output_failed = output_failed or payload.get("ok") is False
+            output_failed = output_failed or str(
+                payload.get("status") or ""
+            ).casefold() in {
+                "rejected",
+                "error",
+                "failed",
+            }
+        if output_failed:
+            saw_failure = True
+            continue
+        if (
+            str(output.get("name") or "") == "export_memory"
+            and isinstance(payload, dict)
+            and str(payload.get("status") or "ok").casefold()
+            not in {
+                "rejected",
+                "error",
+                "failed",
+            }
+            and isinstance(payload.get("ttl"), str)
+            and payload["ttl"].strip()
+        ):
+            saw_failure = False
+    return saw_failure
+
+
+def _attempt_trace(metadata: dict[str, Any], *, artifact_found: bool) -> dict[str, Any]:
+    activity = (metadata or {}).get("tool_activity") or {}
+    return {
+        "artifact_found": artifact_found,
+        "planned_tool_calls": list(activity.get("planned_tool_calls") or []),
+        "tool_outputs": list(activity.get("tool_outputs") or []),
+        "structured_tool_failure": _tool_trace_has_structured_failure(metadata),
+        "usage": (metadata or {}).get("aggregated_usage") or {},
+    }
+
+
+def _write_json_atomic(path: str, payload: dict[str, Any]) -> None:
+    directory = os.path.dirname(path)
+    os.makedirs(directory, exist_ok=True)
+    fd, temp_path = tempfile.mkstemp(dir=directory, suffix=".json.tmp")
+    os.close(fd)
+    try:
+        with open(temp_path, "w", encoding="utf-8") as handle:
+            json.dump(
+                payload,
+                handle,
+                indent=2,
+                ensure_ascii=False,
+                default=str,
+            )
+        os.replace(temp_path, path)
+    finally:
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+
+
+def bind_kg_runtime_context(
+    kg_prompt: str,
+    *,
+    doi_hash: str,
+    entity_label: str,
+    entity_uri: str,
+    hints_content: str,
+    iter_num: int,
+) -> tuple[str, list[str]]:
+    """Bind the complete pipeline-owned entity KG runtime envelope."""
+    declared_doi = "{doi}" in kg_prompt or "{hash}" in kg_prompt
+    declared_label = "{entity_label}" in kg_prompt
+    declared_uri = "{entity_uri}" in kg_prompt
+    prompt = kg_prompt.replace("{doi}", doi_hash).replace("{hash}", doi_hash)
+    prompt = prompt.replace("{entity_label}", entity_label)
+    prompt = prompt.replace("{entity_uri}", entity_uri)
+    structured_hints = (
+        "These are extracted hints for this iteration. Treat them as the primary source for KG building.\n"
+        "Do not downgrade an explicit canonical field in these hints into a weaker fallback field.\n\n"
+        "ExtractedHints:\n<<<\n"
+        f"{hints_content}\n"
+        ">>>\n"
+    )
+    warnings: list[str] = []
+    declared_hints = False
+    if "{iteration_hints}" in prompt:
+        prompt = prompt.replace("{iteration_hints}", structured_hints)
+        declared_hints = True
+    elif iter_num >= 2 and "{paper_content}" in prompt:
+        warnings.append(
+            "Legacy KG Iteration 2+ prompt used {paper_content}; bound it to "
+            "ExtractedHints rather than raw paper content."
+        )
+        prompt = prompt.replace("{paper_content}", structured_hints)
+        declared_hints = True
+    elif iter_num >= 2:
+        warnings.append(
+            "KG Iteration 2+ prompt omitted {iteration_hints}; appended the "
+            "pipeline-owned ExtractedHints boundary."
+        )
+
+    additions: list[str] = []
+    missing_identity: list[str] = []
+    if not declared_doi:
+        missing_identity.append(f"Document DOI/hash: {doi_hash}")
+    if not declared_label:
+        missing_identity.append(f"Current entity label: {entity_label}")
+    if not declared_uri:
+        missing_identity.append(
+            f"Current entity exact URI (reuse this IRI; do not mint a replacement): {entity_uri}"
+        )
+    if missing_identity:
+        additions.extend(
+            [
+                "---- PIPELINE-INJECTED ENTITY RUNTIME CONTEXT: BEGIN ----",
+                *missing_identity,
+                "---- PIPELINE-INJECTED ENTITY RUNTIME CONTEXT: END ----",
+            ]
+        )
+    if iter_num >= 2 and not declared_hints:
+        additions.extend(
+            [
+                "---- PIPELINE-INJECTED EXTRACTED HINTS: BEGIN ----",
+                structured_hints.rstrip(),
+                "---- PIPELINE-INJECTED EXTRACTED HINTS: END ----",
+            ]
+        )
+    if additions:
+        prompt = prompt.rstrip() + "\n\n" + "\n".join(additions) + "\n"
+    return prompt, warnings
+
+
+def _persist_structured_turtle_result(
+    metadata: dict[str, Any], *, target_path: str
+) -> tuple[bool, str]:
+    """
+    Persist a Turtle payload returned by a successful structured MCP tool result.
+
+    This is a transport adapter only: it parses the declared Turtle payload and
+    writes it atomically. Domain and entity-scope validation remains downstream.
+    """
+    activity = (metadata or {}).get("tool_activity") or {}
+    turtle_payloads: list[str] = []
+    for output in activity.get("tool_outputs") or []:
+        if not isinstance(output, dict):
+            continue
+        if str(output.get("status") or "").casefold() == "error":
+            continue
+        payload = output.get("structured_content")
+        if not isinstance(payload, dict) or payload.get("ok") is False:
+            continue
+        ttl = payload.get("ttl")
+        if isinstance(ttl, str) and ttl.strip():
+            turtle_payloads.append(ttl)
+
+    if not turtle_payloads:
+        return False, "No Turtle payload was present in successful structured tool results"
+
+    ttl = turtle_payloads[-1]
+    try:
+        graph = Graph()
+        graph.parse(data=ttl, format="turtle")
+    except Exception as exc:
+        return False, f"Structured Turtle payload could not be parsed: {exc}"
+    if not graph:
+        return False, "Structured Turtle payload parsed to an empty graph"
+
+    directory = os.path.dirname(target_path)
+    os.makedirs(directory, exist_ok=True)
+    fd, temp_path = tempfile.mkstemp(dir=directory, suffix=".ttl.tmp")
+    os.close(fd)
+    try:
+        with open(temp_path, "w", encoding="utf-8") as handle:
+            handle.write(ttl)
+        os.replace(temp_path, target_path)
+    finally:
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+    return True, ""
 
 
 def _validate_entity_ttl_structure(
@@ -856,13 +1107,12 @@ def _validate_entity_ttl_structure(
     ttl_path: str,
     entity_uri: str,
     entity_label: str,
-    main_entity_policy: dict,
+    ontology_contract: dict,
 ) -> tuple[bool, list[str]]:
-    """
-    Validate the published entity TTL against config-driven shell/link expectations.
-    """
-    shell_validation = (main_entity_policy or {}).get("shell_validation", {}) or {}
+    """Validate a published entity graph against its ontology-derived contract."""
     messages: list[str] = []
+    if not ontology_contract or not ontology_contract.get("resolved_ttl_file"):
+        return False, ["Ontology publish contract is unavailable"]
     if not ttl_path or not os.path.exists(ttl_path):
         return False, [f"TTL not found for validation: {ttl_path}"]
 
@@ -872,43 +1122,80 @@ def _validate_entity_ttl_structure(
     except Exception as e:
         return False, [f"Failed to parse TTL: {e}"]
 
-    top_class_iri = str(shell_validation.get("top_entity_class_iri") or "").strip()
-    label_key_suffixes = shell_validation.get("label_key_suffixes_to_strip") or []
-    if not isinstance(label_key_suffixes, list):
-        label_key_suffixes = []
-    resolved_entity_uri = _resolve_expected_top_entity_uri(
-        g,
-        top_class_iri=top_class_iri,
-        entity_uri=entity_uri,
-        entity_label=entity_label,
-        label_key_suffixes_to_strip=label_key_suffixes,
-    )
-    top_entity = URIRef(resolved_entity_uri) if resolved_entity_uri else None
-    if top_entity is not None and shell_validation.get("require_entity_uri_subject"):
-        if not any(g.triples((top_entity, None, None))):
-            messages.append(
-                f"Missing top-level entity subject in TTL: {resolved_entity_uri or entity_uri}"
+    entity_ref = URIRef(str(entity_uri or "").strip())
+    if not entity_uri or not any(g.triples((entity_ref, None, None))):
+        messages.append(f"Missing entity subject in TTL: {entity_uri}")
+
+    closure = {
+        str(item.get("class_iri") or ""): set(
+            item.get("superclass_iris") or []
+        )
+        for item in ontology_contract.get("subclass_closure") or []
+    }
+    property_contracts = {
+        str(item.get("property_iri") or ""): item
+        for item in ontology_contract.get("object_properties") or []
+    }
+
+    def node_matches_class(node: URIRef, expected_class: str) -> bool:
+        asserted_types = {
+            str(value)
+            for value in g.objects(node, RDF.type)
+            if isinstance(value, URIRef)
+        }
+        return any(
+            expected_class in closure.get(actual, {actual})
+            for actual in asserted_types
+        )
+
+    for subject, predicate, obj in g:
+        if not isinstance(obj, URIRef):
+            continue
+        spec = property_contracts.get(str(predicate))
+        if not spec:
+            continue
+        ranges = [
+            str(value)
+            for value in spec.get("range_iris") or []
+            if str(value)
+        ]
+        if ranges and not any(node_matches_class(obj, expected) for expected in ranges):
+            actual_types = sorted(
+                str(value)
+                for value in g.objects(obj, RDF.type)
+                if isinstance(value, URIRef)
             )
-        elif top_class_iri and (top_entity, RDF.type, URIRef(top_class_iri)) not in g:
             messages.append(
-                f"Top-level entity missing required rdf:type: {top_class_iri}"
+                "Object-property range mismatch for "
+                f"{predicate}: object {obj} has types {actual_types}, "
+                f"expected a type compatible with {ranges}"
             )
 
-    if top_entity is not None:
-        for spec in shell_validation.get("required_links", []) or []:
-            pred_iri = str((spec or {}).get("predicate_iri") or "").strip()
-            target_class_iri = str((spec or {}).get("target_class_iri") or "").strip()
-            min_count = int((spec or {}).get("min_count") or 0)
-            if not pred_iri:
-                continue
-            pred = URIRef(pred_iri)
-            objs = [o for o in g.objects(top_entity, pred) if isinstance(o, URIRef)]
-            if target_class_iri:
-                target_cls = URIRef(target_class_iri)
-                objs = [o for o in objs if (o, RDF.type, target_cls) in g]
-            if len(objs) < min_count:
+    for required in ontology_contract.get("required_links") or []:
+        subject_class = str(required.get("subject_class_iri") or "")
+        predicate_iri = str(required.get("predicate_iri") or "")
+        target_class = str(required.get("target_class_iri") or "")
+        min_count = int(required.get("min_count") or 0)
+        if not subject_class or not predicate_iri or min_count <= 0:
+            continue
+        for subject in {
+            node
+            for node in g.subjects(RDF.type, None)
+            if isinstance(node, URIRef) and node_matches_class(node, subject_class)
+        }:
+            targets = [
+                target
+                for target in g.objects(subject, URIRef(predicate_iri))
+                if isinstance(target, URIRef)
+                and (
+                    not target_class
+                    or node_matches_class(target, target_class)
+                )
+            ]
+            if len(targets) < min_count:
                 messages.append(
-                    f"Missing required link {pred_iri}: expected >= {min_count}, found {len(objs)}"
+                    f"Missing ontology-required link {predicate_iri} on {subject}: "
+                    f"expected >= {min_count}, found {len(targets)}"
                 )
 
     return (len(messages) == 0), messages
@@ -974,16 +1261,13 @@ def _repair_published_entity_ttl(
     entity_label: str,
     meta_cfg: dict,
     main_entity_policy: dict,
+    ontology_contract: Optional[dict] = None,
 ) -> tuple[bool, list[str]]:
     """
     Post-publish repair step: merge top shell into the published entity TTL and
-    attach configured singleton links if missing.
+    conservatively attach machine-required links to existing typed targets.
     """
     publish_policy = (main_entity_policy or {}).get("publish", {}) or {}
-    shell_validation = (main_entity_policy or {}).get("shell_validation", {}) or {}
-    label_key_suffixes = shell_validation.get("label_key_suffixes_to_strip") or []
-    if not isinstance(label_key_suffixes, list):
-        label_key_suffixes = []
     if not bool(publish_policy.get("merge_top_ttl_into_entity_ttl")):
         return True, []
     if not ttl_path or not os.path.exists(ttl_path):
@@ -1017,15 +1301,8 @@ def _repair_published_entity_ttl(
 
         return sorted(typed_targets, key=_score, reverse=True)[0]
 
-    top_class_iri = str(shell_validation.get("top_entity_class_iri") or "").strip()
-    resolved_entity_uri = _resolve_expected_top_entity_uri(
-        g,
-        top_class_iri=top_class_iri,
-        entity_uri=entity_uri,
-        entity_label=entity_label,
-        label_key_suffixes_to_strip=label_key_suffixes,
-    )
-    top_entity = URIRef(resolved_entity_uri) if resolved_entity_uri else None
+    top_class_iri = _ontology_contract_top_class_iri(ontology_contract)
+    top_entity = URIRef(str(entity_uri).strip()) if str(entity_uri).strip() else None
     if top_class_iri and top_entity is not None:
         top_class = URIRef(top_class_iri)
         typed_top_entities = [
@@ -1038,12 +1315,17 @@ def _repair_published_entity_ttl(
                 f"Pruned {len(drop_nodes)} unrelated top-level shell entities during repair"
             )
 
-    for spec in shell_validation.get("required_links", []) or []:
+    for spec in (ontology_contract or {}).get("required_links", []) or []:
+        subject_class_iri = str(
+            (spec or {}).get("subject_class_iri") or ""
+        ).strip()
         pred_iri = str((spec or {}).get("predicate_iri") or "").strip()
         target_class_iri = str((spec or {}).get("target_class_iri") or "").strip()
         min_count = int((spec or {}).get("min_count") or 0)
-        repair_mode = str((spec or {}).get("repair_mode") or "").strip()
-        if not (top_entity and pred_iri and target_class_iri):
+        if not (top_entity and subject_class_iri and pred_iri and target_class_iri):
+            continue
+        subject_class = URIRef(subject_class_iri)
+        if (top_entity, RDF.type, subject_class) not in g:
             continue
         pred = URIRef(pred_iri)
         target_cls = URIRef(target_class_iri)
@@ -1054,59 +1336,17 @@ def _repair_published_entity_ttl(
         ]
         if len(current_targets) >= min_count:
             continue
-        if bool((spec or {}).get("ordered_member")):
-            ordered_targets = _preferred_ordered_member_targets(
-                g, target_cls=target_cls
-            )
-            if ordered_targets:
-                for node in ordered_targets:
-                    g.add((top_entity, pred, node))
-                messages.append(
-                    f"Attached required ordered-member link {pred_iri} to {len(ordered_targets)} concrete node(s)"
-                )
-                continue
-        chosen_target: URIRef | None = None
-        if repair_mode == "attach_singleton_if_missing":
-            typed_targets = sorted(
-                {s for s in g.subjects(RDF.type, target_cls) if isinstance(s, URIRef)},
-                key=str,
-            )
-            chosen_target = _choose_preferred_typed_target(typed_targets)
-        else:
-            chosen_target = _choose_repair_target_for_top_entity(
-                g,
-                top_entity=top_entity,
-                target_cls=target_cls,
-                label_key_suffixes_to_strip=label_key_suffixes,
-            )
-
-        placeholder_cfg = (spec or {}).get("placeholder_target_if_missing") or {}
-        if (
-            chosen_target is None
-            and isinstance(placeholder_cfg, dict)
-            and placeholder_cfg
-        ):
-            placeholder_label = str(placeholder_cfg.get("label") or "").strip()
-            if not placeholder_label and bool(
-                placeholder_cfg.get("derive_label_from_top_entity")
-            ):
-                placeholder_label = _derive_placeholder_label_from_top_label(
-                    _first_label(g, top_entity),
-                    strip_suffix=str(placeholder_cfg.get("strip_suffix") or ""),
-                )
-            if placeholder_label:
-                chosen_target = _materialize_placeholder_target(
-                    g,
-                    target_cls=target_cls,
-                    label=placeholder_label,
-                )
-                messages.append(
-                    f"Materialized placeholder target '{placeholder_label}' for missing required link {pred_iri}"
-                )
+        chosen_target = _choose_repair_target_for_top_entity(
+            g,
+            top_entity=top_entity,
+            target_cls=target_cls,
+        )
 
         if chosen_target is not None:
             g.add((top_entity, pred, chosen_target))
-            messages.append(f"Attached required link {pred_iri} to {chosen_target}")
+            messages.append(
+                f"Attached machine-required link {pred_iri} to {chosen_target}"
+            )
 
     if top_entity is not None:
         for spec in _get_hint_reconciliation_specs(main_entity_policy):
@@ -1229,27 +1469,31 @@ def _artifact_is_current(
 
 
 # Global state management for MCP server
-GLOBAL_STATE_DIR = "data"
-GLOBAL_STATE_JSON = os.path.join(GLOBAL_STATE_DIR, "global_state.json")
-GLOBAL_STATE_LOCK = os.path.join(GLOBAL_STATE_DIR, "global_state.lock")
-
-
 def write_global_state(
-    doi: str, top_level_entity_name: str, top_level_entity_iri: str | None = None
+    doi: str,
+    top_level_entity_name: str,
+    top_level_entity_iri: str | None = None,
+    *,
+    data_dir: str | None = None,
 ):
-    """Write global state atomically with file lock for MCP server to read."""
-    os.makedirs(GLOBAL_STATE_DIR, exist_ok=True)
-    lock = FileLock(GLOBAL_STATE_LOCK)
+    """Write the legacy compatibility state inside the active pipeline data root."""
+    state_dir = os.path.abspath(
+        data_dir or os.environ.get("TWA_AGENTIC_DATA_DIR") or "data"
+    )
+    state_json = os.path.join(state_dir, "global_state.json")
+    state_lock = os.path.join(state_dir, "global_state.lock")
+    os.makedirs(state_dir, exist_ok=True)
+    lock = FileLock(state_lock)
     lock.acquire(timeout=30.0)
     try:
         state = {"doi": doi, "top_level_entity_name": top_level_entity_name}
         if top_level_entity_iri:
             state["top_level_entity_iri"] = top_level_entity_iri
-        fd, tmp = tempfile.mkstemp(dir=GLOBAL_STATE_DIR, suffix=".json.tmp")
+        fd, tmp = tempfile.mkstemp(dir=state_dir, suffix=".json.tmp")
         os.close(fd)
         with open(tmp, "w", encoding="utf-8") as f:
             json.dump(state, f, indent=2)
-        os.replace(tmp, GLOBAL_STATE_JSON)
+        os.replace(tmp, state_json)
         logger.info(f"Global state written: doi={doi}, entity={top_level_entity_name}")
     finally:
         lock.release()
@@ -1280,6 +1524,119 @@ def _safe_name(label: str) -> str:
     s = re.sub(r"[^A-Za-z0-9._-]+", "_", s)
     s = re.sub(r"_+", "_", s).strip("_")
     return s or "entity"
+
+
+def _entity_checkpoint_path(doi_folder: str, entity_scope: str) -> str:
+    return os.path.join(doi_folder, "memory", f"{entity_scope}.checkpoint.json")
+
+
+def _write_entity_checkpoint(
+    *,
+    doi_folder: str,
+    doi_hash: str,
+    entity_scope: str,
+    entity_label: str,
+    entity_uri: str,
+    entity_types: list[str],
+    canonical_ttl: str,
+    iteration: int,
+) -> None:
+    """Advance one entity checkpoint only after canonical TTL validation."""
+    payload = {
+        "schema_version": "pipeline-entity-checkpoint.v1",
+        "doi": doi_hash,
+        "entity_scope": entity_scope,
+        "entity_label": entity_label,
+        "entity_uri": entity_uri,
+        "entity_types": sorted({str(value) for value in entity_types if str(value)}),
+        "canonical_ttl": os.path.abspath(canonical_ttl),
+        "iteration": int(iteration),
+        "ttl_sha256": hashlib.sha256(Path(canonical_ttl).read_bytes()).hexdigest(),
+        "triple_count": len(Graph().parse(canonical_ttl, format="turtle")),
+    }
+    _write_json_atomic(_entity_checkpoint_path(doi_folder, entity_scope), payload)
+
+
+def _seed_entity_canonical_memory(
+    *,
+    doi_folder: str,
+    entity_scope: str,
+    entity_uri: str,
+    entity_label: str,
+    entity_types: list[str],
+    top_class_iri: str,
+) -> str:
+    """Create an exact-identity scoped seed from Iteration 1, fail closed."""
+    source = os.path.join(doi_folder, "iteration_1.ttl")
+    if not os.path.isfile(source):
+        raise RuntimeError(f"Iteration 1 top shell is missing: {source}")
+    graph = Graph()
+    graph.parse(source, format="turtle")
+    entity = URIRef(str(entity_uri).strip())
+    expected_types = {
+        str(value).strip() for value in entity_types if str(value).strip()
+    }
+    if top_class_iri:
+        expected_types.add(top_class_iri)
+    asserted_types = {
+        str(value) for value in graph.objects(entity, RDF.type) if isinstance(value, URIRef)
+    }
+    if not any(graph.triples((entity, None, None))):
+        raise RuntimeError(f"Iteration 1 top shell lacks exact entity URI: {entity_uri}")
+    if expected_types and not (expected_types & asserted_types):
+        raise RuntimeError(
+            f"Iteration 1 entity type mismatch for {entity_uri}: "
+            f"asserted={sorted(asserted_types)}, expected={sorted(expected_types)}"
+        )
+    labels = {str(value) for value in graph.objects(entity, RDFS.label)}
+    if entity_label and entity_label not in labels:
+        graph.add((entity, RDFS.label, Literal(entity_label)))
+    target = os.path.join(doi_folder, "memory", f"{entity_scope}.ttl")
+    os.makedirs(os.path.dirname(target), exist_ok=True)
+    fd, temporary = tempfile.mkstemp(dir=os.path.dirname(target), suffix=".ttl.tmp")
+    os.close(fd)
+    try:
+        graph.serialize(destination=temporary, format="turtle")
+        os.replace(temporary, target)
+    finally:
+        if os.path.exists(temporary):
+            os.remove(temporary)
+    return target
+
+
+def _validate_canonical_entity_identity(
+    *,
+    ttl_path: str,
+    entity_uri: str,
+    entity_types: list[str],
+    top_class_iri: str,
+) -> tuple[bool, list[str]]:
+    """Validate the pipeline-owned identity boundary without iteration semantics."""
+    try:
+        graph = Graph().parse(ttl_path, format="turtle")
+    except Exception as exc:
+        return False, [f"Canonical memory is not valid Turtle: {exc}"]
+    entity = URIRef(str(entity_uri or "").strip())
+    messages: list[str] = []
+    if not entity_uri or not any(graph.triples((entity, None, None))):
+        messages.append(f"Canonical memory lacks exact entity URI: {entity_uri}")
+        return False, messages
+    expected_types = {
+        str(value).strip() for value in entity_types if str(value).strip()
+    }
+    if top_class_iri:
+        expected_types.add(top_class_iri)
+    asserted_types = {
+        str(value)
+        for value in graph.objects(entity, RDF.type)
+        if isinstance(value, URIRef)
+    }
+    if expected_types and not (asserted_types & expected_types):
+        messages.append(
+            "Canonical entity type mismatch: "
+            f"asserted={sorted(asserted_types)}, expected={sorted(expected_types)}"
+        )
+    return not messages, messages
 
 
 def _strip_export_timestamp(stem: str) -> str:
@@ -1654,9 +2011,9 @@ def _extract_ordered_member_expectations(
     )
     if not isinstance(members, list):
         return []
-    order_keys = (contract or {}).get("order_keys") or ["hasOrder"]
-    if not isinstance(order_keys, list):
-        order_keys = ["hasOrder"]
+    order_keys = (contract or {}).get("order_keys") or []
+    if not isinstance(order_keys, list) or not order_keys:
+        return []
     type_keys = (contract or {}).get("type_keys") or ["rdf:type", "type"]
     if not isinstance(type_keys, list):
         type_keys = ["rdf:type", "type"]
@@ -1779,142 +2136,12 @@ def _merge_hint_payloads(base: dict, update: dict) -> dict:
     return merged
 
 
-def _parse_generic_parameter_hints(hints_text: str) -> list[dict[str, Any]]:
-    items: list[dict[str, Any]] = []
-    current: dict[str, Any] | None = None
-
-    def flush() -> None:
-        nonlocal current
-        if current and current.get("parameters"):
-            items.append(current)
-        current = None
-
-    for raw_line in str(hints_text or "").splitlines():
-        line = raw_line.strip()
-        if not line:
-            continue
-        if line.upper() == "STEP":
-            flush()
-            current = {"parameters": []}
-            continue
-        if current is None:
-            continue
-        if line.lower().startswith("step_ref:"):
-            current["step_ref"] = line.split(":", 1)[1].strip()
-        elif line.lower().startswith("rdf_type:"):
-            raw_type = line.split(":", 1)[1].strip()
-            current["type_local"] = (
-                raw_type.rsplit(":", 1)[-1]
-                if ":" in raw_type and "://" not in raw_type
-                else _local_name(raw_type)
-            )
-        elif order_match := re.match(
-            r".*\bhasOrder\s*:\s*(\d+)\b", line, flags=re.IGNORECASE
-        ):
-            current["order"] = int(order_match.group(1))
-        elif param_match := re.match(
-            r".*\bhasParameter\s*:\s*([A-Za-z][A-Za-z0-9_\- ]*)\s*=\s*"
-            r"([-+]?\d+(?:\.\d+)?)\s*([^\s,;]+)",
-            line,
-            flags=re.IGNORECASE,
-        ):
-            current.setdefault("parameters", []).append(
-                {
-                    "name": param_match.group(1).strip(),
-                    "value": float(param_match.group(2)),
-                    "unit": param_match.group(3).strip(),
-                }
-            )
-    flush()
-    return items
-
-
-def _load_generated_quantity_property_locals(
-    *, ontology_name: str, class_local: str
-) -> list[str]:
-    root = (
-        os.environ.get("TWA_GENERATED_ARTIFACT_ROOT", "").strip()
-        or "ai_generated_contents_candidate"
-    )
-    main_path = Path(root) / "scripts" / ontology_name / "main.py"
-    try:
-        tree = ast.parse(main_path.read_text(encoding="utf-8"))
-    except Exception:
-        return []
-    for node in tree.body:
-        if (
-            not isinstance(node, ast.FunctionDef)
-            or node.name != f"create_{class_local}"
-        ):
-            continue
-        arg_names = {arg.arg for arg in node.args.args}
-        return sorted(
-            name[: -len("_value")]
-            for name in arg_names
-            if name.endswith("_value") and f"{name[: -len('_value')]}_unit" in arg_names
-        )
-    return []
-
-
-def _choose_quantity_property_local(param_name: str, candidates: list[str]) -> str:
-    wanted = re.sub(r"[^a-z0-9]+", "", str(param_name or "").lower())
-    best: tuple[int, str] = (0, "")
-    for prop in candidates:
-        prop_norm = re.sub(r"[^a-z0-9]+", "", prop.lower())
-        score = 0
-        if wanted and wanted in prop_norm:
-            score += 10
-        if wanted and prop_norm.endswith(wanted):
-            score += 3
-        if wanted == "temperature" and "target" in prop_norm:
-            score += 2
-        if wanted == "temperature" and "rate" in prop_norm:
-            score -= 4
-        if score > best[0]:
-            best = (score, prop)
-    return best[1]
-
-
-def _normalize_om2_unit_local(raw_unit: str) -> str:
-    unit = str(raw_unit or "").strip().lower()
-    aliases = {
-        "h": "hour",
-        "hr": "hour",
-        "hrs": "hour",
-        "hours": "hour",
-        "min": "minute",
-        "mins": "minute",
-        "minutes": "minute",
-        "s": "second",
-        "sec": "second",
-        "seconds": "second",
-        "c": "degreeCelsius",
-        "°c": "degreeCelsius",
-        "degc": "degreeCelsius",
-        "degreecelsius": "degreeCelsius",
-        "k": "kelvin",
-    }
-    return aliases.get(unit, str(raw_unit or "").strip())
-
-
-def _quantity_class_for(prop_local: str, unit_local: str) -> URIRef:
-    key = f"{prop_local} {unit_local}".lower()
-    if "temperature" in key or "celsius" in key or "kelvin" in key:
-        return OM2.Temperature
-    if "duration" in key or unit_local in {"hour", "minute", "second", "day"}:
-        return OM2.Duration
-    return OM2.Quantity
-
-
 def _step_has_order(
     g: Graph, node: URIRef, order: Any, order_predicate_iri: str = ""
 ) -> bool:
-    expected_pred = URIRef(order_predicate_iri) if order_predicate_iri else None
-    for pred, obj in g.predicate_objects(node):
-        if expected_pred is not None and pred != expected_pred:
-            continue
-        if _local_name(pred) != "hasOrder":
-            continue
+    if not order_predicate_iri:
+        return False
+    for obj in g.objects(node, URIRef(order_predicate_iri)):
         try:
             return int(obj) == int(order)
         except Exception:
@@ -1922,106 +2149,17 @@ def _step_has_order(
     return False
 
 
-def _find_step_node_for_hint(g: Graph, hint: dict[str, Any]) -> Optional[URIRef]:
-    step_ref = str(hint.get("step_ref") or "").strip()
-    type_local = str(hint.get("type_local") or "").strip()
-    order = hint.get("order")
-    candidates: list[URIRef] = []
-    for node in (
-        g.subjects(RDFS.label, Literal(step_ref))
-        if step_ref
-        else g.subjects(None, None)
-    ):
-        if not isinstance(node, URIRef):
-            continue
-        if type_local and not any(
-            _local_name(t) == type_local for t in g.objects(node, RDF.type)
-        ):
-            continue
-        if order is not None and not _step_has_order(g, node, order):
-            continue
-        candidates.append(node)
-    return sorted(set(candidates), key=str)[0] if candidates else None
-
-
-def _repair_generic_parameter_quantity_hints(
-    *,
-    ttl_path: str,
-    raw_hints: list[str],
-    ontology_name: str,
-    property_namespace_iri: str,
-) -> tuple[bool, list[str]]:
-    try:
-        g = Graph()
-        g.parse(ttl_path, format="turtle")
-    except Exception as e:
-        return False, [
-            f"Failed to parse published TTL for generic parameter repair: {e}"
-        ]
-
-    changed = False
-    messages: list[str] = []
-    for text in raw_hints:
-        for hint in _parse_generic_parameter_hints(text):
-            step = _find_step_node_for_hint(g, hint)
-            if step is None:
-                continue
-            candidates = _load_generated_quantity_property_locals(
-                ontology_name=ontology_name,
-                class_local=str(hint.get("type_local") or "").strip(),
-            )
-            for param in hint.get("parameters") or []:
-                prop_local = _choose_quantity_property_local(
-                    str(param.get("name") or ""), candidates
-                )
-                if not prop_local:
-                    continue
-                pred = URIRef(f"{property_namespace_iri}{prop_local}")
-                if any(True for _ in g.objects(step, pred)):
-                    continue
-                unit_local = _normalize_om2_unit_local(str(param.get("unit") or ""))
-                value = float(param.get("value"))
-                digest = hashlib.sha1(
-                    f"{step}|{pred}|{value}|{unit_local}".encode("utf-8")
-                ).hexdigest()
-                q = URIRef(
-                    f"https://www.theworldavatar.com/kg/instance/OM2Quantity/{digest}"
-                )
-                g.add((q, RDF.type, _quantity_class_for(prop_local, unit_local)))
-                g.add(
-                    (
-                        q,
-                        RDFS.label,
-                        Literal(
-                            f"{_first_label(g, step) or _local_name(step)} {prop_local}"
-                        ),
-                    )
-                )
-                g.add((q, OM2.hasNumericalValue, Literal(value)))
-                g.add((q, OM2.hasUnit, URIRef(f"{str(OM2)}{unit_local}")))
-                g.add((step, pred, q))
-                changed = True
-                messages.append(
-                    f"Materialized generic parameter {param.get('name')} as {prop_local} on {_first_label(g, step) or step}"
-                )
-
-    if changed:
-        try:
-            g.serialize(destination=ttl_path, format="turtle")
-        except Exception as e:
-            return False, messages + [
-                f"Failed to write generic parameter repaired TTL: {e}"
-            ]
-    return True, messages
-
-
 def _prune_unhinted_orphan_required_targets(
     *,
     ttl_path: str,
     raw_hints: list[str],
-    main_entity_policy: dict,
+    main_entity_policy: Optional[dict] = None,
+    ontology_contract: Optional[dict] = None,
 ) -> tuple[bool, list[str]]:
     """Remove unlinked required-target placeholders that are not mentioned in hints."""
+    required_links = (ontology_contract or {}).get("required_links", []) or []
+    if not required_links:
+        return True, []
     try:
         g = Graph()
         g.parse(ttl_path, format="turtle")
@@ -2029,8 +2167,6 @@ def _prune_unhinted_orphan_required_targets(
         return False, [f"Failed to parse published TTL for orphan pruning: {e}"]
 
     raw_text = "\n".join(str(x or "") for x in raw_hints)
-    shell_validation = (main_entity_policy or {}).get("shell_validation", {}) or {}
-    required_links = shell_validation.get("required_links", []) or []
     messages: list[str] = []
     changed = False
 
@@ -2100,6 +2236,7 @@ def _repair_published_entity_ttl_from_hints(
     aggregated_hints: dict,
     ontology_name: str,
     main_entity_policy: dict,
+    ontology_contract: Optional[dict] = None,
 ) -> tuple[bool, list[str]]:
     """
     Reconcile the published entity TTL against the union of structured hints across iterations.
@@ -2118,32 +2255,33 @@ def _repair_published_entity_ttl_from_hints(
     except Exception as e:
         return False, [f"Failed to parse published TTL for hint reconciliation: {e}"]
 
-    shell_validation = (main_entity_policy or {}).get("shell_validation", {}) or {}
-    top_class_iri = str(shell_validation.get("top_entity_class_iri") or "").strip()
-    label_key_suffixes = shell_validation.get("label_key_suffixes_to_strip") or []
-    if not isinstance(label_key_suffixes, list):
-        label_key_suffixes = []
-    resolved_entity_uri = _resolve_expected_top_entity_uri(
-        g,
-        top_class_iri=top_class_iri,
-        entity_uri=entity_uri,
-        entity_label=entity_label,
-        label_key_suffixes_to_strip=label_key_suffixes,
-    )
-    top_entity = URIRef(resolved_entity_uri) if resolved_entity_uri else None
+    top_entity = URIRef(str(entity_uri).strip()) if str(entity_uri).strip() else None
     if top_entity is None:
         return False, ["Missing top-level entity IRI for hint reconciliation"]
 
     messages: list[str] = []
     exclusive_property_groups = _get_hint_exclusive_property_groups(main_entity_policy)
+    declared_datatype_properties = {
+        str(item.get("property_iri") or "").strip()
+        for item in (ontology_contract or {}).get("datatype_properties", []) or []
+        if str(item.get("property_iri") or "").strip()
+    }
     for spec in _get_hint_reconciliation_specs(main_entity_policy):
         section_name = str(spec.get("section_name") or "").strip()
         pred_iri = str(spec.get("predicate_iri") or "").strip()
         target_class_iri = str(spec.get("target_class_iri") or "").strip()
-        property_namespace_iri = str(spec.get("property_namespace_iri") or "").strip()
-        if not (
-            section_name and pred_iri and target_class_iri and property_namespace_iri
-        ):
+        configured_scalar_properties = {
+            str(value).strip()
+            for value in spec.get("allowed_scalar_property_iris", [])
+            if str(value).strip()
+        }
+        allowed_scalar_properties = (
+            configured_scalar_properties & declared_datatype_properties
+        )
+        allowed_scalar_by_local = {
+            _local_name(value): URIRef(value) for value in allowed_scalar_properties
+        }
+        if not (section_name and pred_iri and target_class_iri):
             continue
         pred = URIRef(pred_iri)
         target_cls = URIRef(target_class_iri)
@@ -2184,7 +2322,11 @@ def _repair_published_entity_ttl_from_hints(
 
         if is_ordered_member:
             preferred_targets = _preferred_ordered_member_targets(
-                g, target_cls=target_cls
+                g,
+                target_cls=target_cls,
+                order_predicate_iri=str(
+                    spec.get("order_predicate_iri") or ""
+                ).strip(),
             )
             if preferred_targets:
                 existing_links = [
@@ -2217,54 +2359,27 @@ def _repair_published_entity_ttl_from_hints(
                     f"Reattached hinted {section_name} singleton {canonical} to top entity"
                 )
 
-        if not current_targets and isinstance(hinted_section, dict):
-            canonical = _materialize_placeholder_target(
-                g,
-                target_cls=target_cls,
-                label=section_name,
-            )
-            g.add((top_entity, pred, canonical))
-            current_targets = [canonical]
-            messages.append(
-                f"Materialized missing hinted {section_name} target and attached it to the top entity"
-            )
-
-        if not current_targets and is_ordered_member:
-            placeholder_label = (
-                f"{_first_label(g, top_entity) or 'Hinted'} ordered member"
-            )
-            canonical = _materialize_placeholder_target(
-                g,
-                target_cls=target_cls,
-                label=placeholder_label,
-            )
-            g.add((top_entity, pred, canonical))
-            current_targets = [canonical]
-            messages.append(
-                f"Materialized placeholder {section_name} from hints and attached it to the top entity"
-            )
-
         if not current_targets:
+            messages.append(
+                f"Skipped {section_name} reconciliation because no source-created typed target exists"
+            )
             continue
 
         target_node = current_targets[0]
         hinted_property_iris = {
-            _resolve_hint_property_iri(
-                property_namespace_iri=property_namespace_iri,
-                prop_name=prop_name,
-            )
+            allowed_scalar_by_local[_local_name(str(prop_name))]
             for prop_name, prop_value in hinted_section.items()
             if not isinstance(prop_value, (dict, list))
             and prop_value is not None
             and not str(prop_name).strip().endswith("_label")
+            and _local_name(str(prop_name)) in allowed_scalar_by_local
         }
         if bool(spec.get("prune_unhinted_scalar_properties")):
-            namespace = str(property_namespace_iri or "")
             removed = 0
             for pred_existing, obj_existing in list(g.predicate_objects(target_node)):
                 if pred_existing in {RDF.type, RDFS.label}:
                     continue
-                if namespace and not str(pred_existing).startswith(namespace):
+                if str(pred_existing) not in allowed_scalar_properties:
                     continue
                 if isinstance(obj_existing, URIRef):
                     continue
@@ -2315,10 +2430,9 @@ def _repair_published_entity_ttl_from_hints(
                             g.remove((target_node, RDFS.label, old))
                     g.add((target_node, RDFS.label, Literal(label_text)))
                 continue
-            prop = _resolve_hint_property_iri(
-                property_namespace_iri=property_namespace_iri,
-                prop_name=prop_name,
-            )
+            prop = allowed_scalar_by_local.get(_local_name(str(prop_name)))
+            if prop is None:
+                continue
             desired_literal = Literal(str(prop_value))
             for old in list(g.objects(target_node, prop)):
                 if old != desired_literal:
@@ -2328,9 +2442,6 @@ def _repair_published_entity_ttl_from_hints(
                 messages.append(
                     f"Materialized hinted property {section_name}.{prop_name} on {target_node}"
                 )
-
-        if (ontology_name or "").strip() == "medical":
-            _normalize_medical_composite_graph(g)
 
     try:
         g.serialize(destination=ttl_path, format="turtle")
@@ -2589,13 +2700,97 @@ def _try_copy_entity_ttl_to_intermediate(
     output_ttl = os.path.join(doi_folder, "output.ttl")
     if os.path.exists(output_ttl):
         shutil.copy2(output_ttl, intermediate_ttl)
-        logger.info(f"    ✅ Saved intermediate TTL from output.ttl")
+        logger.info("    ✅ Saved intermediate TTL from output.ttl")
         return True
 
     logger.warning(
         f"    ⚠️  No entity TTL found for {entity_label} (safe={entity_safe})"
     )
     return False
+
+
+def _select_canonical_resume_artifact(
+    *,
+    doi_folder: str,
+    entity_label: str,
+    entity_safe: str,
+    entity_uri: str = "",
+) -> str:
+    """Select the canonical existing per-entity TTL path for resume operations."""
+    candidates: list[str] = []
+
+    # Prefer exact memory/<safe>.ttl
+    memory_ttl = os.path.join(doi_folder, "memory", f"{entity_safe}.ttl")
+    if os.path.exists(memory_ttl):
+        candidates.append(memory_ttl)
+
+    # Fallback: scan memory/ for other filename variants that normalize to safe
+    mem_dir = os.path.join(doi_folder, "memory")
+    try:
+        if os.path.isdir(mem_dir):
+            for fn in os.listdir(mem_dir):
+                if not fn.lower().endswith(".ttl") or fn.lower() == "top.ttl":
+                    continue
+                stem = fn[:-4]
+                if _safe_name(stem) == entity_safe:
+                    candidates.append(os.path.join(mem_dir, fn))
+    except Exception:
+        pass
+
+    # Consider exports/ snapshots, using both safe-name and IRI-content matching
+    exports_dir = os.path.join(doi_folder, "exports")
+    try:
+        if os.path.isdir(exports_dir):
+            for fn in os.listdir(exports_dir):
+                if not fn.lower().endswith(".ttl") or fn.lower() == "top.ttl":
+                    continue
+                stem = fn[:-4]
+                if _safe_name(_strip_export_timestamp(stem)) == entity_safe:
+                    candidates.append(os.path.join(exports_dir, fn))
+            if entity_uri:
+                iri_token = f"<{entity_uri}>"
+                for fn in os.listdir(exports_dir):
+                    if not fn.lower().endswith(".ttl") or fn.lower() == "top.ttl":
+                        continue
+                    p = os.path.join(exports_dir, fn)
+                    try:
+                        with open(p, "r", encoding="utf-8") as fh:
+                            if iri_token in fh.read():
+                                candidates.append(p)
+                    except Exception:
+                        continue
+    except Exception:
+        pass
+
+    if not candidates:
+        return ""
+
+    unique = list(dict.fromkeys(candidates))
+
+    def _contains_entity_iri(path: str) -> bool:
+        if not entity_uri:
+            return False
+        iri_token = f"<{entity_uri}>"
+        try:
+            with open(path, "r", encoding="utf-8") as fh:
+                return iri_token in fh.read()
+        except Exception:
+            return False
+
+    def _score_candidate(path: str) -> tuple[int, int, float, str]:
+        normalized_path = os.path.normcase(os.path.abspath(path))
+        memory_dir = os.path.normcase(
+            os.path.abspath(os.path.join(doi_folder, "memory"))
+        )
+        in_memory_dir = int(normalized_path.startswith(memory_dir))
+        matches_entity_iri = int(_contains_entity_iri(path))
+        try:
+            mtime = os.path.getmtime(path)
+        except Exception:
+            mtime = 0.0
+        return (in_memory_dir, matches_entity_iri, mtime, normalized_path)
+
+    return sorted(unique, key=_score_candidate, reverse=True)[0]
 
 
 def load_prompt(prompt_path: str, project_root: str = ".") -> str:
@@ -2624,7 +2819,9 @@ async def run_kg_building_agent(
     mcp_set_name: str,
     data_dir: str = "data",
     main_entity_policy: Optional[dict] = None,
+    ontology_contract: Optional[dict] = None,
     agent_model: str = "gpt-4o",
+    entity_scope: str | None = None,
 ) -> str:
     """
     Run KG building agent for a single entity.
@@ -2643,23 +2840,19 @@ async def run_kg_building_agent(
     Returns:
         Agent response content
     """
-    safe = _safe_name(entity_label)
+    safe = str(entity_scope or _safe_name(entity_label))
     doi_folder = os.path.join(data_dir, doi_hash)
 
-    # Replace placeholders in prompt
-    prompt = kg_prompt.replace("{doi}", doi_hash)
-    # Legacy generated prompts used {hash}; keep both substitutions.
-    prompt = prompt.replace("{hash}", doi_hash)
-    prompt = prompt.replace("{entity_label}", entity_label)
-    prompt = prompt.replace("{entity_uri}", entity_uri)
-    structured_hints = (
-        "These are extracted hints for this iteration. Treat them as the primary source for KG building.\n"
-        "Do not downgrade an explicit canonical field in these hints into a weaker fallback field.\n\n"
-        "ExtractedHints:\n<<<\n"
-        f"{hints_content}\n"
-        ">>>\n"
+    prompt, binding_warnings = bind_kg_runtime_context(
+        kg_prompt,
+        doi_hash=doi_hash,
+        entity_label=entity_label,
+        entity_uri=entity_uri,
+        hints_content=hints_content,
+        iter_num=iter_num,
     )
-    prompt = prompt.replace("{paper_content}", structured_hints)
+    for warning in binding_warnings:
+        logger.warning("    ⚠️  %s", warning)
     prompt = _augment_kg_prompt_with_runtime_rules(
         kg_prompt=prompt,
         entity_label=entity_label,
@@ -2667,7 +2860,44 @@ async def run_kg_building_agent(
         doi_hash=doi_hash,
         main_entity_policy=main_entity_policy or {},
         hints_content=hints_content,
+        ontology_contract=ontology_contract,
     )
+
+    # Derive graph lifecycle from actual artifact state and instruct the Agent
+    existing_artifacts = _entity_persistence_artifacts(
+        doi_folder=doi_folder,
+        entity_safe=safe,
+        entity_label=entity_label,
+    )
+    graph_mode_initial = "open_or_resume"
+    resume_path = ""
+    if existing_artifacts:
+        resume_path = _select_canonical_resume_artifact(
+            doi_folder=doi_folder,
+            entity_label=entity_label,
+            entity_safe=safe,
+            entity_uri=entity_uri,
+        ) or ""
+        persisted_inventory = _persisted_abox_entity_inventory(existing_artifacts)
+        if persisted_inventory:
+            prompt += (
+                "\n\nPersisted A-Box entity inventory (authoritative existing identities):\n"
+                + json.dumps(persisted_inventory, ensure_ascii=False, indent=2)
+                + "\n"
+                "- Reuse these IRIs whenever the source hint refers to an entity with a matching "
+                "type and label. Do not create a generic, placeholder, or renamed duplicate merely "
+                "because the current iteration omits the prior creator result.\n"
+            )
+    lifecycle_lines: list[str] = []
+    lifecycle_lines.append(
+        "- Lifecycle: open_or_resume. Call `init_memory` for this DOI/entity scope before "
+        "mutation. It is idempotent and internally resumes canonical persisted state."
+    )
+    lifecycle_lines.append(
+        "- No reset/replace/clear or arbitrary-path loader is part of the public lifecycle."
+    )
+    if lifecycle_lines:
+        prompt += "\n\nGraph lifecycle instructions:\n" + "\n".join(lifecycle_lines) + "\n"
 
     # Add orphan entity check instruction
     prompt += (
@@ -2694,13 +2924,27 @@ async def run_kg_building_agent(
         logger.warning(f"Failed to save prompt to {prompt_file}: {e}")
 
     # Write global state for MCP server
-    write_global_state(doi_hash, safe, entity_uri)
+    write_global_state(doi_hash, safe, entity_uri, data_dir=data_dir)
 
     # Run agent with retry
     max_retries = 3
     retry_prompt = prompt
+    graph_mode = "open_or_resume"
+    kg_responses_dir = os.path.join(
+        doi_folder, "responses", f"iter{iter_num}_kg_building"
+    )
+    os.makedirs(kg_responses_dir, exist_ok=True)
     for attempt in range(max_retries):
+        trace_file = os.path.join(
+            kg_responses_dir, f"{safe}.attempt_{attempt + 1}.trace.json"
+        )
         try:
+            artifacts_before = _entity_persistence_artifacts(
+                doi_folder=doi_folder,
+                entity_safe=safe,
+                entity_label=entity_label,
+            )
+            artifact_fingerprints_before = _artifact_fingerprints(artifacts_before)
             logger.info(
                 f"    🚀 Running KG building agent for '{entity_label}' (iter {iter_num})"
             )
@@ -2713,73 +2957,167 @@ async def run_kg_building_agent(
                 mcp_set_name=mcp_set_name,
             )
             logger.info(f"    Agent execution attempt {attempt + 1}/{max_retries}")
-            response, metadata = await agent.run(retry_prompt, recursion_limit=80)
+            response, metadata = await agent.run(
+                retry_prompt,
+                recursion_limit=80,
+                required_initial_tool="init_memory",
+                required_initial_tool_args={
+                    "doi": doi_hash,
+                    "top_level_entity_name": safe,
+                },
+                required_final_tool="export_memory",
+            )
             logger.info(f"    ✅ Agent execution succeeded on attempt {attempt + 1}")
 
             # CRITICAL: Wait for MCP server operations to complete before proceeding
             # The MCP server is a separate process that may have delayed I/O operations
-            logger.info(f"    ⏳ Waiting for MCP server operations to complete...")
+            logger.info("    ⏳ Waiting for MCP server operations to complete...")
             await asyncio.sleep(3)
 
-            # Note: Direct export removed to avoid race condition with global state
-            # The agent should call export_memory through MCP tools with explicit parameters
-            logger.info(f"    ✅ MCP server operations completed")
-
-            # Save response
-            kg_responses_dir = os.path.join(
-                doi_folder, "responses", f"iter{iter_num}_kg_building"
+            logger.info(
+                "    ✅ MCP server operations completed; export_memory was executed "
+                "by the agent or the same-session pipeline fallback"
             )
-            os.makedirs(kg_responses_dir, exist_ok=True)
-            response_file = os.path.join(kg_responses_dir, f"{safe}.md")
+
+            # Save every attempt independently so retries never erase evidence.
+            response_file = os.path.join(
+                kg_responses_dir, f"{safe}.attempt_{attempt + 1}.md"
+            )
             try:
                 with open(response_file, "w", encoding="utf-8") as f:
                     f.write(f"# Iteration {iter_num} KG Building Response\n\n")
                     f.write(f"**Entity**: {entity_label}\n\n")
+                    f.write(f"**Attempt**: {attempt + 1}/{max_retries}\n\n")
                     f.write("---\n\n")
                     f.write(str(response))
             except Exception as e:
                 logger.warning(f"Failed to save response to {response_file}: {e}")
 
             response_text = str(response)
-            if _response_claims_persistence(
-                response_text
-            ) and not _has_entity_persistence_artifact(
+            artifacts = _entity_persistence_artifacts(
                 doi_folder=doi_folder,
                 entity_safe=safe,
                 entity_label=entity_label,
-            ):
-                response_text = (
-                    response_text
-                    + "\n\nRECOVERABLE_KG_ERROR: response claimed graph persistence/export, "
-                    "but no entity TTL artifact was found in memory or exports."
+            )
+            structured_turtle = {
+                "attempted": False,
+                "persisted": False,
+                "target": "",
+                "message": "",
+            }
+            if not _tool_trace_has_structured_failure(metadata):
+                structured_turtle["attempted"] = True
+                structured_turtle["target"] = os.path.join(
+                    doi_folder, "memory", f"{safe}.ttl"
                 )
-            if _response_has_recoverable_kg_error(response_text):
+                persisted, message = _persist_structured_turtle_result(
+                    metadata,
+                    target_path=structured_turtle["target"],
+                )
+                structured_turtle["persisted"] = persisted
+                structured_turtle["message"] = message
+                if persisted:
+                    artifacts = _entity_persistence_artifacts(
+                        doi_folder=doi_folder,
+                        entity_safe=safe,
+                        entity_label=entity_label,
+                    )
+            artifact_fingerprints_after = _artifact_fingerprints(artifacts)
+            fresh_artifacts = [
+                path
+                for path, fingerprint in artifact_fingerprints_after.items()
+                if artifact_fingerprints_before.get(path) != fingerprint
+            ]
+            current_attempt_artifacts = (
+                artifacts if structured_turtle["persisted"] else fresh_artifacts
+            )
+            trace = _attempt_trace(
+                metadata, artifact_found=bool(current_attempt_artifacts)
+            )
+            trace.update(
+                {
+                    "attempt": attempt + 1,
+                    "graph_mode": graph_mode,
+                    "artifacts": artifacts,
+                    "fresh_artifacts": fresh_artifacts,
+                    "current_attempt_artifacts": current_attempt_artifacts,
+                    "structured_turtle_transport": structured_turtle,
+                }
+            )
+            _write_json_atomic(trace_file, trace)
+
+            if not current_attempt_artifacts or trace["structured_tool_failure"]:
                 if attempt < max_retries - 1:
                     logger.warning(
-                        "    ♻️  Recoverable KG agent response detected for '%s'; retrying with recovery instructions",
+                        "    ♻️  KG attempt for '%s' lacked a fresh valid persisted artifact or contained a structured tool failure; retrying",
                         entity_label,
                     )
-                    write_global_state(doi_hash, safe, entity_uri)
+                    write_global_state(doi_hash, safe, entity_uri, data_dir=data_dir)
+                    graph_mode = "open_or_resume"
                     retry_prompt = _build_kg_recovery_prompt(
                         base_prompt=prompt,
                         entity_label=entity_label,
                         entity_uri=entity_uri,
+                        graph_mode=graph_mode,
+                        prior_attempt_trace=trace,
+                        resume_artifact_path=(
+                            _select_canonical_resume_artifact(
+                                doi_folder=doi_folder,
+                                entity_label=entity_label,
+                                entity_safe=safe,
+                                entity_uri=entity_uri,
+                            )
+                            if artifacts
+                            else ""
+                        ),
                     )
                     await asyncio.sleep(3)
                     continue
                 logger.error(
-                    "    ❌ KG agent kept returning recoverable subject/container errors after %d attempts",
+                    "    ❌ KG agent failed structured tool/artifact validation after %d attempts",
                     max_retries,
                 )
                 raise RuntimeError(
-                    "KG agent returned repeated recoverable persistence/tool-use errors"
+                    "KG agent failed structured tool/artifact validation"
                 )
 
+            canonical_response_file = os.path.join(kg_responses_dir, f"{safe}.md")
+            shutil.copyfile(response_file, canonical_response_file)
             return response_text
 
         except Exception as e:
+            try:
+                from models.BaseAgent import exception_details
+
+                leaf_exceptions = exception_details(e)
+            except Exception:
+                leaf_exceptions = [
+                    {"type": type(e).__name__, "message": str(e)}
+                ]
+            if not os.path.exists(trace_file):
+                _write_json_atomic(
+                    trace_file,
+                    {
+                        "attempt": attempt + 1,
+                        "graph_mode": graph_mode,
+                        "artifacts": _entity_persistence_artifacts(
+                            doi_folder=doi_folder,
+                            entity_safe=safe,
+                            entity_label=entity_label,
+                        ),
+                        "exception": {
+                            "type": type(e).__name__,
+                            "message": str(e),
+                            "leaves": leaf_exceptions,
+                        },
+                    },
+                )
             logger.error(
-                f"    Agent execution failed on attempt {attempt + 1}/{max_retries}: {e}"
+                "    Agent execution failed on attempt %d/%d: %s; leaf cause(s): %s",
+                attempt + 1,
+                max_retries,
+                e,
+                json.dumps(leaf_exceptions, ensure_ascii=False),
             )
             if attempt < max_retries - 1:
                 wait_time = 5 * (attempt + 1)
@@ -2794,103 +3132,6 @@ async def run_kg_building_agent(
                 )
 
 
-def _try_generated_materialize_hints(
-    *,
-    doi_hash: str,
-    data_dir: str,
-    ontology_name: str,
-    project_root: str,
-    entity_label: str,
-    entity_safe: str,
-    hints_content: str,
-    intermediate_ttl: str,
-    response_file: str,
-) -> bool:
-    """Use the generated ontology MCP implementation as the deterministic primary path."""
-    if not ontology_name:
-        return False
-    roots: list[str] = []
-    override = os.environ.get("TWA_GENERATED_ARTIFACT_ROOT", "").strip()
-    if override:
-        roots.append(override)
-    roots.extend(("ai_generated_contents_candidate", "ai_generated_contents"))
-    scripts_dir: Path | None = None
-    main_path: Path | None = None
-    for root in roots:
-        candidate = Path(project_root) / root / "scripts" / ontology_name
-        mp = candidate / "main.py"
-        if mp.is_file():
-            scripts_dir = candidate
-            main_path = mp
-            break
-    if scripts_dir is None or main_path is None:
-        return False
-
-    package_name = (
-        f"_generated_main_kg_{ontology_name}_{abs(hash(str(scripts_dir.resolve())))}"
-    )
-    for module_name in list(sys.modules):
-        if module_name == package_name or module_name.startswith(package_name + "."):
-            del sys.modules[module_name]
-    package = types.ModuleType(package_name)
-    package.__path__ = [str(scripts_dir.resolve())]  # type: ignore[attr-defined]
-    sys.modules[package_name] = package
-
-    try:
-        os.environ["TWA_AGENTIC_DATA_DIR"] = os.path.abspath(str(data_dir))
-        spec = importlib.util.spec_from_file_location(f"{package_name}.main", main_path)
-        if spec is None or spec.loader is None:
-            return False
-        module = importlib.util.module_from_spec(spec)
-        sys.modules[f"{package_name}.main"] = module
-        spec.loader.exec_module(module)
-        tool = getattr(module, "materialize_hints", None)
-        fn = getattr(tool, "fn", tool)
-        if fn is None or not callable(fn):
-            return False
-        result_text = fn(
-            doi_hash, entity_safe or entity_label, entity_label, hints_content
-        )
-        result = json.loads(result_text)
-        if str(result.get("status") or "").lower() != "ok":
-            logger.warning(
-                "    ⚠️  Generated materializer returned non-ok status: %s",
-                result.get("message") or result_text,
-            )
-            return False
-        ttl = str(result.get("ttl") or "").strip()
-        if not ttl:
-            logger.warning("    ⚠️  Generated materializer returned no TTL")
-            return False
-        os.makedirs(os.path.dirname(intermediate_ttl), exist_ok=True)
-        with open(intermediate_ttl, "w", encoding="utf-8") as f:
-            f.write(ttl)
-        os.makedirs(os.path.dirname(response_file), exist_ok=True)
-        with open(response_file, "w", encoding="utf-8") as f:
-            f.write(
-                f"# Generated Materializer KG Response\n\n**Entity**: {entity_label}\n\n---\n\n"
-            )
-            f.write(
-                json.dumps(
-                    {k: v for k, v in result.items() if k != "ttl"},
-                    indent=2,
-                    ensure_ascii=False,
-                )
-            )
-        logger.info(
-            "    ✅ Generated materializer created KG TTL for '%s'", entity_label
-        )
-        return True
-    except Exception as exc:
-        logger.warning(
-            "    ⚠️  Generated materializer failed for '%s': %s: %s",
-            entity_label,
-            type(exc).__name__,
-            exc,
-        )
-        return False
-
-
 async def _process_iterations(
     doi_hash: str,
     config: dict,
@@ -2903,12 +3144,58 @@ async def _process_iterations(
     ontology_name: str = "",
     iterations_config_path: str = "",
 ) -> bool:
-    """Async helper to process all iterations and entities."""
+    """Process all main iterations and publish aggregation entity by entity."""
+    all_ok = True
+    for idx, entity in enumerate(top_entities):
+        entity_ok = await _process_iterations_for_entities(
+            doi_hash=doi_hash,
+            config=config,
+            doi_folder=doi_folder,
+            top_entities=[entity],
+            iterations=iterations,
+            mcp_run_dir=mcp_run_dir,
+            data_dir=data_dir,
+            project_root=project_root,
+            ontology_name=ontology_name,
+            iterations_config_path=iterations_config_path,
+        )
+        if not entity_ok:
+            all_ok = False
+        if idx < len(top_entities) - 1:
+            logger.info(
+                "    🔒 Entity synchronization point (preparing for next entity)..."
+            )
+            await asyncio.sleep(2)
+            logger.info("    ✅ Ready for next entity")
+    return all_ok
+
+
+async def _process_iterations_for_entities(
+    doi_hash: str,
+    config: dict,
+    doi_folder: str,
+    top_entities: list,
+    iterations: list,
+    mcp_run_dir: str,
+    data_dir: str,
+    project_root: str,
+    ontology_name: str = "",
+    iterations_config_path: str = "",
+) -> bool:
+    """Process iterations for the supplied entity batch and aggregate its publish."""
     meta_task_config_path = config.get(
         "meta_task_config", "configs/meta_task/meta_task_config.json"
     )
     meta_cfg = load_meta_task_config(meta_task_config_path)
     main_entity_policy = _get_main_entity_kg_policy(meta_cfg)
+    try:
+        ontology_publish_contract = build_ontology_publish_contract(
+            meta_task_config_path=meta_task_config_path,
+            ontology_name=ontology_name or None,
+        )
+    except Exception as exc:
+        logger.error("❌ Failed to build ontology publish contract: %s", exc)
+        return False
     agent_model = ((meta_cfg or {}).get("ontologies", {}).get("main", {}) or {}).get(
         "agent_model"
     ) or "gpt-4o"
@@ -2928,7 +3215,7 @@ async def _process_iterations(
     for entity in top_entities:
         entity_label = entity.get("label", "")
         entity_uri = entity.get("uri", "")
-        safe = _safe_name(entity_label)
+        safe = entity_scope_name(entity_label, entity_uri)
         entity_publish_inputs[safe] = {
             "entity_label": entity_label,
             "entity_uri": entity_uri,
@@ -2973,7 +3260,8 @@ async def _process_iterations(
         for idx, entity in enumerate(top_entities):
             entity_label = entity.get("label", "")
             entity_uri = entity.get("uri", "")
-            safe = _safe_name(entity_label)
+            legacy_safe = _safe_name(entity_label)
+            safe = entity_scope_name(entity_label, entity_uri)
 
             logger.info(f"  📌 Entity {idx + 1}/{len(top_entities)}: {entity_label}")
             _apply_entity_context_runtime_env(
@@ -2989,12 +3277,36 @@ async def _process_iterations(
                     ontology_output_dir=ontology_output_dir,
                     intermediate_ttl_dir=intermediate_ttl_dir,
                 )
-                _purge_entity_canonical_persistence(
+                has_existing = _has_entity_persistence_artifact(
                     doi_folder=doi_folder,
-                    entity_label=entity_label,
                     entity_safe=safe,
-                    entity_uri=entity_uri,
+                    entity_label=entity_label,
                 )
+                if not has_existing:
+                    _purge_entity_canonical_persistence(
+                        doi_folder=doi_folder,
+                        entity_label=entity_label,
+                        entity_safe=safe,
+                        entity_uri=entity_uri,
+                    )
+                    scoped_memory = _seed_entity_canonical_memory(
+                        doi_folder=doi_folder,
+                        entity_scope=safe,
+                        entity_uri=entity_uri,
+                        entity_label=entity_label,
+                        entity_types=[
+                            str(value)
+                            for value in entity.get("types", [])
+                            if str(value)
+                        ],
+                        top_class_iri=_ontology_contract_top_class_iri(
+                            ontology_publish_contract
+                        ),
+                    )
+                    logger.info(
+                        "    ✅ Seeded exact-identity scoped memory from Iteration 1: %s",
+                        scoped_memory,
+                    )
                 entity_runtime_reset_done.add(safe)
 
             response_file = os.path.join(
@@ -3004,7 +3316,9 @@ async def _process_iterations(
                 intermediate_ttl_dir, f"iteration_{iter_num}_{safe}.ttl"
             )
             hints_file = _find_hints_file(
-                mcp_run_dir=mcp_run_dir, iter_num=iter_num, entity_safe=safe
+                mcp_run_dir=mcp_run_dir,
+                iter_num=iter_num,
+                entity_safe=legacy_safe,
             )
             freshness_deps = [
                 iterations_config_path,
@@ -3030,7 +3344,7 @@ async def _process_iterations(
             patch_files = _find_enrichment_patch_files(
                 mcp_run_dir=mcp_run_dir,
                 iter_num=iter_num,
-                entity_safe=safe,
+                entity_safe=legacy_safe,
             )
             if patch_files:
                 patch_chunks: list[str] = []
@@ -3071,7 +3385,7 @@ async def _process_iterations(
             ) and _artifact_is_current(
                 intermediate_ttl, freshness_deps, project_root=project_root
             ):
-                logger.info(f"    ⏭️  KG building already completed")
+                logger.info("    ⏭️  KG building already completed")
                 sources = entity_publish_inputs.get(safe, {}).get("sources", [])
                 if isinstance(sources, list) and intermediate_ttl not in sources:
                     sources.append(intermediate_ttl)
@@ -3083,42 +3397,21 @@ async def _process_iterations(
 
             # Run KG building agent
             try:
-                # Semantic MCP loop / tests can force the ReAct MCP path instead of
-                # the deterministic materialize_hints short-circuit.
-                force_react_kg = bool(
-                    config.get("force_react_kg") or config.get("skip_materialize_hints")
+                await run_kg_building_agent(
+                    doi_hash=doi_hash,
+                    entity_label=entity_label,
+                    entity_uri=entity_uri,
+                    hints_content=hints_content,
+                    kg_prompt=kg_prompt,
+                    iter_num=iter_num,
+                    mcp_tools=mcp_tools,
+                    mcp_set_name=mcp_set_name,
+                    data_dir=data_dir,
+                    main_entity_policy=main_entity_policy,
+                    ontology_contract=ontology_publish_contract,
+                    agent_model=agent_model,
+                    entity_scope=safe,
                 )
-                generated_materialized = False
-                if not force_react_kg:
-                    generated_materialized = _try_generated_materialize_hints(
-                        doi_hash=doi_hash,
-                        data_dir=data_dir,
-                        ontology_name=ontology_name,
-                        project_root=project_root,
-                        entity_label=entity_label,
-                        entity_safe=safe,
-                        hints_content=hints_content,
-                        intermediate_ttl=intermediate_ttl,
-                        response_file=response_file,
-                    )
-                elif force_react_kg:
-                    logger.info(
-                        "    🔁 force_react_kg enabled — skipping materialize_hints short-circuit"
-                    )
-                if not generated_materialized:
-                    response = await run_kg_building_agent(
-                        doi_hash=doi_hash,
-                        entity_label=entity_label,
-                        entity_uri=entity_uri,
-                        hints_content=hints_content,
-                        kg_prompt=kg_prompt,
-                        iter_num=iter_num,
-                        mcp_tools=mcp_tools,
-                        mcp_set_name=mcp_set_name,
-                        data_dir=data_dir,
-                        main_entity_policy=main_entity_policy,
-                        agent_model=agent_model,
-                    )
 
                 # Copy output.ttl to intermediate TTL file
                 # In test mode, look for entity-specific TTL in `{ontology_name}_output/` (stale fallback only).
@@ -3194,6 +3487,23 @@ async def _process_iterations(
                     if not found:
                         publish_failures += 1
                 if found:
+                    identity_ok, identity_messages = _validate_canonical_entity_identity(
+                        ttl_path=intermediate_ttl,
+                        entity_uri=entity_uri,
+                        entity_types=[
+                            str(value)
+                            for value in entity.get("types", [])
+                            if str(value)
+                        ],
+                        top_class_iri=_ontology_contract_top_class_iri(
+                            ontology_publish_contract
+                        ),
+                    )
+                    if not identity_ok:
+                        raise RuntimeError(
+                            "KG output failed pipeline-owned entity identity validation: "
+                            + "; ".join(identity_messages)
+                        )
                     step_ok, step_msgs = _validate_ordered_members_against_hints(
                         ttl_path=intermediate_ttl,
                         hints_content=hints_content,
@@ -3215,6 +3525,20 @@ async def _process_iterations(
                     sources = entity_publish_inputs.get(safe, {}).get("sources", [])
                     if isinstance(sources, list) and intermediate_ttl not in sources:
                         sources.append(intermediate_ttl)
+                    _write_entity_checkpoint(
+                        doi_folder=doi_folder,
+                        doi_hash=doi_hash,
+                        entity_scope=safe,
+                        entity_label=entity_label,
+                        entity_uri=entity_uri,
+                        entity_types=[
+                            str(value)
+                            for value in entity.get("types", [])
+                            if str(value)
+                        ],
+                        canonical_ttl=intermediate_ttl,
+                        iteration=int(iter_num),
+                    )
 
             except Exception as e:
                 logger.error(f"    ❌ KG building failed for '{entity_label}': {e}")
@@ -3225,10 +3549,10 @@ async def _process_iterations(
             # before moving to next entity (which will overwrite global state)
             if idx < len(top_entities) - 1:  # Not the last entity
                 logger.info(
-                    f"    🔒 Entity synchronization point (preparing for next entity)..."
+                    "    🔒 Entity synchronization point (preparing for next entity)..."
                 )
                 await asyncio.sleep(2)
-                logger.info(f"    ✅ Ready for next entity")
+                logger.info("    ✅ Ready for next entity")
 
     # Publish once per entity from the accumulated iteration shards.
     for safe, info in entity_publish_inputs.items():
@@ -3250,25 +3574,12 @@ async def _process_iterations(
             entity_safe=safe,
             entity_uri=entity_uri,
             entity_label=entity_label,
+            ontology_contract=ontology_publish_contract,
             data_dir=data_dir,
             meta_cfg=meta_cfg,
             src_candidates=sources,
         )
         if published:
-            parameter_property_namespace_iri = ""
-            for spec in _get_hint_reconciliation_specs(main_entity_policy):
-                parameter_property_namespace_iri = str(
-                    spec.get("property_namespace_iri") or ""
-                ).strip()
-                if parameter_property_namespace_iri:
-                    break
-            if not parameter_property_namespace_iri:
-                shell_validation = (main_entity_policy or {}).get(
-                    "shell_validation", {}
-                ) or {}
-                parameter_property_namespace_iri = _namespace_iri(
-                    str(shell_validation.get("top_entity_class_iri") or "")
-                )
             repaired, repair_msgs = _repair_published_entity_ttl(
                 ttl_path=published,
                 doi_folder=doi_folder,
@@ -3277,6 +3588,7 @@ async def _process_iterations(
                 entity_label=entity_label,
                 meta_cfg=meta_cfg,
                 main_entity_policy=main_entity_policy,
+                ontology_contract=ontology_publish_contract,
             )
             if repair_msgs:
                 for msg in repair_msgs:
@@ -3295,6 +3607,7 @@ async def _process_iterations(
                 else {},
                 ontology_name=ontology_name,
                 main_entity_policy=main_entity_policy,
+                ontology_contract=ontology_publish_contract,
             )
             if hints_msgs:
                 for msg in hints_msgs:
@@ -3305,27 +3618,11 @@ async def _process_iterations(
                     logger.error(f"       - {msg}")
                 publish_failures += 1
 
-            parameter_repaired, parameter_msgs = (
-                _repair_generic_parameter_quantity_hints(
-                    ttl_path=published,
-                    raw_hints=raw_hints if isinstance(raw_hints, list) else [],
-                    ontology_name=ontology_name,
-                    property_namespace_iri=parameter_property_namespace_iri,
-                )
-            )
-            if parameter_msgs:
-                for msg in parameter_msgs:
-                    logger.info(f"    🧪 {msg}")
-            if not parameter_repaired:
-                logger.error("    ❌ Published TTL generic parameter repair failed:")
-                for msg in parameter_msgs:
-                    logger.error(f"       - {msg}")
-                publish_failures += 1
-
             pruned, prune_msgs = _prune_unhinted_orphan_required_targets(
                 ttl_path=published,
                 raw_hints=raw_hints if isinstance(raw_hints, list) else [],
                 main_entity_policy=main_entity_policy,
+                ontology_contract=ontology_publish_contract,
             )
             if prune_msgs:
                 for msg in prune_msgs:
@@ -3339,11 +3636,8 @@ async def _process_iterations(
             hygiene_ok, hygiene_msgs = enforce_published_graph_hygiene_file(
                 ttl_path=published,
                 top_entity_uri=entity_uri,
-                top_class_iri=str(
-                    ((main_entity_policy or {}).get("shell_validation", {}) or {}).get(
-                        "top_entity_class_iri"
-                    )
-                    or ""
+                top_class_iri=_ontology_contract_top_class_iri(
+                    ontology_publish_contract
                 ),
                 entity_label=entity_label,
             )
@@ -3383,11 +3677,8 @@ async def _process_iterations(
             hygiene_ok, hygiene_msgs = enforce_published_graph_hygiene_file(
                 ttl_path=published,
                 top_entity_uri=entity_uri,
-                top_class_iri=str(
-                    ((main_entity_policy or {}).get("shell_validation", {}) or {}).get(
-                        "top_entity_class_iri"
-                    )
-                    or ""
+                top_class_iri=_ontology_contract_top_class_iri(
+                    ontology_publish_contract
                 ),
                 entity_label=entity_label,
             )
@@ -3409,7 +3700,7 @@ async def _process_iterations(
                 ttl_path=published,
                 entity_uri=entity_uri,
                 entity_label=entity_label,
-                main_entity_policy=main_entity_policy,
+                ontology_contract=ontology_publish_contract,
             )
             if not ok_struct:
                 logger.error("    ❌ Published TTL failed structural validation:")
@@ -3541,7 +3832,7 @@ def run_step(doi_hash: str, config: dict) -> bool:
                     published_are_current = False
 
             if published_are_current:
-                logger.info(f"  ⏭️  Main KG building already completed (marker exists)")
+                logger.info("  ⏭️  Main KG building already completed (marker exists)")
                 return True
             logger.warning(
                 "  🔁 Marker exists but published entity TTLs are older than current hints/config; re-running main KG building"
@@ -3571,10 +3862,33 @@ def run_step(doi_hash: str, config: dict) -> bool:
     ontology_name = (
         config.get("ontology_name") or get_main_ontology_name(meta_cfg, default="main")
     ).strip() or "main"
-    shell_validation = (
-        _get_main_entity_kg_policy(meta_cfg).get("shell_validation", {}) or {}
-    )
-    top_class_iri = str(shell_validation.get("top_entity_class_iri") or "").strip()
+    try:
+        ontology_publish_contract = build_ontology_publish_contract(
+            meta_task_config_path=meta_task_config_path,
+            ontology_name=ontology_name or None,
+        )
+    except Exception as exc:
+        logger.error("Failed to build ontology publish contract: %s", exc)
+        return False
+    top_class_iri = _ontology_contract_top_class_iri(ontology_publish_contract)
+    selected_top_class_iri, _ = load_selected_top_class(doi_folder)
+    if not selected_top_class_iri:
+        logger.error("Pipeline-selected top class is missing")
+        return False
+    if top_class_iri and selected_top_class_iri != top_class_iri:
+        logger.error(
+            "Pipeline-selected top class disagrees with the active ontology contract"
+        )
+        return False
+    try:
+        top_entities = hydrate_and_validate_top_entity_types(
+            entities=top_entities,
+            iteration_1_ttl=os.path.join(doi_folder, "iteration_1.ttl"),
+            top_class_iri=selected_top_class_iri,
+        )
+    except Exception as exc:
+        logger.error("Failed to validate top-entity identity manifest: %s", exc)
+        return False
     supplemented_top_entities = _supplement_top_entities_from_txt(
         doi_folder,
         top_entities,
@@ -3592,9 +3906,25 @@ def run_step(doi_hash: str, config: dict) -> bool:
         doi_folder=doi_folder,
         ontology_name=ontology_name,
         meta_cfg=meta_cfg,
+        ontology_contract=ontology_publish_contract,
     )
     if not top_entities:
         logger.warning("No top entities found")
+        return False
+    try:
+        top_entities = hydrate_and_validate_top_entity_types(
+            entities=top_entities,
+            iteration_1_ttl=os.path.join(doi_folder, "iteration_1.ttl"),
+            top_class_iri=selected_top_class_iri,
+        )
+        persist_entity_identity_sidecars(
+            doi_hash=doi_hash,
+            doi_folder=doi_folder,
+            entities=top_entities,
+            top_class_iri=selected_top_class_iri,
+        )
+    except Exception as exc:
+        logger.error("Failed to persist top-entity identity sidecars: %s", exc)
         return False
 
     logger.info(f"Found {len(top_entities)} top entities")
@@ -3653,7 +3983,7 @@ def run_step(doi_hash: str, config: dict) -> bool:
         )
 
         if not success:
-            logger.error(f"  ❌ Iteration processing failed")
+            logger.error("  ❌ Iteration processing failed")
             return False
     except Exception as e:
         logger.error(f"  ❌ Iteration processing raised exception: {e}")
@@ -3666,7 +3996,7 @@ def run_step(doi_hash: str, config: dict) -> bool:
     try:
         with open(marker_file, "w") as f:
             f.write("completed\n")
-        logger.info(f"  📌 Created completion marker")
+        logger.info("  📌 Created completion marker")
     except Exception as e:
         logger.warning(f"  ⚠️  Failed to create completion marker: {e}")
 

@@ -17,6 +17,7 @@ import hashlib
 import types
 from pathlib import Path
 from typing import List, Dict
+from urllib.parse import urlparse
 from filelock import FileLock
 from rdflib import Graph, URIRef
 from rdflib.namespace import RDF, RDFS
@@ -32,6 +33,14 @@ from models.BaseAgent import BaseAgent
 from models.ModelConfig import ModelConfig
 from src.utils.global_logger import get_logger
 from src.pipelines.utils.ttl_publisher import publish_top_ttl
+from src.pipelines.utils.top_entity_identity import (
+    hydrate_and_validate_top_entity_types,
+    load_selected_top_class,
+    persist_entity_identity_sidecars,
+)
+from src.agents.scripts_and_prompts_generation.generation_contracts import (
+    build_ontology_publish_contract_from_tbox,
+)
 
 logger = get_logger("pipeline", "top_entity_kg_building")
 
@@ -134,9 +143,6 @@ def _filter_runtime_context_top_entities(
 
     policies = _get_runtime_policies(meta_config)
     iter1 = policies.get("iter1_top_entity_kg", {}) or {}
-    shell_validation = (policies.get("main_entity_kg", {}) or {}).get(
-        "shell_validation", {}
-    ) or {}
     context_names = {
         _normalize_entity_label_key(value)
         for value in (
@@ -146,9 +152,6 @@ def _filter_runtime_context_top_entities(
         )
         if str(value or "").strip()
     }
-    top_class_local = _local_name(shell_validation.get("top_entity_class_iri"))
-    if top_class_local:
-        context_names.add(_normalize_entity_label_key(top_class_local))
     context_names = {name for name in context_names if name}
     if not context_names:
         return entities
@@ -181,12 +184,35 @@ def _local_name(iri: str) -> str:
     return text.rstrip("/").rsplit("/", 1)[-1]
 
 
+def _get_ontology_publish_contract(meta_config: dict) -> dict:
+    """Build semantic pipeline input solely from the configured T-Box."""
+    main = ((meta_config.get("ontologies") or {}).get("main") or {})
+    ttl_file = str(main.get("ttl_file") or "").strip()
+    if not ttl_file:
+        return {}
+    try:
+        return build_ontology_publish_contract_from_tbox(
+            ttl_file,
+            ontology_name=str(main.get("name") or ""),
+            configured_ttl_file=ttl_file,
+        )
+    except Exception as exc:
+        logger.error("❌ Cannot build ontology publish contract: %s", exc)
+        return {}
+
+
 def _get_top_entity_class_iri(meta_config: dict, default: str = "") -> str:
-    policies = _get_runtime_policies(meta_config)
-    value = (
-        (policies.get("main_entity_kg", {}) or {}).get("shell_validation", {}) or {}
-    ).get("top_entity_class_iri")
-    return str(value or default).strip()
+    role = _get_ontology_publish_contract(meta_config).get("top_role") or {}
+    if str(role.get("status") or "") != "known":
+        return ""
+    return str(role.get("class_iri") or default).strip()
+
+
+def _get_pipeline_selected_top_class(
+    doi_folder: str,
+) -> tuple[str, str]:
+    """Read the authoritative top-class selection persisted by extraction."""
+    return load_selected_top_class(doi_folder)
 
 
 def _mint_top_entity_iri(label: str, top_class_iri: str = "") -> str:
@@ -233,19 +259,37 @@ def _merge_txt_top_entity_fallback(
     entities: list[dict],
     top_class_iri: str = "",
 ) -> list[dict]:
-    """Supplement parser output with labels from top_entities.txt when SPARQL/TTL is incomplete."""
+    """Merge extracted labels and parsed graph entities into one unique identity set.
+
+    Text extraction is the authoritative source for human-readable labels. Parsed
+    graph entities contribute graph identity and type information. The merged set
+    enforces uniqueness by both normalized label and URI before it can be
+    materialized or dispatched downstream.
+    """
     txt_entities = _top_entities_from_txt(doi_folder, top_class_iri)
     if not txt_entities:
-        return entities or []
+        candidates = entities or []
+    else:
+        candidates = txt_entities + (entities or [])
     merged: list[dict] = []
-    seen: set[str] = set()
-    for entity in (entities or []) + txt_entities:
+    seen_labels: set[str] = set()
+    seen_uris: set[str] = set()
+    for entity in candidates:
         if not isinstance(entity, dict):
             continue
-        key = _normalize_entity_label_key(str(entity.get("label") or ""))
-        if not key or key in seen:
+        label_key = _normalize_entity_label_key(str(entity.get("label") or ""))
+        uri = str(entity.get("uri") or "").strip()
+        parsed_uri = urlparse(uri)
+        if (
+            not label_key
+            or parsed_uri.scheme not in {"http", "https", "urn"}
+            or label_key in seen_labels
+            or (uri and uri in seen_uris)
+        ):
             continue
-        seen.add(key)
+        seen_labels.add(label_key)
+        if uri:
+            seen_uris.add(uri)
         merged.append(entity)
     return merged
 
@@ -255,7 +299,7 @@ def _materialize_supplemented_top_entities(
     entities: list[dict],
     top_class_iri: str = "",
 ) -> bool:
-    """Ensure txt-fallback top entities are also present in the iter1 TTL graph."""
+    """Canonicalize txt-fallback top entities without duplicating equivalent roots."""
     changed = False
     top_class = URIRef(top_class_iri) if top_class_iri else None
     for entity in entities or []:
@@ -266,6 +310,25 @@ def _materialize_supplemented_top_entities(
         if not uri or not label:
             continue
         node = URIRef(uri)
+        label_key = _normalize_entity_label_key(label)
+        equivalent_nodes: set[URIRef] = set()
+        if top_class is not None and label_key:
+            for candidate in g.subjects(RDF.type, top_class):
+                if candidate == node or not isinstance(candidate, URIRef):
+                    continue
+                if any(
+                    _normalize_entity_label_key(str(existing_label)) == label_key
+                    for existing_label in g.objects(candidate, RDFS.label)
+                ):
+                    equivalent_nodes.add(candidate)
+        for equivalent in equivalent_nodes:
+            for predicate, obj in list(g.predicate_objects(equivalent)):
+                g.add((node, predicate, obj))
+            for subject, predicate in list(g.subject_predicates(equivalent)):
+                g.add((subject, predicate, node))
+            g.remove((equivalent, None, None))
+            g.remove((None, None, equivalent))
+            changed = True
         if top_class is not None and (node, RDF.type, top_class) not in g:
             g.add((node, RDF.type, top_class))
             changed = True
@@ -311,6 +374,7 @@ def _load_generated_iter1_modules(
 
     modules: dict[str, object] = {}
     for module_stem in (
+        "main",
         f"{ontology_name}_creation_base",
         f"{ontology_name}_creation_entities",
         f"{ontology_name}_creation_relationships",
@@ -328,6 +392,29 @@ def _load_generated_iter1_modules(
     return modules
 
 
+def _generated_public_callable(value):
+    """Return a generated function or the function wrapped by FastMCP."""
+    if callable(value):
+        return value
+    wrapped = getattr(value, "fn", None)
+    return wrapped if callable(wrapped) else None
+
+
+def _invoke_generated_export(
+    export_memory,
+    *,
+    doi_hash: str,
+    entity_context_name: str,
+):
+    """Invoke either a scoped public export or a legacy wrapper export."""
+    import inspect
+
+    parameters = inspect.signature(export_memory).parameters
+    if not parameters:
+        return export_memory()
+    return export_memory(doi_hash, entity_context_name)
+
+
 def _repair_iter1_ttl_with_generated_tools(
     *,
     doi_hash: str,
@@ -342,10 +429,12 @@ def _repair_iter1_ttl_with_generated_tools(
     contract in the meta-task config, not from domain-specific code.
     """
     doi_folder = os.path.join(data_dir, doi_hash)
-    top_class_iri = _get_top_entity_class_iri(meta_config)
-    top_class_local = _local_name(top_class_iri)
-    if not top_class_local:
-        logger.error("❌ Cannot repair ITER1 TTL without a top entity class")
+    top_class_iri, top_class_local = _get_pipeline_selected_top_class(doi_folder)
+    if not top_class_iri or not top_class_local:
+        logger.error(
+            "❌ Cannot repair ITER1 TTL because pipeline top-class selection "
+            "lineage is missing or incomplete"
+        )
         return False
 
     top_entities = _top_entities_from_txt(doi_folder, top_class_iri)
@@ -363,15 +452,32 @@ def _repair_iter1_ttl_with_generated_tools(
         entities = modules["entities"]
         relationships = modules["relationships"]
 
-        init_memory = getattr(base, "init_memory_wrapper")
-        export_memory = getattr(base, "export_memory_wrapper")
-        init_memory(doi_hash, entity_context_name)
+        main = modules.get("main")
+        init_memory = _generated_public_callable(
+            getattr(base, "init_memory_wrapper", None)
+        )
+        export_memory = _generated_public_callable(
+            getattr(base, "export_memory_wrapper", None)
+        )
+        if init_memory is None and main is not None:
+            init_memory = _generated_public_callable(
+                getattr(main, "init_memory", None)
+            )
+        if export_memory is None and main is not None:
+            export_memory = _generated_public_callable(
+                getattr(main, "export_memory", None)
+            )
+        if init_memory is None or export_memory is None:
+            raise AttributeError(
+                "Generated package exposes neither wrapper nor public memory tools"
+            )
+        try:
+            init_memory(doi_hash, entity_context_name)
+        except TypeError:
+            init_memory()
 
         create_top = getattr(entities, f"create_{top_class_local}")
-        policies = _get_runtime_policies(meta_config)
-        shell_validation = (policies.get("main_entity_kg", {}) or {}).get(
-            "shell_validation", {}
-        ) or {}
+        ontology_contract = _get_ontology_publish_contract(meta_config)
 
         for top_entity in top_entities:
             top_label = (
@@ -387,7 +493,7 @@ def _repair_iter1_ttl_with_generated_tools(
                 )
                 return False
 
-            for spec in shell_validation.get("required_links") or []:
+            for spec in ontology_contract.get("required_links") or []:
                 predicate_local = _local_name(
                     str((spec or {}).get("predicate_iri") or "")
                 )
@@ -411,7 +517,11 @@ def _repair_iter1_ttl_with_generated_tools(
                 if target_iri:
                     add_link(top_iri, target_iri)
 
-        export_memory()
+        _invoke_generated_export(
+            export_memory,
+            doi_hash=doi_hash,
+            entity_context_name=entity_context_name,
+        )
         safe_context = (
             re.sub(r"[^A-Za-z0-9_.-]+", "_", str(entity_context_name or "top")).strip(
                 "._"
@@ -571,22 +681,10 @@ def _get_iter1_entity_context_aliases(
     policies = _get_runtime_policies(meta_config)
     iter1_cfg = policies.get("iter1_top_entity_kg", {}) or {}
     prompt_rules = iter1_cfg.get("prompt_rules", {}) or {}
-    shell_validation = (policies.get("main_entity_kg", {}) or {}).get(
-        "shell_validation", {}
-    ) or {}
 
     top_level_entity_name = str(prompt_rules.get("top_level_entity_name") or "").strip()
-    top_entity_class_iri = str(
-        shell_validation.get("top_entity_class_iri") or ""
-    ).strip()
-    top_entity_class_local = ""
-    if top_entity_class_iri:
-        top_entity_class_local = (
-            top_entity_class_iri.rsplit("/", 1)[-1].rsplit("#", 1)[-1].strip()
-        )
-
     aliases: list[str] = []
-    for name in (primary, top_level_entity_name, top_entity_class_local, "top"):
+    for name in (primary, top_level_entity_name, "top"):
         clean = str(name or "").strip()
         if clean and clean not in aliases:
             aliases.append(clean)
@@ -654,16 +752,7 @@ def _augment_iter1_prompt_with_runtime_rules(
             lines.append(
                 f"- When calling `init_memory`, set `top_level_entity_name` to `{memory_context_name}`."
             )
-        top_class_local = _local_name(
-            (
-                (
-                    (policies.get("main_entity_kg", {}) or {}).get(
-                        "shell_validation", {}
-                    )
-                    or {}
-                ).get("top_entity_class_iri")
-            )
-        )
+        top_class_local = _local_name(_get_top_entity_class_iri(meta_config))
         if top_class_local:
             lines.append(
                 f"- `{memory_context_name}` is only the shared memory/runtime context label; never pass it as the `{top_class_local}` entity label."
@@ -683,6 +772,43 @@ def _augment_iter1_prompt_with_runtime_rules(
     if not lines:
         return prompt_template
     return prompt_template.rstrip() + "\n\n" + "\n".join(lines) + "\n"
+
+
+def bind_iter1_runtime_context(
+    prompt_template: str,
+    *,
+    doi_hash: str,
+    paper_content: str,
+    top_entities: str,
+) -> str:
+    """Bind Iter1 bootstrap inputs and enforce label-to-root identity boundaries."""
+    declared_doi = "{doi}" in prompt_template or "{hash}" in prompt_template
+    declared_paper = "{paper_content}" in prompt_template or "{context}" in prompt_template
+    declared_entities = (
+        "{top_entities}" in prompt_template or "{hints}" in prompt_template
+    )
+    prompt = prompt_template.replace("{doi}", doi_hash).replace("{hash}", doi_hash)
+    prompt = prompt.replace("{paper_content}", paper_content)
+    prompt = prompt.replace("{context}", paper_content)
+    prompt = prompt.replace("{top_entities}", top_entities)
+    prompt = prompt.replace("{hints}", top_entities)
+
+    boundary = [
+        "---- PIPELINE-INJECTED ITER1 BOOTSTRAP CONTEXT: BEGIN ----",
+        "Bootstrap rules:",
+        "- Treat each normalized, deduplicated upstream top-entity label as a distinct root request.",
+        "- Create or reuse one root per label using the exact T-Box-derived creator.",
+        "- Never invent one shared entity IRI for multiple labels; obtain identity from the creator/runtime.",
+        "- Do not create downstream entities or relationships in Iteration 1.",
+    ]
+    if not declared_doi:
+        boundary.append(f"Document DOI/hash: {doi_hash}")
+    if not declared_entities:
+        boundary.extend(["Upstream top-entity labels:", top_entities])
+    if not declared_paper:
+        boundary.extend(["Paper/source text:", paper_content])
+    boundary.append("---- PIPELINE-INJECTED ITER1 BOOTSTRAP CONTEXT: END ----")
+    return prompt.rstrip() + "\n\n" + "\n".join(boundary) + "\n"
 
 
 def write_global_state(
@@ -828,36 +954,12 @@ async def run_kg_building_agent(
     Returns:
         Tuple of (response, metadata)
     """
-    # Format the prompt robustly.
-    # `{paper_content}` MUST be the document text, not the extracted top-entity list.
-    instruction = prompt_template
-    replacements: dict[str, str] = {
-        "doi": doi_hash,
-        "hash": doi_hash,
-        "paper_content": paper_content or "",
-        "top_entities": hints or "",
-        "hints": hints or "",
-    }
-    for k, v in replacements.items():
-        instruction = instruction.replace("{" + k + "}", v)
-
-    # Last-resort: never leave placeholders behind.
-    instruction = instruction.replace("{paper_content}", paper_content or "")
-
-    # Append content defensively if template doesn't include it.
-    if (
-        paper_content
-        and paper_content.strip()
-        and paper_content.strip() not in instruction
-    ):
-        instruction = instruction.rstrip() + "\n\n" + paper_content.strip() + "\n"
-    if hints and hints.strip() and hints.strip() not in instruction:
-        instruction = (
-            instruction.rstrip()
-            + "\n\nTop-entity list (from previous step):\n"
-            + hints.strip()
-            + "\n"
-        )
+    instruction = bind_iter1_runtime_context(
+        prompt_template,
+        doi_hash=doi_hash,
+        paper_content=paper_content or "",
+        top_entities=hints or "",
+    )
 
     # Write global state for MCP server using the configured iter1 entity context name.
     logger.info(f"📝 Writing global state for MCP server")
@@ -884,7 +986,11 @@ async def run_kg_building_agent(
             if attempt > 0:
                 logger.info(f"🔄 Retry attempt {attempt + 1}/{max_retries}")
 
-            response, metadata = await agent.run(instruction, recursion_limit=600)
+            response, metadata = await agent.run(
+                instruction,
+                recursion_limit=600,
+                required_final_tool="export_memory",
+            )
             logger.info(f"✅ Agent completed successfully on attempt {attempt + 1}")
             return response, metadata
 
@@ -1174,7 +1280,12 @@ def parse_top_entities_from_ttl(
     try:
         doi_folder = os.path.join(data_dir, doi_hash)
         meta_config = load_meta_config(meta_task_config_path)
-        top_class_iri = _get_top_entity_class_iri(meta_config)
+        top_class_iri, _ = _get_pipeline_selected_top_class(doi_folder)
+        if not top_class_iri:
+            logger.error(
+                "❌ Cannot parse top entities because pipeline top-class selection is missing"
+            )
+            return False
         ttl_path = os.path.join(doi_folder, "iteration_1.ttl")
         sparql_path = resolve_generated_file(
             f"ai_generated_contents/sparqls/{ontology_name}/top_entity_parsing.sparql"
@@ -1230,8 +1341,13 @@ def parse_top_entities_from_ttl(
                 {
                     "uri": uri,
                     "label": label,
-                    # Type information can be inferred downstream; we keep this generic here.
-                    "types": [],
+                    "types": sorted(
+                        {
+                            str(type_iri)
+                            for type_iri in g.objects(URIRef(uri), RDF.type)
+                            if isinstance(type_iri, URIRef)
+                        }
+                    ),
                 }
             )
 
@@ -1249,14 +1365,19 @@ def parse_top_entities_from_ttl(
                 len(entities),
                 len(supplemented_entities),
             )
-            if _materialize_supplemented_top_entities(
-                g, supplemented_entities, top_class_iri
-            ):
-                g.serialize(destination=ttl_path, format="turtle")
-                logger.warning(
-                    "⚠️  Materialized supplemented top entities into iteration_1.ttl"
-                )
+        if _materialize_supplemented_top_entities(
+            g, supplemented_entities, top_class_iri
+        ):
+            g.serialize(destination=ttl_path, format="turtle")
+            logger.warning(
+                "⚠️  Materialized supplemented top entities into iteration_1.ttl"
+            )
         entities = supplemented_entities
+        entities = hydrate_and_validate_top_entity_types(
+            entities=entities,
+            iteration_1_ttl=ttl_path,
+            top_class_iri=top_class_iri,
+        )
 
         # CRITICAL VALIDATION: Check if entities list is empty
         if not entities or len(entities) == 0:
@@ -1276,6 +1397,12 @@ def parse_top_entities_from_ttl(
         os.makedirs(os.path.dirname(output_json_path), exist_ok=True)
         with open(output_json_path, "w", encoding="utf-8") as f:
             json.dump(entities, f, indent=2)
+        persist_entity_identity_sidecars(
+            doi_hash=doi_hash,
+            doi_folder=doi_folder,
+            entities=entities,
+            top_class_iri=top_class_iri,
+        )
 
         logger.info(f"✅ Parsed {len(entities)} canonical top entities from TTL")
         logger.info(f"   Saved to: {output_json_path}")
@@ -1417,11 +1544,11 @@ def run_step(doi_hash: str, config: dict) -> bool:
 
             # Save full prompt for reproducibility/debugging
             try:
-                preview_prompt = (
-                    prompt_for_attempt.replace("{doi}", doi_hash)
-                    .replace("{paper_content}", paper_content)
-                    .replace("{top_entities}", hints)
-                    .replace("{hints}", hints)
+                preview_prompt = bind_iter1_runtime_context(
+                    prompt_for_attempt,
+                    doi_hash=doi_hash,
+                    paper_content=paper_content,
+                    top_entities=hints,
                 )
                 save_full_prompt(doi_hash, preview_prompt, data_dir)
             except Exception:

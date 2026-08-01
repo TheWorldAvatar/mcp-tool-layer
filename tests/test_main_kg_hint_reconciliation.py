@@ -35,17 +35,30 @@ class TestMainKgHintReconciliation(unittest.TestCase):
 
             policy = {
                 "shell_validation": {
-                    "top_entity_class_iri": f"{EX}ChemicalSynthesis",
+                    "top_entity_class_iri": f"{EX}WrongLegacyTop",
                     "required_links": [
                         {
-                            "section_name": "ChemicalOutput",
-                            "predicate_iri": f"{EX}hasChemicalOutput",
-                            "target_class_iri": f"{EX}ChemicalOutput",
-                            "property_namespace_iri": EX,
+                            "predicate_iri": f"{EX}wrongLegacyLink",
+                            "target_class_iri": f"{EX}WrongLegacyTarget",
                             "min_count": 1,
                         }
                     ],
-                }
+                },
+                "publish": {
+                    "hint_reconciliation": {
+                        "optional_links": [
+                            {
+                                "section_name": "ChemicalOutput",
+                                "predicate_iri": f"{EX}hasChemicalOutput",
+                                "target_class_iri": f"{EX}ChemicalOutput",
+                                "property_namespace_iri": EX,
+                                "allowed_scalar_property_iris": [
+                                    f"{EX}hasChemicalFormula"
+                                ],
+                            }
+                        ]
+                    }
+                },
             }
             ok, messages = _repair_published_entity_ttl_from_hints(
                 ttl_path=str(ttl_path),
@@ -60,6 +73,12 @@ class TestMainKgHintReconciliation(unittest.TestCase):
                 },
                 ontology_name="ontosynthesis",
                 main_entity_policy=policy,
+                ontology_contract={
+                    "required_links": [],
+                    "datatype_properties": [
+                        {"property_iri": f"{EX}hasChemicalFormula"}
+                    ],
+                },
             )
             self.assertTrue(ok, msg="\n".join(messages))
 
@@ -74,6 +93,10 @@ class TestMainKgHintReconciliation(unittest.TestCase):
                 repaired,
             )
             self.assertIn((output, URIRef(f"{EX}isRepresentedBy"), mop), repaired)
+            self.assertNotIn(
+                (top, URIRef(f"{EX}wrongLegacyLink"), None),
+                repaired,
+            )
 
 
 if __name__ == "__main__":
