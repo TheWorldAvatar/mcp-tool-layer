@@ -127,6 +127,7 @@ guard_state.json
 /mini_marie_deploy/
 /e2e_generated_artifacts_*/
 /data_ontosyn_real_three_e2e/
+/runs/
 
 # Local IDE/MCP configuration and one-off scratch outputs
 /.cursor/
@@ -135,6 +136,8 @@ guard_state.json
 /reasoner_tmp.ttl
 /tmp_*.json
 /tmp_*.md
+# Generated MCP launch configs embed machine-specific executable and workspace paths.
+/configs/test_mcp_*_semantic_*.json
 
 # Runtime reports, probes, maps, and generated competency outputs
 **/competency_runs/**
