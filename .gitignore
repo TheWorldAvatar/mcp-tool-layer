@@ -134,6 +134,7 @@ guard_state.json
 /_retest_failed_questions.py
 /_run_mixed_questions.py
 /reasoner_tmp.ttl
+/tmp*.owl
 /tmp_*.json
 /tmp_*.md
 # Generated MCP launch configs embed machine-specific executable and workspace paths.
