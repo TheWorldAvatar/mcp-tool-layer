@@ -138,6 +138,8 @@ guard_state.json
 /tmp_*.md
 # Generated MCP launch configs embed machine-specific executable and workspace paths.
 /configs/test_mcp_*_semantic_*.json
+# Shadow-evaluation catalogs refer to local audited checkpoints, so keep them local too.
+/tests/fixtures/exact_edit_shadow/
 
 # Runtime reports, probes, maps, and generated competency outputs
 **/competency_runs/**
