@@ -140,6 +140,7 @@ guard_state.json
 /configs/test_mcp_*_semantic_*.json
 # Shadow-evaluation catalogs refer to local audited checkpoints, so keep them local too.
 /tests/fixtures/exact_edit_shadow/
+/tests/test_exact_edit_shadow_scenarios.py
 
 # Runtime reports, probes, maps, and generated competency outputs
 **/competency_runs/**
