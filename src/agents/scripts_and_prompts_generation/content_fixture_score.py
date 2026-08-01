@@ -9,6 +9,8 @@ from typing import Any
 
 from rdflib import BNode, Graph, Literal, RDF, RDFS, URIRef
 
+from src.agents.scripts_and_prompts_generation.fixed_rdf_runtime import abox_graph
+
 
 def _normalise_scalar(value: Any) -> str:
     if isinstance(value, bool):
@@ -180,9 +182,10 @@ def score_hint_content(
 
 
 def _graph_fact_counter(path: Path) -> Counter[tuple[str, str, str]]:
-    """Create an IRI-insensitive graph fact multiset for lightweight oracle comparison."""
-    graph = Graph()
-    graph.parse(str(path), format="turtle")
+    """Create an IRI-insensitive A-Box fact multiset for diagnostics."""
+    loaded = Graph()
+    loaded.parse(str(path), format="turtle")
+    graph = abox_graph(loaded)
 
     def node_key(node: Any) -> str:
         if isinstance(node, Literal):
@@ -195,8 +198,6 @@ def _graph_fact_counter(path: Path) -> Counter[tuple[str, str, str]]:
 
     facts: Counter[tuple[str, str, str]] = Counter()
     for subject, predicate, obj in graph:
-        if predicate in {RDF.type, RDFS.label}:
-            continue
         facts[
             (
                 node_key(subject),
