@@ -1,0 +1,623 @@
+\section{Introduction}\label{sec:introduction}
+
+% Macro-motivation
+
+Extracting structured data from scientific literature is a critical and routine step for enabling machine-actionable scientific workflows, including hypothesis generation, data-driven modelling, and synthesis prediction.~\cite{grishman2015,krallinger2017,xu_large_2024}. In reticular chemistry, for example, literature extraction can support synthesis predictions of novel materials and estimation of properties such as gas adsorption, and provide means to identify gaps in the immediate chemical space~\cite{theworldavatar2025,kondinski2022,zheng2023,jablonka2024}. Moreover, structuring literature makes it possible to link extracted records to complementary data sources, expanding their context and increasing their value beyond what is reported in any single paper~\cite{martinezrodriguez2020,liang_survey_2024}.
+
+% Current limitations
+
+% Overall summary of challenges 
+ % 1. well-formed, consistently defined records that support deterministic validation and integration
+ % 2. Clear roles and concept boundaries, normailzed units and vlue 
+ % 3. Unambiguous entity references. 
+ % 4. Examples in the chemistry context 
+However, turning scientific text into machine-actionable data remains challenging. Scientific text requires precise interpretation and is domain-specific, while downstream uses, such as data-driven modelling, require consistently defined records that are comprehensively validated~\cite{grishman2015,krallinger2017,xu_large_2024,schilling-wilhelmi_text_2025}. These records need clear roles and concept boundaries, normalized units and values, and, crucially, unambiguous entity references~\cite{wimalasuriya2010,martinezrodriguez2020,schilling-wilhelmi_text_2025}. For example, a reagent may be mentioned without an explicit role (precursor \vs \ solvent), experimental conditions may be expressed in inconsistent unit forms (\eg C \vs Degrees Celsius), and the same chemical may appear under multiple names or abbreviations; downstream workflows therefore require canonical identifiers (\eg, CAS numbers or InChIKeys) and consistent typing to support validation, deduplication, and cross-paper integration~\cite{pascazio2023,rihm2025}.
+
+% Introduce the two core technologies: ontology and LLM 
+
+Ontologies are one natural option for specifying these roles, boundaries, and constraints: an ontology is a formal, machine-readable description of a domain, typically decomposed into a T-Box that defines concepts and relations, and an A-Box that instantiates them with concrete entities and facts~\cite{gruber1993,guarino2009}. In such knowledge graphs, entities are represented by Internationalized Resource Identifiers (IRIs), which serve as unique identifiers for individual instances, such as specific chemical species. In parallel, recent large language models (LLMs) have enabled few-shot and zero-shot adaptation for extraction tasks, and can apply prompt-based, soft definitions of roles and boundaries by interpreting context and producing schema-shaped records~\cite{xu_large_2024}.
+
+% Systematic issues with current approaches  
+ % Probelm 1: If you want to meet those erquirements -> substaintial expert effort into constraint enforcement. 
+% Non-LLM works: hand-engineered rules 
+
+Pipelines that aim to produce structured data ready for downstream use often combine ontologies (to define target roles, relations, and constraints) with extractors (LLMs or otherwise) to interpret text. However, downstream use typically requires that extracted records conform to the ontology, including valid types and relations, normalized values and units, and grounded identifiers. This concentrates effort in constraint enforcement, such as validation, normalization, and grounding or alignment, implemented within the extraction system or as a separate step~\cite{wimalasuriya2010,martinezrodriguez2020,xu_large_2024}. In non-LLM pipelines, this enforcement is commonly realized through domain-specific components such as trained models, hand-engineered rules, and ontology-aligned assembly procedures~\cite{wimalasuriya2010,martinezrodriguez2020}.
+
+% LLM works: Post-hoc processing, still hand-engineered rules, just moved downstream or rely on manually crafted domain prompts 
+
+Many other approaches shift this work to post-hoc processing: they first generate schema-shaped records, then apply deterministic validation and ontology/database alignment to ensure the outputs satisfy required fields, normalization, cross-field consistency, and identifier grounding~\cite{xu_large_2024,schilling-wilhelmi_text_2025,liu_we_2024,xu2023}. As a result, achieving ontology-conformant data often depends on hand-built validation/alignment logic outside the extractor, rather than being enforced during extraction itself.
+
+
+% Summary of issues and limitations
+% Common limitation: How do you enforce the downstream requirements  
+Across these families, the common limitation is how downstream requirements are enforced: they are implemented either as bespoke, domain-specific pipeline logic around extraction or as a separate post-hoc layer for validation, normalization, and grounding and alignment, concentrating expert effort in code that must be revised as schemas and scope change.
+
+% Introduce tool calling and MCP
+
+Recently, large language models (LLMs) have increasingly supported tool calling, where a model invokes external functions (scripts and APIs) during generation to produce structured outputs, perform deterministic checks, and retrieve supporting evidence. Frameworks such as the Model Context Protocol (MCP) standardize this interaction by providing a common interface for registering tools and exchanging typed inputs and outputs~\cite{openai2024,anthropic2024mcp,mcp2025spec,yao2023react,schick_toolformer_2023,wu_autogen_2023,liang_survey_2024,ren2024survey,liu_we_2024,li_large_2024}. These capabilities make it possible to enforce structure and domain constraints during extraction, rather than relying solely on post hoc validation.
+
+Such constraints are particularly important in scientific domains, where extracted information must align with well-defined ontologies and existing knowledge bases. The World Avatar~\cite{theworldavatar2025} is a large-scale dynamic knowledge graph for chemistry that provides curated T-Boxes and extensive A-Box instances covering synthesis descriptions, metal organic polyhedra, and chemical species~\cite{pascazio2023,kondinski2022,rihm2025}. As a result, it offers a natural grounding target for tool-augmented LLM extraction, supplying ready-to-use semantic schemas against which generated outputs can be validated and instantiated.
+
+% Our core idea
+
+% Idea1: Use T-Box + meta prompt as input -> output prompts, scripts, MCP tools. 
+% Idea2: Use those MCP tools + prompts to let document-extraction done by LLM agents 
+% Idea3: Those MCP has runtime, built-in constraint checks to enforce ontology alignment. 
+
+Motivated by the constraint-enforcement bottleneck identified above, we introduce a novel ontology-to-tools compilation framework that turns an ontology into executable LLM-callable tools, enabling constraints to be enforced during extraction rather than by bespoke pipeline logic or post-hoc validation. To our knowledge, no prior system has transformed an ontology into an LLM-executable constraint enforcement layer. In our approach, an LLM-driven agent performs document-level extraction and invokes compiled tools to construct the knowledge graph directly: tool calls instantiate individuals and relations with built-in constraint checks and structured feedback on violations. Compilation itself is also treated as a validated, revision-based process. Candidate tools and prompts are generated from the T-Box, checked for code- and contract-level defects, exercised by constructing a mock A-Box, and revised through bounded patches when either machine validation or ontology reasoning exposes a defect. The same compilation framework also yields lexical grounding tools. These tools link surface text mentions to ontology-defined entities using lexical labels and evidence from a reference knowledge graph. In practice, they align extracted mentions to the IRIs of existing instances in the graph, for example an already recorded chemical species.
+
+Our contributions are: (1) an ontology-to-tools compilation framework for generating ontology-aligned prompts and MCP tools from a \emph{T-Box} and domain-agnostic meta-prompts; (2) a revision-based qualification procedure that combines generated-artifact checks, transactional patching, mock A-Box execution, and ontology-level reasoning to identify defects before candidate tools are selected for runtime use; (3) an ontology-constrained KG construction procedure that enforces selected constraints at creation time via tool calls with structured feedback; and (4) an ontology-driven grounding workflow that generates lexical grounding tools from the \emph{T-Box} and endpoint evidence for identifier alignment. We demonstrate the same compilation mechanism in two substantially different settings: knowledge-graph construction from metal--organic polyhedra (MOP) synthesis literature, including grounding to canonical chemical identifiers, and structured interpretation of German thoracic-surgery operative reports under a medical ontology.
+
+% Patch 1 — Lock in the ML contribution 
+From a machine-intelligence perspective, the central contribution is a compilation mechanism that transforms symbolic constraints into executable action interfaces for generative models. This reframes constraint enforcement from prompt- or schema-based output constraints and post-hoc validation into run-time interaction with a structured environment. The resulting behaviour is not achieved through prompt engineering or grammar restriction, but through tool-mediated interaction with a persistent symbolic state. The chemistry and medical case studies instantiate the same mechanism with different ontology structures, document genres, languages, and target semantics, allowing us to test whether the compiler is tied to a single extraction domain.
+
+% Figure~\ref{fig:example_instance} shows an example ontology instance produced by the instantiation agent. 
+
+% \paragraph{Ontology-to-tools compilation versus constrained generation.}
+% It is important to distinguish ontology-to-tools compilation from existing approaches to constrained or schema-guided generation. Grammar- or schema-constrained decoding restricts the space of admissible token sequences, enforcing primarily syntactic well-formedness. In contrast, ontology-to-tools compilation exposes ontological semantics as executable actions that operate over a persistent symbolic state. Constraints such as identity reuse, cardinality, cross-entity relations, unit normalization, and grounding to external evidence are enforced through tool-mediated interaction at run time, rather than through static token-level constraints. This enables procedural and relational constraints to be applied incrementally and conditionally, with structured feedback guiding iterative repair. As a result, correctness emerges from interaction with an evolving symbolic environment, not from one-shot decoding under fixed grammars. Ontology-to-tools compilation therefore reframes constraint enforcement as part of the model’s action space, rather than as a restriction on its textual output.
+
+
+
+% \clearpage
+% ==================================================================
+\section{Cross-domain Applications of Ontology-to-Tools Compilation}\label{sec:application}
+We demonstrate the ontology-to-tools compilation framework in two contrasting domains. The first application constructs grounded, ontology-consistent knowledge graphs from metal--organic polyhedra synthesis literature. The second applies the same compilation and execution mechanism to German thoracic-surgery operative reports, where the target ontology describes patient and case information, timelines, surgical approaches and procedures, clinical teams, diagnoses, complications, and pathology outcomes.
+
+\subsection{Metal--organic polyhedra synthesis literature}
+% ======================= 0. Section anchor and scope =======================
+% Define the task and outputs, anchor to the example instance, and state corpus scale.
+Figure~\ref{fig:example_instance} illustrates the core knowledge-graph representation produced for metal--organic polyhedra (MOP) synthesis papers. The results reported in this section are obtained from 30 MOP-related publications, with each paper treated as a full-text input including manuscript text, tables, and supplementary information when available.
+
+% ======================= 1. Application definition (WHAT is constructed) =======================
+The task definition is to convert unstructured MOP synthesis literature into grounded, ontology-consistent knowledge-graph instances. Given a full-text synthesis paper, the output is a set of interlinked instances capturing synthesis procedures, chemical reagents, and the reported MOP, with extracted entities linked to existing knowledge graph instances. 
+
+The representation draws on multiple complementary domain ontologies, including OntoSynthesis~\cite{rihm2025} for modelling synthesis events, ordered steps, conditions, and reagent usage; OntoSpecies~\cite{pascazio2023} for canonical chemical species identities and identifiers; OntoMOPs~\cite{kondinski2022} for MOP products, structural concepts, and derived chemical building units (CBUs); and OM-2 for representing and normalizing quantities and units in synthesis descriptions. Chemical species are grounded at the usage-instance level by linking extracted instances to canonical OntoSpecies entries.
+
+This task is challenging because it requires the coordinated use and alignment of multiple ontologies when analysing a single paper. Procedural knowledge, canonical chemical identity, and product- and structure-level material knowledge, including derived CBUs, must be populated consistently and linked across ontology boundaries. Moreover, the relevant information is often reported at different levels of detail, and the resulting knowledge graph must keep track of where each piece of information comes from, so that roles, amounts, and other qualifiers remain correctly associated with the appropriate chemical usage and synthesis steps. In addition, CBU derivation requires connecting extracted synthesis evidence to product representations and external chemical or crystallographic data while maintaining consistent identifiers across all ontological layers.
+
+% ======================= 3. Target outputs =======================
+For each paper, the framework produces three interconnected outputs.  
+First, a structured synthesis recipe captures ordered synthesis steps, step-level actions, and associated conditions, together with additional synthesis-related details such as reagent usage and provenance information.
+
+Second, a set of grounded chemical species instances represents chemical entities uniquely, with contextual qualifiers such as role, amount, and units attached to each occurrence in the synthesis, and with links to canonical OntoSpecies records for cross-paper integration.
+
+Third, derived chemical building units (CBUs), including reusable metal nodes or clusters and organic ligands, are obtained by combining extracted evidence with database-backed chemical and crystallographic data. These CBUs are instantiated under OntoMOPs and linked back to the reported MOP product and the synthesis in which they were produced.
+
+% ======================= 4. Core representation (Figure 2) =======================
+Figure~\ref{fig:example_instance} shows an example ontology instance produced for a representative synthesis. Panel~(A) presents an excerpt of the instances subgraph, \ie A-Box, including a synthesis event linked to an ordered sequence of steps, step-scoped reagent usage, and the reported MOP product, together with attributes such as yield and representation links. Panel~(B) shows a compact, record-style projection of the same instances in canonical slot--value form used for inspection and downstream querying. In this representation, contextual qualifiers remain attached to individual usage instances, while selected inputs are grounded to canonical OntoSpecies entries via identity links. Together, the outputs integrate procedural structure, species grounding, and product- and CBU-level semantics to yield a single, queryable knowledge-graph instance.
+
+% ======================= 5. Representativeness =======================
+
+\begin{figure}
+    \centering
+    \includegraphics[width=1\linewidth]{figures/example_ontology.pdf}
+\caption{\textbf{Example ontology instance produced by the instantiation agent.}
+(A) A-Box subgraph instantiated under OntoSyn/OntoMOPs for synthesis \texttt{S1}, including ordered synthesis steps, chemical inputs, and product \texttt{UMC-1} (with yield and representation links).
+(B) Compact record projection (A-Box normal form) of the same instance in canonical slot--value form; \texttt{onsyn:*} abbreviates \texttt{ontosyn:*}, and selected \texttt{ChemicalInput} entities are grounded via \texttt{owl:sameAs} to \texttt{ontospecies:Species}.}
+    \label{fig:example_instance}
+\end{figure}
+
+\subsection{Thoracic-surgery operative reports}\label{subsec:medical_application}
+
+The medical application converts German thoracic-surgery operative reports into ontology-consistent case graphs. Unlike the MOP application, which integrates procedural chemistry with external species and crystallographic resources, this task requires interpretation of compact clinical narratives, document layout, clinical evidence boundaries, and checklist-like target concepts. The study-specific medical T-Box is non-flat: it defines nine classes and represents each operative episode as a top-level \texttt{MedicalCase} linked through eight object properties to \texttt{PatientInfo}, \texttt{CaseTimeline}, \texttt{SurgicalApproach}, \texttt{Procedure}, \texttt{SurgicalTeam}, \texttt{Diagnosis}, \texttt{Complication}, and \texttt{PathologyOutcome} instances. These linked components separate patient identity, temporal context, operative acts, clinical interpretation, and outcomes while preserving their association with one case.
+
+The component classes expose 79 datatype properties aligned with the evaluation record: 60 binary checklist fields, 13 ordinary text fields, five conditionally populated free-text fields, and one explicitly derived field. The T-Box records datatype, domain, human-readable label, stable CSV/Excel projection metadata, and a machine-readable value kind for every property. Its detailed annotations also encode operational extraction semantics: preferred source sections, date formats and derivations, OPS-linked procedure definitions, canonical-field precedence over fallback text, conditional dependencies, and positive and negative evidence rules. Examples include selecting the final completed access route across open, VATS, and RATS descriptions; separating an independent chest-drain procedure from routine closure; requiring complication subtypes and Clavien--Dindo information to be supported by a postoperative complication; and distinguishing final pathology from provisional frozen-section evidence. These annotation-level policies supplement the formal RDF/OWL domains, ranges, and case-to-component relations and are compiled into prompts and runtime contracts rather than being misrepresented as general OWL axioms.
+
+For each report, the framework consequently produces an interconnected case representation with three main groups of outputs. First, patient and episode information captures identifiers, dates, and derived temporal values. Second, procedure-level information captures the final operative approach, completed procedures, and explicitly reported team roles. Third, clinical interpretation captures case-level diagnoses, postoperative complications and interventions, and pathology outcomes. The main challenge is therefore not merely filling a flat checklist: evidence from different sections must be assigned to the correct case component, canonical categories must be distinguished from fallback text, and cross-field conditions must be satisfied without promoting incidental or provisional mentions.
+
+The medical case therefore provides a deliberately different test of the compilation mechanism. The source documents are clinical rather than scientific articles, are written in German rather than English, and populate a case-centred ontology dominated by categorical and relational clinical fields rather than chemical quantities and database-grounded species. Nevertheless, the T-Box is compiled through the same generation, validation, mock A-Box, revision, and runtime tool-use stages described below.
+
+% \begin{figure}
+%     \centering
+%     \includegraphics[width=1\linewidth]{figures/Example Ontology Instance_cropped (1).pdf}
+% \caption{Limitation of text-centric extraction and post-hoc validation for structured knowledge construction.
+% Large language models can extract entities and relations from unstructured text, but without access to executable semantics they operate as stateless text generators. As a result, domain constraints such as identity reuse, cardinality, cross-entity relations, and grounding to external evidence are typically enforced through bespoke pipeline logic or post-hoc validation, leading to brittle workflows and manual intervention. This motivates the need for mechanisms that integrate formal constraints directly into the generative process, allowing models to interact with structured knowledge during generation rather than correcting outputs after the fact.}
+%     \label{fig:example_instance}
+% \end{figure}
+
+
+
+% ======================= overall view section =======================
+\section{Design of Ontology-to-Tools Compilation Framework}
+
+% ======================= Section purpose (HOW) =======================
+% Explain how the representations defined in the previous section are constructed.
+This section describes how the ontology-consistent knowledge-graph instances defined in Section~\ref{sec:application} are constructed from unstructured documents. The focus is on the shared compilation and execution mechanisms that translate either domain ontology into executable tools and use them to perform constrained extraction. Figure~\ref{fig:workflow} provides an overview of the end-to-end workflow.
+% 
+The compiled tool interfaces collectively define the action space available to the LLM agent, constraining generation through executable semantics rather than prompt- or schema-based constraints on the output.
+
+% ======================= Two-stage, two-agent design =======================
+As illustrated in Figure~\ref{fig:workflow}, the framework has two stages: (1) the \emph{preparation stage}, which compiles and validates an ontology-specific tool package and its prompts, and (2) the \emph{instantiation stage}, which runs a tool-using agent to construct a knowledge graph from each document. In the \emph{preparation stage}, the preparation agent consumes an ontology schema (T-Box) together with domain-agnostic meta-prompts and generates ontology-aligned runtime prompts, supporting scripts, and LLM-callable tool interfaces exposed via MCP. The first generated package is a candidate rather than an assumed-correct output. It passes through code, interface, and ontology-contract checks; failures are converted into focused observations from which the agent proposes bounded patches. The surviving candidate is then executed on a mock document to construct a mock A-Box. Graph-level checks and an ontology reasoner test the resulting individuals and relations, and semantic failures are fed into a further revision round. In the \emph{instantiation stage}, the accepted package is applied to each source document; constraint violations are returned as structured feedback to support iterative completion and repair.
+
+% ======================= Ontology-to-tools compilation =======================
+The compilation layer treats the T-Box as a machine-readable contract. It specifies which classes, relations, attributes, and constraints are allowed. A parsed contract records class and property inventories, domain and range restrictions, datatypes, required links, cardinality and ordering requirements, quantity structures, and ontology annotations. From this contract, the framework generates executable tool interfaces with explicitly specified inputs, outputs, and validation behaviour. Generated files are edited transactionally: each proposed patch is restricted to an authorised target, tied to the expected file revision, and either accepted as a complete validated change or rolled back. This prevents a repair attempt from leaving a partially modified tool package.
+
+\paragraph{Revision and mock A-Box evaluation.}
+Validation is separated into complementary gates. Level~1 checks whether the generated package is mechanically usable and faithful to the compilation contract, including formatting and syntax, importability, MCP exposure, typed signatures, required tool coverage, and runtime graph-hygiene probes. Level~2 checks what the tools actually construct. A mock document and source-grounded expected hints are processed through the generated prompts and tools; the resulting A-Box is checked for unknown ontology symbols, domain and range violations, required links, reachability from the top entity, complete quantity structures where applicable, and logical consistency using OWL-RL checks and HermiT. Structural or semantic failures revise scripts and tool adapters. Content mismatches between expected and predicted hints, or between the generated graph and an oracle graph materialised from the expected hints, revise prompts instead. Accepted revisions are retained as a new checkpoint only when they pass the gates without regressing previously recovered facts.
+
+\paragraph{Ontology-to-tools compilation algorithm.}
+Algorithm~\ref{alg:ontology_to_tools} formalises the complete compilation and qualification procedure. It distinguishes package defects from content defects so that each failure is routed to the appropriate repair target.
+
+\begin{algorithm}[t]
+\caption{Validated ontology-to-tools compilation and qualification}
+\label{alg:ontology_to_tools}
+\normalsize
+\begin{algorithmic}[1]
+\Require T-Box $T$; domain-agnostic meta-prompts $M$; revision budget $B$
+\Ensure Qualified package $A$, or a failure report
+\State $C \gets \Call{ParseContract}{T}$
+\Comment{classes, properties, constraints, and annotations}
+\State $A \gets \Call{GenerateCandidate}{C,M}$
+\Comment{plan, prompts, functions, adapters, server, and schemas}
+\State $best \gets \varnothing$
+\For{$revision \gets 0$ \textbf{to} $B$}
+    \State $R_{\mathrm{pkg}} \gets \Call{ValidatePackage}{A,C}$
+    \Comment{syntax, imports, exposure, coverage, contracts, and probes}
+    \If{$R_{\mathrm{pkg}}$ fails}
+        \State $O \gets \Call{FocusFailures}{R_{\mathrm{pkg}}}$
+        \State $F \gets \Call{Dependencies}{O}$
+        \State $h \gets \Call{Hashes}{A}$
+        \State $P \gets \Call{ProposeBoundedPatch}{O,F,h}$
+        \State $A \gets \Call{ApplyTransactionOrRollback}{A,P}$
+        \State \textbf{continue}
+    \EndIf
+    \State $(D^{\ast},H^{\ast}) \gets \Call{BuildMockFixture}{C}$
+    \State $(\widehat{H},\widehat{G}) \gets \Call{ExecuteRuntime}{A,D^{\ast}}$
+    \State $G^{\ast} \gets \Call{MaterialiseOracle}{A.\mathrm{constructors},H^{\ast}}$
+    \State $R_{\mathrm{graph}} \gets \Call{ValidateGraph}{\widehat{G},T}$
+    \Comment{vocabulary, domain/range, links, reachability, quantities, OWL-RL, and HermiT}
+    \State $R_{\mathrm{content}} \gets
+        \Call{CompareContent}{\widehat{H},H^{\ast},\widehat{G},G^{\ast},C.\mathrm{criticalSlots},best}$
+    \If{$R_{\mathrm{graph}}$ fails}
+        \State $O \gets \Call{FocusFailures}{R_{\mathrm{graph}}}$
+        \State $F \gets \{\textsc{Scripts},\textsc{Adapters}\}$
+        \State $h \gets \Call{Hashes}{A}$
+        \State $P \gets \Call{ProposeBoundedPatch}{O,F,h}$
+        \State $A \gets \Call{ApplyTransactionOrRollback}{A,P}$
+        \State \textbf{continue}
+    \EndIf
+    \If{$R_{\mathrm{content}}$ fails}
+        \State $O \gets \Call{FocusFailures}{R_{\mathrm{content}}}$
+        \State $F \gets \{\textsc{ExtractionPrompts},\textsc{KGPrompts}\}$
+        \State $h \gets \Call{Hashes}{A}$
+        \State $P \gets \Call{ProposeBoundedPatch}{O,F,h}$
+        \State $A \gets \Call{ApplyTransactionOrRollback}{A,P}$
+        \State \textbf{continue}
+    \EndIf
+    \State $best \gets \Call{FreezeCheckpoint}{A}$
+    \State \Return $\Call{Qualified}{best}$
+\EndFor
+\State \Return $\Call{FailureReport}{A}$
+\Comment{do not promote or deploy the unqualified candidate}
+\end{algorithmic}
+\end{algorithm}
+
+% ======================= Execution and grounding =======================
+During instantiation, the extraction agent interprets document content and issues tool calls appropriate to the compiled ontology. In the MOP case, these calls construct synthesis steps, usage instances, species links, and product entities; external chemical and crystallographic resources enable canonical species identification and database-backed CBU derivation. In the medical case, the calls construct the case shell and its linked patient, timeline, approach, procedure, team, diagnosis, complication, and pathology entities. All entities are instantiated under the constraints defined by the corresponding ontology contract. Together, these components implement an end-to-end workflow in which ontology specifications and unstructured documents jointly drive internally consistent knowledge-graph construction, while generated-package defects are addressed before deployment by the revision and mock A-Box loop.
+
+
+
+% \begin{figure}
+%     \centering
+%     \includegraphics[width=1\linewidth]{figures/Workflow_cropped.pdf}
+%     \caption{Ontology-to-tools compilation workflow. (A) A preparation agent uses ontology concepts (classes, properties, and constraints such as domain/range, datatype, identifiers, units, and cardinality) to generate ontology-aligned prompts and an ontology-specific MCP server. (B) An instantiation agent processes scientific text and invokes ontology-specific MCP tools to create, update, and link ontology instances. Constraint-check results and validation errors are returned as feedback, enabling iterative refinement and repair; additional domain resources (\eg PubChem, CCDC, RDKit) are accessed through MCP when needed.}
+%     \label{fig:workflow}
+% \end{figure}
+
+
+\begin{figure}
+    \centering
+    \includegraphics[width=1\linewidth]{figures/Workflow_cropped.pdf}
+    \caption{ Ontology-to-tools compilation as an executable semantic control layer for LLM-based agents. Symbolic ontological definitions (T-Box) are compiled into executable tool interfaces and validators that define the action space available to a large language model during generation. Rather than producing free-form text, the LLM interacts with a persistent symbolic state by invoking ontology-aligned actions that create, modify, and validate graph instances. Constraint violations trigger structured feedback, enabling iterative repair and, where reference resources are available, grounding to external entities. This reframes semantic constraint enforcement from post-hoc validation or constrained decoding into run-time interaction with an evolving symbolic environment, allowing the model to operate as a stateful, ontology-aware agent.}
+    \label{fig:workflow}
+\end{figure}
+
+
+
+% =======================================================================
+\section{Performance of Ontology-to-tools Compilation}\label{sec:results}
+  
+This section evaluates whether the same ontology-to-tools mechanism produces semantically usable and content-correct outputs in the two application domains. The MOP evaluation uses a curated corpus of 30 synthesis articles, while the medical evaluation uses 30 German thoracic-surgery operative reports with manually curated 79-field case records. Two questions matter in both settings. First, are the generated graphs semantically healthy, \ie do they satisfy the ontology constraints and remain structurally consistent under instantiation? Second, is the recoverable content accurate with respect to the source documents and annotations?
+
+\subsection{Metal--organic polyhedra synthesis results}
+
+To answer these questions, we compare the generated outputs against manual ground-truth annotations in predefined JSON record formats covering four target categories: grounded and derived CBUs, characterisation entities, synthesis steps, and reaction chemicals. Section~\ref{subsec:dataset} describes the dataset in detail. We report \emph{graph-recoverable} performance first. This measures whether the information required by the evaluation schema is actually present in the constructed knowledge graph in the expected ontology form, \ie as individuals and relations that can be retrieved deterministically. Concretely, for each target JSON record type, we use a fixed SPARQL query to reconstruct the record from the graph, and we score the reconstructed records against the ground truth. SPARQL querying provides the recoverability test because it requires the relevant facts to be encoded as explicit triples with the correct links between entities, rather than appearing only as free text, partial attributes, or disconnected nodes. The SPARQL queries are fixed in advance and are not adapted per paper or per predicted graph. They are derived from the target ontological schema (T-Box) and the corresponding JSON record definitions, and are written once to specify how each record should be read out from any valid instantiation. As a result, a prediction is counted as graph-recoverable only if it can be reconstructed through these schema-derived queries. Figure~\ref{fig:fig1_core_results} summarises aggregate performance, class imbalance, and per-paper variability. Figure~\ref{fig:fig2_ablation_constraint} isolates the effects of external grounding services and constraint feedback. Figure~\ref{fig:fig3_error_anatomy} analyses dominant step-level error sources and highlights priorities. Exact scores and ablations appear in Tables~\ref{tab:overall} and \ref{tab:ablation}. Our evaluation is designed to assess interaction-based constraint enforcement by analysing its effects on graph recoverability and accuracy. % Our baselines reflect common schema-guided extraction pipelines in which constraints are enforced post-hoc, enabling direct comparison between validation-based and interaction-based constraint enforcement.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=0.9\linewidth]{figures/Fig1_core_results.pdf}
+    \caption{\textbf{Core end-to-end results across four extraction/instantiation domains.}
+    (a) Aggregate graph-recoverable precision, recall and F1 for grounded/derived CBUs, characterisation entities, synthesis steps and reaction chemicals (Table~\ref{tab:overall}). 
+    (b) Task imbalance in ground-truth positives (Table~\ref{tab:benchmark_profile}). 
+    (c) Per-paper F1 distributions across the 30-paper benchmark. 
+    (d) Per-paper recall variability, highlighting recall-limited categories. 
+    (e) Best--worst paper contrast (mean F1 over top-3 vs bottom-3 papers) summarising dataset heterogeneity.}
+    \label{fig:fig1_core_results}
+\end{figure}
+
+\begin{figure}
+    \centering
+    \includegraphics[width=\linewidth]{figures/Fig2_ablation_constraint.pdf}
+    \caption{\textbf{Component necessity and the role of constraint feedback.}
+    (a) Ablation impact on end-to-end F1 by category (Table~\ref{tab:ablation}). 
+    (b) Steps-only precision--recall--F1 shift under feedback removal, illustrating the dominant effect on step completeness/recoverability.
+    (c) Constraint feedback: illustrative failure modes and paired $\Delta$ error counts computed over aligned full vs no-feedback syntheses. The excerpt shows typical no-feedback degradations (\eg step-number integrity and redundancy), while the mini-plot quantifies three paired error proxies (A--C; defined in-panel) with bootstrap confidence intervals.}
+    \label{fig:fig2_ablation_constraint}
+\end{figure}
+
+\begin{figure}
+    \centering
+    \includegraphics[width=1\linewidth]{figures/Fig3_error_anatomy.pdf}
+    \caption{\textbf{Error anatomy and improvement priorities for synthesis steps.}
+    (a) Top error-contributing fields (FP vs FN) aggregated over the benchmark. 
+    (b) Field-level bias signature (FN-share vs FP-share), separating recall-limited from precision-limited fields.
+    (c) Hypothetical improvement roadmap (Pareto): cumulative F1 if the top-$N$ error-contributing fields were corrected.
+    (d) Error concentration across papers (Lorenz-style curve), showing whether a small subset of papers accounts for a disproportionate share of step errors.}
+    \label{fig:fig3_error_anatomy}
+\end{figure}
+
+\subsection{Ontology-compiled MCP tools enable semantically valid and content-correct end-to-end graph instantiation}
+To assess whether ontology-compiled MCP tools produce outputs that are both semantically valid under the ontology and content-correct, we evaluate end-to-end graph-recoverable performance and summarise the results in Figure~\ref{fig:fig1_core_results}. Figure~\ref{fig:fig1_core_results}a shows strong overall performance (micro-F1 0.826; Table~\ref{tab:overall}), with high precision (0.844) and task-dependent recall (0.808). It also shows clear differences across categories. Synthesis steps perform best overall (F1 0.843). Reaction chemicals have perfect precision (1.000) but much lower recall (0.582). This suggests the system often avoids uncertain chemical mentions and misses some valid ones, especially when names are written in inconsistent forms (Table~\ref{tab:overall}).
+
+These scores reflect both semantic and content correctness. A prediction counts as correct only if it is instantiated with the right entity types, relations, and required fields. It must also be recoverable by fixed SPARQL queries that reconstruct the expected JSON records. Errors in either content or structure, including missing individuals, wrong types, missing or incorrect links, or unfilled required slots, prevent recovery and are counted as false negatives.
+
+Figure~\ref{fig:fig1_core_results}b quantifies the benchmark imbalance. This explains why micro-aggregates are dominated by high-volume categories and motivates reporting macro-averaged scores (macro precision 0.865, macro recall 0.735, macro F1 0.785; Table~\ref{tab:overall}). Figure~\ref{fig:fig1_core_results}c shows broad per-paper F1 distributions across all categories. Figure~\ref{fig:fig1_core_results}d indicates that recall variability drives the lower tail for some domains. Figure~\ref{fig:fig1_core_results} further shows that performance varies widely across papers. The best--worst contrasts suggest that differences in how authors report experiments, and how much concrete detail they include, have a strong impact on what the system can reliably extract and reconstruct from the graph.
+
+In all, the results indicate that ontology-compiled MCP tools support semantically valid graph construction with strong content accuracy, while remaining errors are concentrated in recall-sensitive categories and in papers with sparse or unevenly reported evidence.
+
+
+\subsection{Constraint feedback improves completeness of instantiated synthesis steps}
+
+To assess the contribution and necessity of constraint feedback, we ablate the feedback channel and compare end-to-end instantiation scores. Figure~\ref{fig:fig2_ablation_constraint}a summarises the category-level impact of this ablation and shows that synthesis steps are among the most affected outputs. We therefore analyse synthesis-step behaviour in more detail.
+
+In the ablated setting, we disable ontology-derived validation feedback at run time. We manually modify the AI-generated execution script and comment out the code paths that return feedback to the agent. This removes checks for required fields, unit and value normalization, step ordering and continuity, and other consistency constraints that are otherwise applied incrementally as synthesis steps are constructed. The agent therefore generates outputs without receiving signals about missing fields, invalid values, or structural violations.
+
+Table~\ref{tab:ablation} shows a substantial drop in synthesis-step F1 when constraint feedback is removed, driven primarily by lower recall rather than precision. Figure~\ref{fig:fig2_ablation_constraint}b visualises this shift, showing that without feedback the system produces fewer synthesis-step instances that are complete enough to be recovered by the fixed SPARQL evaluation queries.
+
+Figure~\ref{fig:fig2_ablation_constraint}c helps explain the underlying failure modes. Without feedback, step outputs more frequently violate basic structural expectations, including inconsistent or missing step numbers and unnecessary fragmentation into extra steps. The figure reports paired differences between full and no-feedback runs on the same papers using three proxy measures computed from the instantiated outputs. These capture increases in step-number inconsistencies, inflation in the number of steps, and regressions to placeholder or default values. Together, these results show that constraint feedback is important for guiding the model toward synthesis-step structures that are complete, well-formed, and reliably instantiable.
+
+
+
+% \subsection{Engineering overhead is reduced by shifting task-specific artefacts from manual to generated and reusable components}
+% We estimate the human-written, domain-specific engineering surface required to deploy the workflow, separating (i) manual domain-specific components, (ii) domain-agnostic scaffolding, and (iii) persistent AI-generated domain-specific artefacts (prompts, schemas, and query templates). Table~\ref{tab:artefact_inventory_compact} shows that manual domain-specific artefacts drop from 49 in the prior workflow to 11 in the MCP-enhanced pipeline. The reduction is concentrated in parts that typically scale with new tasks and paper sets, namely prompt templates and SPARQL or query templates. The remaining manual domain-specific work mainly consists of MCP server and tool wrappers. These wrappers encode stable interfaces and become reusable across extraction tasks and papers once the ontology and tool endpoints are fixed. We use artefact counts as a proxy for engineering overhead rather than person-hours.
+ 
+
+\subsection{Dominant synthesis-step error modes and improvement priorities}
+To identify the main sources of remaining limitations in synthesis-step extraction and to guide future improvements, we analyse synthesis-step errors in detail using Figure~\ref{fig:fig3_error_anatomy}. Synthesis steps are the core output of the pipeline because they represent the ordered experimental procedure and link together materials, conditions, and outcomes. Errors at this level therefore have a direct impact on the usefulness of the extracted knowledge graph, which motivates a more detailed analysis than for the other categories.
+
+Figure~\ref{fig:fig3_error_anatomy}a shows that synthesis-step errors are not evenly distributed across fields. A small number of fields account for a large share of the total errors. These include fields that encode step order, action descriptions, and key parameters. Errors arise both as missing fields, where required information is not extracted or instantiated, and as extra fields, where values are produced but do not correspond to the ground truth. This concentration indicates that overall performance is limited by a small set of recurring failure points rather than uniform noise across the schema.
+
+Figure~\ref{fig:fig3_error_anatomy}b further separates fields by error type. Some fields are recall-limited, meaning the system often fails to extract values that are present in the paper. Other fields are precision-limited, meaning the system more often produces incorrect or unnecessary values. This distinction suggests different improvement strategies: recall-limited fields benefit from better coverage and normalization, while precision-limited fields require tighter constraints and filtering.
+
+Building on this ranking, Figure~\ref{fig:fig3_error_anatomy}c presents an improvement roadmap under a conservative fix-by-field assumption. It estimates how synthesis-step F1 would increase if the highest-impact fields were corrected one at a time. The curve shows diminishing returns, where correcting only a few top contributors yields a large fraction of the achievable improvement.
+
+Finally, Figure~\ref{fig:fig3_error_anatomy}d shows that synthesis-step errors are unevenly distributed across papers. A minority of papers accounts for a large fraction of the total errors, suggesting that targeted analysis of the most difficult papers can complement global field-level improvements.
+
+\subsection{Thoracic-surgery operative-report results}\label{subsec:medical_results}
+
+We evaluate the medical output using the same end-to-end principle as in the MOP case: values are scored only after each operative report has been converted into ontology instances and projected from the graph into the predefined 79-field record. All 2{,}370 case--field cells are evaluated, including fields that should remain blank. A cell is a TP when its projected value exactly matches the manually curated value, including a correct blank; an incorrect cell contributes one FP and one FN. Across 30 reports, this gives 2{,}335 TP, 35 FP, and 35 FN (precision, recall, and F1 all 0.985). The result supports high-fidelity graph construction under a structurally different medical ontology, while the remaining errors concentrate in procedure, diagnosis, and access-route interpretation. Supplementary Tables~\ref{tab:medical_overall} and~\ref{tab:medical_per_case} provide the complete component-level and per-report results and define the record-cell matching convention.
+
+
+\section{Discussion}\label{sec:discussion}
+
+% Constructing knowledge graphs from reticular chemistry literature requires reliable extraction and ontology-consistent instantiation from scientific text. We proposed an ontology-to-tool compilation framework for ontology-constrained knowledge graph construction from literature. 
+% %
+% Unlike constrained decoding or post-hoc validation pipelines, the approach treats ontological constraints as executable components of an agent’s action space, enabling stateful, ontology-aware interaction rather than static output restriction.
+% %
+% We find that the pipeline performs end-to-end extraction coupled with ontology instantiation, achieving high precision overall, while recall varies across information types. However, the framework presented comes with limitations, especially with respect to the scope and depth of the evaluation.
+
+This work demonstrates how generative models can be coupled to formal systems through executable semantics. Rather than treating symbolic knowledge as static context or validation targets, ontologies are operationalised as run-time constraints that shape agent behaviour through interaction. The revision loop extends this idea to compilation itself: generated action interfaces are tested by the graph behaviour they induce, and failures are routed to bounded script or prompt repairs before deployment. This shifts the role of large language models from text generators to stateful programs operating within a structured environment.
+%
+More broadly, ontology-to-tools compilation suggests a pathway for operationalising symbolic constraints as run-time, feedback-driven mechanisms that shape model behaviour, rather than encoding them only as static representations. The two applications support a mechanism-level claim across domains: the same compiler and validation pattern can produce action interfaces for both chemistry literature and clinical operative reports. They do not imply that ontology compilation alone removes domain ambiguity; rather, domain-specific distinctions remain encoded in each T-Box and its annotations and are tested through domain-appropriate mock and evaluation cases.
+
+\subsection{Limitations}\label{subsec:limitations}
+The evaluation spans two domains with 30 documents in each case, but the extraction units remain heterogeneous. The MOP benchmark scores entity and record facts across CBUs, characterisation entities, synthesis steps, and reaction chemicals. The medical benchmark scores all case--field cells in a fixed 79-field projection, including correct blank decisions. Although both evaluations report TP, FP, FN, precision, recall, and F1, the units differ and their scores should not be compared as if they had a common denominator. In particular, medical TP includes correctly blank fields, whereas the MOP counts represent recovered positive facts. The medical result supports transfer to a second domain but is not evidence of clinical deployment readiness.
+
+The revision and mock A-Box procedure tests generated packages against representative ontology obligations, but no finite fixture can exercise every legal class combination or every ambiguity in natural text. Passing code, contract, graph, and reasoner gates establishes consistency with the checked obligations; it does not establish completeness of the ontology or clinical correctness of every ontology annotation. In particular, distinctions such as independently countable procedures, mixed surgical approaches, and the evidence threshold for normalised diagnoses require domain-expert definitions.
+
+Some extraction tasks remain harder than others. Chemical species identification shows high precision but lower recall, which means the system often misses valid mentions. This is likely due to variation in naming and reporting styles in the papers.
+
+The main constraint on broader evaluation is the lack of curated datasets. Building reliable ground truth in new domains, or under revised ontologies, is still costly and time-consuming.
+
+% \subsection{Future work}\label{subsec:outlook}
+% Future work will test robustness under ontology change. We will update the ontology, re-run the pipeline, and measure how well the compiled tools and prompts adapt to schema changes. We will also apply the framework to other scientific domains to assess transfer beyond MOP synthesis.
+
+% We will expand evaluation where suitable curated data is available. This includes larger and more diverse corpora, and additional extraction targets. We will also focus on improving recall in difficult tasks, especially chemical species identification and normalisation, while preserving the current level of precision.
+
+
+\subsection{Future work}\label{subsec:outlook}
+Future work will directly address the limitations identified above by systematically evaluating robustness under ontology change. We will modify each ontology and re-run the full compilation, mock A-Box validation, and instantiation pipeline to quantify how executable tool interfaces and prompts adapt to evolving schemas, and to what extent validated regeneration can replace manual pipeline re-engineering. We will also expand the medical evaluation beyond the present 30 reports, quantify repeated-run stability and uncertainty for sparse fields, and seek clinical review of the ontology annotations that define high-risk interpretation boundaries.
+
+Where suitable curated data is available, we will expand evaluation to larger and more heterogeneous corpora and to additional extraction targets. Particular emphasis will be placed on recall-limited tasks, especially chemical species identification and normalisation, while preserving the current level of precision, in order to better characterise the trade-offs introduced by enforcing ontological constraints at generation time. These experiments will allow us to quantify the stability of compiled action interfaces under schema and domain changes.
+
+
+  
+% --------------------------------------------------------------
+\section{Methods}\label{sec:methods}
+
+The methodology is organized as a staged pipeline that separates ontology-driven compilation and revision, ontology-constrained KG construction, and optional grounding.
+The \emph{preparation stage} compiles an ontology T-Box and a small set of domain-agnostic meta-prompts into executable artefacts. These include a static JSON iteration plan, ontology- and task-specific instantiation prompts, and an ontology-specific MCP server that exposes ontology-aware construction and validation tools. Candidate artefacts are checked and revised at two levels: package-level validation covers code, interfaces, and contract obligations, while mock A-Box evaluation covers the semantic and content behaviour of the integrated prompts and tools. The \emph{instantiation stage} executes the accepted plan for each document using a ReAct-style tool-use loop. It incrementally constructs A-Box individuals and relations in a persistent Turtle store and validates them as it goes. When constraints are violated, the tools return diagnostics that guide repair. In domains where canonical reference entities are available, the \emph{grounding stage} aligns selected constructed instance IRIs to an existing knowledge graph. Domain-specific derivation modules (\eg CBU derivation from crystallographic resources) are treated as downstream enrichment steps rather than requirements of the general compiler.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=0.95\linewidth]{figures/UML_KG_Building_TWA_cropped.pdf}
+    \caption{Ontology-to-tools compilation workflow. A preparation agent takes as input the ontology T-Box and a small set of manually authored, domain-agnostic meta-prompts for extraction and KG construction. It synthesises (i) an ontology-specific MCP server exposing ontology-aware tools with machine-checkable schemas and (ii) domain- and task-specific instantiation prompts that steer the runtime agent. A ReAct-style instantiation agent then executes the generated prompts and invokes the MCP tools to construct knowledge-graph instances from documents.}
+    \label{fig:uml-kg-building}
+\end{figure}
+
+\begin{figure}[!htbp]
+    \centering
+    \includegraphics[width=0.93\linewidth]{figures/UML_MCP_Creation_with_TWA_cropped.pdf}
+    \caption{UML workflow of the two-agent framework for ontology-aligned knowledge-graph construction within The World Avatar. The MCP Creation Agent takes the domain ontology and a creation meta-prompt to generate a KG instantiation library. The MCP Integration Agent then packages the validated library into an MCP server, exposing its functions as callable tools and registering them in a shared tool pool for downstream LLM agents.}
+    \label{fig:uml_mcp_creation}
+\end{figure}
+
+\begin{figure}[!htbp]
+    \centering
+    \includegraphics[width=\linewidth]{figures/iteration_example.pdf}
+    \caption{Class diagram of the structured task specification. A task-decomposition model, guided by the ontology T-Box and a meta-prompt, generates iterations that bundle extraction and KG-building steps, file flows, optional sub-iterations, and MCP tool configurations.}
+    \label{fig:iteration_example}
+\end{figure}
+
+\begin{figure}
+  \centering
+  \includegraphics[width=0.8\linewidth]{figures/Flowchart-Ontology-Code-Instance_cropped.pdf}
+  \caption{Illustrative interaction between the OM T-Box (top), an ontology-aware \texttt{create\_temperature} call (middle), and the resulting OM instance (bottom). The function enforces the T-Box constraints by validating the numerical value and unit before creating linked quantity-value and unit individuals.}
+  \label{fig:ontology-code-instance}
+\end{figure}
+
+\subsection{Preparation stage}\label{sec:preparation}
+
+The preparation stage converts an ontology T-Box into (i) a static, executable JSON plan for extraction and KG construction, (ii) ontology- and task-specific prompts, and (iii) an ontology-specific MCP server that exposes the operations referenced by that plan. The manually maintained compilation instructions are \emph{domain-agnostic meta-prompts for extraction and KG construction} that are reused across documents and domains. These prompts are provided in Listings~\ref{lst:system_prompt_iter_1}, \ref{lst:iter_1_meta_prompt}, \ref{lst:extension_system_prompt}, and \ref{lst:extension_user_prompt}. As summarised in Figures~\ref{fig:uml_mcp_creation} and~\ref{fig:iteration_example}, they guide an LLM to derive the task decomposition, synthesise ontology-aware scripts, materialise an MCP server, and generate instantiation prompts capturing task-specific interpretation rules. Domain semantics enter through the selected T-Box, its imported concepts and annotations, and any domain resources explicitly named by the task configuration.
+
+\paragraph{JSON-based task decomposition.}
+A \emph{task decomposition agent} breaks the ontology-guided extraction problem into a small number of ordered steps. The result is written as a JSON plan, illustrated in Figure~\ref{fig:iteration_example}, which the instantiation agent can follow directly.
+
+Each step in the plan states (i) what to do, (ii) what text prompt to use for extraction, and (iii) what prompt to use for knowledge-graph updates. The plan also lists what information each step reads and writes, such as the source paper, intermediate notes, and generated graph files. Optional sub-steps can be included for follow-up passes, such as enrichment or correction. Finally, the plan specifies which MCP tool groups are available at each step and which tools are needed, including their expected inputs and outputs. The outcome is a static, executable procedure that drives document processing in a fixed order.
+
+
+\paragraph{Script and MCP tool generation from the T-Box.}
+Given the T-Box and a set of domain-agnostic meta-prompts (Listings~\ref{lst:system_prompt_iter_1}, \ref{lst:iter_1_meta_prompt}, \ref{lst:extension_system_prompt}, and \ref{lst:extension_user_prompt}), the MCP Creation Agent generates an ontology-aware Python script that supports the classes and properties needed for the extraction scenario.
+
+The script is built on top of a manually written, ontology-independent helper library. This library handles Turtle loading and saving, cross-step state management, deterministic IRI minting, and other generic utilities. The generated code is required to call these helpers rather than reimplement them. This keeps domain-specific logic separate from shared infrastructure.
+
+The meta-prompts enforce a standard code structure. The script initialises an RDFLib graph, provides utilities to create and reuse instances by class, and defines functions to add links for each property. The generated code also distinguishes two kinds of constraints. \emph{Hard} constraints come from the formal T-Box axioms. They include class hierarchy, domain and range typing, datatype restrictions, and any modelled cardinalities. These axioms determine tool inputs and outputs and drive run-time checks that prevent invalid triples. \emph{Soft} constraints come from natural-language annotations in the ontology. For example, \texttt{rdfs:comment} may state inclusion or exclusion rules, naming conventions, or deduplication and reuse policies. These annotations are treated as guidance that complements, but does not override, the formal axioms.
+
+  
+
+\paragraph{MCP server construction.}
+After the ontology-aware functions are generated, the MCP Integration Agent turns them into MCP tools. It reads each function signature and docstring and follows an integration meta-prompt. This process produces ontology-specific MCP servers, as shown in Figure~\ref{fig:uml_mcp_creation}.
+
+The server exposes each function as an MCP tool with an ontology-derived name and a typed argument schema. It also attaches short usage instructions drawn from T-Box annotations. Tools are grouped into simple tool sets that match the JSON task plan, such as entity creation, attribute and relation completion, and cross-document linking. The resulting MCP server is then registered in the shared MCP tool pool and becomes available to all LLM-powered agents.
+
+\paragraph{Generated-package validation and revision.}
+Generation proceeds in dependency order so that foundational class and property functions are checked before the integrated MCP adapter and runtime prompts. Each candidate package is subjected to static and executable checks. These include Python formatting and syntax, importability, MCP server exposure, agreement between function signatures and the ontology-derived contract, required tool coverage, isolation from symbols belonging to unrelated ontologies, and runtime probes for deterministic IRI reuse, graph reachability, required links, and ontology-specific structures such as OM-2 quantities.
+
+Failures are represented as structured validation observations rather than unconstrained requests to rewrite the package. A repair agent selects a bounded set of dependent files and returns exact replacement operations. Each edit transaction names only authorised files and includes a hash of the expected pre-edit revision. The transaction is rejected if a target is stale, missing, ambiguous, or outside the selected set. After application, the complete relevant validation suite is rerun; failed candidates are rolled back, while successful candidates become immutable checkpoints for subsequent focused revisions. This design separates semantic revision from mechanical patch application and preserves an auditable before/after diff.
+
+\paragraph{Mock A-Box semantic and content gates.}
+After package-level validation, the integrated artefacts are evaluated by execution. A mock document is paired with source-grounded expected hints that cover the required ontology classes, links, and selected critical slots. The runtime follows the same extraction and KG-building path used for real documents and writes a candidate A-Box. In parallel, the expected hints are materialised through the generated constructors to form an oracle A-Box. The candidate graph is checked for T-Box vocabulary use, domain and range conformance, required shell links, graph reachability, quantity completeness where relevant, OWL-RL constraints, and HermiT consistency.
+
+Content is evaluated separately from graph validity by comparing predicted with expected leaf facts and the candidate A-Box with an oracle A-Box materialised from the expected hints through the same generated constructors. This distinction determines the repair target. Invalid Python, missing tools, malformed RDF, or ontology violations are script or adapter defects. Missing, spurious, or misclassified source content in an otherwise valid graph is prompt behaviour and is returned only to the prompt-revision agent. A candidate must satisfy absolute score thresholds and critical-slot policies and must not regress facts preserved by the best accepted checkpoint. The loop terminates when all required gates pass or when the configured revision budget is exhausted; qualification does not itself promote or deploy a candidate.
+
+\paragraph{Design principles for instantiation MCP servers.}
+Among the generated MCP servers, the instantiation MCP server is central at
+runtime, and its design principles are enforced during preparation. First, tool
+interfaces are defined in terms of ontology concepts, relations, and constraints:
+the meta-prompts require the underlying scripts to respect which classes may be
+connected by which properties, expected units, and (where applicable) reuse of
+concepts from reference ontologies (e.g.\ OM for units). Second, tool
+descriptions are ontology-guided: function signatures and natural-language
+instructions are derived from the T-Box, including \texttt{rdfs:comment}
+annotations that capture intended meanings and preferred usage patterns. Third,
+the server is wired to a persistent Turtle (\texttt{.ttl}) store that acts as
+cross-step memory, enabling reuse and incremental extension of previously
+created instances across multiple iterations.
+
+\paragraph{Instantiation prompt generation}\label{sec:prep_prompt_gen}
+In addition to tools and scripts, the preparation agent generates
+\emph{domain- and task-specific instantiation prompts} that capture \emph{soft
+interpretation constraints} not reliably encoded as formal axioms. These prompts
+encode operational definitions and heuristic decision rules that guide boundary
+setting and classification during extraction (\eg what counts as a synthesis
+step and how to delimit it; how to recognise a \texttt{HeatChill} step; how to
+infer experimental atmosphere such as air vs.\ inert from textual cues). The
+instantiation agent uses these prompts alongside the JSON plan and the MCP tool
+schemas to decide what evidence to extract and when to invoke which tools; hard
+schema constraints are enforced by the ontology-aware tools during instance
+construction.
+ 
+\subsection{Instantiation stage}
+
+The instantiation stage executes the task specification produced during
+preparation to construct ontology-aligned knowledge graphs from documents.
+Guided by the JSON-based decomposition (Figure~\ref{fig:iteration_example}),
+the runtime follows the iteration-oriented structure shown in
+Figure~\ref{fig:uml-kg-building}, with an instantiation agent acting as a
+ReAct-style controller over MCP tools and agent-generated, runtime intermediate
+results (e.g.\ condensed passages and hints, extracted snippets, tool-call
+inputs/outputs, logs, and completion markers), together with a persistent
+Turtle store used for incremental KG updates.
+
+\paragraph{Loading MCP tools for instantiation.}
+Before processing a document, the system loads the ontology-specific instantiation tools generated in the preparation stage. It may also load shared utilities, such as external knowledge access and general text processing, when required by the domain.
+
+For the MOP application, chemical identifiers and properties are accessed through a third-party PubChem MCP server\footnote{\texttt{PubChem-MCP-Server} (GitHub): \url{https://github.com/JackKuo666/PubChem-MCP-Server}}, while crystallographic metadata is provided by a custom CCDC MCP server implemented in this work. The medical application uses the generated medical instantiation server without these chemistry-specific resources. A configuration file lists the tools available to each application and their input and output schemas, allowing the instantiation agent to use the same calling interface while keeping domain resources separate.
+
+
+\paragraph{Plan-driven ReAct execution.}
+After the MCP tools are loaded, the instantiation agent follows the JSON plan step by step. Each step specifies the goal, the prompts to use, the files to read and write, and the tool groups that are allowed. Figure~\ref{fig:iteration_example} shows an example plan step.
+
+The agent runs each step in a ReAct-style loop. It first reads the paper and produces intermediate notes, such as condensed passages, extracted snippets, normalised names, and lookup results. It then calls ontology-specific MCP tools to create entities, add attributes, and link relations in the Turtle store. A step ends when the expected outputs for that step have been produced, including any follow-up passes used for enrichment.
+
+Each tool call returns both results and validation feedback. The feedback reports whether the requested update satisfies the ontology constraints. If a violation is detected, for example a missing required field, a type mismatch, or an invalid unit (Figure~\ref{fig:constraint_repair_example}), the tool returns an error with an explanation. The agent then retries with corrected inputs. It may also extract missing evidence from the paper or query external resources before calling the tool again. 
+
+
+\paragraph{Ontology-constrained function calls.}
+Ontology constraints are checked at tool-call time by the instantiation MCP server. The server functions follow the design rules set in the preparation stage. As illustrated in Figure~\ref{fig:ontology-code-instance}, a function such as \texttt{create\_temperature} looks up the relevant OM classes and properties. It checks the numeric value and unit against the T-Box. Only then does it create the corresponding individuals in the graph. Similar checks are applied to other quantities, relations, and class memberships.
+
+Each call returns both the requested result and a check report. If the call violates a constraint, the server returns an error with an explanation. The instantiation agent uses this feedback in the next ReAct step to revise inputs, add missing fields, or trigger a repair action.
+
+
+\paragraph{Turtle-based persistent memory.}
+Throughout the instantiation stage, all MCP tools operate over a
+Turtle-encoded knowledge graph (\texttt{.ttl}) that serves as persistent
+cross-step memory. The instantiation MCP server reads from and writes to
+this store, updating it after each successful creation, enrichment, or repair
+operation. Instances created in earlier iterations can be looked up, linked,
+and incrementally extended in later ones, and identifiers are reused according
+to the deduplication and IRI-minting logic generated in the preparation
+scripts. Intermediate Turtle snapshots, together with the file-level
+\texttt{Inputs}/\texttt{Outputs} markers, record the state of the extraction
+run at each iteration, so that processing can be resumed from a given point or
+audited after the fact.
+  
+
+\subsection{Grounding stage}
+
+Where a suitable reference knowledge graph is available, we apply a grounding stage after ontology-constrained KG construction to align constructed instance IRIs to canonical entities. This stage is used for the chemistry application and is not required for the medical case-record evaluation.
+The purpose is to normalize identity across documents and pipelines by linking locally minted IRIs to existing KG IRIs, enabling deduplication and integration.
+Grounding operates over selected ontology classes and produces a deterministic IRI mapping that is materialized either by rewriting IRIs or by adding \texttt{owl:sameAs} links.
+
+
+\paragraph{Grounding tool generation}
+
+Grounding tools are generated by LLM agents using the target ontology T-Box and KG endpoint evidence, together with the shared compiler instructions and runtime configuration.
+The goal of this stage is to compile a grounding interface that supports canonicalization of constructed instances against a reference knowledge graph.
+
+Given a target ontology schema (T-Box) and a SPARQL endpoint for the existing knowledge graph, the grounding generation agents automatically synthesize three tool scripts.
+First, a sampling script analyzes the ontology schema and endpoint to identify relevant classes and label-like predicates and to estimate instance distributions.
+Second, a label collection script collect and cache labels and identifiers for selected classes from the target KG and builds a local label index.
+Third, a query and lookup interface script is generated that provides SPARQL accessors and deterministic fuzzy-lookup functions over the local label index.
+
+The resulting query and lookup interface is exposed as an ontology-specific MCP server and becomes available as callable grounding tools in the runtime pipeline.
+This generation process follows the same ontology-driven tool compilation paradigm as KG construction, while keeping grounding logic domain-agnostic at runtime.
+
+\paragraph{Lexical grounding}
+
+For each selected constructed instance, the grounding agent extracts one or more surface strings (\eg \texttt{rdfs:label} and ontology-specific alternative name properties) and queries the target-KG MCP lookup server, which returns a ranked, finite set of candidate matches from a locally cached label index.
+The agent then applies a deterministic selection policy over this candidate set to choose a canonical target IRI and produces an explicit mapping from constructed IRIs to reference-KG IRIs.
+Finally, the mapping is materialized either by rewriting IRIs in the RDF graph or by adding \texttt{owl:sameAs} links; the same procedure supports both single-file and batch grounding over collections of Turtle outputs.
+ 
+
+
+\subsection{Preparation of evaluation dataset}\label{subsec:dataset}
+
+We curated a benchmark of 30 scientific articles reporting MOP synthesis and
+characterisation, focusing on papers where the target entities and relations are
+explicitly described in the text. Ground truth was annotated in a predefined JSON
+record format inherited from the prior (non-MCP) workflow and retained here to
+enable like-for-like comparison across pipelines. This schema is aligned with the
+ontology T-Box in the sense that each task category specifies the corresponding
+entity types, relations, and attribute slots to be captured, but annotation is
+performed directly in JSON rather than as ontology instances.
+
+We manually populated the JSON records for
+each paper following written guidelines that enforce consistent interpretation of
+entity/slot definitions and alignment with T-Box intent (\eg, inclusion/exclusion
+criteria and expected value types). The resulting benchmark contains 6{,}705
+annotated items across synthesis steps, reaction chemicals, characterisation
+entities, and chemical building units (CBUs) (Table~\ref{tab:benchmark_profile}).
+
+For the cross-domain medical study, we use 30 German thoracic-surgery operative reports with manually curated case records. Each record contains 79 fixed fields covering patient and episode metadata, surgical approach and procedures, surgical team, diagnoses, complications, and pathology outcomes, yielding 2{,}370 case--field comparisons. The reference records use the same stable column mappings encoded as ontology annotations, allowing deterministic projection from the hierarchical A-Box back to the evaluation schema.
+
+\subsection{Evaluation metrics and methodology}
+
+We evaluate end-to-end extraction \emph{coupled with ontology instantiation} via a
+JSON-to-JSON protocol. For each task category, system outputs are first
+instantiated as ontology individuals and relations in a Turtle graph. We then
+apply a fixed, manually designed set of category-specific SPARQL queries (held
+constant across all runs) to retrieve the target individuals, relations, and
+literal attributes implied by the T-Box. Query bindings are deterministically
+serialised into JSON records conforming to the same predefined schema used for
+annotation. This evaluates instantiation quality rather than text extraction
+alone: any missing individuals, missing links, or uninstantiated required slots
+are not returned by the SPARQL queries and are therefore counted as false
+negatives.
+
+We compute precision, recall, and F1 by matching predicted and ground-truth JSON
+records using \emph{slot-to-slot exact match} after basic normalisation.
+Normalisation is limited to non-semantic formatting fixes (\eg, trimming
+whitespace, normalising casing where appropriate, and applying simple canonical
+forms for common unit strings when the schema expects a controlled label). For
+record sets where ordering is not semantically meaningful (notably synthesis
+steps), matching is \emph{order-insensitive}: predicted records are aligned to
+ground truth under a one-to-one assignment that maximises the number of exactly
+matched slots, and any unmatched predicted or ground-truth records contribute to
+false positives or false negatives, respectively. Metrics are reported per
+category and aggregated over all papers; we additionally report micro-aggregated
+scores across all categories and macro-averaged scores across categories.
+
+The same SPARQL-to-JSON conversion and matching procedure is applied to all
+comparative baselines and ablation settings, ensuring that all results reflect
+the same end-to-end criterion of producing evaluation-recoverable, correctly
+instantiated outputs. Finally, CBU items correspond to \emph{grounded/derived}
+CBUs constructed by combining paper evidence with database-backed normalisation
+and derivation; they are therefore evaluated as an end-to-end grounding task
+rather than a pure surface-form extraction task.
+
+For the medical case, ontology instances are deterministically projected into the predefined 79-column case record and compared with the manually curated record after basic formatting normalisation. Every case--field cell is part of the evaluation. An exact match is counted as a TP, including when both reference and projection are blank. Any mismatch---a spurious value, an omitted value, or two different non-empty values---contributes one FP and one FN. Consequently, precision, recall, and F1 are numerically equal to exact cell accuracy for this fixed-schema task. Scores are micro-aggregated over reports and fields and are additionally reported by ontology component and by report in the Supplementary Information. Because this convention treats correct absence as a TP, these medical counts are record-cell decisions and are not directly comparable to the positive-fact counts used for the MOP tasks.
+
+
+
+\subsection{CBU derivation for metal-organic polyhedra}
+
+In addition to ontology-driven extraction from textual synthesis procedures, the framework instantiates an agent for automated Chemical Building Unit (CBU) derivation for metal--organic polyhedra (MOPs). This agent is implemented as a ReAct-style controller that orchestrates MCP-based access to crystallographic and chemical databases, and then materialises the resulting CBUs directly into The World Avatar knowledge graph.
+
+The CBU derivation workflow proceeds as follows:
+
+\begin{itemize}
+  \item \textbf{MCP-based access to crystallographic data.} Given a MOP identifier (\eg  a CCDC deposition code), the agent uses an MCP server wrapping the CCDC database to locate and download the corresponding \texttt{.res} and \texttt{.cif} files. A Python-backed MCP tool parses these files to extract the asymmetric unit, symmetry operations, and atom/site information required for structural analysis.
+
+  \item \textbf{Identification of CBUs.} Using the parsed crystallographic information, the agent invokes MCP tools for graph-based analysis of the coordination network (\eg  bond connectivity, coordination environments, linker topology). These tools segment the structure into metal nodes and organic linkers, and classify them into reusable CBU types suitable for downstream materials design workflows.
+
+  \item \textbf{External chemical enrichment via PubChem and related services.} For each organic linker candidate, the agent calls MCP servers that wrap external databases such as PubChem to retrieve standard identifiers (InChI, InChIKey, SMILES), synonyms, and basic physicochemical properties. This enrichment step normalises the CBUs against widely used chemical identifiers and supports cross-database linkage.
+
+  \item \textbf{Ontology-aligned CBU instantiation.} The derived and enriched CBUs are then passed to the instantiation MCP server, which creates ontology-consistent instances representing metal nodes, linkers, and their connectivity. The resulting MOP CBU descriptions are written into the Turtle-based persistent memory and become part of the shared knowledge graph that can be reused by subsequent extraction and reasoning tasks.
+\end{itemize}
+
+By combining MCP-based access to CCDC, PubChem, and ontology-aware instantiation tools, the agent autonomously bridges crystallographic data and ontology-level CBU representations for MOPs, without manual scripting or ad hoc intermediate formats.
+
+\subsection{Models and inference settings}\label{sec:models}
+Components in the pipeline are driven by large language models (LLMs), with different models assigned to different roles. Unless otherwise stated, we use deterministic decoding for tool-calling (\texttt{temperature}=0) and enforce schema validation on structured outputs at tool boundaries. For non-tool free-form generations (\eg narrative rationales or intermediate notes), we retain the same decoding settings unless explicitly noted to ensure reproducibility across runs.
+
+\paragraph{Model assignments.}
+We use \texttt{gpt-4.1} for document-level extraction; \texttt{gpt-4o} for knowledge-graph instantiation and construction actions; \texttt{gpt-5} for chemical building unit (CBU) derivation as well as script and prompt generation; and \texttt{gpt-4o-mini} for the agent-based query interface, where latency and cost are prioritised.
+
+\paragraph{Inference and validation.}
+Tool calls are executed with deterministic decoding (\texttt{temperature}=0) to minimise stochastic variation in argument selection and to make constraint-violation feedback comparable across runs. Structured outputs produced at tool boundaries are validated against the corresponding schemas, and violations are surfaced to the agent as explicit error messages to drive iterative repair until a valid instance is produced.
+
+\paragraph{Token usage and cost.}
+Script and prompt generation incurred a total LLM cost of \$5.70. For end-to-end processing of 30 papers, the total LLM cost for document-level extraction and instantiation/grounding actions was \$100.56 (\$71.61 + \$28.95), corresponding to an average per-article cost of \$3.35.
+
+
+% ===========================
+% Back matter (place after Discussion/Methods, before References, following your template)
+% ===========================
+
+\section*{Data availability}
+The curated benchmark dataset (30 MOP synthesis papers with $>$6{,}000 annotations), together with the curated ground truth, output files, and evaluation data used in this study, are available via the Cambridge Data Repository (\doi{10.17863/CAM.126228}) and via Dropbox\footnote{https://www.dropbox.com/scl/fi/u0dtyhyfa6cp7cr60jckq/Data-Public.zip}.
+
+\section*{Code availability}
+Code for the ontology-to-tools compilation workflow, including the MCP servers/tools and evaluation scripts, will be made available on GitHub\footnote{https://github.com/TheWorldAvatar/mcp-tool-layer/}.
+
+
+\section*{Acknowledgements}
+This research was supported by the National Research Foundation, Prime Minister’s Office, Singapore under its Campus for Research Excellence and Technological Enterprise (CREATE) programme. This project has received funding from the European Union’s Horizon Europe research and innovation programme under grants 101074004 (C2IMPRESS), 101188248 (CLIMATE-ADAPT4EOSC), and 101226137 (TOGETHER).
+
+M.K.\ gratefully acknowledges the support of the Alexander von Humboldt Foundation and the Massachusetts Institute of Technology. S.D.R.\ acknowledges financial support from Fitzwilliam College, Cambridge, and the Cambridge Trust.
+
+We thank all contributors who assisted with data collection, annotation, and quality control for the manually curated MOP synthesis benchmark. In particular, we thank Mingxi Lu, Yichen Sun, Yuan Gao, Kuhan Thayalan, and Matthew Olatunji for annotation support.
+
+For the purpose of open access, the author has applied a Creative Commons Attribution (CC BY) licence to any Author Accepted Manuscript version arising from this submission.
+
+
+\section*{Competing interests}
+The authors declare no competing interests.
+
+\section*{Author contributions}
+% X.Z. implemented the system, conducted the experiments, and wrote the manuscript. P.B. and C.Y. led data curation and annotation. T.A. contributed to data curation. J.A. manuscript writing. S.R. contributed to data curation and provided domain expertise. MK contributed to identiation, conceptualisation, manuscript writing and funding aquisition. All authors reviewed and approved the manuscript.
+
+X.Z.\ implemented the system, conducted the experiments, and wrote the manuscript. P.B.\ and C.Y.\ led data curation and annotation. T.A.\ contributed to data curation. J.A.\ contributed to manuscript writing. S.R.\ contributed to data curation and provided domain expertise. M.K.\ contributed to ideation, conceptualisation, manuscript writing, and funding acquisition. All authors reviewed and approved the final manuscript.
+
+ 

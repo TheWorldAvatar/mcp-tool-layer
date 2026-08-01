@@ -1,0 +1,746 @@
+
+\section{Supplementary Information}\label{sec:supplementary}
+
+%--------------------------------------------------------------------
+% Appendix-style numbering (kept here if Supplementary is compiled separately)
+%--------------------------------------------------------------------
+\numberwithin{table}{section}
+\numberwithin{figure}{section}
+\numberwithin{equation}{section}
+
+\if\sectionprefix\empty%
+\else%
+    \renewcommand{\thesection}{\sectionprefix}
+\fi%
+
+% ============================================================
+% Supplementary Note 1: Background and related work (NO repeats)
+% ============================================================
+\subsection{Supplementary Note 1: Background and related work}\label{sec:supp-note-background}
+
+\subsubsection{LLM-based agents and ReAct-style reasoning}
+Large language model (LLM)--based agents couple a generative model with an explicit
+action space, where each step conditions on a textual context (for example, a user
+request, intermediate results, and tool outputs) and selects the next action such as
+calling a tool, querying a knowledge graph, or producing a natural-language response.~\cite{yao2023react,schick_toolformer_2023,wu_autogen_2023,wang_survey_2024}
+External capabilities are typically exposed through structured interfaces (for example,
+function signatures with typed arguments), and tool responses are returned as additional
+context to enable multi-step interaction with external systems.~\cite{schick_toolformer_2023,wang_survey_2024}
+
+ReAct-style agents organise this interaction as an explicit loop of \emph{reasoning} and
+\emph{acting}, alternating between intermediate reasoning traces and tool actions, and
+incorporating tool observations into subsequent decisions.~\cite{yao2023react}
+In information extraction, this framing supports decomposing long inputs, validating
+intermediate structures, and iteratively refining partial outputs through repeated
+reasoning--acting cycles.
+
+\subsubsection{Tool-calling interfaces and the Model Context Protocol}
+Earlier tool-calling interfaces for LLMs typically expose application-specific functions
+through proprietary schemas or prompt templates, and integration logic is often implemented
+separately for each deployment.~\cite{dave_chatgpt_2023,liu_we_2024,li_large_2024}
+The Model Context Protocol (MCP) instead defines an open client--server protocol for
+connecting LLM applications to external tools and data sources. In MCP, servers register
+tools, resources, and prompts with machine-readable schemas; clients discover these
+capabilities and request tool invocations through a standardised messaging layer.~\cite{mcp_spec_2025,openai_mcp_docs_2025}
+MCP supports structured tool definitions, streaming of results, and standardised error
+reporting across heterogeneous hosts and models, enabling reuse of the same tool servers
+across different LLM applications.
+
+\subsubsection{The World Avatar and its chemistry ontologies}
+The World Avatar (TWA) is a cross-domain digital ecosystem that represents entities,
+processes, and their interdependencies using ontologies and RDF knowledge graphs, accessed
+and modified by software agents at runtime.~\cite{theworldavatar2025}
+The reticular-chemistry stack of TWA is organised around two domain-generic core ontologies
+and one application ontology. OntoSpecies represents chemical species, identifiers, and
+characterisation data (with extensions for IR and elemental analysis). OntoSyn
+(OntoSynthesis) represents synthesis procedures as sequences of \texttt{SynthesisStep}
+operations transforming input \texttt{Species} into \texttt{ChemicalOutput} products.
+OntoMOPs acts as an application ontology for metal--organic polyhedra (MOPs), modelling MOP
+instances and their building units and linking OntoSyn procedures and OntoSpecies reactants
+into the MOP design space.~\cite{theworldavatar2025,kondinski2022,pascazio2023,rihm2025}
+Previous work implemented a MOP synthesis pipeline in TWA that used LLMs guided by
+ontology-aligned JSON schemas to populate these chemistry knowledge graphs.~\cite{rihm2025}
+
+\subsubsection{LLM-based knowledge instantiation and ontology grounding}
+Large language models are increasingly used to construct and maintain knowledge graphs, by
+inducing schemas, populating instances, or interacting with graph backends.~\citep{liang_survey_2024,ren2024survey}
+From the perspective of this work, two lines are most relevant: schema-level approaches that
+define or refine extraction targets, and instance-level approaches that extract and validate
+concrete assertions.
+
+\paragraph{Schema-level (T-Box).}
+Schema-level pipelines treat the extraction schema as a contract that defines what types,
+fields, and constraints outputs should satisfy. PARSE refines JSON Schemas as first-class
+artefacts for extraction, but optimises primarily syntactic constraints encoded at the
+JSON-schema level rather than ontology axioms.~\citep{shrimal2025parse}
+LLMs4SchemaDiscovery mines candidate scientific schemas from text with human feedback, again
+focusing on schema discovery rather than using a fixed ontology T-Box as the contract.~\citep{sadruddin2025llms4schema}
+SCHEMA-MINERpro adds ontology grounding by mapping discovered schemas to reference ontologies,
+but grounding remains a stage separate from instance creation.~\citep{sadruddin2025schemaminpro}
+AutoSchemaKG induces schemas and triples at scale without a predefined domain T-Box, enabling
+cross-domain graphs but decoupling extraction from ontology-encoded constraints such as units
+and identification rules.~\citep{bai2025autoschemakg}
+
+\paragraph{Instance-level (A-Box).}
+Instance-level pipelines focus on extracting entities, relations, and events as concrete
+assertions. KGGen uses strict JSON specifications to extract and refine triples, improving
+structural consistency, but semantic validity with respect to a concrete ontology is enforced
+via post-hoc checks rather than constraint-aware instance construction.~\citep{mo2025kggen}
+Other pipelines align extracted relations to ontology predicates or use ontologies for
+filtering and validation, but typically keep ontology enforcement separate from the tool
+interfaces that govern how instances are created.~\citep{kommineni2024,olasunkanmi2025relate,khorshidi2025odkeplus}
+
+\paragraph{MCP-assisted LLM-based solutions.}
+MCP has emerged as a general mechanism for connecting LLM applications to tools and data
+sources.~\citep{mcp_spec_2025,openai_mcp_docs_2025} Existing MCP-based
+knowledge-graph servers often expose generic CRUD-style interfaces over graph backends,
+demonstrating tool-based access but typically leaving ontological correctness to application
+logic or post-hoc validation rather than compiling T-Box axioms into tool signatures and
+runtime checks.~\citep{gannon2025mementomcp}
+
+
+\paragraph{TWA agent composition framework}
+Prior to recent LLM-based agent systems, The World Avatar (TWA) explored how semantic descriptions can support the \emph{discovery}, \emph{composition}, and \emph{execution} of software agents within a knowledge-graph ecosystem. ~\citep{zhou2019agent} introduced a semantic agent composition framework for TWA, in which agents are described using a lightweight agent ontology and grounded execution metadata to enable automated composition of agent workflows across domains.
+
+This work motivates a view of ontologies not only as data models but also as interfaces to execution, where semantic descriptions govern which agents can be composed and how they may interact. In contrast to agent discovery and composition based on pre-defined interfaces, the present work compiles domain ontologies into executable tool interfaces and run-time constraints that directly regulate generative behaviour.
+% ==========================================
+% Supplementary Methods (no placeholders)
+% ==========================================
+\subsection{Supplementary Methods}\label{sec:supp-methods}
+This section provides extended implementation and evaluation details referenced in the main Methods, including dataset curation and annotation protocol, evaluation metrics and matching rules (including the CBU formula-only criterion), MCP server/tool specifications, and runtime policies (iterations, error handling, and repair strategies).
+
+
+\clearpage
+\subsubsection{Iteration 1: System Meta Prompt}
+
+\begin{lstlisting}
+You are a knowledge graph construction prompt expert specializing in ITERATION 1 KG building prompts.
+
+ITERATION 1 is special: it only creates top-level entity instances from paper content, WITHOUT creating any related entities (inputs, outputs, sub-components, or detailed steps).
+
+Your task:
+1. Analyze the provided ontology (T-Box) to identify the top entity type (the main class that represents the overall procedure/process)
+2. Extract all relevant rules, constraints, and identification guidelines from rdfs:comment annotations
+3. Generate a focused, tool-oriented KG building prompt for ITERATION 1
+
+CRITICAL CONSTRAINTS FOR ITER1:
+- ONLY create instances of the top-level entity class (one per procedure described in the paper)
+- Do NOT create any related entities (inputs, outputs, sub-components, steps) in this iteration
+- Link each top-level entity to its source document
+- Apply strict identification rules from the ontology to determine what qualifies as a valid instance
+- Include all cardinality, scope, exclusion, and linking rules from the ontology
+
+OUTPUT REQUIREMENTS:
+- Start with "Follow these generic rules for any iteration." followed by the global rules
+- Include MCP tool-specific guidance (error handling, IRI management, check_existing_* usage)
+- Include explicit identification section (document identifier handling)
+- Clearly state the task scope: create top-level entities only, no related entities
+- List all constraints from the ontology rdfs:comment for the top-level entity class
+- Include clear termination conditions
+- Be concise and tool-oriented (this prompt is for an MCP agent using function calls)
+- Be completely domain-agnostic (no specific compound types, no domain-specific terminology)
+
+Do NOT include:
+- Domain-specific examples (\eg specific compound names, specific synthesis types)
+- Variable placeholders like {doi} or {paper_content} - these will be added programmatically
+- Verbose ontology explanations - focus on actionable rules
+- Any mention of specific chemical entities, materials, or domain-specific concepts
+\end{lstlisting}\label{lst:system_prompt_iter_1}
+
+
+ 
+
+\subsubsection{Iteration 1: User Meta Prompt}
+
+\begin{lstlisting}
+Based on the ontology and available MCP tools below, generate a KG building prompt for ITERATION 1.
+
+ITERATION 1 SCOPE:
+- Create ONLY top-level entity instances (the main procedure/process class)
+- Do NOT create any related entities (inputs, outputs, sub-components, steps)
+- Link to source document
+
+ONTOLOGY (T-Box):
+{tbox}
+
+MCP MAIN SCRIPT (Available Tools) [Python]:
+{mcp_main_script}
+
+The MCP Main Script shows all available tools with their descriptions, parameters, and usage guidance. Use this to understand what tools are available and how they should be called.
+
+REQUIREMENTS:
+1. Extract ALL rules from the top-level entity class rdfs:comment, especially:
+   - Scope (what qualifies as a valid instance)
+   - Different forms / methods / variations rules
+   - Exclusions (what NOT to create)
+   - Cardinality requirements
+   - Linking requirements
+   - Conservative behavior guidelines
+   - Critical exclusions for extraction
+
+2. Include global MCP rules:
+   - Tool invocation rules (never call same tool twice with identical args)
+   - IRI management (must create before passing, use check_existing_* tools)
+   - Error handling (status codes, already_attached, retryable)
+   - Placeholder policies
+   - Termination conditions (run_status: done)
+
+3. Include identification section:
+   - Document identifier handling (treat as sole task identifier, reuse consistently)
+   - Entity focus guidance (for when entity_label/entity_uri provided)
+
+4. Be concise and actionable - this is for an MCP agent making function calls
+
+5. Be completely domain-agnostic:
+   - Do NOT mention specific compound types, materials, or chemical entities
+   - Use generic terminology that applies to any domain
+   - Adapt wording from the ontology to be domain-neutral where possible
+
+Generate the prompt now (do NOT include variable placeholders - those will be added programmatically):
+\end{lstlisting}\label{lst:iter_1_meta_prompt}
+
+ 
+\subsubsection{Extension Ontology: System Meta Prompt}
+
+\begin{lstlisting}
+You are an expert in creating knowledge graph building prompts for extension ontologies.
+
+Extension ontologies are simpler ontologies that extend a main ontology with additional specialized information. They use MCP tools to build A-Boxes that link to the main ontology's A-Box.
+
+Your task is to analyze a T-Box ontology and MCP tools to create a KG building prompt that:
+1. Provides a clear task route for building the extension A-Box
+2. Emphasizes using MCP tools to populate the A-Box
+3. Requires comprehensive population (making certain MCP function calls compulsory)
+4. Emphasizes IRI reuse from the main ontology A-Box
+5. Includes domain-specific requirements extracted from the T-Box comments
+6. Forbids fabrication - only use information from the paper
+
+CRITICAL RULES:
+- Read ALL classes, properties, and rdfs:comment fields in the T-Box
+- Extract domain-specific requirements from rdfs:comment (\eg required fields, cardinality constraints)
+- Focus on HOW to build the A-Box, not just WHAT to extract
+- Emphasize the connection between the extension A-Box and the main ontology A-Box
+- Make the prompt actionable with clear steps
+- Output ONLY the prompt text (no markdown fences, no commentary)
+\end{lstlisting}\label{lst:extension_system_prompt}
+
+
+\subsubsection{Extension Ontology: User Meta Prompt}
+
+\begin{lstlisting}
+Generate a KG building prompt for an extension ontology.
+
+T-Box (analyze to understand the ontology structure and requirements):
+```turtle
+{tbox}
+MCP Main Script (understand available tools, their parameters, and calling sequences):
+
+python
+ 
+{mcp_main_script}
+Your prompt MUST:
+
+State the task - Extend the main ontology A-Box with the extension A-Box
+
+Provide a task route - Give a recommended sequence of steps for building the KG
+
+Emphasize MCP tools - Instruct to use the MCP server to populate the A-Box
+
+Require IRI reuse - Emphasize reusing existing IRIs from the main ontology A-Box
+
+Extract T-Box requirements - Include any compulsory requirements from rdfs:comment (\eg required fields, minimum instances)
+
+Forbid fabrication - Only use information from the paper content
+
+Include tool-specific notes - If the T-Box or domain requires special handling (\eg external database integration, data transformations), include those notes
+
+Structure your output as:
+
+css
+ 
+Your task is to extend the provided A-Box of [MainOntology] with the [extension ontology] A-Box, according to the paper content.
+
+You should use the provided MCP server to populate the [extension ontology] A-Box.
+
+Here is the recommended route of task:
+
+[Step-by-step guidance based on T-Box structure]
+
+Requirements:
+
+[List of requirements based on T-Box rdfs:comment and MCP tool constraints]
+
+Special note:
+
+[Any domain-specific notes based on T-Box comments]
+
+Here is the DOI for this run (normalized and pipeline forms):
+
+- DOI: {{doi_slash}}
+- Pipeline DOI: {{doi_underscore}}
+
+Here is the [MainOntology] A-Box:
+
+{{main_ontology_a_box}}
+
+Here is the paper content:
+
+{{paper_content}}
+
+CRITICAL:
+
+Extract domain-specific requirements from the T-Box rdfs:comment fields. Do NOT invent requirements. ALL requirements must be justified by the T-Box or MCP tool constraints.
+
+Output EXACTLY the structure shown above. Do NOT add any additional sections after {{paper_content}}. This is the END of the prompt.
+
+Generate the prompt now:
+\end{lstlisting}\label{lst:extension_user_prompt}
+
+\clearpage
+\subsubsection{Illustrative trace of constraint-triggered repair}
+
+Listing~\ref{fig:constraint_repair_example} shows a representative repair cycle
+triggered by an ontology constraint on measurement units. The ontology
+restricts temperature units to a controlled vocabulary that includes
+\emph{degree Celsius}. When the instantiation agent first instantiates a
+temperature condition using the verbatim unit token \emph{C} from text, the
+ontology-aware MCP tool rejects the input and returns a structured validation
+error listing allowed values. The agent then normalises the unit to an allowed
+entry and retries, producing a valid instance.
+
+\begin{lstlisting}[caption={Representative MCP trace: ontology-constrained unit repair (C $\rightarrow$ degree Celsius).},label={fig:constraint_repair_example}]
+Input evidence (paper text):
+  "... heated at 120 C for 12 h ..."
+
+Attempt 1 (verbatim unit token):
+  Tool: mop.create_temperature_condition
+  Input:    { "context": "reaction_step_3",
+              "value": 120,
+              "unit": "C" }
+
+  Tool response (constraint violation):
+    { "ok": false,
+      "error_type": "OntologyConstraintViolation",
+      "field": "unit",
+      "message": "Unit value 'C' is not permitted by the ontology.",
+      "allowed_values": ["degree Celsius", "kelvin"]
+    }
+
+Repair (from tool feedback):
+  - Map shorthand unit token "C" to the allowed vocabulary entry "degree Celsius".
+  - Retry tool call with corrected unit.
+
+Attempt 2 (normalised unit):
+  Tool: mop.create_temperature_condition
+  Input:
+    { "context": "reaction_step_3",
+      "value": 120,
+      "unit": "degree Celsius"
+    }
+
+  Tool response (success):
+    {
+      "ok": true,
+      "instance_iri": "twa:TemperatureCondition_0f3a...",
+      "validated": true
+    }
+\end{lstlisting}
+ 
+
+\subsection{Supplementary Evaluation Results}
+  
+
+Tables~\ref{tab:steps_full}--\ref{tab:char_full} report per-paper extraction performance against the full ground truth for the OntoSyn/MOP outputs: synthesis steps (Table~\ref{tab:steps_full}), chemical building units under a formula-only matching criterion (Table~\ref{tab:cbu_formula_only}), and characterisation entities (Table~\ref{tab:char_full}). For each paper (indexed by DOI), we provide true positives (TP), false positives (FP), false negatives (FN), and the derived precision, recall, and F1 scores, followed by an overall aggregate row. Supplementary Tables~\ref{tab:medical_overall} and~\ref{tab:medical_per_case} report the corresponding record-cell evaluation for the 30 thoracic-surgery reports.
+
+% =========================== benchmark profile =================
+\begin{table}[!hpbt]
+\centering
+\caption{Benchmark profile (30 papers). Ground-truth positives are computed as TP$+$FN from Table~\ref{tab:overall}.}
+\label{tab:benchmark_profile}
+\begin{tabular}{lrr}
+\hline
+Category & Papers & Ground-truth positives \\
+\hline
+CBU              & 30 & 164 \\
+Characterisation & 30 & 926 \\
+Steps            & 30 & 4940 \\
+Chemicals        & 30 & 675 \\
+\hline
+Total            & 30 & 6705 \\
+\hline
+\end{tabular}
+\end{table}
+
+
+
+% ======================= Evaluation summary by category =====================
+\begin{table*}[t]
+\centering
+\caption{Overall evaluation summary by category (system output recovered from instantiated graphs vs.\ full ground truth). CBU denotes grounded/derived CBUs (Methods).}
+\label{tab:overall}
+\begin{tabular}{lrrrrrr}
+\hline
+Category & TP & FP & FN & Precision & Recall & F1 \\
+\hline
+CBU              & 128  &  40 &  36 & 0.762 & 0.780 & 0.771 \\
+Characterisation & 669  & 102 & 257 & 0.868 & 0.722 & 0.788 \\
+Steps            & 4225 & 857 & 715 & 0.831 & 0.855 & 0.843 \\
+Chemicals        & 393  &   0 & 282 & 1.000 & 0.582 & 0.736 \\
+\hline
+\textbf{Micro-aggregate} & \textbf{5415} & \textbf{999} & \textbf{1290} & \textbf{0.844} & \textbf{0.808} & \textbf{0.826} \\
+\textbf{Macro-average}   & --- & --- & --- & \textbf{0.865} & \textbf{0.735} & \textbf{0.785} \\
+\hline
+\end{tabular}
+\end{table*}
+
+\subsubsection{Medical operative-report evaluation}\label{subsubsec:medical_eval}
+
+Medical graphs are deterministically projected into the 79-field case-record schema before scoring. All 2{,}370 case--field cells are evaluated, including the 2{,}069 reference cells that should remain blank. An exact match is counted as a TP, including a correct blank. Any mismatch---a spurious value, an omitted value, or two different non-empty values---contributes one FP and one FN. Under this fixed-schema record-cell convention, 2{,}335 cells are TP and 35 are mismatches, giving 35 FP and 35 FN; precision, recall, and F1 are therefore all 0.985. These counts include correct absence decisions and are consequently not interchangeable with the positive entity- and record-fact counts of the chemistry tasks.
+
+\begin{table*}[t]
+\centering
+\caption{Medical record-cell evaluation by ontology component. Correctly blank fields are included as TP; each mismatched cell contributes one FP and one FN.}
+\label{tab:medical_overall}
+\begin{tabular}{lrrrrrr}
+\hline
+Ontology component & TP & FP & FN & Precision & Recall & F1 \\
+\hline
+Patient information   & 120 & 0  & 0 & 1.000 & 1.000 & 1.000 \\
+Case timeline         & 180 & 0  & 0 & 1.000 & 1.000 & 1.000 \\
+Surgical approach     & 85  & 5  & 5 & 0.944 & 0.944 & 0.944 \\
+Procedure             & 617 & 13 & 13 & 0.979 & 0.979 & 0.979 \\
+Surgical team         & 60  & 0  & 0 & 1.000 & 1.000 & 1.000 \\
+Diagnosis             & 526 & 14 & 14 & 0.974 & 0.974 & 0.974 \\
+Complication          & 630 & 0  & 0 & 1.000 & 1.000 & 1.000 \\
+Pathology outcome     & 117 & 3  & 3 & 0.975 & 0.975 & 0.975 \\
+\hline
+\textbf{Micro-aggregate} & \textbf{2{,}335} & \textbf{35} & \textbf{35} & \textbf{0.985} & \textbf{0.985} & \textbf{0.985} \\
+\hline
+\end{tabular}
+\end{table*}
+
+The component-level result identifies where the 35 mismatched cells occur. Patient information, timelines, surgical-team roles, and complication fields are recovered without errors. Surgical approach has the lowest component-level F1 (0.944), followed by diagnosis (0.974), pathology outcome (0.975), and procedure (0.979). Because correct blank decisions are included as TP, these component scores measure complete fixed-schema record recovery rather than positive-class detection.
+
+\begin{table*}[t]
+\centering
+\caption{Per-report record-cell results for the 30 thoracic-surgery operative reports. Correctly blank fields are included as TP, and each mismatched cell contributes one FP and one FN. Reports are identified by the hash used for deterministic alignment; patient identifiers are not shown.}
+\label{tab:medical_per_case}
+\normalsize
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{lrrrrrr}
+\hline
+Report hash & TP & FP & FN & Precision & Recall & F1 \\
+\hline
+\texttt{13f6bdac} & 76 & 3 & 3 & 0.962 & 0.962 & 0.962 \\
+\texttt{23a00605} & 78 & 1 & 1 & 0.987 & 0.987 & 0.987 \\
+\texttt{33c5b4d2} & 78 & 1 & 1 & 0.987 & 0.987 & 0.987 \\
+\texttt{36f46a9f} & 79 & 0 & 0 & 1.000 & 1.000 & 1.000 \\
+\texttt{3d11cbcc} & 75 & 4 & 4 & 0.949 & 0.949 & 0.949 \\
+\texttt{4402a2e9} & 78 & 1 & 1 & 0.987 & 0.987 & 0.987 \\
+\texttt{4beb9c08} & 78 & 1 & 1 & 0.987 & 0.987 & 0.987 \\
+\texttt{55aa99e4} & 78 & 1 & 1 & 0.987 & 0.987 & 0.987 \\
+\texttt{5a95de8c} & 79 & 0 & 0 & 1.000 & 1.000 & 1.000 \\
+\texttt{5cc68f8c} & 79 & 0 & 0 & 1.000 & 1.000 & 1.000 \\
+\texttt{6cc343f0} & 77 & 2 & 2 & 0.975 & 0.975 & 0.975 \\
+\texttt{7ba939bd} & 79 & 0 & 0 & 1.000 & 1.000 & 1.000 \\
+\texttt{7db20b59} & 77 & 2 & 2 & 0.975 & 0.975 & 0.975 \\
+\texttt{933dc913} & 78 & 1 & 1 & 0.987 & 0.987 & 0.987 \\
+\texttt{a44317c5} & 76 & 3 & 3 & 0.962 & 0.962 & 0.962 \\
+\texttt{b151acc8} & 77 & 2 & 2 & 0.975 & 0.975 & 0.975 \\
+\texttt{c3bb4fd5} & 76 & 3 & 3 & 0.962 & 0.962 & 0.962 \\
+\texttt{d20c4663} & 79 & 0 & 0 & 1.000 & 1.000 & 1.000 \\
+\texttt{d626d799} & 76 & 3 & 3 & 0.962 & 0.962 & 0.962 \\
+\texttt{dc505658} & 79 & 0 & 0 & 1.000 & 1.000 & 1.000 \\
+\texttt{dc9bb2b5} & 79 & 0 & 0 & 1.000 & 1.000 & 1.000 \\
+\texttt{e288d25a} & 77 & 2 & 2 & 0.975 & 0.975 & 0.975 \\
+\texttt{e5371149} & 77 & 2 & 2 & 0.975 & 0.975 & 0.975 \\
+\texttt{e7734aa9} & 79 & 0 & 0 & 1.000 & 1.000 & 1.000 \\
+\texttt{ec46f270} & 79 & 0 & 0 & 1.000 & 1.000 & 1.000 \\
+\texttt{efc3129a} & 79 & 0 & 0 & 1.000 & 1.000 & 1.000 \\
+\texttt{f29211f2} & 76 & 3 & 3 & 0.962 & 0.962 & 0.962 \\
+\texttt{f6786c75} & 79 & 0 & 0 & 1.000 & 1.000 & 1.000 \\
+\texttt{fc9687ec} & 79 & 0 & 0 & 1.000 & 1.000 & 1.000 \\
+\texttt{fc9a5bbe} & 79 & 0 & 0 & 1.000 & 1.000 & 1.000 \\
+\hline
+\textbf{Overall} & \textbf{2{,}335} & \textbf{35} & \textbf{35} & \textbf{0.985} & \textbf{0.985} & \textbf{0.985} \\
+\hline
+\end{tabular}
+\end{table*}
+
+% % =========================== artefact_inventory =============================
+% \begin{table}[t]
+% \centering
+% \footnotesize
+% \setlength{\tabcolsep}{4pt}
+% \renewcommand{\arraystretch}{1.15}
+
+% \refstepcounter{table}\label{tab:artefact_inventory_compact}
+% \textbf{Table~\thetable\ |\ Engineering artefact inventory (prior vs.\ current).}\\[3pt]
+
+% \newcommand{\invtabw}{0.95\linewidth}
+
+% \begin{tabular*}{\invtabw}{@{\extracolsep{\fill}} l r @{}}
+% \hline
+% \multicolumn{2}{c}{\textbf{Prior workflow}} \\
+% \hline
+% Artefact type & \shortstack{Manual\\Domain-specific} \\
+% \hline
+% Prompts / templates           & 8  \\
+% Schemas / specifications      & 5  \\
+% SPARQL / query templates      & 13 \\
+% Scripts (extract/instantiate) & 20 \\
+% MCP servers / tool wrappers   & 3  \\
+% \hline
+% \textbf{Total}                & \textbf{49} \\
+% \hline
+% \end{tabular*}
+
+% \vspace{6pt}
+
+% \begin{tabular*}{\invtabw}{@{\extracolsep{\fill}} l r r r @{}}
+% \hline
+% \multicolumn{4}{c}{\textbf{MCP-enhanced pipeline}} \\
+% \hline
+% Artefact type
+% & \shortstack{Manual\\Domain-specific}
+% & \shortstack{Manual\\Domain-agnostic}
+% & \shortstack{AI-generated\\Domain-specific} \\
+% \hline
+% Prompts / templates           & 0  & 30 & 18 \\
+% Schemas / specifications      & 2  & 6  & 3  \\
+% SPARQL / query templates      & 0  & 0  & 2  \\
+% Scripts (extract/instantiate) & 0  & 12 & 0  \\
+% MCP servers / tool wrappers   & 9  & 2  & 0  \\
+% \hline
+% \textbf{Total}                & \textbf{11} & \textbf{50} & \textbf{21} \\
+% \hline
+% \end{tabular*}
+% \end{table}
+
+
+% ============================== Ablation study ========================
+\begin{table}[hpbt]
+\centering
+\caption{Ablation study. CBU denotes grounded/derived CBUs (Methods).}
+\label{tab:ablation}
+\begin{tabular}{lrrrr}
+\hline
+Setting & CBU F1 & Char. F1 & Steps F1 & Chem. F1 \\
+\hline
+Full system & \textbf{0.771} & \textbf{0.788} & \textbf{0.843} & \textbf{0.736} \\
+-- external tools & 0.000 & 0.610 & 0.800 & 0.732 \\
+-- constraint feedback & 0.768 & 0.788 & 0.572 & 0.724 \\
+\hline
+\end{tabular}
+\end{table}
+
+
+% ================== STEPS TABLE ==================
+\begin{table*}[t]
+\centering
+\caption{Per-paper extraction results for synthesis steps against the full ground truth.}
+\label{tab:steps_full}
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{lrrrrrr}
+\hline
+DOI & TP & FP & FN & Precision & Recall & F1 \\
+\hline
+10.1002.anie.201811027~\cite{gong_bottomup_2019}              & 185 & 31 & 19 & 0.856 & 0.907 & 0.881 \\
+10.1002.anie.202010824~\cite{gong_facedirected_2020}          & 305 & 10 & 19 & 0.968 & 0.941 & 0.955 \\
+10.1002.chem.201604264~\cite{liu_controlled_2016}             & 245 & 28 & 30 & 0.897 & 0.891 & 0.894 \\
+10.1002.chem.201700798~\cite{ju_coordination_2017}            &  47 & 10 &  8 & 0.825 & 0.855 & 0.839 \\
+10.1002.chem.201700848~\cite{garai_selfexfoliated_2017}       & 111 & 20 & 30 & 0.847 & 0.787 & 0.816 \\
+10.1021.acs.cgd.6b00306~\cite{rathnayake_investigating_2016}   &  35 & 10 &  4 & 0.778 & 0.897 & 0.833 \\
+10.1021.acs.chemmater.8b01667~\cite{barreda_mechanochemical_2018} & 105 & 35 & 24 & 0.750 & 0.814 & 0.781 \\
+10.1021.acs.inorgchem.4c02394~\cite{wang_steerable_2024}      & 216 & 38 & 44 & 0.850 & 0.831 & 0.840 \\
+10.1021.acs.inorgchem.8b01130~\cite{gosselin_design_2018}     & 207 & 74 & 70 & 0.737 & 0.747 & 0.742 \\
+10.1021.acsami.7b09339~\cite{park_chromiumii_2017}            & 117 & 35 & 40 & 0.770 & 0.745 & 0.757 \\
+10.1021.acsami.7b18836~\cite{lee_porous_2018}                 &  80 & 24 &  6 & 0.769 & 0.930 & 0.842 \\
+10.1021.acsami.8b02015~\cite{barreda_ligand-based_2018}       & 118 & 28 & 37 & 0.808 & 0.761 & 0.784 \\
+10.1021.cg4018322~\cite{paul_secondary_2014}                   &  50 &  4 & 10 & 0.926 & 0.833 & 0.877 \\
+10.1021.ic050460z~\cite{ke_synthesis_2005}                     & 139 & 63 & 41 & 0.688 & 0.772 & 0.728 \\
+10.1021.ic402428m~\cite{liu_situ_2013}                         & 180 & 51 & 36 & 0.779 & 0.833 & 0.805 \\
+10.1021.ic501012e~\cite{tan_two_2014}                          & 147 &  7 &  3 & 0.955 & 0.980 & 0.967 \\
+10.1021.ic802382p~\cite{prakash_metalorganic_2009}             &  84 & 14 &  5 & 0.857 & 0.944 & 0.898 \\
+10.1021.ja042802q~\cite{sudik_design_2005}                     & 389 &135 & 80 & 0.742 & 0.829 & 0.783 \\
+10.1021.ja105986b~\cite{zheng_cubic_2010}                      &  63 & 23 & 25 & 0.733 & 0.716 & 0.724 \\
+10.1021.jacs.7b00037~\cite{zhang_controlled_2017}              & 128 &  4 &  7 & 0.970 & 0.948 & 0.959 \\
+10.1021.jacs.8b10866~\cite{zhang_self-assembly_2018}           & 214 & 51 & 28 & 0.808 & 0.884 & 0.844 \\
+10.1039.C2CC34265K~\cite{du_giant_2012}                        & 166 & 22 & 33 & 0.883 & 0.834 & 0.858 \\
+10.1039.C5CC05913E~\cite{augustyniak_vanadium_2015}            &  55 & 13 &  4 & 0.809 & 0.932 & 0.866 \\
+10.1039.C5DT04764A~\cite{zhang_polyoxovanadate-based_2016}     & 161 &  0 &  3 & 1.000 & 0.982 & 0.991 \\
+10.1039.C5RA26357C~\cite{chen_synthesis_2016}                  &  50 & 14 & 14 & 0.781 & 0.781 & 0.781 \\
+10.1039.C6CC04583A~\cite{zhang_anderson-like_2016}             & 206 & 64 & 52 & 0.763 & 0.798 & 0.780 \\
+10.1039.C6DT02764D~\cite{zhang_synthesis_2016}                 & 103 & 15 & 15 & 0.873 & 0.873 & 0.873 \\
+10.1039.C7CC01208J~\cite{zhang_self-assembly_2017}             &  92 & 10 & 10 & 0.902 & 0.902 & 0.902 \\
+10.1039.C8DT02580K~\cite{gong_functionalized_2018}             & 119 &  5 &  8 & 0.960 & 0.937 & 0.948 \\
+10.1039.D3QI01501G~\cite{yang_efficient_2023}                  & 106 & 20 & 12 & 0.841 & 0.898 & 0.869 \\
+\hline
+Overall                                                         & 4223 & 858 & 717 & 0.831 & 0.855 & 0.843 \\
+\hline
+\end{tabular}
+}
+\end{table*}
+
+
+
+% Where each of the four task is presented in one big table. 
+% ================== CBU TABLE ==================% ================== CBU FORMULA-ONLY TABLE (UPDATED) ==================
+\begin{table*}[t]
+\centering
+\caption{Per-paper formula-only extraction results for chemical building units (CBUs) against the full ground truth.}
+\label{tab:cbu_formula_only}
+\begin{tabular}{lrrrrrr}
+\hline
+DOI & TP & FP & FN & Precision & Recall & F1 \\
+\hline
+10.1021.acsami.7b18836~\cite{lee_porous_2018}                 &  3 &  1 &  1 & 0.750 & 0.750 & 0.750 \\
+10.1039.C8DT02580K~\cite{gong_functionalized_2018}            &  4 &  0 &  0 & 1.000 & 1.000 & 1.000 \\
+10.1002.chem.201700848~\cite{garai_selfexfoliated_2017}       &  4 &  2 &  2 & 0.667 & 0.667 & 0.667 \\
+10.1021.acs.inorgchem.4c02394~\cite{wang_steerable_2024}      &  8 &  2 &  2 & 0.800 & 0.800 & 0.800 \\
+10.1021.ic402428m~\cite{liu_situ_2013}                        &  8 &  0 &  0 & 1.000 & 1.000 & 1.000 \\
+10.1039.C5RA26357C~\cite{chen_synthesis_2016}                 &  2 &  0 &  0 & 1.000 & 1.000 & 1.000 \\
+10.1039.C6DT02764D~\cite{zhang_synthesis_2016}                &  2 &  2 &  2 & 0.500 & 0.500 & 0.500 \\
+10.1021.ic501012e~\cite{tan_two_2014}                         &  4 &  0 &  0 & 1.000 & 1.000 & 1.000 \\
+10.1002.chem.201604264~\cite{liu_controlled_2016}             &  8 &  2 &  2 & 0.800 & 0.800 & 0.800 \\
+10.1021.jacs.7b00037~\cite{zhang_controlled_2017}             &  1 &  3 &  3 & 0.250 & 0.250 & 0.250 \\
+10.1039.C7CC01208J~\cite{zhang_self-assembly_2017}            &  2 &  2 &  2 & 0.500 & 0.500 & 0.500 \\
+10.1021.acschemmater.8b01667~\cite{barreda_mechanochemical_2018} &  6 &  2 &  0 & 0.750 & 1.000 & 0.857 \\
+10.1039.C5DT04764A~\cite{zhang_polyoxovanadate-based_2016}    &  3 &  3 &  3 & 0.500 & 0.500 & 0.500 \\
+10.1039.C6CC04583A~\cite{zhang_anderson-like_2016}            & 10 &  0 &  0 & 1.000 & 1.000 & 1.000 \\
+10.1021.ic802382p~\cite{prakash_metalorganic_2009}            &  2 &  0 &  0 & 1.000 & 1.000 & 1.000 \\
+10.1002.anie.202010824~\cite{gong_facedirected_2020}          &  7 &  3 &  3 & 0.700 & 0.700 & 0.700 \\
+10.1021.acs.inorgchem.8b01130~\cite{gosselin_design_2018}     &  4 &  2 &  2 & 0.667 & 0.667 & 0.667 \\
+10.1039.C2CC34265K~\cite{du_giant_2012}                       &  3 &  3 &  3 & 0.500 & 0.500 & 0.500 \\
+10.1021.acsami.7b09339~\cite{park_chromiumii_2017}            &  8 &  0 &  0 & 1.000 & 1.000 & 1.000 \\
+10.1002.anie.201811027~\cite{gong_bottomup_2019}              &  4 &  4 &  0 & 0.500 & 1.000 & 0.667 \\
+10.1021.acs.cgd.6b00306~\cite{rathnayake_investigating_2016}  &  0 &  2 &  2 & 0.000 & 0.000 & 0.000 \\
+10.1039.D3QI01501G~\cite{yang_efficient_2023}                 &  2 &  0 &  2 & 1.000 & 0.500 & 0.667 \\
+10.1021.cg4018322~\cite{paul_secondary_2014}                  &  2 &  0 &  0 & 1.000 & 1.000 & 1.000 \\
+10.1039.C5CC05913E~\cite{augustyniak_vanadium_2015}           &  2 &  0 &  0 & 1.000 & 1.000 & 1.000 \\
+10.1021.ja105986b~\cite{zheng_cubic_2010}                     &  2 &  0 &  0 & 1.000 & 1.000 & 1.000 \\
+10.1021.ic050460z~\cite{ke_synthesis_2005}                    &  6 &  0 &  0 & 1.000 & 1.000 & 1.000 \\
+10.1021.jacs.8b10866~\cite{zhang_self-assembly_2018}          &  6 &  2 &  2 & 0.750 & 0.750 & 0.750 \\
+10.1021.ja042802q~\cite{sudik_design_2005}                    &  7 &  5 &  3 & 0.583 & 0.700 & 0.636 \\
+10.1021.acsami.8b02015~\cite{barreda_ligand-based_2018}       &  6 &  0 &  2 & 1.000 & 0.750 & 0.857 \\
+10.1002.chem.201700798~\cite{ju_coordination_2017}            &  2 &  0 &  0 & 1.000 & 1.000 & 1.000 \\
+\hline
+Overall                                                        & 128 & 40 & 36 & 0.762 & 0.780 & 0.771 \\
+\hline
+\end{tabular}
+\end{table*}
+% ================== CHARACTERISATION TABLE ==================
+\begin{table*}[t]
+\centering
+\caption{Per-paper extraction results for characterisation entities against the full ground truth.}
+\label{tab:char_full}
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{lrrrrrr}
+\hline
+DOI & TP & FP & FN & Precision & Recall & F1 \\
+\hline
+10.1002.anie.201811027~\cite{gong_bottomup_2019}              & 26 &  0 &  4 & 1.000 & 0.867 & 0.929 \\
+10.1002.anie.202010824~\cite{gong_facedirected_2020}          & 36 & 11 & 16 & 0.766 & 0.692 & 0.727 \\
+10.1002.chem.201604264~\cite{liu_controlled_2016}             & 10 &  7 & 16 & 0.588 & 0.385 & 0.465 \\
+10.1002.chem.201700798~\cite{ju_coordination_2017}            &  5 &  2 &  5 & 0.714 & 0.500 & 0.588 \\
+10.1002.chem.201700848~\cite{garai_selfexfoliated_2017}       & 21 &  4 & 15 & 0.840 & 0.583 & 0.689 \\
+10.1021.acs.cgd.6b00306~\cite{rathnayake_investigating_2016}   &  8 &  1 &  1 & 0.889 & 0.889 & 0.889 \\
+10.1021.acs.chemmater.8b01667~\cite{barreda_mechanochemical_2018} & 36 &  3 & 10 & 0.923 & 0.783 & 0.847 \\
+10.1021.acs.inorgchem.4c02394~\cite{wang_steerable_2024}      & 43 &  9 & 16 & 0.827 & 0.729 & 0.775 \\
+10.1021.acs.inorgchem.8b01130~\cite{gosselin_design_2018}     & 38 &  1 & 11 & 0.974 & 0.776 & 0.864 \\
+10.1021.acsami.7b09339~\cite{park_chromiumii_2017}            & 29 &  1 & 11 & 0.967 & 0.725 & 0.829 \\
+10.1021.acsami.7b18836~\cite{lee_porous_2018}                 & 17 &  2 &  2 & 0.895 & 0.895 & 0.895 \\
+10.1021.acsami.8b02015~\cite{barreda_ligand-based_2018}       & 19 &  2 &  8 & 0.905 & 0.704 & 0.792 \\
+10.1021.cg4018322~\cite{paul_secondary_2014}                   & 13 &  1 & 17 & 0.929 & 0.433 & 0.591 \\
+10.1021.ic050460z~\cite{ke_synthesis_2005}                     & 31 &  1 &  7 & 0.969 & 0.816 & 0.886 \\
+10.1021.ic402428m~\cite{liu_situ_2013}                         & 20 &  0 & 24 & 1.000 & 0.455 & 0.625 \\
+10.1021.ic501012e~\cite{tan_two_2014}                          & 14 &  4 &  6 & 0.778 & 0.700 & 0.737 \\
+10.1021.ic802382p~\cite{prakash_metalorganic_2009}             &  7 &  2 &  5 & 0.778 & 0.583 & 0.667 \\
+10.1021.ja042802q~\cite{sudik_design_2005}                     & 51 &  2 &  6 & 0.962 & 0.895 & 0.927 \\
+10.1021.ja105986b~\cite{zheng_cubic_2010}                      &  8 &  2 &  5 & 0.800 & 0.615 & 0.696 \\
+10.1021.jacs.7b00037~\cite{zhang_controlled_2017}              & 16 &  6 &  4 & 0.727 & 0.800 & 0.762 \\
+10.1021.jacs.8b10866~\cite{zhang_self-assembly_2018}           & 41 &  8 &  9 & 0.837 & 0.820 & 0.828 \\
+10.1039.C2CC34265K~\cite{du_giant_2012}                        & 23 &  8 & 13 & 0.742 & 0.639 & 0.687 \\
+10.1039.C5CC05913E~\cite{augustyniak_vanadium_2015}            &  7 &  2 &  4 & 0.778 & 0.636 & 0.700 \\
+10.1039.C5DT04764A~\cite{zhang_polyoxovanadate-based_2016}     & 24 &  2 &  6 & 0.923 & 0.800 & 0.857 \\
+10.1039.C5RA26357C~\cite{chen_synthesis_2016}                  &  8 &  2 &  5 & 0.800 & 0.615 & 0.696 \\
+10.1039.C6CC04583A~\cite{zhang_anderson-like_2016}             & 43 & 10 & 15 & 0.811 & 0.741 & 0.775 \\
+10.1039.C6DT02764D~\cite{zhang_synthesis_2016}                 & 18 &  2 &  4 & 0.900 & 0.818 & 0.857 \\
+10.1039.C7CC01208J~\cite{zhang_self-assembly_2017}             & 18 &  2 &  4 & 0.900 & 0.818 & 0.857 \\
+10.1039.C8DT02580K~\cite{gong_functionalized_2018}             & 16 &  4 &  4 & 0.800 & 0.800 & 0.800 \\
+10.1039.D3QI01501G~\cite{yang_efficient_2023}                  & 22 &  4 & 11 & 0.846 & 0.667 & 0.746 \\
+\hline
+Overall                                                         & 668 & 105 & 264 & 0.864 & 0.717 & 0.784 \\
+\hline
+\end{tabular}
+}
+\end{table*}
+
+
+
+
+
+
+% ================== CHEMICALS TABLE ==================
+\begin{table*}[t]
+\centering
+\caption{Per-paper extraction results for chemicals against the full ground truth.}
+\label{tab:chems_full}
+\resizebox{\linewidth}{!}{
+\begin{tabular}{lrrrrrr}
+\hline
+DOI & TP & FP & FN & Precision & Recall & F1 \\
+\hline
+10.1002.anie.201811027~\cite{gong_bottomup_2019}              &  8 &  0 &  6 & 1.000 & 0.571 & 0.727 \\
+10.1002.anie.202010824~\cite{gong_facedirected_2020}          & 24 &  0 &  6 & 1.000 & 0.800 & 0.889 \\
+10.1002.chem.201604264~\cite{liu_controlled_2016}             & 22 &  0 & 13 & 1.000 & 0.629 & 0.772 \\
+10.1002.chem.201700798~\cite{ju_coordination_2017}            &  3 &  0 &  6 & 1.000 & 0.333 & 0.500 \\
+10.1002.chem.201700848~\cite{garai_selfexfoliated_2017}       & 12 &  0 &  7 & 1.000 & 0.632 & 0.774 \\
+10.1021.acs.cgd.6b00306~\cite{rathnayake_investigating_2016}   &  5 &  0 &  3 & 1.000 & 0.625 & 0.769 \\
+10.1021.acs.chemmater.8b01667~\cite{barreda_mechanochemical_2018} &  7 &  0 &  1 & 1.000 & 0.875 & 0.933 \\
+10.1021.acs.inorgchem.4c02394~\cite{wang_steerable_2024}      & 24 &  0 & 14 & 1.000 & 0.632 & 0.774 \\
+10.1021.acs.inorgchem.8b01130~\cite{gosselin_design_2018}     &  7 &  0 & 25 & 1.000 & 0.219 & 0.359 \\
+10.1021.acsami.7b09339~\cite{park_chromiumii_2017}            &  5 &  0 &  1 & 1.000 & 0.833 & 0.909 \\
+10.1021.acsami.7b18836~\cite{lee_porous_2018}                 & 11 &  0 &  3 & 1.000 & 0.786 & 0.880 \\
+10.1021.acsami.8b02015~\cite{barreda_ligand-based_2018}       &  7 &  0 &  4 & 1.000 & 0.636 & 0.778 \\
+10.1021.cg4018322~\cite{paul_secondary_2014}                   &  5 &  0 & 14 & 1.000 & 0.263 & 0.417 \\
+10.1021.ic050460z~\cite{ke_synthesis_2005}                     & 12 &  0 &  3 & 1.000 & 0.800 & 0.889 \\
+10.1021.ic402428m~\cite{liu_situ_2013}                         & 28 &  0 &  5 & 1.000 & 0.848 & 0.918 \\
+10.1021.ic501012e~\cite{tan_two_2014}                          & 18 &  0 & 12 & 1.000 & 0.600 & 0.750 \\
+10.1021.ic802382p~\cite{prakash_metalorganic_2009}             &  7 &  0 &  7 & 1.000 & 0.500 & 0.667 \\
+10.1021.ja042802q~\cite{sudik_design_2005}                     & 31 &  0 & 14 & 1.000 & 0.689 & 0.816 \\
+10.1021.ja105986b~\cite{zheng_cubic_2010}                      &  6 &  0 &  5 & 1.000 & 0.545 & 0.706 \\
+10.1021.jacs.7b00037~\cite{zhang_controlled_2017}              & 14 &  0 & 13 & 1.000 & 0.519 & 0.683 \\
+10.1021.jacs.8b10866~\cite{zhang_self-assembly_2018}           & 30 &  0 & 29 & 1.000 & 0.508 & 0.674 \\
+10.1039.C2CC34265K~\cite{du_giant_2012}                        & 17 &  0 & 15 & 1.000 & 0.531 & 0.694 \\
+10.1039.C5CC05913E~\cite{augustyniak_vanadium_2015}            &  6 &  0 &  6 & 1.000 & 0.500 & 0.667 \\
+10.1039.C5DT04764A~\cite{zhang_polyoxovanadate-based_2016}     & 12 &  0 & 26 & 1.000 & 0.316 & 0.480 \\
+10.1039.C5RA26357C~\cite{chen_synthesis_2016}                  &  7 &  0 &  9 & 1.000 & 0.438 & 0.609 \\
+10.1039.C6CC04583A~\cite{zhang_anderson-like_2016}             & 23 &  0 & 12 & 1.000 & 0.657 & 0.793 \\
+10.1039.C6DT02764D~\cite{zhang_synthesis_2016}                 & 11 &  0 &  5 & 1.000 & 0.688 & 0.815 \\
+10.1039.C7CC01208J~\cite{zhang_self-assembly_2017}             & 11 &  0 &  9 & 1.000 & 0.550 & 0.710 \\
+10.1039.C8DT02580K~\cite{gong_functionalized_2018}             & 11 &  0 &  3 & 1.000 & 0.786 & 0.880 \\
+10.1039.D3QI01501G~\cite{yang_efficient_2023}                  &  9 &  0 &  6 & 1.000 & 0.600 & 0.750 \\
+\hline
+Overall                                                          & 393 & 0 & 282 & 1.000 & 0.582 & 0.736 \\
+\hline
+\end{tabular}
+}
+\end{table*}
+
+
+\subsubsection{Detailed instance visualisation for a UMC-1 synthesis}\label{subsubsec:umc1_instance_vis}
+
+The Supplementary Information includes a detailed visualisation of one instantiated ontology subgraph corresponding to the synthesis of the metal--organic polyhedron UMC-1 (Supplementary Fig.~\ref{fig:umc1_instance_vis}).
+The figure shows the complete set of instantiated individuals and relations for this synthesis recipe under the OntoSyn and OntoMOPs ontologies, including typed synthesis steps, chemical inputs, and the resulting product entity, without the abstraction and condensation used in the main-text example (Fig.~\ref{fig:example_instance}).
+
+The graph was initially rendered from the RDF serialisation using an RDF-to-Graphviz visualisation tool\footnote{\url{https://giacomociti.github.io/rdf2dot/}}
+ and then manually edited to adjust the layout for presentation and page fitting.
+\clearpage
+\begin{figure}[]
+    \centering
+    \includegraphics[angle=90, width=0.98\linewidth]{figures/rdffixed_cropped.pdf}
+    \caption{\textbf{Detailed ontology instance subgraph for a UMC-1 synthesis.}}
+    \label{fig:umc1_instance_vis}
+\end{figure}
+\clearpage
