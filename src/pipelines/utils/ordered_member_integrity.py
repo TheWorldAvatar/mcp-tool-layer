@@ -328,6 +328,17 @@ def _normalize_member_orders(
     for info in member_infos:
         grouped.setdefault(info["order"], []).append(info)
 
+    missing_order_nodes = [
+        str(info["node"]) for info in member_infos if info["order"] is None
+    ]
+    if missing_order_nodes:
+        messages.append(
+            "Cannot infer missing ordered-member values safely; upstream must set "
+            "the T-Box ordering property explicitly for: "
+            + ", ".join(sorted(missing_order_nodes))
+        )
+        return changed
+
     survivors: list[dict[str, Any]] = []
     for order_value, infos in grouped.items():
         if order_value is not None and len(infos) > 1:

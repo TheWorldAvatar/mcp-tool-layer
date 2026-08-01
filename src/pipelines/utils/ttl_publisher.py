@@ -565,12 +565,13 @@ def _build_composite_entity_graph(
     *,
     entity_src_path: str | Iterable[str],
     top_src_path: Optional[str],
-    shell_policy: dict,
+    ontology_contract: Optional[dict] = None,
+    require_entity_uri_subject: bool = False,
     entity_uri: str = "",
     entity_label: str = "",
 ) -> tuple[Optional[Graph], list[str]]:
     """
-    Build a composite graph from top shell + entity graph and apply config-driven
+    Build a composite graph from top shell + entity graph and apply contract-driven
     structural repair/validation.
     """
     messages: list[str] = []
@@ -589,9 +590,14 @@ def _build_composite_entity_graph(
     except Exception as e:
         return None, [f"Failed to parse TTL for composition: {e}"]
 
-    top_class_iri = str(shell_policy.get("top_entity_class_iri") or "").strip()
-    require_entity_uri_subject = bool(shell_policy.get("require_entity_uri_subject"))
-    required_links = shell_policy.get("required_links") or []
+    semantic_contract = ontology_contract or {}
+    top_role = semantic_contract.get("top_role") or semantic_contract.get("top_entity") or {}
+    top_class_iri = (
+        str(top_role.get("class_iri") or "").strip()
+        if str(top_role.get("status") or "") == "known"
+        else ""
+    )
+    required_links = semantic_contract.get("required_links") or []
     expected_top_entity = _resolve_expected_top_entity(
         top_g=top_g,
         entity_g=entity_g,
@@ -778,6 +784,8 @@ def publish_ttl(
     entity_safe: str,
     entity_uri: str = "",
     entity_label: str = "",
+    ontology_contract: Optional[dict] = None,
+    require_entity_uri_subject: bool = False,
     data_dir: str = "data",
     meta_cfg: Optional[dict] = None,
     src_candidates: Optional[Iterable[str]] = None,
@@ -791,7 +799,6 @@ def publish_ttl(
     naming = get_output_naming_config(meta_cfg=meta_cfg, ontology_name=ontology_name)
     main_entity_kg_policy = _get_main_entity_kg_policy(meta_cfg)
     publish_policy = main_entity_kg_policy.get("publish", {}) or {}
-    shell_policy = main_entity_kg_policy.get("shell_validation", {}) or {}
 
     doi_folder = os.path.join(data_dir, doi_hash)
     out_dir = os.path.join(doi_folder, naming.output_dir)
@@ -847,7 +854,8 @@ def publish_ttl(
             composite_graph, messages = _build_composite_entity_graph(
                 entity_src_path=composite_sources,
                 top_src_path=top_src_path,
-                shell_policy=shell_policy,
+                ontology_contract=ontology_contract,
+                require_entity_uri_subject=require_entity_uri_subject,
                 entity_uri=entity_uri,
                 entity_label=entity_label,
             )
