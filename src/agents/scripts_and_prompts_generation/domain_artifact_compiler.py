@@ -146,7 +146,7 @@ def _runtime_blueprint(
 
 
 def _legacy_adapter(
-    config: DomainGenerationConfig, *, blueprint_path: Path
+    config: DomainGenerationConfig, *, blueprint_path: Path | None
 ) -> dict[str, Any]:
     """Render the legacy shape required by current pipeline consumers."""
     output = config.runtime.get("output") or {}
@@ -157,11 +157,15 @@ def _legacy_adapter(
                 "description": config.domain_id,
                 "ttl_file": str(config.primary_tbox),
                 "complex_pipeline": config.workflow_profile == "complex",
-                "runtime_policies": {
-                    "iteration_plan": {
-                        "iterations_blueprint_path": str(blueprint_path)
+                "runtime_policies": (
+                    {
+                        "iteration_plan": {
+                            "iterations_blueprint_path": str(blueprint_path)
+                        }
                     }
-                },
+                    if blueprint_path is not None
+                    else {}
+                ),
                 "output": {
                     "dir": str(output.get("dir") or "{ontology_name}_output"),
                     "top_ttl_name": str(output.get("top_ttl_name") or "top.ttl"),
@@ -202,14 +206,10 @@ def build_domain_generation_context(
     root = Path(output_root)
     derived = root / "derived_inputs" / config.ontology_name
     derived.mkdir(parents=True, exist_ok=True)
-    empty_blueprint = derived / "planning_placeholder.json"
-    empty_blueprint.write_text(
-        json.dumps({"iterations": []}), encoding="utf-8"
-    )
     adapter_path = derived / "meta_task_adapter.json"
     adapter_path.write_text(
         json.dumps(
-            _legacy_adapter(config, blueprint_path=empty_blueprint),
+            _legacy_adapter(config, blueprint_path=None),
             indent=2,
             ensure_ascii=False,
         ),
@@ -243,14 +243,6 @@ def build_domain_generation_context(
     blueprint_path = derived / "iteration_blueprint.json"
     blueprint_path.write_text(
         json.dumps(runtime_blueprint, indent=2, ensure_ascii=False),
-        encoding="utf-8",
-    )
-    adapter_path.write_text(
-        json.dumps(
-            _legacy_adapter(config, blueprint_path=blueprint_path),
-            indent=2,
-            ensure_ascii=False,
-        ),
         encoding="utf-8",
     )
     context = build_agentic_generation_context(

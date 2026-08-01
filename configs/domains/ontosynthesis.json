@@ -1,0 +1,106 @@
+{
+  "schema_version": "domain-generation-config.v1",
+  "domain_id": "ontosynthesis",
+  "ontology_name": "ontosynthesis",
+  "workflow_profile": "complex",
+  "tbox": {
+    "primary": "data/ontologies/ontosynthesis.ttl",
+    "supporting": [
+      "data/ontologies/ontomops-subgraph.ttl",
+      "data/ontologies/ontospecies-subgraph.ttl",
+      "data/ontologies/om2.ttl"
+    ]
+  },
+  "models": {
+    "top_entity_planning": "gpt-5",
+    "iteration_planning": "gpt-5",
+    "script_generation": "gpt-5",
+    "prompt_generation": "gpt-5",
+    "semantic_review": "gpt-5",
+    "repair": "gpt-5",
+    "runtime_extraction": "gpt-5",
+    "runtime_kg_building": "gpt-5",
+    "semantic_scoring": "gpt-5"
+  },
+  "mcp_capabilities": {
+    "kg_building": {
+      "set_name": "run_created_mcp.json",
+      "tools": [
+        "llm_created_mcp"
+      ]
+    },
+    "external_enrichment": {
+      "set_name": "chemistry.json",
+      "tools": [
+        "pubchem",
+        "enhanced_websearch",
+        "ccdc"
+      ]
+    },
+    "extensions": {
+      "set_name": "extension.json",
+      "tools": [
+        "mops_extension",
+        "ontospecies_extension",
+        "ccdc"
+      ]
+    }
+  },
+  "runtime": {
+    "output": {
+      "dir": "ontosynthesis_output",
+      "top_ttl_name": "top.ttl",
+      "entity_ttl_pattern": "{entity_safe}.ttl"
+    },
+    "workflow": {
+      "iterations": [
+        {
+          "model_config_key": "iter2_hints",
+          "use_agent": true,
+          "inputs": {
+            "source": "stitched_paper"
+          },
+          "enrichment": []
+        },
+        {
+          "model_config_key": "iter3_hints",
+          "pre_extraction_model_key": "advanced_model",
+          "use_agent": false,
+          "enrichment": [
+            {
+              "model_config_key": "iter3_1_enrichment",
+              "use_agent": false,
+              "outputs": {
+                "file_path": "extracted_data/{entity_safe}/synthesis_steps_refined.json"
+              }
+            },
+            {
+              "model_config_key": "iter3_2_enrichment",
+              "use_agent": false,
+              "outputs": {
+                "file_path": "extracted_data/{entity_safe}/synthesis_steps_enriched.json"
+              }
+            }
+          ]
+        },
+        {
+          "model_config_key": "iter4_hints",
+          "use_agent": false,
+          "inputs": {
+            "file_path": "extracted_data/{entity_safe}/synthesis_steps_enriched.json",
+            "source": "stitched_paper"
+          },
+          "enrichment": []
+        }
+      ]
+    }
+  },
+  "agents": {
+    "top_entity_extraction": true,
+    "iteration_extraction": true,
+    "external_enrichment": true,
+    "kg_building": true,
+    "prompt_repair": true,
+    "semantic_adjudication": true
+  }
+}
