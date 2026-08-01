@@ -28,6 +28,11 @@ class TestAgenticGenerationContext(unittest.TestCase):
                 self.assertEqual(ctx.contract.get("ontology_name"), ontology)
                 self.assertIn("top_entity", ctx.contract)
                 self.assertIn("ordered_member_profile", ctx.contract)
+                self.assertNotIn("runtime_policies", ctx.contract)
+                self.assertEqual(
+                    ctx.config_provenance["boundary"]["semantic_authority"],
+                    "tbox",
+                )
 
     def test_write_files_places_context_under_isolated_output_root(self) -> None:
         root = Path("tmp/agentic_generation/test_context_write")
@@ -40,7 +45,39 @@ class TestAgenticGenerationContext(unittest.TestCase):
         self.assertTrue(Path(ctx.parsed_markdown_path).is_file())
         self.assertTrue(Path(ctx.contract_path).is_file())
         self.assertTrue(Path(ctx.integrity_profile_path).is_file())
+        self.assertTrue(Path(ctx.config_provenance_path).is_file())
         self.assertTrue(Path(ctx.parsed_summary_path).as_posix().startswith(root.as_posix()))
+
+    def test_ontosynthesis_iteration_plan_is_compiled_against_active_tbox(self) -> None:
+        ctx = build_agentic_generation_context(
+            ontology_name="ontosynthesis",
+            output_root=Path("tmp/agentic_generation/test_compiled_iterations"),
+            write_files=False,
+        )
+
+        self.assertEqual(
+            ctx.iteration_blueprint["schema_version"],
+            "compiled-iteration-plan.v1",
+        )
+        iteration_2 = next(
+            item
+            for item in ctx.iteration_blueprint["iterations"]
+            if item["iteration_number"] == 2
+        )
+        semantic_scope = iteration_2["semantic_scope"]
+        self.assertEqual(semantic_scope["source"], "active_tbox")
+        self.assertIn(
+            "http://purl.org/ontology/bibo/Document",
+            {item["iri"] for item in semantic_scope["classes"]},
+        )
+        self.assertIn(
+            "https://www.theworldavatar.com/kg/OntoSyn/retrievedFrom",
+            {item["iri"] for item in semantic_scope["object_properties"]},
+        )
+        self.assertEqual(
+            ctx.iteration_blueprint["provenance"]["scheduling_intent"]["source"],
+            "non_tbox_scheduling_intent",
+        )
 
 
 if __name__ == "__main__":

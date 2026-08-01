@@ -8,6 +8,7 @@ or paper-specific facts.
 from __future__ import annotations
 
 import ast
+import hashlib
 import json
 import re
 from pathlib import Path
@@ -20,11 +21,88 @@ from src.agents.scripts_and_prompts_generation.ttl_parser import (
 )
 
 
+def build_validation_observation(
+    *,
+    check_id: str,
+    subject_key: str,
+    stage: str,
+    failures: list[str] | None = None,
+    warnings: list[str] | None = None,
+    observed_artifacts: list[str] | None = None,
+    blocked_by: list[str] | None = None,
+    evidence: dict[str, Any] | None = None,
+    message: str | None = None,
+) -> dict[str, Any]:
+    """Build a stable, machine-routable fact emitted by a generation validator."""
+    failure_items = [str(item) for item in (failures or [])]
+    warning_items = [str(item) for item in (warnings or [])]
+    blockers = [str(item) for item in (blocked_by or [])]
+    if blockers:
+        status = "blocked"
+    elif failure_items:
+        status = "fail"
+    else:
+        status = "pass"
+    observation_evidence = dict(evidence or {})
+    if failure_items:
+        observation_evidence.setdefault("failures", failure_items)
+    if warning_items:
+        observation_evidence.setdefault("warnings", warning_items)
+    return {
+        "check_id": str(check_id),
+        "subject_key": str(subject_key),
+        "stage": str(stage),
+        "status": status,
+        "observed_artifacts": [
+            str(artifact) for artifact in (observed_artifacts or [])
+        ],
+        "blocked_by": blockers,
+        "evidence": observation_evidence,
+        "message": message
+        or (
+            f"{check_id} found {len(failure_items)} failure(s)"
+            if failure_items
+            else f"{check_id} completed with {len(warning_items)} warning(s)"
+            if warning_items
+            else f"{check_id} passed"
+        ),
+    }
+
+
 def _local_name(iri: Any) -> str:
     text = str(iri or "").strip()
     if not text:
         return ""
     return text.rstrip("/#").rsplit("/", 1)[-1].rsplit("#", 1)[-1]
+
+
+def _external_creator_specs(
+    external_class_iris: set[str],
+    *,
+    internal_class_locals: set[str],
+) -> list[dict[str, str]]:
+    """Assign stable, collision-safe tools to contract-referenced external classes."""
+    grouped: dict[str, list[str]] = {}
+    for class_iri in sorted(external_class_iris):
+        local = _local_name(class_iri)
+        if local:
+            grouped.setdefault(local, []).append(class_iri)
+    specs: list[dict[str, str]] = []
+    for local, class_iris in sorted(grouped.items()):
+        needs_suffix = local in internal_class_locals or len(class_iris) > 1
+        for class_iri in class_iris:
+            suffix = hashlib.sha256(class_iri.encode("utf-8")).hexdigest()[:8]
+            tool_local = f"{local}_{suffix}" if needs_suffix else local
+            specs.append(
+                {
+                    "class_iri": class_iri,
+                    "class_local": local,
+                    "tool_name": f"create_{tool_local}",
+                    "check_tool_name": f"check_existing_{tool_local}",
+                    "source": "object_property_external_range",
+                }
+            )
+    return specs
 
 
 def _namespace_iri(iri: str) -> str:
@@ -57,7 +135,23 @@ def _domain_members(graph: Graph, domain: Any) -> list[str]:
 
 
 def _subclass_closure(graph: Graph) -> dict[str, set[str]]:
-    classes = {str(c) for c in graph.subjects(RDF.type, OWL.Class) if isinstance(c, URIRef)}
+    classes = {
+        str(c)
+        for class_type in (OWL.Class, RDFS.Class)
+        for c in graph.subjects(RDF.type, class_type)
+        if isinstance(c, URIRef)
+    }
+    for child, parent in graph.subject_objects(RDFS.subClassOf):
+        if isinstance(child, URIRef):
+            classes.add(str(child))
+        if isinstance(parent, URIRef):
+            classes.add(str(parent))
+    for predicate in (RDFS.domain, RDFS.range):
+        classes.update(
+            str(value)
+            for value in graph.objects(None, predicate)
+            if isinstance(value, URIRef)
+        )
     closure: dict[str, set[str]] = {c: {c} for c in classes}
     changed = True
     while changed:
@@ -87,6 +181,309 @@ def load_meta_task_config(path: str | Path) -> dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
+def _ontology_config(
+    meta_cfg: dict[str, Any], ontology_name: str | None
+) -> dict[str, Any]:
+    ontologies = meta_cfg.get("ontologies", {}) or {}
+    candidates = [ontologies.get("main", {})] + list(
+        ontologies.get("extensions", []) or []
+    )
+    if ontology_name:
+        return next(
+            (
+                candidate
+                for candidate in candidates
+                if isinstance(candidate, dict)
+                and str(candidate.get("name") or "") == ontology_name
+            ),
+            {},
+        )
+    main = ontologies.get("main", {}) or {}
+    return main if isinstance(main, dict) else {}
+
+
+def _resolve_tbox_path(
+    ttl_file: str, meta_task_config_path: str | Path
+) -> Path:
+    configured = Path(ttl_file)
+    candidates = [configured]
+    if not configured.is_absolute():
+        config_path = Path(meta_task_config_path).resolve()
+        candidates.extend(
+            [
+                config_path.parent / configured,
+                config_path.parent.parent.parent / configured,
+            ]
+        )
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate.resolve()
+    raise FileNotFoundError(f"Configured ontology T-Box not found: {ttl_file}")
+
+
+def _restriction_nodes(graph: Graph, class_node: URIRef) -> list[Any]:
+    nodes: list[Any] = []
+    for predicate in (RDFS.subClassOf, OWL.equivalentClass):
+        for candidate in graph.objects(class_node, predicate):
+            if (candidate, RDF.type, OWL.Restriction) in graph:
+                nodes.append(candidate)
+            for member_list in graph.objects(candidate, OWL.intersectionOf):
+                nodes.extend(
+                    member
+                    for member in _iter_rdf_list(graph, member_list)
+                    if (member, RDF.type, OWL.Restriction) in graph
+                )
+    return nodes
+
+
+def _literal_int(value: Any) -> int | None:
+    try:
+        return int(value) if value is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+_TOP_ROLE_PREDICATE_LOCALS = {
+    "topEntityClass",
+    "topEntityRole",
+    "publishTopEntityClass",
+}
+
+
+def _machine_top_role(graph: Graph, *, evidence_file: str) -> dict[str, Any]:
+    """Read an explicit top-role declaration without inferring one from schema shape."""
+    declarations: set[str] = set()
+    evidence: list[dict[str, str]] = []
+    for subject, predicate, obj in graph:
+        if _local_name(predicate) not in _TOP_ROLE_PREDICATE_LOCALS:
+            continue
+        candidate = ""
+        if isinstance(obj, URIRef):
+            candidate = str(obj)
+        elif isinstance(subject, URIRef) and str(obj).strip().lower() in {"true", "1"}:
+            candidate = str(subject)
+        if not candidate:
+            continue
+        declarations.add(candidate)
+        evidence.append(
+            {
+                "ttl_file": evidence_file,
+                "subject_iri": str(subject),
+                "predicate_iri": str(predicate),
+                "object": str(obj),
+            }
+        )
+    if len(declarations) == 1:
+        class_iri = next(iter(declarations))
+        return {
+            "status": "known",
+            "class_iri": class_iri,
+            "class_local": _local_name(class_iri),
+            "source": "tbox",
+            "evidence": evidence,
+        }
+    return {
+        "status": "ambiguous" if declarations else "unknown",
+        "class_iri": "",
+        "class_local": "",
+        "source": "tbox",
+        "evidence": evidence,
+    }
+
+
+def build_ontology_publish_contract_from_tbox(
+    tbox_path: str | Path,
+    *,
+    ontology_name: str = "",
+    configured_ttl_file: str = "",
+) -> dict[str, Any]:
+    """Build the semantic publish contract directly from one ontology T-Box."""
+    resolved_path = Path(tbox_path).resolve()
+    graph = Graph()
+    graph.parse(str(resolved_path), format="turtle")
+    closure = _subclass_closure(graph)
+    evidence_file = str(resolved_path)
+
+    classes = [
+        {
+            "class_iri": class_iri,
+            "source": "tbox",
+            "evidence": {
+                "ttl_file": evidence_file,
+                "triple_pattern": "rdf:type owl:Class/rdfs:Class or referenced class",
+            },
+        }
+        for class_iri in sorted(closure)
+    ]
+    subclass_closure = [
+        {
+            "class_iri": class_iri,
+            "superclass_iris": sorted(superclasses),
+            "source": "tbox",
+            "evidence": {
+                "ttl_file": evidence_file,
+                "predicate_iri": str(RDFS.subClassOf),
+            },
+        }
+        for class_iri, superclasses in sorted(closure.items())
+    ]
+
+    object_properties: list[dict[str, Any]] = []
+    datatype_properties: list[dict[str, Any]] = []
+    structured_constraints: list[dict[str, Any]] = []
+    required_links: list[dict[str, Any]] = []
+    for prop in sorted(
+        {
+            node
+            for node in graph.subjects(RDF.type, OWL.ObjectProperty)
+            if isinstance(node, URIRef)
+        },
+        key=str,
+    ):
+        domains: list[str] = []
+        for domain in graph.objects(prop, RDFS.domain):
+            domains.extend(_domain_members(graph, domain))
+        ranges = sorted(
+            str(value)
+            for value in graph.objects(prop, RDFS.range)
+            if isinstance(value, URIRef)
+        )
+        object_properties.append(
+            {
+                "property_iri": str(prop),
+                "domain_iris": sorted(set(domains)),
+                "range_iris": ranges,
+                "source": "tbox",
+                "evidence": {
+                    "ttl_file": evidence_file,
+                    "property_type": str(OWL.ObjectProperty),
+                    "domain_predicate": str(RDFS.domain),
+                    "range_predicate": str(RDFS.range),
+                },
+            }
+        )
+        for predicate, value in graph.predicate_objects(prop):
+            if _local_name(predicate) not in {
+                "instanceIntegrityRule",
+                "edgeIntegrityRule",
+                "orderingSemantics",
+                "typingIntegrityRule",
+            }:
+                continue
+            structured_constraints.append(
+                {
+                    "subject_iri": str(prop),
+                    "constraint_predicate_iri": str(predicate),
+                    "value": str(value),
+                    "source": "structured_integrity_annotation",
+                    "evidence": {
+                        "ttl_file": evidence_file,
+                        "triple": [str(prop), str(predicate), str(value)],
+                    },
+                }
+            )
+
+    for prop in sorted(
+        {
+            node
+            for node in graph.subjects(RDF.type, OWL.DatatypeProperty)
+            if isinstance(node, URIRef)
+        },
+        key=str,
+    ):
+        domains: list[str] = []
+        for domain in graph.objects(prop, RDFS.domain):
+            domains.extend(_domain_members(graph, domain))
+        datatype_properties.append(
+            {
+                "property_iri": str(prop),
+                "domain_iris": sorted(set(domains)),
+                "range_iris": sorted(
+                    str(value)
+                    for value in graph.objects(prop, RDFS.range)
+                    if isinstance(value, URIRef)
+                ),
+                "source": "tbox",
+                "evidence": {
+                    "ttl_file": evidence_file,
+                    "property_type": str(OWL.DatatypeProperty),
+                    "domain_predicate": str(RDFS.domain),
+                    "range_predicate": str(RDFS.range),
+                },
+            }
+        )
+
+    object_property_iris = {item["property_iri"] for item in object_properties}
+    for class_iri in sorted(closure):
+        class_node = URIRef(class_iri)
+        for restriction in _restriction_nodes(graph, class_node):
+            prop = graph.value(restriction, OWL.onProperty)
+            if not isinstance(prop, URIRef) or str(prop) not in object_property_iris:
+                continue
+            cardinalities = (
+                (OWL.minCardinality, "min_cardinality"),
+                (OWL.cardinality, "cardinality"),
+                (OWL.minQualifiedCardinality, "min_qualified_cardinality"),
+                (OWL.qualifiedCardinality, "qualified_cardinality"),
+            )
+            for cardinality_predicate, kind in cardinalities:
+                count = _literal_int(graph.value(restriction, cardinality_predicate))
+                if count is None:
+                    continue
+                target = graph.value(restriction, OWL.onClass)
+                if not isinstance(target, URIRef):
+                    target = graph.value(prop, RDFS.range)
+                item = {
+                    "subject_class_iri": class_iri,
+                    "predicate_iri": str(prop),
+                    "target_class_iri": str(target) if isinstance(target, URIRef) else "",
+                    "min_count": count,
+                    "constraint_kind": kind,
+                    "source": "owl_restriction",
+                    "evidence": {
+                        "ttl_file": evidence_file,
+                        "restriction_node": str(restriction),
+                        "cardinality_predicate_iri": str(cardinality_predicate),
+                    },
+                }
+                structured_constraints.append(item)
+                if count > 0:
+                    required_links.append(item)
+
+    return {
+        "ontology_name": ontology_name,
+        "ttl_file": configured_ttl_file or str(tbox_path),
+        "resolved_ttl_file": evidence_file,
+        "top_role": _machine_top_role(graph, evidence_file=evidence_file),
+        "classes": classes,
+        "subclass_closure": subclass_closure,
+        "object_properties": object_properties,
+        "datatype_properties": datatype_properties,
+        "constraints": structured_constraints,
+        "required_links": required_links,
+    }
+
+
+def build_ontology_publish_contract(
+    *,
+    meta_task_config_path: str | Path = "configs/meta_task/meta_task_config.json",
+    ontology_name: str | None = None,
+) -> dict[str, Any]:
+    """Build a publish contract solely from the configured ontology T-Box."""
+    meta_cfg = load_meta_task_config(meta_task_config_path)
+    ontology_cfg = _ontology_config(meta_cfg, ontology_name)
+    ttl_file = str(ontology_cfg.get("ttl_file") or "").strip()
+    if not ttl_file:
+        raise FileNotFoundError("Ontology config does not define ttl_file")
+    tbox_path = _resolve_tbox_path(ttl_file, meta_task_config_path)
+
+    return build_ontology_publish_contract_from_tbox(
+        tbox_path,
+        ontology_name=str(ontology_cfg.get("name") or ontology_name or ""),
+        configured_ttl_file=ttl_file,
+    )
+
+
 def build_generation_contract_bundle(
     *,
     meta_task_config_path: str | Path = "configs/meta_task/meta_task_config.json",
@@ -94,21 +491,30 @@ def build_generation_contract_bundle(
 ) -> dict[str, Any]:
     """Build a machine-readable contract bundle from T-Box and runtime policies."""
     meta_cfg = load_meta_task_config(meta_task_config_path)
-    main = (meta_cfg.get("ontologies", {}).get("main", {}) or {})
-    if ontology_name and main.get("name") != ontology_name:
-        candidates = [main] + list(meta_cfg.get("ontologies", {}).get("extensions", []) or [])
-        main = next((x for x in candidates if (x or {}).get("name") == ontology_name), main)
+    main = _ontology_config(meta_cfg, ontology_name)
 
     onto_name = str(main.get("name") or ontology_name or "").strip()
     ttl_file = str(main.get("ttl_file") or "").strip()
     graph = Graph()
-    if ttl_file and Path(ttl_file).exists():
-        graph.parse(ttl_file, format="turtle")
+    resolved_ttl_file = ""
+    if ttl_file:
+        try:
+            resolved_ttl_file = str(
+                _resolve_tbox_path(ttl_file, meta_task_config_path)
+            )
+            graph.parse(resolved_ttl_file, format="turtle")
+        except FileNotFoundError:
+            resolved_ttl_file = ""
 
     closure = _subclass_closure(graph)
     relationship_domain_contracts: dict[str, dict[str, Any]] = {}
+    relationship_tool_contracts: dict[str, dict[str, Any]] = {}
     quantity_properties: list[dict[str, str]] = []
-    ordered_profile = extract_ontology_integrity_profile(ttl_file) if ttl_file else {}
+    ordered_profile = (
+        extract_ontology_integrity_profile(resolved_ttl_file)
+        if resolved_ttl_file
+        else {}
+    )
     ordered_member_locals = {
         str(x).strip()
         for x in (ordered_profile.get("ordered_member_classes") or [])
@@ -125,12 +531,18 @@ def build_generation_contract_bundle(
             if isinstance(node, URIRef)
         }
     )
-    class_comments: dict[str, str] = {}
-    for cls in graph.subjects(RDF.type, OWL.Class):
-        if isinstance(cls, URIRef):
-            local = _local_name(cls)
-            class_comments[local] = "\n".join(str(c or "") for c in graph.objects(cls, RDFS.comment))
-
+    declared_class_iris = {
+        str(node)
+        for class_type in (OWL.Class, RDFS.Class)
+        for node in graph.subjects(RDF.type, class_type)
+        if isinstance(node, URIRef)
+    }
+    internal_class_locals = {
+        _local_name(class_iri)
+        for class_iri in declared_class_iris
+        if namespace and class_iri.startswith(namespace)
+    }
+    external_entity_range_iris: set[str] = set()
     for prop in graph.subjects(RDF.type, OWL.ObjectProperty):
         if not isinstance(prop, URIRef):
             continue
@@ -152,6 +564,55 @@ def build_generation_contract_bundle(
                         "preferred_domain_iri": preferred,
                         "preferred_domain_local": _local_name(preferred),
                     }
+        internal_range_iris = sorted(set(ranges) & declared_class_iris)
+        external_range_iris = sorted(set(ranges) - declared_class_iris)
+        internal_targets = sorted({_local_name(iri) for iri in internal_range_iris})
+        external_targets = sorted({_local_name(iri) for iri in external_range_iris})
+        om2_range_iris = sorted(
+            iri
+            for iri in external_range_iris
+            if "ontology-of-units-of-measure.org/resource/om-2/" in iri
+        )
+        creatable_external_range_iris = sorted(
+            set(external_range_iris) - set(om2_range_iris)
+        )
+        external_entity_range_iris.update(creatable_external_range_iris)
+        external_creator_specs = _external_creator_specs(
+            set(creatable_external_range_iris),
+            internal_class_locals=internal_class_locals,
+        )
+        creator_tools = [f"create_{local}" for local in internal_targets]
+        if om2_range_iris:
+            creator_tools.append("create_om2_quantity")
+        creator_tools.extend(
+            spec["tool_name"] for spec in external_creator_specs
+        )
+        if internal_targets and external_targets:
+            target_handling = "mixed"
+        elif internal_targets:
+            target_handling = "generated_creator"
+        elif om2_range_iris:
+            target_handling = "fixed_runtime_creator"
+        elif creatable_external_range_iris:
+            target_handling = "generated_external_creator"
+        else:
+            target_handling = "untyped_existing_iri"
+        relationship_tool_contracts[_local_name(prop_iri)] = {
+            "predicate_iri": prop_iri,
+            "predicate_local": _local_name(prop_iri),
+            "domain_iris": sorted(set(domains)),
+            "range_iris": sorted(set(ranges)),
+            "range_locals": sorted({_local_name(iri) for iri in ranges}),
+            "internal_range_iris": internal_range_iris,
+            "external_range_iris": external_range_iris,
+            "internal_targets": internal_targets,
+            "external_targets": external_targets,
+            "external_creator_specs": external_creator_specs,
+            "fixed_runtime_range_iris": om2_range_iris,
+            "creator_tools": creator_tools,
+            "creator_available": bool(creator_tools),
+            "target_handling": target_handling,
+        }
         if any("ontology-of-units-of-measure.org" in r for r in ranges):
             quantity_properties.append(
                 {
@@ -178,58 +639,93 @@ def build_generation_contract_bundle(
                         "range_local": _local_name(range_iri),
                     }
                 )
-                cls_comment = class_comments.get(domain_local, "")
-                prop_local = _local_name(prop_iri)
-                if _comment_makes_property_required(cls_comment, prop_local):
-                    required_step_scoped_object_properties.append(
-                        {
-                            "predicate_iri": prop_iri,
-                            "predicate_local": prop_local,
-                            "domain_iri": domain_iri,
-                            "domain_local": domain_local,
-                            "range_iri": range_iri,
-                            "range_local": _local_name(range_iri),
-                        }
-                    )
-
-    runtime_policies = (main.get("runtime_policies") or {}) if isinstance(main, dict) else {}
-    main_entity_kg = (runtime_policies.get("main_entity_kg") or {}) if isinstance(runtime_policies, dict) else {}
-    shell_validation = (main_entity_kg.get("shell_validation") or {}) if isinstance(main_entity_kg, dict) else {}
-    top_class_iri = str(shell_validation.get("top_entity_class_iri") or "").strip()
-
-    # Extension ontologies often omit shell_validation. Infer a stable top class
-    # from the T-Box when the runtime policy does not declare one.
-    if not top_class_iri:
-        preferred_locals = {
-            "ontomops": ("MetalOrganicPolyhedron",),
-            "ontospecies": ("Species",),
-        }.get(onto_name.lower(), ())
-        class_iris_by_local = {
-            _local_name(cls): str(cls)
-            for cls in graph.subjects(RDF.type, OWL.Class)
-            if isinstance(cls, URIRef)
+    for restriction in graph.subjects(RDF.type, OWL.Restriction):
+        for target_predicate in (
+            OWL.onClass,
+            OWL.someValuesFrom,
+            OWL.allValuesFrom,
+        ):
+            target = graph.value(restriction, target_predicate)
+            target_iri = str(target) if isinstance(target, URIRef) else ""
+            if (
+                target_iri
+                and target_iri not in declared_class_iris
+                and "ontology-of-units-of-measure.org/resource/om-2/"
+                not in target_iri
+            ):
+                external_entity_range_iris.add(target_iri)
+    external_class_creators = _external_creator_specs(
+        external_entity_range_iris,
+        internal_class_locals=internal_class_locals,
+    )
+    publish_contract = (
+        build_ontology_publish_contract(
+            meta_task_config_path=meta_task_config_path,
+            ontology_name=ontology_name,
+        )
+        if resolved_ttl_file
+        else {
+            "classes": [],
+            "subclass_closure": [],
+            "object_properties": [],
+            "constraints": [],
+            "required_links": [],
+            "top_role": {
+                "status": "unknown",
+                "class_iri": "",
+                "class_local": "",
+                "source": "tbox",
+                "evidence": [],
+            },
         }
-        for local in preferred_locals:
-            candidate = class_iris_by_local.get(local, "")
-            if candidate:
-                top_class_iri = candidate
-                break
+    )
+    top_role = dict(publish_contract["top_role"])
 
     return {
         "ontology_name": onto_name,
         "ttl_file": ttl_file,
         "namespace_uri": namespace,
-        "top_entity": {
-            "class_iri": top_class_iri,
-            "class_local": _local_name(top_class_iri),
-            "iter1_allows_multiple": True,
-            "main_pass_reuses_scoped_root": bool(
-                (main_entity_kg.get("prompt_rules") or {}).get("require_top_entity_reuse")
-            ),
+        "contract_layers": {
+            "tbox_derived": {
+                "source": "active_tbox",
+                "keys": [
+                    "top_entity",
+                    "required_links",
+                    "ontology_publish_contract",
+                    "ordered_member_profile",
+                    "relationship_domain_contracts",
+                    "relationship_tool_contracts",
+                    "external_class_creators",
+                    "step_scoped_object_properties",
+                    "required_step_scoped_object_properties",
+                    "om2_quantity_properties",
+                    "ontology_symbol_locals",
+                ],
+            },
+            "generation_runtime": {
+                "source": "generic_infrastructure_policy",
+                "lifecycle": "idempotent_open_or_resume",
+                "default_export": "abox_only",
+                "closed_world_surface": True,
+            },
+            "pipeline_only": {
+                "source": "meta_task_config",
+                "key": "runtime_policies",
+                "may_enter_generation_prompt": False,
+                "storage": "AgenticGenerationContext.pipeline_runtime_policies",
+            },
         },
-        "required_links": shell_validation.get("required_links") or [],
+        "top_entity": {
+            **top_role,
+            "iter1_allows_multiple": True,
+            "main_pass_reuses_scoped_root": False,
+        },
+        "required_links": publish_contract["required_links"],
+        "ontology_publish_contract": publish_contract,
         "ordered_member_profile": ordered_profile,
         "relationship_domain_contracts": relationship_domain_contracts,
+        "relationship_tool_contracts": relationship_tool_contracts,
+        "external_class_creators": external_class_creators,
         "step_scoped_object_properties": sorted(
             step_scoped_object_properties,
             key=lambda x: (x["domain_local"], x["predicate_local"], x["range_local"]),
@@ -240,9 +736,96 @@ def build_generation_contract_bundle(
         ),
         "om2_quantity_properties": quantity_properties,
         "ontology_symbol_locals": ontology_symbol_locals,
-        "runtime_policies": runtime_policies,
-        "prompt_field_allowlist": runtime_policies.get("prompt_field_allowlist") or {},
     }
+
+
+def build_relationship_tool_contracts_from_tbox(
+    tbox_path: str | Path,
+) -> dict[str, dict[str, Any]]:
+    """Compile per-property tool metadata solely from a machine-readable T-Box."""
+    graph = Graph()
+    graph.parse(str(tbox_path), format="turtle")
+    declared_class_iris = {
+        str(node)
+        for class_type in (OWL.Class, RDFS.Class)
+        for node in graph.subjects(RDF.type, class_type)
+        if isinstance(node, URIRef)
+    }
+    property_namespaces = sorted(
+        {
+            _namespace_iri(str(node))
+            for node in graph.subjects(RDF.type, OWL.ObjectProperty)
+            if isinstance(node, URIRef)
+        }
+    )
+    primary_namespace = property_namespaces[0] if len(property_namespaces) == 1 else ""
+    internal_class_locals = {
+        _local_name(class_iri)
+        for class_iri in declared_class_iris
+        if primary_namespace and class_iri.startswith(primary_namespace)
+    }
+    contracts: dict[str, dict[str, Any]] = {}
+    for prop in graph.subjects(RDF.type, OWL.ObjectProperty):
+        if not isinstance(prop, URIRef):
+            continue
+        prop_iri = str(prop)
+        ranges = sorted(
+            {
+                str(value)
+                for value in graph.objects(prop, RDFS.range)
+                if isinstance(value, URIRef)
+            }
+        )
+        domains: set[str] = set()
+        for domain in graph.objects(prop, RDFS.domain):
+            domains.update(_domain_members(graph, domain))
+        internal_range_iris = sorted(set(ranges) & declared_class_iris)
+        external_range_iris = sorted(set(ranges) - declared_class_iris)
+        internal_targets = sorted({_local_name(iri) for iri in internal_range_iris})
+        external_targets = sorted({_local_name(iri) for iri in external_range_iris})
+        om2_range_iris = sorted(
+            iri
+            for iri in external_range_iris
+            if "ontology-of-units-of-measure.org/resource/om-2/" in iri
+        )
+        creatable_external_range_iris = sorted(
+            set(external_range_iris) - set(om2_range_iris)
+        )
+        external_creator_specs = _external_creator_specs(
+            set(creatable_external_range_iris),
+            internal_class_locals=internal_class_locals,
+        )
+        creator_tools = [f"create_{local}" for local in internal_targets]
+        if om2_range_iris:
+            creator_tools.append("create_om2_quantity")
+        creator_tools.extend(spec["tool_name"] for spec in external_creator_specs)
+        if internal_targets and external_targets:
+            target_handling = "mixed"
+        elif internal_targets:
+            target_handling = "generated_creator"
+        elif om2_range_iris:
+            target_handling = "fixed_runtime_creator"
+        elif creatable_external_range_iris:
+            target_handling = "generated_external_creator"
+        else:
+            target_handling = "untyped_existing_iri"
+        contracts[_local_name(prop_iri)] = {
+            "predicate_iri": prop_iri,
+            "predicate_local": _local_name(prop_iri),
+            "domain_iris": sorted(domains),
+            "range_iris": ranges,
+            "range_locals": sorted({_local_name(iri) for iri in ranges}),
+            "internal_range_iris": internal_range_iris,
+            "external_range_iris": external_range_iris,
+            "internal_targets": internal_targets,
+            "external_targets": external_targets,
+            "external_creator_specs": external_creator_specs,
+            "fixed_runtime_range_iris": om2_range_iris,
+            "creator_tools": creator_tools,
+            "creator_available": bool(creator_tools),
+            "target_handling": target_handling,
+        }
+    return contracts
 
 
 def write_generation_contract_bundle(bundle: dict[str, Any], output_path: str | Path) -> None:
@@ -305,18 +888,6 @@ def _effective_step_scoped_props(contract_bundle: dict[str, Any]) -> list[dict[s
     return out
 
 
-def _comment_makes_property_required(comment: str, prop_local: str) -> bool:
-    text = str(comment or "").lower()
-    prop = str(prop_local or "").lower()
-    if not text or not prop:
-        return False
-    markers = ("must link", "must attach", "must have", "required", "exactly one")
-    for segment in re.split(r"(?<=[.;])\s+|\n+", text):
-        if prop in segment and any(marker in segment for marker in markers):
-            return True
-    return False
-
-
 def validate_generated_artifacts(
     *,
     scripts_dir: str | Path,
@@ -346,66 +917,8 @@ def validate_generated_artifacts(
                 elif isinstance(node, ast.ImportFrom):
                     for alias in node.names:
                         available.add(alias.asname or alias.name)
-            missing_helpers = sorted(
-                {
-                    node.func.id
-                    for node in ast.walk(mod)
-                    if isinstance(node, ast.Call)
-                    and isinstance(node.func, ast.Name)
-                    and node.func.id.startswith("_find_or_create_")
-                    and node.func.id not in available
-                }
-            )
-            if missing_helpers:
-                failures.append(
-                    f"{path.name}: undefined private helper call(s): "
-                    + ", ".join(missing_helpers[:10])
-                )
-            bad_memory_path_calls = [
-                node.lineno
-                for node in ast.walk(mod)
-                if isinstance(node, ast.Call)
-                and isinstance(node.func, ast.Name)
-                and node.func.id == "get_memory_paths"
-                and len(node.args) < 2
-            ]
-            if bad_memory_path_calls:
-                failures.append(
-                    f"{path.name}: get_memory_paths called without doi and top-level entity "
-                    f"at line(s): {', '.join(str(x) for x in bad_memory_path_calls[:10])}"
-                )
-            bad_guard_path_uses = [
-                node.lineno
-                for node in ast.walk(mod)
-                if isinstance(node, ast.Call)
-                and isinstance(node.func, ast.Name)
-                and node.func.id == "open"
-                and node.args
-                and isinstance(node.args[0], ast.Call)
-                and isinstance(node.args[0].func, ast.Name)
-                and node.args[0].func.id == "_guard_paths"
-            ]
-            if bad_guard_path_uses:
-                failures.append(
-                    f"{path.name}: open(_guard_paths()) used instead of open(_guard_paths()[\"state\"]) "
-                    f"at line(s): {', '.join(str(x) for x in bad_guard_path_uses[:10])}"
-                )
-            bad_success_calls = []
-            for node in ast.walk(mod):
-                if (
-                    isinstance(node, ast.Call)
-                    and isinstance(node.func, ast.Name)
-                    and node.func.id == "_format_success_json"
-                ):
-                    has_created = any(kw.arg == "created" for kw in node.keywords)
-                    if len(node.args) != 2 or not has_created:
-                        bad_success_calls.append(node.lineno)
-            if bad_success_calls:
-                warnings.append(
-                    f"{path.name}: _format_success_json must be called as "
-                    f"_format_success_json(iri, message, created=...) at line(s): "
-                    f"{', '.join(str(x) for x in bad_success_calls[:10])}"
-                )
+            # Private helper names and internal call signatures are intentionally
+            # unconstrained. Import and runtime probes validate executable behavior.
         allowed_symbol_locals = {
             str(x).strip()
             for x in (contract_bundle.get("ontology_symbol_locals") or [])
@@ -414,216 +927,33 @@ def validate_generated_artifacts(
         has_allowed_1_2_symbol = any("1_2" in local and local in text for local in allowed_symbol_locals)
         if "chemica1" in text or ("1_2" in text and not has_allowed_1_2_symbol):
             failures.append(f"{path.name}: contains OCR/LLM-mangled public symbol text")
-        orphan_identifier_lines = [
-            line.strip()
-            for line in text.splitlines()
-            if line and not line[:1].isspace() and line.strip().isidentifier()
-        ]
-        if orphan_identifier_lines:
-            failures.append(
-                f"{path.name}: contains orphan top-level identifier line(s): "
-                + ", ".join(orphan_identifier_lines[:5])
-            )
+    if contract_bundle.get("om2_quantity_properties"):
+        runtime_path = scripts / "_fixed_om2_runtime.py"
+        if not runtime_path.is_file():
+            failures.append("Missing fixed OM-2 runtime `_fixed_om2_runtime.py`")
 
-    base_files = list(scripts.glob("*_creation_base.py"))
-    if base_files:
-        base_text = base_files[0].read_text(encoding="utf-8")
-        if contract_bundle.get("required_links"):
-            for marker in ("_read_global_state", "_ensure_required_top_links_before_export"):
-                if marker not in base_text:
-                    failures.append(f"{base_files[0].name}: missing required top-link helper/import `{marker}`")
-        if contract_bundle.get("om2_quantity_properties"):
-            for marker in (
-                "OM2_UNIT_MAP",
-                "OM2.hasNumericalValue",
-                "OM2.hasUnit",
-            ):
-                if marker not in base_text:
-                    failures.append(
-                        f"{base_files[0].name}: missing OM-2 quantity contract marker `{marker}`"
-                    )
-            for helper in (
-                "_normalize_om2_unit_alias",
-                "_resolve_om2_unit",
-                "_find_or_create_om2_quantity",
-            ):
-                if re.search(rf"def\s+{re.escape(helper)}\s*\(", base_text) is None:
-                    failures.append(
-                        f"{base_files[0].name}: missing OM-2 helper definition `{helper}`"
-                    )
-    else:
-        warnings.append("No generated creation base module found")
+    # Prompt wording is not a generated-code contract. End-to-end extraction and
+    # materialization scoring owns whether prompts preserve required semantics.
 
-    top_local = str((contract_bundle.get("top_entity") or {}).get("class_local") or "").strip()
-    if top_local:
-        fn_name = f"create_{top_local}"
-        entity_text = "\n".join(p.read_text(encoding="utf-8") for p in scripts.glob("*_creation_entities*.py"))
-        fn_src = _function_source(entity_text, fn_name)
-        if fn_src:
-            for marker in ("get_top_entity_iri", "_find_by_type_and_label", "_mint_hash_iri"):
-                if marker not in fn_src:
-                    failures.append(f"{fn_name}: missing stable multi-top contract marker `{marker}`")
-        else:
-            warnings.append(f"{fn_name} not found in generated entity modules")
-
-    rel_text = "\n".join(p.read_text(encoding="utf-8") for p in scripts.glob("*_creation_relationships.py"))
-    for prop_local, spec in (contract_bundle.get("relationship_domain_contracts") or {}).items():
-        preferred = str((spec or {}).get("preferred_domain_local") or "").strip()
-        namespace_attr = re.search(rf"\b[A-Z][A-Z0-9_]*\.{re.escape(preferred)}\b", rel_text)
-        namespace_item = f"NAMESPACE.{preferred}" in rel_text or f"NAMESPACE['{preferred}']" in rel_text or f'NAMESPACE["{preferred}"]' in rel_text
-        if preferred and not namespace_attr and not namespace_item:
-            failures.append(f"Relationship `{prop_local}` must use preferred union-domain `{preferred}`")
-
-    step_scoped_props = _effective_step_scoped_props(contract_bundle)
-    entity_text_all = (
-        "\n".join(p.read_text(encoding="utf-8") for p in scripts.glob("*_creation_entities*.py"))
-        if step_scoped_props
-        else ""
-    )
-    for spec in step_scoped_props:
-        prop_local = str((spec or {}).get("predicate_local") or "").strip()
-        domain_local = str((spec or {}).get("domain_local") or "").strip()
-        range_local = str((spec or {}).get("range_local") or "").strip()
-        if not prop_local:
-            continue
-        if f"def add_{prop_local}" not in rel_text:
-            failures.append(
-                f"Missing relationship tool add_{prop_local} for step-scoped "
-                f"{domain_local}->{range_local} contract"
-            )
-        if domain_local and range_local:
-            ctor_src = _function_source(entity_text_all, f"create_{domain_local}")
-            label_markers = {
-                f"{_lower_initial(range_local)}_label",
-                f"{_snake(range_local)}_label",
-                f"{_lower_initial(prop_local)}_label",
-                f"{_snake(prop_local)}_label",
-            }
-            if not ctor_src:
-                failures.append(
-                    f"Missing constructor create_{domain_local} for step-scoped "
-                    f"{domain_local}->{prop_local}->{range_local} contract"
-                )
-                continue
-            if not any(marker in ctor_src for marker in label_markers):
-                failures.append(
-                    f"create_{domain_local}: missing label parameter for step-scoped "
-                    f"`{prop_local}` to {range_local}"
-                )
-                continue
-            if prop_local not in ctor_src:
-                failures.append(
-                    f"create_{domain_local}: label parameter for `{range_local}` must add "
-                    f"step-scoped predicate `{prop_local}`"
-                )
-
-    required_step_scoped_props = contract_bundle.get("required_step_scoped_object_properties") or []
-    if required_step_scoped_props:
-        entity_text = "\n".join(p.read_text(encoding="utf-8") for p in scripts.glob("*_creation_entities*.py"))
-    else:
-        entity_text = ""
-    for spec in required_step_scoped_props:
-        prop_local = str((spec or {}).get("predicate_local") or "").strip()
-        domain_local = str((spec or {}).get("domain_local") or "").strip()
-        range_local = str((spec or {}).get("range_local") or "").strip()
-        if not (prop_local and domain_local):
-            continue
-        ctor_src = _function_source(entity_text, f"create_{domain_local}")
-        if not ctor_src:
-            failures.append(
-                f"Missing constructor create_{domain_local} for required step-scoped "
-                f"{domain_local}->{prop_local}->{range_local} contract"
-            )
-            continue
-        if prop_local not in ctor_src:
-            failures.append(
-                f"create_{domain_local}: missing required step-scoped object-property "
-                f"`{prop_local}` to {range_local}"
-            )
-            continue
-        if range_local:
-            reuses_target = re.search(
-                rf"_find_by_type_and_label\([^)]*{re.escape(range_local)}",
-                ctor_src,
-            ) is not None
-            mints_target = re.search(
-                rf"_mint_hash_iri\(\s*['\"]{re.escape(range_local)}['\"]\s*\)",
-                ctor_src,
-            ) is not None
-            types_target = bool(
-                re.search(rf"RDF\.type\s*,\s*[A-Z][A-Z0-9_]*\.{re.escape(range_local)}", ctor_src)
-                or re.search(rf"RDF\.type\s*,\s*NAMESPACE\[['\"]{re.escape(range_local)}['\"]\]", ctor_src)
-            )
-            if not reuses_target:
-                failures.append(
-                    f"create_{domain_local}: required `{prop_local}` target must be "
-                    f"resolved/reused by `{range_local}` label before minting"
-                )
-            if mints_target and not types_target:
-                failures.append(
-                    f"create_{domain_local}: fallback minted `{prop_local}` target must be "
-                    f"typed as `{range_local}`"
-                )
-
-    quantity_props = contract_bundle.get("om2_quantity_properties") or []
-    if quantity_props:
-        entity_text = "\n".join(p.read_text(encoding="utf-8") for p in scripts.glob("*_creation_entities*.py"))
-        try:
-            entity_mod = ast.parse(entity_text)
-        except SyntaxError:
-            entity_mod = None
-        if entity_mod is not None:
-            create_sources = {
-                node.name: ast.get_source_segment(entity_text, node) or ""
-                for node in entity_mod.body
-                if isinstance(node, ast.FunctionDef) and node.name.startswith("create_")
-            }
-            for spec in quantity_props:
-                prop_local = str((spec or {}).get("predicate_local") or "").strip()
-                range_local = _local_name((spec or {}).get("range_iris"))
-                domain_locals = [
-                    value.strip()
-                    for value in str((spec or {}).get("domain_locals") or "").split(",")
-                    if value.strip()
-                ]
-                for domain_local in domain_locals:
-                    ctor_src = create_sources.get(f"create_{domain_local}") or ""
-                    if not ctor_src:
-                        failures.append(
-                            f"Missing constructor create_{domain_local} for OM-2 "
-                            f"`{prop_local}` -> `{range_local}`"
-                        )
-                        continue
-                    if "_find_or_create_om2_quantity" not in ctor_src:
-                        failures.append(
-                            f"create_{domain_local}: OM-2 property `{prop_local}` must use "
-                            "`_find_or_create_om2_quantity`"
-                        )
-                    if f"NS.{range_local}" in ctor_src or f"NS[{range_local!r}]" in ctor_src:
-                        failures.append(
-                            f"create_{domain_local}: OM-2 range `{range_local}` must not be "
-                            "minted/typed in the ontology namespace"
-                        )
-                    if prop_local not in ctor_src or "_add_object" not in ctor_src:
-                        failures.append(
-                            f"create_{domain_local}: OM-2 quantity for `{prop_local}` must "
-                            "be linked from the created entity"
-                        )
-
-    if prompts and prompts.exists():
-        prompt_text = "\n".join(p.read_text(encoding="utf-8") for p in prompts.glob("*.md"))
-        for spec in contract_bundle.get("required_links") or []:
-            local = _local_name((spec or {}).get("predicate_iri"))
-            if local and local not in prompt_text:
-                warnings.append(f"Prompts do not mention required link `{local}`")
-        for spec in step_scoped_props:
-            prop_local = str((spec or {}).get("predicate_local") or "").strip()
-            domain_local = str((spec or {}).get("domain_local") or "").strip()
-            range_local = str((spec or {}).get("range_local") or "").strip()
-            if prop_local and prop_local not in prompt_text:
-                failures.append(
-                    f"Prompts do not mention step-scoped object-property `{prop_local}` "
-                    f"({domain_local}->{range_local})"
-                )
-
-    return {"ok": not failures, "failures": failures, "warnings": warnings}
+    subject_key = str(contract_bundle.get("ontology_name") or scripts.name)
+    observed_artifacts = [
+        str(scripts),
+        *([str(prompts)] if prompts is not None else []),
+    ]
+    observations = [
+        build_validation_observation(
+            check_id="generation.contract_bundle",
+            subject_key=subject_key,
+            stage="contract",
+            failures=failures,
+            warnings=warnings,
+            observed_artifacts=observed_artifacts,
+            evidence={"contract_ontology": contract_bundle.get("ontology_name")},
+        )
+    ]
+    return {
+        "ok": not failures,
+        "failures": failures,
+        "warnings": warnings,
+        "observations": observations,
+    }

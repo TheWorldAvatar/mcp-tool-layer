@@ -5,7 +5,25 @@
     {
       "iteration_number": 2,
       "name": "inputs_outputs",
-      "description": "Extract ChemicalInput and ChemicalOutput instances for each ChemicalSynthesis.",
+      "description": "Extract ChemicalInput and ChemicalOutput instances for each ChemicalSynthesis, establish source-document provenance through retrievedFrom to the DOI-identified Document, and capture a distinct in-document structural anchor as DocumentContext when a section, subsection, or paragraph label for this synthesis is identifiable in the source.",
+      "responsibilities": {
+        "classes": [
+          "ChemicalInput",
+          "ChemicalOutput",
+          "Document",
+          "DocumentContext"
+        ],
+        "object_properties": [
+          "hasChemicalInput",
+          "hasChemicalOutput",
+          "retrievedFrom",
+          "hasDocumentContext"
+        ],
+        "required_materialization": [
+          "For the current ChemicalSynthesis, create or reuse the DOI-identified Document and satisfy the T-Box-required retrievedFrom link.",
+          "When the source contains a distinct section title, subsection heading, paragraph label, or paragraph number that anchors the current ChemicalSynthesis, create or reuse exactly one DocumentContext using that anchor verbatim and link it through hasDocumentContext. Omit DocumentContext when no distinct anchor is identifiable. DocumentContext is an in-document structural anchor and must never be substituted for the DOI-identified Document used by retrievedFrom."
+        ]
+      },
       "extraction_prompt": "ai_generated_contents/prompts/ontosynthesis/EXTRACTION_ITER_2.md",
       "model_config_key": "iter2_hints",
       "per_entity": true,

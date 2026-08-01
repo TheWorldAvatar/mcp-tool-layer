@@ -37,6 +37,8 @@ from src.agents.scripts_and_prompts_generation.ttl_parser import (
 )
 from src.agents.scripts_and_prompts_generation.generation_contracts import (
     build_generation_contract_bundle,
+    build_ontology_publish_contract_from_tbox,
+    build_relationship_tool_contracts_from_tbox,
     validate_generated_artifacts,
     write_generation_contract_bundle,
 )
@@ -603,15 +605,26 @@ def _build_required_top_link_export_repair_block(
     """
     Emit a generic pre-export repair for required top links.
 
-    The generated code contains only IRIs/config-derived contracts, not domain facts.
+    The generated code contains only machine-readable T-Box contracts.
     """
-    policy = _resolve_main_entity_runtime_policy(ontology_name=ontology_name, meta_cfg=meta_cfg)
-    shell_validation = (policy.get("shell_validation") or {}) if isinstance(policy, dict) else {}
-    required_links = shell_validation.get("required_links") or []
+    if not ontology_path:
+        return ""
+    try:
+        ontology_contract = build_ontology_publish_contract_from_tbox(
+            ontology_path, ontology_name=ontology_name
+        )
+    except Exception:
+        return ""
+    required_links = ontology_contract.get("required_links") or []
     if not isinstance(required_links, list) or not required_links:
         return ""
 
-    top_class_iri = str(shell_validation.get("top_entity_class_iri") or "").strip()
+    top_role = ontology_contract.get("top_role") or {}
+    top_class_iri = (
+        str(top_role.get("class_iri") or "").strip()
+        if str(top_role.get("status") or "") == "known"
+        else ""
+    )
     subclass_map = _class_subclass_closure_from_tbox(ontology_path)
 
     specs: list[dict[str, Any]] = []
@@ -641,7 +654,7 @@ def _build_required_top_link_export_repair_block(
 
     return (
         "\n\n# ------------------------------------------------------------------------------\n"
-        "# Config-derived top-link repair\n"
+        "# T-Box-derived top-link repair\n"
         "# ------------------------------------------------------------------------------\n\n"
         f"_REQUIRED_TOP_LINK_SPECS = {repr(specs)}\n"
         f"_REQUIRED_TOP_CLASS_IRI = {repr(top_class_iri)}\n\n"
@@ -1640,10 +1653,19 @@ def _validate_relationships_script_output(
     output_dir: str,
     concise_content: str,
     expected_relationship_props: list[str] | None = None,
+    expected_relationship_contracts: dict[str, dict] | None = None,
 ) -> tuple[bool, str]:
     """
     Validate a generated relationships module against runtime contracts.
     This is used for both the normal generation path and the divide-and-merge fallback.
+
+    Additional enforcement (FastMCP interface contract):
+    - Every expected add_* must expose explicit subject_iri and object_iri parameters.
+    - object_iri MUST be annotated as Annotated[str, Field(description=...)] with a concise description that:
+      - requires an absolute IRI (never label/name/literal/plain text)
+      - when the range is an internal class with a generated creator, mentions the exact create_<Range> tool
+      - when the range is external/no creator, requires an existing absolute IRI (and must NOT mention a creator)
+    - Each add_* must include a concise docstring (no lengthy domain prose) that states the same core contract.
     """
     ok, err = validate_python_syntax(code, f"{ontology_name}_creation_relationships.py")
     if not ok:
@@ -1672,6 +1694,126 @@ def _validate_relationships_script_output(
             "missing ontology object-property add_* functions: "
             + ", ".join(f"add_{prop}" for prop in missing_rel_fns[:40]),
         )
+
+    # Per-property interface contract (AST-based)
+    try:
+        mod = ast.parse(code)
+    except Exception as e:
+        return False, f"Cannot parse AST: {e}"
+
+    fn_map: dict[str, ast.FunctionDef] = {}
+    for node in mod.body:
+        if isinstance(node, ast.FunctionDef) and node.name.startswith("add_"):
+            fn_map[node.name] = node
+
+    contracts = expected_relationship_contracts or {}
+    errors: list[str] = []
+
+    def _annotation_field_description(ann: ast.AST | None) -> tuple[bool, str]:
+        # Expect Annotated[str, Field(description=...)]
+        if not isinstance(ann, ast.Subscript):
+            return False, ""
+        # Annotated[...] name check
+        base_ok = False
+        if isinstance(ann.value, ast.Name) and ann.value.id == "Annotated":
+            base_ok = True
+        elif isinstance(ann.value, ast.Attribute) and ann.value.attr == "Annotated":
+            base_ok = True
+        if not base_ok:
+            return False, ""
+        # slice must contain at least two items: (str, Field(...))
+        tup = ann.slice
+        if isinstance(tup, ast.Tuple) and len(tup.elts) >= 2:
+            first, second = tup.elts[0], tup.elts[1]
+        else:
+            return False, ""
+        first_ok = isinstance(first, ast.Name) and first.id == "str"
+        if not first_ok:
+            return False, ""
+        # second is Field(...) with description kw
+        if not isinstance(second, ast.Call):
+            return False, ""
+        call = second
+        callee_ok = (isinstance(call.func, ast.Name) and call.func.id == "Field") or (
+            isinstance(call.func, ast.Attribute) and call.func.attr == "Field"
+        )
+        if not callee_ok:
+            return False, ""
+        desc_text = ""
+        for kw in call.keywords or []:
+            if kw.arg == "description" and isinstance(kw.value, ast.Constant) and isinstance(kw.value.value, str):
+                desc_text = kw.value.value
+                break
+        if not desc_text:
+            return False, ""
+        return True, desc_text
+
+    for prop in expected_relationship_props:
+        fn = fn_map.get(f"add_{prop}")
+        if not fn:
+            # Already reported as missing earlier
+            continue
+        # Collect parameters
+        arg_nodes = list(fn.args.args) + list(fn.args.kwonlyargs)
+        param_names = [a.arg for a in arg_nodes]
+        if "subject_iri" not in param_names or "object_iri" not in param_names:
+            errors.append(f"add_{prop}: must expose explicit subject_iri and object_iri parameters")
+        # Find object_iri annotation
+        object_ann = None
+        for a in arg_nodes:
+            if a.arg == "object_iri":
+                object_ann = a.annotation
+                break
+        ok_ann, desc = _annotation_field_description(object_ann)
+        if not ok_ann:
+            errors.append(
+                f"add_{prop}: object_iri must be Annotated[str, Field(description=...)] with concise IRI contract"
+            )
+        else:
+            low = (desc or "").lower()
+            if not ("iri" in low and "absolute" in low):
+                errors.append(f"add_{prop}: Field(description=...) must require an absolute IRI")
+            # internal/external target contract
+            meta = contracts.get(prop) or {}
+            internal = [str(x) for x in (meta.get("internal_targets") or []) if str(x).strip()]
+            external = [str(x) for x in (meta.get("external_targets") or []) if str(x).strip()]
+            if internal:
+                # at least one concrete create_<Range> mention
+                expects = [f"create_{t}" for t in internal]
+                if not any(e.lower() in low for e in expects):
+                    errors.append(
+                        f"add_{prop}: description must mention the exact create_<Range> tool for internal range(s): one of {expects}"
+                    )
+            if external and not internal:
+                # external-only: must not mention a creator
+                if "create_" in low:
+                    errors.append(
+                        f"add_{prop}: external-only range must not mention any create_* tool in description"
+                    )
+        # Docstring presence and concision
+        ds = (ast.get_docstring(fn) or "").strip()
+        if not ds:
+            errors.append(f"add_{prop}: missing concise docstring with the same IRI contract")
+        else:
+            dsl = ds.lower()
+            if not ("iri" in dsl and "absolute" in dsl):
+                errors.append(f"add_{prop}: docstring must state that object_iri is an absolute IRI")
+            if len(ds) > 500:
+                errors.append(f"add_{prop}: docstring too long; keep it concise")
+            meta = contracts.get(prop) or {}
+            internal = [str(x) for x in (meta.get("internal_targets") or []) if str(x).strip()]
+            external = [str(x) for x in (meta.get("external_targets") or []) if str(x).strip()]
+            if internal:
+                expects = [f"create_{t}".lower() for t in internal]
+                if not any(e in dsl for e in expects):
+                    errors.append(
+                        f"add_{prop}: docstring must mention create_<Range> tool for internal range(s): one of {expects}"
+                    )
+            if external and not internal and "create_" in dsl:
+                errors.append(f"add_{prop}: external-only docstring must not mention create_* tools")
+
+    if errors:
+        return False, " | ".join(errors)
 
     base_script_path = str(Path(output_dir) / f"{ontology_name}_creation_base.py")
     ok_base_imports, base_import_err = _base_imports_are_valid(code, base_script_path)
@@ -2519,6 +2661,7 @@ def _validate_main_wrapper_forwarding_uses_defined_params(code: str, filename: s
 def _format_main_entity_runtime_policy_for_mcp_prompt(
     meta_cfg: dict | None,
     ontology_name: str,
+    ontology_path: str | Path | None = None,
 ) -> str:
     """
     Render `runtime_policies.main_entity_kg` from meta_task_config into MCP main-generation text.
@@ -2546,8 +2689,20 @@ def _format_main_entity_runtime_policy_for_mcp_prompt(
         "",
         "The KG session is tied to a **single top-level entity IRI** (from global state / iter1). In exported TTL:",
     ]
-    sv = pol.get("shell_validation") or {}
-    top_cls = str(sv.get("top_entity_class_iri") or "").strip()
+    ontology_contract: Dict[str, Any] = {}
+    if ontology_path:
+        try:
+            ontology_contract = build_ontology_publish_contract_from_tbox(
+                ontology_path, ontology_name=ontology_name
+            )
+        except Exception:
+            ontology_contract = {}
+    top_role = ontology_contract.get("top_role") or {}
+    top_cls = (
+        str(top_role.get("class_iri") or "").strip()
+        if str(top_role.get("status") or "") == "known"
+        else ""
+    )
     if top_cls:
         lines.append(
             f"- That IRI MUST be the subject of `rdf:type` <{top_cls}> (do not mint a second parallel top entity IRI)."
@@ -2557,7 +2712,7 @@ def _format_main_entity_runtime_policy_for_mcp_prompt(
         lines.append("- Reuse that top-level IRI everywhere; do not substitute a different scoped root.")
     if pr.get("forbid_new_top_entity_creation"):
         lines.append("- Do not create an additional top-level entity instance for the same scoped case.")
-    req = sv.get("required_links") or []
+    req = ontology_contract.get("required_links") or []
     if isinstance(req, list) and req:
         lines.append("- Before `export_memory`, ensure that top-level IRI has these links (use existing typed instances in the graph when possible):")
         for spec in req:
@@ -2602,10 +2757,48 @@ def _local_name_from_iri(iri: str) -> str:
     return s.rstrip("/").rsplit("/", 1)[-1].strip()
 
 
+def _derive_primary_namespace_uri(ontology_name: str, graph: Graph) -> str:
+    """Choose a declared non-standard namespace deterministically."""
+    standard_prefixes = (
+        "http://www.w3.org/",
+        "https://www.w3.org/",
+        "http://purl.org/",
+        "http://xmlns.com/",
+    )
+    counts: Dict[str, int] = {}
+    for node in graph.subjects():
+        if not isinstance(node, URIRef):
+            continue
+        text = str(node)
+        namespace = (
+            text.rsplit("#", 1)[0] + "#"
+            if "#" in text
+            else text.rsplit("/", 1)[0] + "/"
+            if "/" in text
+            else ""
+        )
+        if not namespace or namespace.startswith(standard_prefixes):
+            continue
+        counts[namespace] = counts.get(namespace, 0) + 1
+    if not counts:
+        return ""
+    name = str(ontology_name or "").lower()
+    return sorted(
+        counts,
+        key=lambda namespace: (
+            name in namespace.lower(),
+            counts[namespace],
+            namespace,
+        ),
+        reverse=True,
+    )[0]
+
+
 def _resolve_top_entity_codegen_contract(
     *,
     ontology_name: str,
     meta_cfg: Optional[Dict[str, Any]] = None,
+    ontology_path: str | Path | None = None,
 ) -> Dict[str, Any]:
     """
     Resolve generator-side top-entity reuse requirements from meta_task_config.
@@ -2620,21 +2813,22 @@ def _resolve_top_entity_codegen_contract(
         runtime = _resolve_main_entity_runtime_policy(ontology_name=ontology_name, meta_cfg=cfg)
         if not runtime:
             return {}
-        main = ((cfg.get("ontologies") or {}).get("main") or {})
         prompt_rules = runtime.get("prompt_rules") or {}
-        shell_validation = runtime.get("shell_validation") or {}
         if not (
             prompt_rules.get("require_top_entity_reuse")
             and prompt_rules.get("forbid_new_top_entity_creation")
         ):
             return {}
-        top_class_iri = str(shell_validation.get("top_entity_class_iri") or "").strip()
-        iter1 = (main.get("runtime_policies") or {}).get("iter1_top_entity_kg") or {}
-        iter1_prompt_rules = (iter1.get("prompt_rules") or {}) if isinstance(iter1, dict) else {}
-        top_class_local = (
-            _local_name_from_iri(top_class_iri)
-            or str(iter1_prompt_rules.get("top_level_entity_name") or "").strip()
+        if not ontology_path:
+            return {}
+        ontology_contract = build_ontology_publish_contract_from_tbox(
+            ontology_path, ontology_name=ontology_name
         )
+        top_role = ontology_contract.get("top_role") or {}
+        if str(top_role.get("status") or "") != "known":
+            return {}
+        top_class_iri = str(top_role.get("class_iri") or "").strip()
+        top_class_local = str(top_role.get("class_local") or "").strip()
         if not top_class_local:
             return {}
         return {
@@ -2726,7 +2920,7 @@ def _validate_top_entity_create_contract(
         + r")"
     )
     if re.search(type_pat, seg) is None:
-        # Alternate: explicit IRI (same class as in meta_task_config shell_validation). Equivalently valid;
+        # Alternate: explicit IRI from the machine-readable ontology contract.
         # generators sometimes emit URIRef(...) instead of a namespace binding—do not treat as weaker.
         top_iri = str((top_entity_contract or {}).get("class_iri") or "").strip()
         if top_iri:
@@ -2939,6 +3133,12 @@ def _build_main_py_deterministic(
     """
     Deterministically build a runnable main.py that imports/wraps exactly what exists.
     This avoids LLM-induced mismatches between main.py and underlying scripts.
+
+    Wrapper rules:
+    - Preserve explicit parameter annotations from underlying signatures (including Annotated/Field metadata).
+    - Inject the underlying function's full docstring as the wrapper's docstring.
+    - Do NOT generate invalid FastMCP wrappers using *args/**kwargs; fail closed instead.
+    - Include typing.Annotated and pydantic.Field imports when any wrapped signature uses them.
     """
     all_script_paths = [checks_script_path, relationships_script_path, base_script_path] + list(entity_script_paths)
     owners = _function_owner_map(all_script_paths)
@@ -2976,8 +3176,20 @@ def _build_main_py_deterministic(
         mod = Path(owner).with_suffix("").name
         mod_to_names.setdefault(mod, []).append(n)
 
+    # Determine whether we need annotation imports
+    sig_map: Dict[str, str] = {f["name"]: f.get("signature", "") for f in funcs}
+    doc_map: Dict[str, str] = {f["name"]: f.get("docstring", "") or "" for f in funcs}
+    sigs_for_wrapped = [sig_map.get(n, "") for n in tool_names]
+    needs_annotated = any("Annotated[" in (s or "") for s in sigs_for_wrapped)
+    needs_field = any("Field(" in (s or "") for s in sigs_for_wrapped)
+
     lines: list[str] = []
-    lines.append("from typing import Optional")
+    if needs_annotated:
+        lines.append("from typing import Optional, Annotated")
+    else:
+        lines.append("from typing import Optional")
+    if needs_field:
+        lines.append("from pydantic import Field")
     lines.append("from fastmcp import FastMCP")
     lines.append("")
 
@@ -2994,7 +3206,9 @@ def _build_main_py_deterministic(
         f"You are operating a {ontology_name} FastMCP server for ontology-backed KG construction.",
         "Typical workflow: init_memory -> check_existing_* -> create_* -> add_* -> export_memory.",
     ]
-    policy_block = _format_main_entity_runtime_policy_for_mcp_prompt(meta_cfg, ontology_name)
+    policy_block = _format_main_entity_runtime_policy_for_mcp_prompt(
+        meta_cfg, ontology_name
+    )
     if policy_block:
         sanitized_policy = str(policy_block).replace("`", "")
         for raw_line in sanitized_policy.splitlines():
@@ -3035,22 +3249,19 @@ def _build_main_py_deterministic(
         if n in {"init_memory_wrapper", "export_memory_wrapper"}:
             continue
         # Use exact signature from extracted signature if available.
-        sig = next((f["signature"] for f in funcs if f["name"] == n), None)
+        sig = sig_map.get(n)
         if not sig or not sig.startswith("def "):
-            # Fallback: simplest wrapper
-            lines.append("@mcp.tool()")
-            lines.append(f"def {n}(*args, **kwargs) -> str:")
-            lines.append(f"    return _{n}(*args, **kwargs)")
-            lines.append("")
-            continue
+            raise ValueError(f"No explicit signature found for tool {n}; cannot build FastMCP wrapper without exact parameters.")
 
-        # Convert "def name(...):" -> "def name(...):" wrapper (keep params/return hints)
-        # but ensure return type -> str if present in signature text.
+        # Convert header to wrapper header (keep params/return hints)
         header = sig.strip()
-        # Ensure function name matches n (defensive)
         header = re.sub(r"^def\s+\w+\s*\(", f"def {n}(", header)
         lines.append("@mcp.tool()")
         lines.append(header)
+        # Inject full underlying docstring (concise text remains concise; do not add verbose prose here)
+        ds = (doc_map.get(n) or "").replace('"""', "'''")
+        if ds:
+            lines.append(f"    \"\"\"{ds}\"\"\"")
         lines.append(f"    return _{n}(")
         # Pass-through by keyword for explicit args (best effort via AST)
         try:
@@ -3065,7 +3276,8 @@ def _build_main_py_deterministic(
                     continue
                 lines.append(f"        {a}={a},")
         except Exception:
-            lines.append("        # NOTE: failed to introspect args; calling without keyword mapping")
+            # If introspection fails, fail closed — do not emit an invalid wrapper.
+            raise ValueError(f"Failed to introspect parameters for tool {n}")
         lines.append("    )")
         lines.append("")
 
@@ -3095,7 +3307,9 @@ async def generate_split_main_scripts_direct(
       1) LLM generates two FRAGMENTS (core + relationships), each wrapping a subset of tools.
       2) LLM stitches those fragments into one runnable `main.py`.
     """
-    policy_block = _format_main_entity_runtime_policy_for_mcp_prompt(meta_cfg, ontology_name)
+    policy_block = _format_main_entity_runtime_policy_for_mcp_prompt(
+        meta_cfg, ontology_name, ontology_path
+    )
     # Build function inventories from real scripts (AST-based).
     all_script_paths = [checks_script_path, relationships_script_path, base_script_path] + entity_script_paths
     owners = _function_owner_map(all_script_paths)
@@ -3846,6 +4060,7 @@ def _format_relationships_prompt_subset(
     ontology_name: str,
     namespace_uri: str,
     object_props_subset: list[dict],
+    relationship_contracts: dict[str, dict] | None = None,
 ) -> str:
     """
     Build a smaller prompt that includes only a subset of object properties.
@@ -3859,6 +4074,11 @@ def _format_relationships_prompt_subset(
         dom = ", ".join(p.get("domains") or []) or "(unknown)"
         rng = ", ".join(p.get("ranges") or []) or "(unknown)"
         subset_lines.append(f"- {name}: {dom} -> {rng}")
+        contract = (relationship_contracts or {}).get(str(name)) or {}
+        subset_lines.append(
+            "  relationship_tool_contract: "
+            + json.dumps(contract, ensure_ascii=False, sort_keys=True)
+        )
     subset_lines.append("")
     subset_lines.append(
         "CRITICAL PARTIAL GENERATION RULES:\n"
@@ -6004,14 +6224,6 @@ def build_underlying_script_prompt(ontology_path: str, ontology_name: str) -> st
     # Parse TTL for additional metadata if needed
     tbox_info = parse_ttl_tbox(ontology_path)
 
-    # Load reference snippet for patterns (domain-agnostic patterns)
-    ref_script_path = project_root / "sandbox" / "code" / "mcp_creation" / "mcp_creation.py"
-    ref_snippet = ""
-    if ref_script_path.exists():
-        with open(ref_script_path, 'r', encoding='utf-8') as f:
-            # Take first 20k chars showing key patterns
-            ref_snippet = f.read()[:20000]
-
     # Format concise ontology structure
     ontology_structure_lines = [
         f"Namespace: {concise_structure['namespace_uri']}",
@@ -6077,7 +6289,6 @@ def build_underlying_script_prompt(ontology_path: str, ontology_name: str) -> st
         ontology_name=ontology_name,
         script_name=f"{ontology_name}_creation",
         namespace_uri=concise_structure['namespace_uri'],
-        reference_snippet=ref_snippet,
         ontology_ttl=concise_ontology_str,  # Use concise structure instead of full TTL
         entity_classes=entity_classes_str,
         object_properties=object_props_str,
@@ -6093,10 +6304,13 @@ def build_underlying_script_prompt(ontology_path: str, ontology_name: str) -> st
 
 def extract_functions_from_underlying(underlying_script_path: str) -> List[Dict[str, str]]:
     """
-    Extract all function signatures from the underlying script.
+    Extract all public function signatures and full docstrings from the underlying script.
 
     Returns:
-        List of dictionaries with 'name' and 'signature' keys
+        List of dictionaries with keys:
+        - 'name': function name
+        - 'signature': one-line def header with annotations/defaults (bodies omitted)
+        - 'docstring': full function docstring (or empty string)
     """
     # IMPORTANT: do NOT use a single-line regex here.
     # The generated scripts frequently use multi-line function definitions, e.g.:
@@ -6172,8 +6386,9 @@ def extract_functions_from_underlying(underlying_script_path: str) -> List[Dict[
 
         ret = _unparse(node.returns) if node.returns is not None else "Any"
         signature = f"def {node.name}({', '.join([p for p in parts if p])}) -> {ret}:"
+        ds = ast.get_docstring(node) or ""
 
-        functions.append({"name": node.name, "signature": signature})
+        functions.append({"name": node.name, "signature": signature, "docstring": ds})
 
     return functions
 
@@ -6419,7 +6634,9 @@ if __name__ == "__main__":
     integrity_block = _integrity_contract_block_from_concise(concise_structure)
     if integrity_block:
         prompt += "\n\n" + integrity_block
-    mb = _format_main_entity_runtime_policy_for_mcp_prompt(meta_cfg, ontology_name)
+    mb = _format_main_entity_runtime_policy_for_mcp_prompt(
+        meta_cfg, ontology_name, ontology_path
+    )
     if mb:
         prompt = prompt + "\n\n" + mb
     return prompt
@@ -7961,6 +8178,16 @@ def list_relationship_functions() -> str:
             if _local_name_from_iri(str((conn or {}).get("property") or "").strip())
         }
     )
+    per_prop_contracts = build_relationship_tool_contracts_from_tbox(ontology_path)
+
+    interface_lines: list[str] = []
+    for prop in expected_relationship_props:
+        meta = per_prop_contracts.get(prop, {"internal_targets": [], "external_targets": []})
+        interface_lines.append(
+            f"- add_{prop}: "
+            + json.dumps(meta, ensure_ascii=False, sort_keys=True)
+        )
+
     contracts = "\n\n".join(
         [
             _namespace_contract_block(concise_structure, ontology_name),
@@ -7976,9 +8203,17 @@ def list_relationship_functions() -> str:
             "- NEVER call `_format_success_json({...})` with a dict positional argument.\n",
             "CRITICAL OBJECT-PROPERTY COVERAGE CONTRACT (MUST FOLLOW EXACTLY):\n"
             "- For every ontology object property below, generate a public function named exactly `add_<PropertyLocal>`.\n"
-            "- Each such function must accept `(subject_iri: str, object_iri: str)` and return `str`.\n"
+            "- Each such function must accept `(subject_iri: str, object_iri: Annotated[str, Field(description=...)])` and return `str`.\n"
             "- The function must create the exact ontology predicate triple for that property.\n"
             + "\n".join(f"- add_{prop}" for prop in expected_relationship_props),
+            "CRITICAL PARAM ANNOTATION + DOCSTRING CONTRACT (MUST FOLLOW EXACTLY):\n"
+            "- Import: `from typing import Annotated` and `from pydantic import Field`.\n"
+            "- The `object_iri` parameter in EVERY `add_*` MUST be annotated as `Annotated[str, Field(description=...)]`.\n"
+            "- The Field(description) MUST state: absolute IRI, never label/name/literal/plain text.\n"
+            "- When the range is an internal ontology class with a generated `create_<Range>` tool, the description MUST mention the exact `create_<Range>` tool.\n"
+            "- When the range is external or has no create tool, the description MUST require an existing absolute IRI and MUST NOT mention a creator.\n"
+            "- Each public `add_*` MUST include a concise docstring stating the same contract (concise; no lengthy T-Box prose).\n",
+            "PER-PROPERTY INTERFACE CONTRACTS (COMPILED FROM T-BOX):\n" + "\n".join(interface_lines),
         ]
     )
 
@@ -8077,6 +8312,25 @@ def list_relationship_functions() -> str:
                     continue
                 raise ValueError(last_error)
 
+            ok_contract, contract_err = _validate_relationships_script_output(
+                code=code,
+                ontology_name=ontology_name,
+                output_dir=output_dir,
+                concise_content=concise_content,
+                expected_relationship_props=expected_relationship_props,
+                expected_relationship_contracts=per_prop_contracts,
+            )
+            if not ok_contract:
+                last_error = f"relationship metadata contract: {contract_err}"
+                if attempt < max_retries:
+                    prompt += (
+                        "\n\nFIX REQUIRED: Regenerate the full file so every relationship "
+                        "parameter and docstring satisfies its supplied relationship_tool_contract.\n"
+                        + contract_err
+                    )
+                    continue
+                raise ValueError(last_error)
+
             missing_rel_fns = [
                 prop for prop in expected_relationship_props
                 if f"def add_{prop}" not in code
@@ -8169,6 +8423,7 @@ def list_relationship_functions() -> str:
                         ontology_name=ontology_name,
                         namespace_uri=tbox.get("namespace_uri") or "",
                         object_props_subset=chunk,
+                        relationship_contracts=per_prop_contracts,
                     )
 
                     part_last_err: str | None = None
@@ -8203,6 +8458,7 @@ def list_relationship_functions() -> str:
                     output_dir=output_dir,
                     concise_content=concise_content,
                     expected_relationship_props=expected_relationship_props,
+                    expected_relationship_contracts=per_prop_contracts,
                 )
                 if not ok_merged:
                     raise ValueError(f"Merge produced invalid relationships module: {merged_err}")
@@ -8991,6 +9247,7 @@ MANDATORY: OM-2 quantities
     top_entity_contract = _resolve_top_entity_codegen_contract(
         ontology_name=ontology_name,
         meta_cfg=meta_cfg,
+        ontology_path=ontology_path,
     )
     top_entity_prompt_block = _build_top_entity_codegen_prompt_block(
         top_entity_contract=top_entity_contract,

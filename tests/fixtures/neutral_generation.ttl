@@ -1,0 +1,22 @@
+@prefix neutral: <https://example.test/neutral/> .
+@prefix external: <https://example.test/external/> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+neutral:Container a owl:Class .
+neutral:Member a owl:Class .
+neutral:SpecialMember a owl:Class ;
+    rdfs:subClassOf neutral:Member .
+
+neutral:hasMember a owl:ObjectProperty ;
+    rdfs:domain neutral:Container ;
+    rdfs:range neutral:Member .
+
+neutral:hasExternalReference a owl:ObjectProperty ;
+    rdfs:domain neutral:Container ;
+    rdfs:range external:Reference .
+
+neutral:hasSequenceIndex a owl:DatatypeProperty ;
+    rdfs:domain neutral:Member ;
+    rdfs:range xsd:integer .

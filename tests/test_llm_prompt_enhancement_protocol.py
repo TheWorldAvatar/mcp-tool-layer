@@ -12,10 +12,13 @@ from src.agents.scripts_and_prompts_generation.agentic_generation_llm_agents imp
 )
 from src.agents.scripts_and_prompts_generation.content_diagnosis import (
     artifact_manifest,
+    fixture_literals,
     parse_json_object,
     prompt_inventory,
     redact_diagnosis,
+    redact_fixture_evidence,
     validate_diagnosis,
+    validate_single_prompt_focus,
 )
 
 
@@ -82,6 +85,62 @@ def test_diagnosis_parser_and_editor_projection_redact_instances() -> None:
     )
     assert "DMF" not in json.dumps(projected)
     assert "INSTANCE_REDACTED" in json.dumps(projected)
+
+
+def test_fixture_literals_include_document_identifiers() -> None:
+    literals = fixture_literals(
+        {
+            "document_md": "# Specific experiment\n\nDOI: 10.1000/example-case\n",
+            "hints": {},
+        }
+    )
+
+    assert "10.1000/example-case" in literals
+    assert "Specific experiment" in literals
+
+
+def test_fixture_evidence_is_redacted_before_diagnosis() -> None:
+    redacted = redact_fixture_evidence(
+        {"source": "Specific experiment reports value DMF"},
+        {"Specific experiment", "DMF"},
+    )
+
+    assert "Specific experiment" not in json.dumps(redacted)
+    assert "DMF" not in json.dumps(redacted)
+    assert json.dumps(redacted).count("INSTANCE_REDACTED") == 2
+
+
+def test_prompt_focus_requires_one_iteration_prompt_owner() -> None:
+    diagnosis = validate_single_prompt_focus(
+        {
+            "repair_kind": "prompt",
+            "target_artifacts": [
+                "/tmp/prompts/ontosynthesis/EXTRACTION_ITER_3_1.md"
+            ],
+            "causal_findings": [{"cause": "Required structured relation omitted"}],
+            "must_preserve": ["Keep T-Box datatype rules."],
+        }
+    )
+
+    assert diagnosis["focus"] == {
+        "owner_layer": "extraction",
+        "artifact": "/tmp/prompts/ontosynthesis/EXTRACTION_ITER_3_1.md",
+        "iteration": "3.1",
+        "failure_mode": "Required structured relation omitted",
+        "must_preserve": ["Keep T-Box datatype rules."],
+    }
+
+    with pytest.raises(ValueError, match="exactly one"):
+        validate_single_prompt_focus(
+            {
+                "repair_kind": "prompt",
+                "target_artifacts": [
+                    "/tmp/prompts/ontosynthesis/EXTRACTION_ITER_2.md",
+                    "/tmp/prompts/ontosynthesis/KG_BUILDING_ITER_2.md",
+                ],
+                "causal_findings": [{"cause": "too broad"}],
+            }
+        )
 
 
 def test_prompt_protocol_requires_read_patch_real_diff_and_immutable_scripts(

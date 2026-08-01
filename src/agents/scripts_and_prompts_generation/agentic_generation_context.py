@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
@@ -9,10 +10,19 @@ from src.agents.scripts_and_prompts_generation.generation_contracts import (
     build_generation_contract_bundle,
     write_generation_contract_bundle,
 )
+from src.agents.scripts_and_prompts_generation.fixed_om2_runtime import (
+    __file__ as fixed_om2_runtime_path,
+)
+from src.agents.scripts_and_prompts_generation.fixed_rdf_runtime import (
+    __file__ as fixed_rdf_runtime_path,
+)
 from src.agents.scripts_and_prompts_generation.ttl_parser import (
     extract_ontology_integrity_profile,
     format_class_properties_markdown,
     parse_ontology_ttl,
+)
+from src.agents.scripts_and_prompts_generation.iteration_plan_compiler import (
+    compile_iteration_plan,
 )
 
 
@@ -23,6 +33,43 @@ DEFAULT_ONTOLOGY_CONFIGS = {
     "ontospecies": Path("configs/meta_task/meta_task_config.json"),
     "medical": Path("configs/meta_task/meta_task_config_medical_non_flat_v3.json"),
 }
+
+
+def runtime_publish_contract(contract: dict[str, Any]) -> dict[str, Any]:
+    """Augment the T-Box publish contract with derived atomic creator metadata."""
+    publish = dict(contract.get("ontology_publish_contract") or {})
+    profile = contract.get("ordered_member_profile") or {}
+    classes = {
+        str(item.get("class_iri") or "").rsplit("#", 1)[-1].rsplit("/", 1)[-1]: str(
+            item.get("class_iri") or ""
+        )
+        for item in publish.get("classes") or []
+        if str(item.get("class_iri") or "").strip()
+    }
+    datatype_properties = {
+        str(item.get("property_iri") or "").rsplit("#", 1)[-1].rsplit("/", 1)[-1]: str(
+            item.get("property_iri") or ""
+        )
+        for item in publish.get("datatype_properties") or []
+        if str(item.get("property_iri") or "").strip()
+    }
+    ordering_locals = [
+        str(value).strip()
+        for value in profile.get("single_valued_ordering_properties") or []
+        if str(value).strip()
+    ]
+    if len(ordering_locals) == 1 and ordering_locals[0] in datatype_properties:
+        ordering_iri = datatype_properties[ordering_locals[0]]
+        publish["ordered_entity_creators"] = [
+            {
+                "class_iri": classes[class_local],
+                "ordering_property_iri": ordering_iri,
+                "source": "tbox_derived_ordered_member_profile",
+            }
+            for class_local in profile.get("ordered_member_classes") or []
+            if str(class_local) in classes
+        ]
+    return publish
 
 
 @dataclass(frozen=True)
@@ -46,9 +93,13 @@ class AgenticGenerationContext:
     contract_path: str
     integrity_profile_path: str
     report_path: str
+    config_provenance_path: str
     parsed: dict[str, Any]
     contract: dict[str, Any]
     integrity_profile: dict[str, Any]
+    pipeline_runtime_policies: dict[str, Any]
+    iteration_blueprint: dict[str, Any]
+    config_provenance: dict[str, Any]
 
     def to_json_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -60,6 +111,58 @@ def load_meta_task_config(path: str | Path) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise ValueError(f"Meta-task config must be a JSON object: {cfg_path}")
     return data
+
+
+def _ontology_config(
+    config: dict[str, Any], ontology_name: str
+) -> tuple[str, dict[str, Any]]:
+    """Return the selected ontology role and its non-T-Box configuration."""
+    ontologies = config.get("ontologies") or {}
+    main = ontologies.get("main")
+    if isinstance(main, dict) and str(main.get("name") or "").strip() == ontology_name:
+        return "main", main
+    for extension in ontologies.get("extensions") or []:
+        if (
+            isinstance(extension, dict)
+            and str(extension.get("name") or "").strip() == ontology_name
+        ):
+            return "extension", extension
+    raise ValueError(f"Ontology {ontology_name!r} is not present in meta-task config")
+
+
+def _load_iteration_blueprint(
+    *,
+    ontology_config: dict[str, Any],
+    meta_task_config_path: Path,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Load scheduling intent separately from the T-Box semantic contract."""
+    runtime = ontology_config.get("runtime_policies") or {}
+    iteration_plan = runtime.get("iteration_plan") or {}
+    configured = str(iteration_plan.get("iterations_blueprint_path") or "").strip()
+    if not configured:
+        return {}, {"source": "none", "path": "", "sha256": ""}
+
+    candidate = Path(configured)
+    candidates = [candidate]
+    if not candidate.is_absolute():
+        candidates.extend(
+            [
+                meta_task_config_path.parent / candidate,
+                meta_task_config_path.resolve().parents[2] / candidate,
+            ]
+        )
+    path = next((item.resolve() for item in candidates if item.is_file()), None)
+    if path is None:
+        raise FileNotFoundError(f"Missing configured iteration blueprint: {configured}")
+    raw = path.read_bytes()
+    data = json.loads(raw.decode("utf-8"))
+    if not isinstance(data, dict) or not isinstance(data.get("iterations"), list):
+        raise ValueError(f"Iteration blueprint must contain an iterations array: {path}")
+    return data, {
+        "source": "non_tbox_scheduling_intent",
+        "path": str(path),
+        "sha256": hashlib.sha256(raw).hexdigest(),
+    }
 
 
 def resolve_default_config_for_ontology(ontology_name: str) -> Path:
@@ -112,6 +215,19 @@ def build_agentic_generation_context(
 ) -> AgenticGenerationContext:
     cfg_path = Path(meta_task_config_path) if meta_task_config_path else resolve_default_config_for_ontology(ontology_name)
     spec = resolve_ontology_spec(ontology_name=ontology_name, meta_task_config_path=cfg_path)
+    meta_config = load_meta_task_config(cfg_path)
+    configured_role, ontology_config = _ontology_config(meta_config, ontology_name)
+    if configured_role != spec.role:
+        raise ValueError(
+            f"Ontology role mismatch for {ontology_name}: {configured_role} != {spec.role}"
+        )
+    runtime_policies = ontology_config.get("runtime_policies") or {}
+    if not isinstance(runtime_policies, dict):
+        raise ValueError("runtime_policies must be a JSON object")
+    iteration_blueprint, blueprint_provenance = _load_iteration_blueprint(
+        ontology_config=ontology_config,
+        meta_task_config_path=cfg_path,
+    )
 
     ttl_path = Path(spec.ttl_file)
     if not ttl_path.is_file():
@@ -123,6 +239,17 @@ def build_agentic_generation_context(
         meta_task_config_path=cfg_path,
         ontology_name=ontology_name,
     )
+    compiled_iteration_plan = (
+        compile_iteration_plan(
+            blueprint=iteration_blueprint,
+            parsed=parsed,
+            contract=contract,
+            ontology_name=ontology_name,
+            blueprint_provenance=blueprint_provenance,
+        )
+        if iteration_blueprint
+        else {}
+    )
 
     root = Path(output_root)
     structure_dir = root / "ontology_structures" / ontology_name
@@ -133,6 +260,7 @@ def build_agentic_generation_context(
     contract_path = structure_dir / "generation_contract.json"
     integrity_profile_path = structure_dir / "integrity_profile.json"
     report_path = root / "reports" / ontology_name / "generation_report.json"
+    config_provenance_path = structure_dir / "config_provenance.json"
 
     context = AgenticGenerationContext(
         ontology=spec,
@@ -145,9 +273,30 @@ def build_agentic_generation_context(
         contract_path=str(contract_path),
         integrity_profile_path=str(integrity_profile_path),
         report_path=str(report_path),
+        config_provenance_path=str(config_provenance_path),
         parsed=parsed,
         contract=contract,
         integrity_profile=integrity_profile,
+        pipeline_runtime_policies=dict(runtime_policies),
+        iteration_blueprint=compiled_iteration_plan,
+        config_provenance={
+            "tbox": {
+                "source": "active_tbox",
+                "path": str(ttl_path.resolve()),
+                "sha256": hashlib.sha256(ttl_path.read_bytes()).hexdigest(),
+            },
+            "meta_task": {
+                "source": "non_tbox_runtime_overlay",
+                "path": str(cfg_path.resolve()),
+                "sha256": hashlib.sha256(cfg_path.read_bytes()).hexdigest(),
+            },
+            "iteration_blueprint": blueprint_provenance,
+            "boundary": {
+                "semantic_authority": "tbox",
+                "iteration_decomposition": "non_tbox_scheduling_intent",
+                "runtime_wiring": "meta_task_runtime_policies",
+            },
+        },
     )
 
     if write_files:
@@ -158,6 +307,27 @@ def build_agentic_generation_context(
         parsed_markdown_path.write_text(format_class_properties_markdown(parsed), encoding="utf-8")
         integrity_profile_path.write_text(json.dumps(integrity_profile, indent=2, ensure_ascii=False), encoding="utf-8")
         write_generation_contract_bundle(contract, contract_path)
+        config_provenance_path.write_text(
+            json.dumps(context.config_provenance, indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        if contract.get("om2_quantity_properties"):
+            (scripts_dir / "_fixed_om2_runtime.py").write_text(
+                Path(fixed_om2_runtime_path).read_text(encoding="utf-8"),
+                encoding="utf-8",
+            )
+        (scripts_dir / "_fixed_rdf_runtime.py").write_text(
+            Path(fixed_rdf_runtime_path).read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+        (scripts_dir / "_relationship_contract.json").write_text(
+            json.dumps(
+                runtime_publish_contract(contract),
+                indent=2,
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
 
     return context
 

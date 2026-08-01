@@ -223,16 +223,6 @@ def generate_top_entity_sparql_for_ontology(
     if not ttl_text:
         raise FileNotFoundError(f"T-Box TTL not found or empty: {ttl_path}")
 
-    # Fast path: if a SPARQL already exists in the runtime tree, mirror it into candidate.
-    # This fixes output-folder mismatch even when LLM tooling isn't configured locally.
-    existing_runtime = Path("ai_generated_contents") / "sparqls" / ontology_name / "top_entity_parsing.sparql"
-    existing_txt = _read_text_file(existing_runtime)
-    if existing_txt.strip():
-        out_path = _write_sparql(ontology_name, existing_txt.strip())
-        LOGGER.info(f"Mirrored existing SPARQL for '{ontology_name}' to: {out_path}")
-        print(f"SPARQL mirrored: {out_path}")
-        return out_path
-
     # Use the provided ontology_name consistently; do not bake in ontology-specific heuristics.
     LOGGER.info(f"Generating top-entity SPARQL for ontology '{ontology_name}'")
 

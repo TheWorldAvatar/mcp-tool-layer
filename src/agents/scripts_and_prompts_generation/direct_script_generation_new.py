@@ -213,14 +213,6 @@ def build_underlying_script_prompt(ontology_path: str, ontology_name: str) -> st
     # Parse TTL to extract domain-specific information
     tbox_info = parse_ttl_tbox(ontology_path)
     
-    # Load reference snippet for patterns (domain-agnostic patterns)
-    ref_script_path = project_root / "sandbox" / "code" / "mcp_creation" / "mcp_creation.py"
-    ref_snippet = ""
-    if ref_script_path.exists():
-        with open(ref_script_path, 'r', encoding='utf-8') as f:
-            # Take first 20k chars showing key patterns
-            ref_snippet = f.read()[:20000]
-    
     # Load ontology content
     with open(ontology_path, 'r', encoding='utf-8') as f:
         ontology_ttl = f.read()
@@ -245,7 +237,6 @@ def build_underlying_script_prompt(ontology_path: str, ontology_name: str) -> st
         ontology_name=ontology_name,
         script_name=f"{ontology_name}_creation",
         namespace_uri=tbox_info['namespace_uri'],
-        reference_snippet=ref_snippet,
         ontology_ttl=ontology_ttl,
         entity_classes=entity_classes_str,
         object_properties=object_props_str,

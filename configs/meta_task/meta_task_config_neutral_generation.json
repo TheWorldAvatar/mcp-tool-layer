@@ -1,0 +1,20 @@
+{
+  "ontologies": {
+    "main": {
+      "name": "neutral_generation",
+      "description": "A synthetic ontology for domain-independent generation acceptance.",
+      "ttl_file": "tests/fixtures/neutral_generation.ttl",
+      "complex_pipeline": false,
+      "output": {
+        "dir": "{ontology_name}_output",
+        "top_ttl_name": "top.ttl",
+        "entity_ttl_pattern": "{entity_safe}.ttl"
+      },
+      "mcp_set_name": "run_created_mcp.json",
+      "mcp_list": [
+        "llm_created_mcp"
+      ]
+    },
+    "extensions": []
+  }
+}

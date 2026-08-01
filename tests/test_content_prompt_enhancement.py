@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import tempfile
 import unittest
@@ -16,7 +17,14 @@ from src.agents.scripts_and_prompts_generation.agentic_generation_runner import 
 )
 from src.agents.scripts_and_prompts_generation.content_fixture_score import (
     load_predicted_hints,
+    score_graph_content,
     score_hint_content,
+)
+from src.agents.scripts_and_prompts_generation.fixed_rdf_runtime import (
+    export_graph_result,
+    initialize_retained_graph,
+    retained_graph,
+    scoped_memory_paths,
 )
 from src.agents.scripts_and_prompts_generation.generation_contracts import (
     validate_generated_artifacts,
@@ -33,6 +41,114 @@ META = ROOT / "configs/meta_task/meta_task_config.json"
 
 
 class TestContentPromptEnhancement(unittest.TestCase):
+    def test_scripts_source_does_not_trigger_unrelated_binding_repairs(self) -> None:
+        import inspect
+
+        source = inspect.getsource(
+            __import__(
+                "src.agents.scripts_and_prompts_generation.semantic_mcp_loop_ontosynthesis",
+                fromlist=["run_outer_loop"],
+            ).run_outer_loop
+        )
+
+        self.assertIn("if scripts_source is not None", source)
+        self.assertIn("else _repair_prompt_runtime_bindings", source)
+        self.assertIn("external_source_package_deferred", source)
+
+    def test_fixed_runtime_resume_is_idempotent_and_export_is_abox_only(self) -> None:
+        graph = retained_graph()
+        graph.remove((None, None, None))
+        initialize_retained_graph()
+        graph.parse(
+            data="""
+@prefix ex: <https://example.test/> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+ex:Entity a owl:Class .
+ex:item a ex:Entity .
+""",
+            format="turtle",
+        )
+        before = len(graph)
+
+        resumed = initialize_retained_graph()
+        exported = export_graph_result(graph)
+
+        self.assertEqual(before, resumed["total_triples"])
+        self.assertIn("ex:item", exported["ttl"])
+        self.assertNotIn("owl:Class", exported["ttl"])
+        self.assertFalse(exported["includes_schema"])
+
+    def test_fixed_runtime_public_initializer_has_no_reset_mode(self) -> None:
+        import inspect
+
+        self.assertEqual(
+            ["source_path"],
+            list(inspect.signature(initialize_retained_graph).parameters),
+        )
+
+    def test_fixed_runtime_scoped_memory_path_matches_pipeline_scope(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            previous = os.environ.get("TWA_AGENTIC_DATA_DIR")
+            os.environ["TWA_AGENTIC_DATA_DIR"] = tmp
+            try:
+                memory_path, _ = scoped_memory_paths(
+                    "case-hash",
+                    "Primary synthesis α",
+                )
+            finally:
+                if previous is None:
+                    os.environ.pop("TWA_AGENTIC_DATA_DIR", None)
+                else:
+                    os.environ["TWA_AGENTIC_DATA_DIR"] = previous
+
+        self.assertEqual(
+            Path(tmp) / "case-hash" / "memory" / "Primary_synthesis_alpha.ttl",
+            memory_path,
+        )
+
+    def test_graph_score_ignores_shared_tbox_schema(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            gold = root / "gold.ttl"
+            predicted = root / "predicted.ttl"
+            shared_schema = """
+@prefix ex: <https://example.test/> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+ex:Entity a owl:Class .
+"""
+            gold.write_text(
+                shared_schema + 'ex:gold a ex:Entity ; ex:value "expected" .\n',
+                encoding="utf-8",
+            )
+            predicted.write_text(
+                shared_schema + 'ex:predicted a ex:Entity ; ex:value "wrong" .\n',
+                encoding="utf-8",
+            )
+
+            report = score_graph_content(gold, predicted)
+
+            self.assertGreater(report["overall"]["tp"], 0)
+            self.assertEqual(1, report["overall"]["fp"])
+            self.assertEqual(1, report["overall"]["fn"])
+
+    def test_export_metadata_cannot_override_abox_projection(self) -> None:
+        graph = retained_graph()
+        graph.remove((None, None, None))
+        initialize_retained_graph()
+        graph.parse(
+            data="""
+@prefix ex: <https://example.test/> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+ex:Entity a owl:Class .
+ex:item a ex:Entity .
+""",
+            format="turtle",
+        )
+
+        exported = export_graph_result(graph, ttl=graph.serialize(format="turtle"))
+
+        self.assertNotIn("owl:Class", exported["ttl"])
+
     def test_hint_content_score_reports_missing_and_unexpected(self) -> None:
         gold = {
             "Add": [
@@ -107,7 +223,7 @@ class TestContentPromptEnhancement(unittest.TestCase):
         self.assertTrue(report["ok"])
         self.assertEqual(report["overall"]["fp"], 0)
 
-    def test_content_gate_rejects_critical_and_champion_regressions(self) -> None:
+    def test_content_gate_keeps_structural_scores_diagnostic(self) -> None:
         champion = score_hint_content(
             {"Add": {"label": "Add DMF", "hasOrder": 1}},
             {"Add": {"label": "Add DMF", "hasOrder": 1}},
@@ -135,14 +251,17 @@ class TestContentPromptEnhancement(unittest.TestCase):
             hint_threshold=0.0,
             graph_threshold=0.0,
         )
-        self.assertFalse(decision["accepted"])
-        self.assertIn("critical_slots", decision["failures"])
-        self.assertIn("champion_preserve_set", decision["failures"])
+        self.assertTrue(decision["accepted"])
+        self.assertEqual([], decision["failures"])
+        self.assertEqual(
+            "semantic_soft_gate_with_deterministic_diagnostics",
+            decision["policy"],
+        )
         feedback = package_content_feedback(report, decision, {
             "hints": champion,
             "graph": {"overall": {"f1": 1.0}},
         })
-        self.assertIn("REJECTED", feedback)
+        self.assertIn("ACCEPTED", feedback)
         self.assertIn("candidate delta", feedback)
 
     def test_explicit_absent_class_is_scored_as_false_positive(self) -> None:
@@ -187,7 +306,7 @@ class TestContentPromptEnhancement(unittest.TestCase):
             )
             self.assertEqual(merged["Add"][0]["hasOrder"], 1)
 
-    def test_generated_om2_contract_passes_and_missing_helper_fails(self) -> None:
+    def test_generated_om2_contract_uses_fixed_runtime(self) -> None:
         with tempfile.TemporaryDirectory(prefix="ontosyn_om2_contract_") as tmp:
             root = Path(tmp)
             context = build_agentic_generation_context(
@@ -206,13 +325,7 @@ class TestContentPromptEnhancement(unittest.TestCase):
 
             broken_dir = root / "broken"
             shutil.copytree(context.scripts_dir, broken_dir)
-            base = next(broken_dir.glob("*_creation_base.py"))
-            text = base.read_text(encoding="utf-8").replace(
-                "def _find_or_create_om2_quantity(",
-                "def _broken_quantity_builder(",
-                1,
-            )
-            base.write_text(text, encoding="utf-8")
+            (broken_dir / "_fixed_om2_runtime.py").unlink()
             broken = validate_generated_artifacts(
                 contract_bundle=context.contract,
                 scripts_dir=broken_dir,
@@ -220,7 +333,7 @@ class TestContentPromptEnhancement(unittest.TestCase):
             )
             self.assertFalse(broken["ok"])
             self.assertTrue(
-                any("_find_or_create_om2_quantity" in item for item in broken["failures"])
+                any("fixed OM-2 runtime" in item for item in broken["failures"])
             )
 
     def test_abox_gate_rejects_incomplete_om2_quantity(self) -> None:
