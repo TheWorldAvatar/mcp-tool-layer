@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import ast
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+import tempfile
 
 from src.agents.scripts_and_prompts_generation.agentic_generation_context import (
     build_agentic_generation_context,
@@ -11,12 +14,299 @@ from src.agents.scripts_and_prompts_generation.agentic_generation_runner import 
     generate_deterministic_script_slice,
 )
 from src.agents.scripts_and_prompts_generation.agentic_generation_validation import (
-    MEDICAL_CSV_ROUNDTRIP_PROMPT_HEADER,
+    _init_memory_ast_evidence,
+    _iter1_kg_prompt_execution_contract_report,
+    _prompt_tbox_fidelity_report,
+    _relationship_binding_evidence,
+    _runtime_graph_hygiene_report,
+    _stage_artifact_contract_report,
     build_validation_report,
+)
+from src.agents.scripts_and_prompts_generation.generation_contracts import (
+    build_validation_observation,
 )
 
 
 class TestAgenticGenerationValidation(unittest.TestCase):
+    def test_stage_prompt_validation_isolated_to_active_artifact(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            prompts = root / "prompts" / "onto"
+            scripts = root / "scripts" / "onto"
+            prompts.mkdir(parents=True)
+            scripts.mkdir(parents=True)
+            active = prompts / "KG_BUILDING_ITER_2.md"
+            active.write_text(
+                "{doi}\n{entity_label}\n{entity_uri}\n{iteration_hints}\nUse MCP tools.",
+                encoding="utf-8",
+            )
+            (prompts / "EXTRACTION_ITER_3.md").write_text(
+                "Use Crystallize.",
+                encoding="utf-8",
+            )
+            context = SimpleNamespace(
+                output_root=str(root),
+                prompts_dir=str(prompts),
+                scripts_dir=str(scripts),
+                report_path=str(root / "report.json"),
+                ontology=SimpleNamespace(name="onto"),
+                contract={},
+                parsed={
+                    "classes": {"Crystallize": {"comment": "Never use this."}},
+                    "properties": {},
+                },
+            )
+
+            report = build_validation_report(
+                context,
+                write_report=False,
+                active_artifacts=[
+                    active.relative_to(root).as_posix(),
+                ],
+            )
+
+            self.assertTrue(report["stage_ok"], report["failures"])
+            self.assertFalse(
+                any("Crystallize" in failure for failure in report["failures"])
+            )
+
+    def test_stage_prompt_mechanical_validation_defers_tbox_semantics(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            prompts = root / "prompts" / "onto"
+            scripts = root / "scripts" / "onto"
+            prompts.mkdir(parents=True)
+            scripts.mkdir(parents=True)
+            active = prompts / "EXTRACTION_ITER_3.md"
+            active.write_text(
+                "{paper_content}\n{entity_label}\n{entity_uri}\nUse Crystallize.",
+                encoding="utf-8",
+            )
+            context = SimpleNamespace(
+                output_root=str(root),
+                prompts_dir=str(prompts),
+                scripts_dir=str(scripts),
+                report_path=str(root / "report.json"),
+                ontology=SimpleNamespace(name="onto"),
+                contract={},
+                parsed={
+                    "classes": {"Crystallize": {"comment": "Never use this."}},
+                    "properties": {},
+                },
+            )
+
+            report = build_validation_report(
+                context,
+                write_report=False,
+                active_artifacts=[
+                    active.relative_to(root).as_posix(),
+                ],
+            )
+
+            self.assertTrue(report["stage_ok"], report["failures"])
+
+    def test_prompt_tbox_fidelity_accepts_explicit_forbidden_class_guard(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            prompts = Path(tmp)
+            (prompts / "KG_BUILDING_ITER_3.md").write_text(
+                "Never create Crystallize. Never use Crystallize.",
+                encoding="utf-8",
+            )
+            context = SimpleNamespace(
+                prompts_dir=str(prompts),
+                parsed={
+                    "classes": {"Crystallize": {"comment": "Never use this."}},
+                    "properties": {},
+                },
+            )
+
+            failures, warnings = _prompt_tbox_fidelity_report(context)
+
+        self.assertEqual(failures, [])
+        self.assertEqual(warnings, [])
+
+    def test_stage_prompt_contract_enforces_runtime_bindings_before_freeze(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            prompts = root / "prompts" / "onto"
+            scripts = root / "scripts" / "onto"
+            prompts.mkdir(parents=True)
+            scripts.mkdir(parents=True)
+            prompt = prompts / "KG_BUILDING_ITER_2.md"
+            prompt.write_text(
+                "{iteration_hints}\n{entity_label}\n{entity_uri}\nUse MCP tools.",
+                encoding="utf-8",
+            )
+            context = SimpleNamespace(
+                output_root=str(root),
+                prompts_dir=str(prompts),
+                scripts_dir=str(scripts),
+                ontology=SimpleNamespace(name="onto"),
+                contract={},
+            )
+            relative = prompt.relative_to(root).as_posix()
+
+            failures, _, _ = _stage_artifact_contract_report(context, [relative])
+
+            self.assertTrue(any("{doi}" in failure for failure in failures))
+
+    def test_iter1_kg_prompt_requires_concrete_tbox_creator(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            prompts = Path(tmp) / "prompts"
+            prompts.mkdir()
+            path = prompts / "KG_BUILDING_ITER_1.md"
+            context = SimpleNamespace(
+                prompts_dir=str(prompts),
+                contract={"top_entity": {"class_local": "Record"}},
+            )
+
+            path.write_text(
+                "Use tbox_scope.top_entity.creator_tool for <root-class-from-active-T-Box>.",
+                encoding="utf-8",
+            )
+            failures, _ = _iter1_kg_prompt_execution_contract_report(context)
+            self.assertTrue(failures)
+
+            path.write_text(
+                "Use the active-T-Box-derived `create_Record` tool exactly.",
+                encoding="utf-8",
+            )
+            failures, _ = _iter1_kg_prompt_execution_contract_report(context)
+            self.assertEqual(failures, [])
+
+    def test_iter1_missing_creator_feedback_names_upstream_fix(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            prompts = Path(tmp) / "prompts"
+            prompts.mkdir()
+            (prompts / "KG_BUILDING_ITER_1.md").write_text(
+                "Use the configured top-entity creator.", encoding="utf-8"
+            )
+            context = SimpleNamespace(
+                prompts_dir=str(prompts),
+                contract={"top_entity": {}},
+            )
+
+            failures, _ = _iter1_kg_prompt_execution_contract_report(context)
+
+            self.assertEqual(len(failures), 1)
+            self.assertIn("error=active T-Box projection has no concrete top creator", failures[0])
+            self.assertIn(
+                "location=context.contract.top_entity.class_local", failures[0]
+            )
+            self.assertIn(
+                "known_correct_fix=populate top_entity.class_local", failures[0]
+            )
+            self.assertIn(
+                "repairability=not repairable in the prompt file", failures[0]
+            )
+
+    def test_runtime_hygiene_rejects_vararg_mcp_wrappers(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            scripts = Path(tmp) / "scripts" / "onto"
+            scripts.mkdir(parents=True)
+            (scripts / "main.py").write_text(
+                "def init_memory():\n    return {}\n\n"
+                "def export_memory(*args, **kwargs):\n    return {}\n",
+                encoding="utf-8",
+            )
+            context = SimpleNamespace(scripts_dir=str(scripts))
+
+            failures, _, obligations = _runtime_graph_hygiene_report(context)
+
+        self.assertTrue(any("FastMCP" in failure for failure in failures))
+        self.assertEqual(len(obligations), len(failures))
+
+    def test_runtime_hygiene_rejects_aggregate_materializer(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            scripts = Path(tmp) / "scripts" / "onto"
+            scripts.mkdir(parents=True)
+            (scripts / "main.py").write_text(
+                "def init_memory(doi, top_level_entity_name):\n    return {}\n\n"
+                "def export_memory():\n    return {}\n\n"
+                "def materialize_hints(doi, top_level_entity_name, entity_label, hints_json):\n"
+                "    return {}\n",
+                encoding="utf-8",
+            )
+            context = SimpleNamespace(scripts_dir=str(scripts))
+
+            failures, _, obligations = _runtime_graph_hygiene_report(context)
+
+        self.assertTrue(any("forbidden" in failure for failure in failures))
+        self.assertEqual(len(obligations), len(failures))
+
+    def test_observation_schema_is_stable_and_preserves_failure_evidence(self) -> None:
+        observation = build_validation_observation(
+            check_id="generation.syntax",
+            subject_key="medical",
+            stage="syntax",
+            failures=["main.py: syntax error"],
+            observed_artifacts=["scripts/medical/main.py"],
+        )
+
+        self.assertEqual(
+            set(observation),
+            {
+                "check_id",
+                "subject_key",
+                "stage",
+                "status",
+                "observed_artifacts",
+                "blocked_by",
+                "evidence",
+                "message",
+            },
+        )
+        self.assertEqual(observation["status"], "fail")
+        self.assertEqual(
+            observation["evidence"]["failures"], ["main.py: syntax error"]
+        )
+
+    def test_full_validation_splits_failures_into_atomic_observations(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            scripts = root / "scripts" / "onto"
+            prompts = root / "prompts" / "onto"
+            scripts.mkdir(parents=True)
+            prompts.mkdir(parents=True)
+            (scripts / "broken_a.py").write_text("def broken(:\n", encoding="utf-8")
+            (scripts / "broken_b.py").write_text("if True print('x')\n", encoding="utf-8")
+            context = SimpleNamespace(
+                scripts_dir=str(scripts),
+                prompts_dir=str(prompts),
+                output_root=str(root),
+                report_path=str(root / "report.json"),
+                contract={"ontology_name": "onto"},
+                ontology=SimpleNamespace(name="onto", role="main"),
+                parsed={"properties": {}, "classes": {}},
+            )
+
+            report = build_validation_report(context, write_report=False)
+            syntax_failures = [
+                item
+                for item in report["observations"]
+                if item["check_id"] == "generation.syntax"
+                and item["status"] == "fail"
+                and item["subject_key"] != "onto"
+            ]
+
+            self.assertEqual(len(syntax_failures), 2)
+            self.assertEqual(
+                len({item["subject_key"] for item in syntax_failures}), 2
+            )
+            self.assertTrue(
+                all(len(item["evidence"]["failures"]) == 1 for item in syntax_failures)
+            )
+            self.assertEqual(
+                {item["subject_key"] for item in syntax_failures},
+                {
+                    "onto/artifact:broken_a.py#python-syntax",
+                    "onto/artifact:broken_b.py#python-syntax",
+                },
+            )
+            self.assertTrue(
+                all("obligation-" not in item["subject_key"] for item in syntax_failures)
+            )
+
     def test_generated_script_slice_validates_for_both_target_ontologies(self) -> None:
         contexts = [
             build_agentic_generation_context(
@@ -39,6 +329,9 @@ class TestAgenticGenerationValidation(unittest.TestCase):
                 report = build_validation_report(ctx, foreign_contracts=foreign, write_report=True)
                 self.assertTrue(report["ok"], report["failures"])
                 self.assertTrue(Path(ctx.report_path).is_file())
+                self.assertTrue(
+                    (Path(ctx.scripts_dir) / "_fixed_rdf_runtime.py").is_file()
+                )
 
     def test_medical_deterministic_prompts_pass_csv_roundtrip_validation(self) -> None:
         root = Path("tmp/agentic_generation/test_medical_csv_roundtrip")
@@ -52,26 +345,341 @@ class TestAgenticGenerationValidation(unittest.TestCase):
         report = build_validation_report(ctx, foreign_contracts=[], write_report=False)
         self.assertTrue(report["ok"], report["failures"])
 
-    def test_medical_prompt_missing_csv_contract_is_rejected(self) -> None:
-        root = Path("tmp/agentic_generation/test_medical_csv_roundtrip_negative")
-        ctx = build_agentic_generation_context(
-            ontology_name="medical",
-            output_root=root,
-            write_files=True,
-        )
-        generate_deterministic_prompt_slice(ctx)
-        path = Path(ctx.prompts_dir) / "EXTRACTION_ITER_2.md"
-        self.assertTrue(path.is_file())
-        text = path.read_text(encoding="utf-8")
-        path.write_text(
-            text.replace(MEDICAL_CSV_ROUNDTRIP_PROMPT_HEADER, "## REMOVED HEADER TEST"),
-            encoding="utf-8",
-        )
-        report = build_validation_report(ctx, foreign_contracts=[], write_report=False)
-        self.assertFalse(report["ok"])
-        self.assertTrue(any("CSV round-trip" in msg for msg in report["failures"]))
+    def test_prompt_validation_does_not_require_ontology_named_profile(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            prompts = Path(tmp)
+            (prompts / "EXTRACTION_ITER_2.md").write_text(
+                "Use only evidence and the active T-Box.", encoding="utf-8"
+            )
+            context = SimpleNamespace(
+                prompts_dir=str(prompts),
+                parsed={"classes": {}, "properties": {}},
+            )
+            failures, warnings = _prompt_tbox_fidelity_report(context)
+        self.assertEqual(failures, [])
+        self.assertEqual(warnings, [])
 
-    def test_medical_prompt_missing_mutual_exclusion_contract_is_rejected(self) -> None:
+    def test_init_memory_ast_contract_accepts_equivalent_variable_names(self) -> None:
+        tree = ast.parse(
+            "def init_memory(doi, top_level_entity_name):\n"
+            "    persisted, export = rdf_runtime.scoped_memory_paths(doi, top_level_entity_name)\n"
+            "    if persisted.is_file():\n"
+            "        rdf_runtime.initialize_retained_graph(source_path=str(persisted))\n"
+        )
+        evidence = _init_memory_ast_evidence(tree.body[0])
+        self.assertEqual(evidence["path_variables"], ["persisted"])
+        self.assertTrue(evidence["guarded_initializers"])
+
+    def test_prompt_tbox_fidelity_defers_forbidden_derivation_to_llm(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            prompts = Path(tmp)
+            (prompts / "EXTRACTION_ITER_2.md").write_text(
+                "For ReportedYield, choose the midpoint and convert it to percent.",
+                encoding="utf-8",
+            )
+            context = SimpleNamespace(
+                prompts_dir=str(prompts),
+                parsed={
+                    "classes": {
+                        "ReportedYield": {
+                            "comment": "Record exactly as written. Do not calculate or derive."
+                        }
+                    },
+                    "properties": {},
+                },
+            )
+            failures, _ = _prompt_tbox_fidelity_report(context)
+            self.assertEqual(failures, [])
+
+    def test_relationship_binding_gate_is_helper_name_independent(self) -> None:
+        tree = ast.parse(
+            "def add_hasTarget(subject_iri, object_iri):\n"
+            "    return arbitrary_adapter('https://example.test/hasTarget', "
+            "subject_iri, object_iri)\n"
+        )
+        evidence = _relationship_binding_evidence(tree.body[0])
+        self.assertEqual(evidence["call_count"], 1)
+        self.assertEqual(
+            evidence["bound_iris"], ["https://example.test/hasTarget"]
+        )
+
+    def test_relationship_binding_gate_tracks_local_capability_binding(self) -> None:
+        tree = ast.parse(
+            "def add_hasTarget(subject_iri, object_iri):\n"
+            "    callable_local = registry['https://example.test/hasTarget']\n"
+            "    result = callable_local(subject_iri, object_iri)\n"
+            "    return result\n"
+        )
+        evidence = _relationship_binding_evidence(tree.body[0])
+        self.assertEqual(evidence["call_count"], 1)
+        self.assertEqual(
+            evidence["bound_iris"], ["https://example.test/hasTarget"]
+        )
+
+    def test_relationship_binding_gate_resolves_module_constant_and_alias(self) -> None:
+        tree = ast.parse(
+            "PREDICATE = 'https://example.test/hasTarget'\n"
+            "PREDICATE_ALIAS = PREDICATE\n"
+            "def add_hasTarget(subject_iri, object_iri):\n"
+            "    return dispatch(PREDICATE_ALIAS, subject_iri, object_iri)\n"
+        )
+        evidence = _relationship_binding_evidence(tree.body[2], module=tree)
+        self.assertEqual(evidence["call_count"], 1)
+        self.assertEqual(evidence["binding_status"], "proven")
+        self.assertEqual(
+            evidence["bound_iris"], ["https://example.test/hasTarget"]
+        )
+
+    def test_relationship_binding_gate_marks_dynamic_binding_unknown(self) -> None:
+        tree = ast.parse(
+            "def add_hasTarget(subject_iri, object_iri):\n"
+            "    predicate = lookup_predicate()\n"
+            "    return dispatch(predicate, subject_iri, object_iri)\n"
+        )
+        evidence = _relationship_binding_evidence(tree.body[0], module=tree)
+        self.assertEqual(evidence["call_count"], 1)
+        self.assertEqual(evidence["binding_status"], "unknown")
+        self.assertEqual(evidence["bound_iris"], [])
+
+    def test_relationship_binding_gate_proves_generated_module_constant_pattern(
+        self,
+    ) -> None:
+        tree = ast.parse(
+            "RELATIONSHIP_WRITERS = runtime.package_relationship_capabilities()\n"
+            "HAS_TARGET = 'https://example.test/hasTarget'\n"
+            "def _write(predicate_iri, subject_iri, object_iri):\n"
+            "    writer = RELATIONSHIP_WRITERS[predicate_iri]\n"
+            "    return writer(subject_iri, object_iri)\n"
+            "def add_hasTarget(subject_iri, object_iri):\n"
+            "    return _write(HAS_TARGET, subject_iri, object_iri)\n"
+        )
+        evidence = _relationship_binding_evidence(tree.body[3], module=tree)
+        self.assertEqual(evidence["call_count"], 1)
+        self.assertEqual(evidence["binding_status"], "proven")
+        self.assertEqual(
+            evidence["bound_iris"], ["https://example.test/hasTarget"]
+        )
+
+    def test_relationship_binding_gate_proves_local_constant_alias(self) -> None:
+        tree = ast.parse(
+            "PREDICATE = 'https://example.test/hasTarget'\n"
+            "def add_hasTarget(subject_iri, object_iri):\n"
+            "    local_predicate = PREDICATE\n"
+            "    return dispatch(local_predicate, subject_iri, object_iri)\n"
+        )
+        evidence = _relationship_binding_evidence(tree.body[1], module=tree)
+        self.assertEqual(evidence["binding_status"], "proven")
+        self.assertEqual(
+            evidence["bound_iris"], ["https://example.test/hasTarget"]
+        )
+
+    def test_stage_validation_blocks_incomplete_downstream_checks(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            scripts = root / "scripts" / "onto"
+            prompts = root / "prompts" / "onto"
+            scripts.mkdir(parents=True)
+            prompts.mkdir(parents=True)
+            main = scripts / "main.py"
+            main.write_text(
+                "def init_memory():\n    pass\n\n"
+                "def export_memory():\n    pass\n\n"
+                "def materialize_hints():\n    pass\n",
+                encoding="utf-8",
+            )
+            context = SimpleNamespace(
+                ontology=SimpleNamespace(name="onto"),
+                scripts_dir=str(scripts),
+                prompts_dir=str(prompts),
+                report_path=str(root / "report.json"),
+                contract={"ontology_name": "onto"},
+            )
+
+            report = build_validation_report(
+                context,
+                write_report=False,
+                active_artifacts=["scripts/onto/main.py"],
+            )
+
+            statuses = {
+                item["check_id"]: item["status"]
+                for item in report["observations"]
+            }
+            self.assertEqual(statuses["generation.syntax"], "pass")
+            self.assertEqual(statuses["generation.import_smoke"], "blocked")
+            self.assertEqual(statuses["generation.contract_bundle"], "blocked")
+            self.assertTrue(report["stage_ok"])
+
+    def test_stage_validation_rejects_incomplete_local_entity_contract(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            context = build_agentic_generation_context(
+                ontology_name="ontosynthesis",
+                output_root=root,
+                write_files=True,
+            )
+            path = Path(context.scripts_dir) / "ontosynthesis_creation_entities.py"
+            path.write_text("def create_ChemicalSynthesis():\n    pass\n", encoding="utf-8")
+
+            report = build_validation_report(
+                context,
+                write_report=False,
+                active_artifacts=[
+                    "scripts/ontosynthesis/ontosynthesis_creation_entities.py"
+                ],
+            )
+
+            observation = next(
+                item
+                for item in report["observations"]
+                if item["check_id"] == "generation.stage_artifact_contract"
+            )
+            self.assertEqual(observation["status"], "fail")
+            self.assertTrue(
+                any(
+                    "create_" in failure
+                    for failure in observation["evidence"]["failures"]
+                )
+            )
+            self.assertIn(
+                "exactly create_<class_local>",
+                observation["evidence"]["entity_tool_naming_contract"],
+            )
+            self.assertFalse(report["stage_ok"])
+
+    def test_stage_relationship_failure_exposes_exact_add_tool_names(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            context = build_agentic_generation_context(
+                ontology_name="ontosynthesis",
+                output_root=root,
+                write_files=True,
+            )
+            path = (
+                Path(context.scripts_dir)
+                / "ontosynthesis_creation_relationships.py"
+            )
+            path.write_text("def helper():\n    pass\n", encoding="utf-8")
+
+            report = build_validation_report(
+                context,
+                write_report=False,
+                active_artifacts=[
+                    "scripts/ontosynthesis/"
+                    "ontosynthesis_creation_relationships.py"
+                ],
+            )
+
+            observation = next(
+                item
+                for item in report["observations"]
+                if item["check_id"] == "generation.stage_artifact_contract"
+            )
+            failures = observation["evidence"]["failures"]
+            self.assertTrue(any("missing stage relationship tools" in item for item in failures))
+            self.assertTrue(any("add_" in item for item in failures))
+            self.assertIn(
+                "exactly add_<predicate_local>",
+                observation["evidence"]["relationship_tool_naming_contract"],
+            )
+
+    def test_stage_relationship_rejects_missing_parameter_metadata(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            scripts = root / "scripts" / "onto"
+            prompts = root / "prompts" / "onto"
+            scripts.mkdir(parents=True)
+            prompts.mkdir(parents=True)
+            path = scripts / "onto_creation_relationships.py"
+            path.write_text(
+                "def add_hasTarget(subject_iri: str, object_iri: str):\n"
+                "    return object_iri\n",
+                encoding="utf-8",
+            )
+            context = SimpleNamespace(
+                scripts_dir=str(scripts),
+                prompts_dir=str(prompts),
+                output_root=str(root),
+                report_path=str(root / "report.json"),
+                ontology=SimpleNamespace(name="onto", role="main"),
+                parsed={
+                    "classes": {"Target": {}},
+                    "properties": {"hasTarget": {"kind": "object"}},
+                },
+                contract={
+                    "ontology_name": "onto",
+                    "relationship_tool_contracts": {
+                        "hasTarget": {
+                            "range_locals": ["Target"],
+                            "creator_tools": ["create_Target"],
+                        }
+                    },
+                },
+            )
+
+            report = build_validation_report(
+                context,
+                write_report=False,
+                active_artifacts=["scripts/onto/onto_creation_relationships.py"],
+            )
+            observation = next(
+                item
+                for item in report["observations"]
+                if item["check_id"] == "generation.stage_artifact_contract"
+            )
+
+            self.assertEqual(observation["status"], "fail")
+            self.assertTrue(
+                any(
+                    "missing object_iri Field(description)" in failure
+                    for failure in observation["evidence"]["failures"]
+                )
+            )
+
+    def test_stage_extraction_prompt_rejects_missing_canonical_key_rule(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            scripts = root / "scripts" / "onto"
+            prompts = root / "prompts" / "onto"
+            scripts.mkdir(parents=True)
+            prompts.mkdir(parents=True)
+            path = prompts / "EXTRACTION_ITER_2.md"
+            path.write_text(
+                "Expected JSON Shape:\n"
+                "Hint Schema: canonical-class-sections.v1\n"
+                '{"ExampleClass": []}\n',
+                encoding="utf-8",
+            )
+            context = SimpleNamespace(
+                scripts_dir=str(scripts),
+                prompts_dir=str(prompts),
+                output_root=str(root),
+                report_path=str(root / "report.json"),
+                ontology=SimpleNamespace(name="onto", role="main"),
+                parsed={"classes": {}, "properties": {}},
+                contract={"ontology_name": "onto"},
+            )
+
+            report = build_validation_report(
+                context,
+                write_report=False,
+                active_artifacts=["prompts/onto/EXTRACTION_ITER_2.md"],
+            )
+            observation = next(
+                item
+                for item in report["observations"]
+                if item["check_id"] == "generation.stage_artifact_contract"
+            )
+
+            self.assertEqual(observation["status"], "fail")
+            self.assertTrue(
+                any(
+                    "top-level keys are class locals" in failure
+                    for failure in observation["evidence"]["failures"]
+                )
+            )
+
+    def test_prompt_heading_wording_is_not_a_hard_contract(self) -> None:
         root = Path("tmp/agentic_generation/test_medical_mutual_exclusion_negative")
         ctx = build_agentic_generation_context(
             ontology_name="medical",
@@ -91,10 +699,7 @@ class TestAgenticGenerationValidation(unittest.TestCase):
             encoding="utf-8",
         )
         report = build_validation_report(ctx, foreign_contracts=[], write_report=False)
-        self.assertFalse(report["ok"])
-        self.assertTrue(
-            any("mutually exclusive property contract" in msg for msg in report["failures"])
-        )
+        self.assertTrue(report["ok"], report["failures"])
 
     def test_validation_reports_cross_ontology_prompt_residue_from_contracts(self) -> None:
         root = Path("tmp/agentic_generation/test_prompt_residue")
@@ -130,6 +735,141 @@ class TestAgenticGenerationValidation(unittest.TestCase):
         )
         self.assertFalse(report["ok"])
         self.assertTrue(any("Foreign ontology symbols" in msg for msg in report["failures"]))
+
+    def test_iteration_prompts_have_canonical_hint_schema_marker_and_validator_blocks_removal(self) -> None:
+        root = Path("tmp/agentic_generation/test_canonical_marker")
+        ctx = build_agentic_generation_context(
+            ontology_name="ontosynthesis",
+            output_root=root,
+            write_files=True,
+        )
+        generate_deterministic_prompt_slice(ctx)
+        # choose a deterministic iteration prompt if present
+        path = Path(ctx.prompts_dir) / "EXTRACTION_ITER_2.md"
+        self.assertTrue(path.is_file(), f"missing iteration prompt: {path}")
+        text = path.read_text(encoding="utf-8")
+        self.assertIn("Hint Schema: canonical-class-sections.v1", text)
+        # Remove the canonical marker and ensure validation rejects it
+        path.write_text(
+            text.replace("Hint Schema: canonical-class-sections.v1", "REMOVED MARKER TEST"),
+            encoding="utf-8",
+        )
+        report = build_validation_report(ctx, foreign_contracts=[], write_report=False)
+        self.assertFalse(report["ok"])
+
+    def test_relationship_tools_publish_parameter_json_schema_description(self) -> None:
+        root = Path("tmp/agentic_generation/test_relationship_param_desc")
+        ctx = build_agentic_generation_context(
+            ontology_name="ontosynthesis",
+            output_root=root,
+            write_files=True,
+        )
+        generate_deterministic_script_slice(ctx)
+        rel_path = Path(ctx.scripts_dir) / "ontosynthesis_creation_relationships.py"
+        self.assertTrue(rel_path.is_file(), f"missing relationships module: {rel_path}")
+        src = rel_path.read_text(encoding="utf-8")
+        self.assertIn("Annotated[", src)
+        self.assertIn("Field(description=", src)
+        self.assertIn("never a label/name/literal/plain text", src)
+
+    def test_om2_ast_gate_base_no_import_ok(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            scripts = root / "scripts" / "onto"
+            prompts = root / "prompts" / "onto"
+            scripts.mkdir(parents=True)
+            prompts.mkdir(parents=True)
+            path = scripts / "onto_creation_base.py"
+            path.write_text(
+                "def noop():\n    return 42\n",
+                encoding="utf-8",
+            )
+            context = SimpleNamespace(
+                ontology=SimpleNamespace(name="onto"),
+                scripts_dir=str(scripts),
+                prompts_dir=str(prompts),
+                report_path=str(root / "report.json"),
+                contract={"ontology_name": "onto", "om2_quantity_properties": ["amount"]},
+            )
+            report = build_validation_report(
+                context,
+                write_report=False,
+                active_artifacts=[f"scripts/onto/{path.name}"],
+            )
+            observation = next(
+                item
+                for item in report["observations"]
+                if item["check_id"] == "generation.stage_artifact_contract"
+            )
+            self.assertEqual(observation["status"], "pass")
+
+    def test_om2_ast_gate_absolute_import_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            scripts = root / "scripts" / "onto"
+            prompts = root / "prompts" / "onto"
+            scripts.mkdir(parents=True)
+            prompts.mkdir(parents=True)
+            path = scripts / "onto_creation_base.py"
+            path.write_text(
+                "from fixed_om2_runtime import om2_as_quantity\n"
+                "def use():\n"
+                "    return om2_as_quantity\n",
+                encoding="utf-8",
+            )
+            context = SimpleNamespace(
+                ontology=SimpleNamespace(name="onto"),
+                scripts_dir=str(scripts),
+                prompts_dir=str(prompts),
+                report_path=str(root / "report.json"),
+                contract={"ontology_name": "onto", "om2_quantity_properties": ["amount"]},
+            )
+            report = build_validation_report(
+                context,
+                write_report=False,
+                active_artifacts=[f"scripts/onto/{path.name}"],
+            )
+            observation = next(
+                item
+                for item in report["observations"]
+                if item["check_id"] == "generation.stage_artifact_contract"
+            )
+            self.assertEqual(observation["status"], "fail")
+            failures_text = " ".join(observation.get("evidence", {}).get("failures", []))
+            self.assertIn("fixed_om2_runtime", failures_text)
+
+    def test_om2_ast_gate_relative_import_ok(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            scripts = root / "scripts" / "onto"
+            prompts = root / "prompts" / "onto"
+            scripts.mkdir(parents=True)
+            prompts.mkdir(parents=True)
+            path = scripts / "onto_creation_base.py"
+            path.write_text(
+                "from ._fixed_om2_runtime import om2_as_quantity\n"
+                "def use():\n"
+                "    return om2_as_quantity\n",
+                encoding="utf-8",
+            )
+            context = SimpleNamespace(
+                ontology=SimpleNamespace(name="onto"),
+                scripts_dir=str(scripts),
+                prompts_dir=str(prompts),
+                report_path=str(root / "report.json"),
+                contract={"ontology_name": "onto", "om2_quantity_properties": ["amount"]},
+            )
+            report = build_validation_report(
+                context,
+                write_report=False,
+                active_artifacts=[f"scripts/onto/{path.name}"],
+            )
+            observation = next(
+                item
+                for item in report["observations"]
+                if item["check_id"] == "generation.stage_artifact_contract"
+            )
+            self.assertEqual(observation["status"], "pass")
 
 
 if __name__ == "__main__":

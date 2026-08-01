@@ -10,8 +10,6 @@ import time
 from pathlib import Path
 from typing import Any
 
-from models.BaseAgent import BaseAgent
-from models.ModelConfig import ModelConfig
 from src.agents.scripts_and_prompts_generation.agentic_generation_context import (
     AgenticGenerationContext,
 )
@@ -23,11 +21,10 @@ from src.agents.scripts_and_prompts_generation.agentic_generation_prompts import
 )
 from src.agents.scripts_and_prompts_generation.content_diagnosis import (
     artifact_manifest,
-    parse_json_object,
-    validate_diagnosis,
+    validate_repair_diagnosis,
 )
+from src.agents.scripts_and_prompts_generation.level1_code_repair import invoke_json
 from src.agents.scripts_and_prompts_generation.agentic_generation_validation import (
-    MEDICAL_CSV_ROUNDTRIP_PROMPT_HEADER,
     build_validation_report,
 )
 
@@ -94,12 +91,6 @@ def _context_summary(context: AgenticGenerationContext) -> dict[str, Any]:
             "output_paths (never assume cwd is the output_root)."
         ),
     }
-    if context.ontology.name == "medical":
-        summary["medical_csv_roundtrip_alignment"] = (
-            f"Retain {MEDICAL_CSV_ROUNDTRIP_PROMPT_HEADER} in every EXTRACTION_ITER_* and KG_BUILDING_ITER_* prompt "
-            "(except EXTRACTION_ITER_1). Machine validation fails if the marker is removed. Keep checklist values "
-            "CSV-friendly, never use JSON booleans for checklist scalars, and keep linked target labels class-distinct."
-        )
     return summary
 
 
@@ -257,35 +248,28 @@ def _has_unknown_failures(report: dict[str, Any], targets: dict[str, list[str]])
     return bool(failures) and not targets["scripts"] and not targets["prompts"]
 
 
-def _make_agent(model_name: str) -> BaseAgent:
-    return BaseAgent(
-        model_name=model_name,
-        remote_model=True,
-        model_config=ModelConfig(max_tokens=8000, timeout=300, temperature=0.1, top_p=0.05),
-        mcp_tools=["agentic_generation_workspace"],
-        mcp_set_name="agentic_generation_mcp_configs.json",
-    )
-
-
 async def run_content_diagnosis_agent(
     *,
     model_name: str,
     payload: dict[str, Any],
     inventory: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    """Ask GPT to diagnose content differences and select prompt targets."""
-    result = await _run_agent(
-        agent_name="content:diagnosis",
-        model_name=model_name,
-        prompt=build_prompt_diagnosis_task_prompt(payload=payload),
-        recursion_limit=8,
+    """Ask GPT to diagnose content differences through one plain LLM call."""
+    started = time.monotonic()
+    response = await asyncio.to_thread(
+        invoke_json,
+        model_name,
+        build_prompt_diagnosis_task_prompt(payload=payload),
     )
-    if (result.get("metadata") or {}).get("error"):
-        raise RuntimeError(
-            f"Diagnosis agent failed: {(result.get('metadata') or {}).get('error')}"
-        )
-    diagnosis = validate_diagnosis(parse_json_object(result.get("response") or ""), inventory)
-    return {"diagnosis": diagnosis, "agent": result}
+    diagnosis = validate_repair_diagnosis(response.data, inventory)
+    return {
+        "diagnosis": diagnosis,
+        "llm_call": {
+            "backend": "pure_llm_json",
+            "elapsed_seconds": round(time.monotonic() - started, 3),
+            "token_usage": response.token_usage,
+        },
+    }
 
 
 def run_content_diagnosis_agent_sync(
@@ -311,7 +295,6 @@ async def _run_agent(
     recursion_limit: int,
     timeout_seconds: int = AGENT_TIMEOUT_SECONDS,
 ) -> dict[str, Any]:
-    agent = _make_agent(model_name)
     started = time.monotonic()
     _progress(
         "Starting %s: prompt_chars=%s recursion_limit=%s timeout_seconds=%s",
@@ -321,8 +304,8 @@ async def _run_agent(
         timeout_seconds,
     )
     try:
-        text, metadata = await asyncio.wait_for(
-            agent.run(prompt, recursion_limit=recursion_limit),
+        response = await asyncio.wait_for(
+            asyncio.to_thread(invoke_json, model_name, prompt),
             timeout=timeout_seconds,
         )
     except TimeoutError:
@@ -351,11 +334,15 @@ async def _run_agent(
         }
     elapsed = round(time.monotonic() - started, 2)
     _progress("%s completed in %ss", agent_name, elapsed)
-    metadata["agent_name"] = agent_name
-    metadata["elapsed_seconds"] = elapsed
     return {
-        "response": text,
-        "metadata": metadata,
+        "response": json.dumps(response.data, ensure_ascii=False),
+        "metadata": {
+            "agent_name": agent_name,
+            "elapsed_seconds": elapsed,
+            "backend": "pure_llm_json",
+            "token_usage": response.token_usage,
+            "recursion_limit_ignored": recursion_limit,
+        },
     }
 
 
@@ -434,13 +421,7 @@ async def run_llm_agentic_generation_rounds(
                 len(targets["prompts"]),
             )
 
-            medical_alignment = ""
-            if context.ontology.name == "medical":
-                medical_alignment = (
-                    " Medical-only: keep the `## CSV Round-Trip Contract (medical ontology)` block in every EXTRACTION_ITER_* and "
-                    "KG_BUILDING_ITER_* prompt (skip EXTRACTION_ITER_1). Ensure German checklist hints use JSON strings "
-                    '`"1"` / `"-"` and never JSON booleans or Python `True`/`False` strings; preserve OPS gating and name-order rules there.'
-                )
+            profile_alignment = ""
 
             # Round 1 always runs coding/prompt agents so LLM generation is not a no-op
             # when deterministic scaffolds already pass machine validation.
@@ -468,7 +449,7 @@ async def run_llm_agentic_generation_rounds(
                         "Use the agentic_generation_workspace MCP tools to inspect and edit files. "
                         "The orchestrator will run validation after your pass; do not call tools outside this MCP server. "
                         "Preserve T-Box-only domain knowledge."
-                        + medical_alignment
+                        + profile_alignment
                     ),
                     feedback=prompt_feedback,
                 )
@@ -501,7 +482,7 @@ async def run_llm_agentic_generation_rounds(
                         "Focus on the target prompt artifacts from feedback.target_artifacts.prompts when provided. "
                         "Use scaffold prompts as drafts. Strengthen them using only T-Box comments, "
                         "generation contracts, and validation feedback. Use the agentic_generation_workspace MCP to inspect and edit files."
-                        + medical_alignment
+                        + profile_alignment
                         + content_task
                     ),
                     feedback=prompt_feedback,
@@ -612,13 +593,16 @@ def run_llm_agentic_generation_rounds_sync(
     generate_scripts: bool = True,
     generate_prompts: bool = True,
 ) -> dict[str, Any]:
-    return asyncio.run(
-        run_llm_agentic_generation_rounds(
-            context,
-            model_name=model_name,
-            foreign_contracts=foreign_contracts,
-            max_rounds=max_rounds,
-            generate_scripts=generate_scripts,
-            generate_prompts=generate_prompts,
-        )
+    """Compatibility entrypoint redirected away from the former ReAct/MCP editor."""
+    from src.agents.scripts_and_prompts_generation.pure_llm_generation import (
+        run_pure_llm_generation_rounds,
+    )
+
+    return run_pure_llm_generation_rounds(
+        context,
+        model_name=model_name,
+        foreign_contracts=foreign_contracts,
+        max_rounds=max_rounds,
+        generate_scripts=generate_scripts,
+        generate_prompts=generate_prompts,
     )

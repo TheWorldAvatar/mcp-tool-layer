@@ -18,7 +18,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from rdflib import Graph, Literal, Namespace, URIRef
+from rdflib import BNode, Graph, Literal, Namespace, URIRef
 from rdflib.namespace import OWL, RDF, RDFS, XSD
 
 try:
@@ -103,19 +103,31 @@ def _tbox_symbols(graph: Graph) -> tuple[set[str], set[str]]:
     return classes, properties
 
 
-def _abox_assertions(abox_paths: list[Path]) -> set[tuple[str, str, str]]:
-    """Collect asserted triples from A-Box files only."""
+def _abox_assertions(
+    abox_paths: list[Path],
+    tbox_graph: Graph,
+) -> set[tuple[str, str, str]]:
+    """Collect instance assertions, excluding schema copied into A-Box exports.
+
+    Generated MCP memories may serialize their read-only T-Box together with
+    created instances. Schema resources and anonymous OWL/RDF list structures
+    must not therefore be reclassified as A-Box assertions.
+    """
     graph = Graph()
     for path in abox_paths:
         graph.parse(str(path), format="turtle")
+    tbox_subjects = {
+        subject for subject in tbox_graph.subjects() if not isinstance(subject, BNode)
+    }
     assertions: set[tuple[str, str, str]] = set()
     for subject, predicate, obj in graph.triples((None, None, None)):
-        if isinstance(subject, Literal):
+        if (
+            isinstance(subject, (BNode, Literal))
+            or subject in tbox_subjects
+            or predicate in {RDF.first, RDF.rest, OWL.unionOf, OWL.intersectionOf}
+        ):
             continue
-        if isinstance(obj, Literal):
-            assertions.add((str(subject), str(predicate), str(obj)))
-        else:
-            assertions.add((str(subject), str(predicate), str(obj)))
+        assertions.add((str(subject), str(predicate), str(obj)))
     return assertions
 
 
@@ -337,7 +349,7 @@ def validate(
 
     tbox_classes, tbox_properties = _tbox_symbols(tbox_graph)
     domains, ranges = _collect_domain_range(graph)
-    abox_triples = _abox_assertions(abox_paths)
+    abox_triples = _abox_assertions(abox_paths, tbox_graph)
 
     unknown_types, unknown_properties = _check_unknown_symbols(
         graph, tbox_classes, tbox_properties, abox_triples

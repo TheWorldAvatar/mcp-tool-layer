@@ -9,12 +9,14 @@ from src.agents.scripts_and_prompts_generation.agentic_generation_context import
     AgenticGenerationContext,
     build_contexts_for_ontologies,
 )
+from src.agents.scripts_and_prompts_generation.domain_artifact_compiler import (
+    build_domain_generation_context,
+)
 from src.agents.scripts_and_prompts_generation.agentic_generation_validation import (
     build_validation_report,
-    medical_csv_roundtrip_contract_addon,
 )
-from src.agents.scripts_and_prompts_generation.agentic_generation_llm_agents import (
-    run_llm_agentic_generation_rounds_sync,
+from src.agents.scripts_and_prompts_generation.pure_llm_generation import (
+    run_pure_llm_generation_rounds,
 )
 
 
@@ -36,39 +38,15 @@ def _local_name(value: Any) -> str:
     return text.rstrip("/").rsplit("/", 1)[-1]
 
 
-def _medical_csv_roundtrip_prompt_addon(context: AgenticGenerationContext) -> str:
-    if context.ontology.name != "medical":
-        return ""
-    return "\n" + medical_csv_roundtrip_contract_addon()
+def _configured_prompt_addon(context: AgenticGenerationContext) -> str:
+    """Keep non-T-Box runtime configuration out of generated prompt semantics."""
+    return ""
 
 
 def _mutually_exclusive_property_groups(
     context: AgenticGenerationContext,
 ) -> list[dict[str, Any]]:
-    reconciliation = (
-        (
-            (
-                (context.contract.get("runtime_policies") or {})
-                .get("main_entity_kg", {})
-                or {}
-            )
-            .get("publish", {})
-            or {}
-        )
-        .get("hint_reconciliation", {})
-        or {}
-    )
-    groups: list[dict[str, Any]] = []
-    for group in reconciliation.get("mutually_exclusive_property_groups") or []:
-        target = _local_name((group or {}).get("target_class_iri"))
-        properties = [
-            _local_name(prop)
-            for prop in (group or {}).get("property_iris") or []
-            if _local_name(prop)
-        ]
-        if target and len(properties) > 1:
-            groups.append({"target_class": target, "properties": properties})
-    return groups
+    return []
 
 
 def _format_mutually_exclusive_property_contract(
@@ -204,6 +182,24 @@ def _om2_quantity_properties_for_class(
     return out
 
 
+def _object_property_range_contracts(
+    context: AgenticGenerationContext,
+) -> dict[str, dict[str, str]]:
+    """Return absolute T-Box range identity for object-property target creation."""
+    contracts = context.contract.get("relationship_tool_contracts") or {}
+    result: dict[str, dict[str, str]] = {}
+    for local, spec in contracts.items():
+        key = str(local).strip()
+        ranges = list((spec or {}).get("range_iris") or [])
+        if not key or len(ranges) != 1:
+            continue
+        result[key] = {
+            "range_iri": str(ranges[0]).strip(),
+            "target_handling": str((spec or {}).get("target_handling") or ""),
+        }
+    return result
+
+
 def _base_script(context: AgenticGenerationContext) -> str:
     ns = _namespace_uri(context)
     has_om2 = bool(context.contract.get("om2_quantity_properties"))
@@ -235,64 +231,18 @@ def _ensure_required_top_links_before_export() -> None:
     if has_om2:
         om2_helper = """
 
-OM2_UNIT_MAP = {
-    "c": OM2.degreeCelsius,
-    "°c": OM2.degreeCelsius,
-    "degree celsius": OM2.degreeCelsius,
-    "degrees celsius": OM2.degreeCelsius,
-    "h": OM2.hour,
-    "hr": OM2.hour,
-    "hrs": OM2.hour,
-    "hour": OM2.hour,
-    "hours": OM2.hour,
-    "min": OM2.minute,
-    "mins": OM2.minute,
-    "minute": OM2.minute,
-    "minutes": OM2.minute,
-    "s": OM2.second,
-    "sec": OM2.second,
-    "second": OM2.second,
-    "seconds": OM2.second,
-    "ml": OM2.millilitre,
-    "l": OM2.litre,
-    "bar": OM2.bar,
-    "pa": OM2.pascal,
-}
-
-
-def _normalize_om2_unit_alias(unit: str) -> str:
-    return re.sub(r"\\s+", " ", str(unit or "").strip().lower())
-
-
-def _resolve_om2_unit(unit: str):
-    normalized = _normalize_om2_unit_alias(unit)
-    resolved = OM2_UNIT_MAP.get(normalized)
-    if resolved is None:
-        raise ValueError(f"Unsupported OM-2 unit label: {unit!r}")
-    return resolved
-
-
-def _parse_om2_quantity_label(label: str) -> tuple[float, str]:
-    text = str(label or "").strip()
-    match = re.search(r"([-+]?\\d+(?:\\.\\d+)?)\\s*([^,;]+)$", text)
-    if not match:
-        raise ValueError(f"OM-2 quantity label must contain a number and unit: {label!r}")
-    return float(match.group(1)), match.group(2).strip()
+from ._fixed_om2_runtime import (
+    find_or_create_om2_quantity_from_label as _fixed_find_or_create_om2_quantity,
+)
 
 
 def _find_or_create_om2_quantity(quantity_class_local: str, label: str):
-    quantity_class = OM2[quantity_class_local]
-    label_text = str(label or "").strip()
-    existing = _find_by_type_and_label(quantity_class, label_text)
-    if existing is not None:
-        return existing
-    value, unit_label = _parse_om2_quantity_label(label_text)
-    iri = _mint_hash_iri(quantity_class_local, label_text)
-    GRAPH.add((iri, RDF.type, quantity_class))
-    GRAPH.add((iri, RDFS.label, Literal(label_text)))
-    GRAPH.add((iri, OM2.hasNumericalValue, Literal(value, datatype=XSD.double)))
-    GRAPH.add((iri, OM2.hasUnit, _resolve_om2_unit(unit_label)))
-    return iri
+    return _fixed_find_or_create_om2_quantity(
+        GRAPH,
+        quantity_class=OM2[quantity_class_local],
+        label=str(label or "").strip(),
+        mint_iri=_mint_hash_iri,
+    )
 """
     else:
         om2_helper = """
@@ -312,6 +262,7 @@ from datetime import datetime
 from pathlib import Path
 from rdflib import Graph, Literal, Namespace, RDF, RDFS, URIRef
 from rdflib.namespace import XSD
+from . import _fixed_rdf_runtime as rdf_runtime
 
 
 NS = Namespace({ns!r})
@@ -402,15 +353,23 @@ def _memory_paths(doi: str | None = None, entity_context: str | None = None) -> 
     return memory_dir / f"{{safe_entity}}.ttl", exports_dir / f"{{safe_entity}}_{{timestamp}}.ttl"
 
 
-def init_memory_wrapper(doi: str, top_level_entity_name: str = "top") -> str:
+def init_memory_wrapper(
+    doi: str,
+    top_level_entity_name: str = "top",
+) -> str:
     global CURRENT_DOI, CURRENT_ENTITY_CONTEXT
     CURRENT_DOI = _resolve_case_dirname(str(doi or "").strip())
     CURRENT_ENTITY_CONTEXT = str(top_level_entity_name or "top").strip() or "top"
-    GRAPH.remove((None, None, None))
     memory_ttl, _ = _memory_paths(CURRENT_DOI, CURRENT_ENTITY_CONTEXT)
     if memory_ttl.exists() and memory_ttl.stat().st_size > 0:
         GRAPH.parse(memory_ttl, format="turtle")
-    return json.dumps({{"status": "ok", "doi": CURRENT_DOI, "top_level_entity_name": CURRENT_ENTITY_CONTEXT}})
+    return json.dumps({{
+        "status": "ok",
+        "doi": CURRENT_DOI,
+        "top_level_entity_name": CURRENT_ENTITY_CONTEXT,
+        "mode": "open_or_resume",
+        "total_triples": len(GRAPH),
+    }})
 
 
 def get_top_entity_iri(label: str | None = None) -> str:
@@ -550,7 +509,7 @@ def _add_object(subject_iri: str, predicate_local: str, object_iri: str) -> bool
 
 def export_memory_wrapper() -> str:
     _ensure_required_top_links_before_export()
-    ttl = GRAPH.serialize(format="turtle")
+    ttl = rdf_runtime.serialize_turtle(rdf_runtime.abox_graph(GRAPH))
     memory_ttl, export_ttl = _memory_paths()
     memory_ttl.write_text(ttl, encoding="utf-8")
     export_ttl.write_text(ttl, encoding="utf-8")
@@ -562,21 +521,43 @@ def export_memory_wrapper() -> str:
 
 def _checks_script(context: AgenticGenerationContext) -> str:
     class_funcs = []
+    manifest = ["check_ordered_members"]
     for cls in sorted((context.parsed.get("classes") or {}).keys()):
         fn = _py_name(cls)
+        manifest.append(f"check_existing_{fn}")
         class_funcs.append(
-            f"""def check_existing_{fn}s() -> str:
+            f"""def check_existing_{fn}() -> str:
     iris = [str(s) for s in GRAPH.subjects(RDF.type, NS[{cls!r}])]
     return json.dumps({{"status": "ok", "class": {cls!r}, "iris": iris}})
+"""
+        )
+    for spec in context.contract.get("external_class_creators") or []:
+        tool_name = str((spec or {}).get("check_tool_name") or "").strip()
+        class_iri = str((spec or {}).get("class_iri") or "").strip()
+        if not tool_name or not class_iri:
+            continue
+        manifest.append(tool_name)
+        class_funcs.append(
+            f"""def {tool_name}() -> str:
+    iris = [str(s) for s in GRAPH.subjects(RDF.type, URIRef({class_iri!r}))]
+    return json.dumps({{"status": "ok", "class_iri": {class_iri!r}, "iris": iris}})
 """
         )
     return (
         """from __future__ import annotations
 
 import json
-from .{ontology}_creation_base import GRAPH, NS, RDF
+from .{ontology}_creation_base import GRAPH, NS, RDF, URIRef
 
-""".format(ontology=_py_name(context.ontology.name))
+def check_ordered_members() -> str:
+    return json.dumps({{"status": "ok", "violations": []}})
+
+__all__ = {manifest!r}
+
+""".format(
+            ontology=_py_name(context.ontology.name),
+            manifest=manifest,
+        )
         + "\n".join(class_funcs)
     )
 
@@ -585,15 +566,18 @@ def _entities_script(context: AgenticGenerationContext) -> str:
     top_local = str(
         (context.contract.get("top_entity") or {}).get("class_local") or ""
     ).strip()
+    has_om2_quantity = bool(context.contract.get("om2_quantity_properties"))
     parts = [
         f"""from __future__ import annotations
 
+from ._fixed_rdf_runtime import package_entity_capabilities{", create_om2_quantity" if has_om2_quantity else ""}
 from .{_py_name(context.ontology.name)}_creation_base import (
     GRAPH,
     Literal,
     NS,
     RDF,
     RDFS,
+    URIRef,
     _add_quantity_label_metadata,
     _add_literal,
     _add_object,
@@ -606,10 +590,23 @@ from .{_py_name(context.ontology.name)}_creation_base import (
     get_top_entity_iri,
 )
 
+_ENTITY_CAPABILITIES = package_entity_capabilities()
+
 """
     ]
     classes = context.parsed.get("classes") or {}
+    class_iris = {
+        _local_name(str(item.get("class_iri") or "")): str(
+            item.get("class_iri") or ""
+        )
+        for item in (
+            (context.contract.get("ontology_publish_contract") or {}).get("classes")
+            or []
+        )
+        if str(item.get("class_iri") or "").strip()
+    }
     required_by_domain: dict[str, list[dict[str, Any]]] = {}
+    range_contracts = _object_property_range_contracts(context)
     for spec in context.contract.get("required_step_scoped_object_properties") or []:
         domain = str((spec or {}).get("domain_local") or "").strip()
         if domain:
@@ -664,6 +661,12 @@ from .{_py_name(context.ontology.name)}_creation_base import (
                 continue
             param_name = f"{_py_name(prop)}_label"
             range_py = _py_name(range_local)
+            range_iri = str(
+                (range_contracts.get(prop) or {}).get("range_iri") or ""
+            )
+            range_type = (
+                f"URIRef({range_iri!r})" if range_iri else f"NS.{range_py}"
+            )
             range_scalar_props = [
                 str(target_prop)
                 for target_prop in sorted(
@@ -703,10 +706,10 @@ from .{_py_name(context.ontology.name)}_creation_base import (
             if target_label is None or str(target_label).strip() == "":
                 continue
             target_base_label, embedded_scalar = _split_label_scalar(str(target_label).strip())
-            target = _find_by_type_and_label(NS.{range_py}, target_base_label)
+            target = _find_by_type_and_label({range_type}, target_base_label)
             if target is None:
                 target = _mint_hash_iri({range_local!r}, target_base_label)
-                GRAPH.add((target, RDF.type, NS.{range_py}))
+                GRAPH.add((target, RDF.type, {range_type}))
                 GRAPH.add((target, RDFS.label, Literal(str(target_base_label))))
                 _add_quantity_label_metadata(target, target_base_label){embedded_scalar_block}
             _add_object(str(iri), {prop!r}, str(target))"""
@@ -719,6 +722,12 @@ from .{_py_name(context.ontology.name)}_creation_base import (
                 continue
             param_name = f"{_py_name(prop_local)}_label"
             range_py = _py_name(range_local)
+            range_iri = str(
+                (range_contracts.get(prop_local) or {}).get("range_iri") or ""
+            )
+            range_type = (
+                f"URIRef({range_iri!r})" if range_iri else f"NS.{range_py}"
+            )
             range_scalar_props = [
                 str(target_prop)
                 for target_prop in sorted(
@@ -747,10 +756,10 @@ from .{_py_name(context.ontology.name)}_creation_base import (
             if target_label is None or str(target_label).strip() == "":
                 continue
             target_base_label, embedded_scalar = _split_label_scalar(str(target_label).strip())
-            target = _find_by_type_and_label(NS.{range_py}, target_base_label)
+            target = _find_by_type_and_label({range_type}, target_base_label)
             if target is None:
                 target = _mint_hash_iri({range_local!r}, target_base_label)
-                GRAPH.add((target, RDF.type, NS.{range_py}))
+                GRAPH.add((target, RDF.type, {range_type}))
                 GRAPH.add((target, RDFS.label, Literal(str(target_base_label))))
                 _add_quantity_label_metadata(target, target_base_label){embedded_scalar_block}
             _add_object(str(iri), {prop_local!r}, str(target))"""
@@ -776,69 +785,152 @@ from .{_py_name(context.ontology.name)}_creation_base import (
         if not body_lines:
             body_lines = "    pass"
         prefer_top = cls == top_local
+        class_iri = class_iris.get(cls, "")
         parts.append(
             f"""def create_{fn}(label: str{suffix}) -> str:
     # Keep validation markers in the top-entity function source.
     _ = (get_top_entity_iri, _find_by_type_and_label, _mint_hash_iri)
-    iri, created = _create_entity({cls!r}, label, prefer_top={prefer_top!r})
+    iri = _ENTITY_CAPABILITIES[{class_iri!r}](label)
+    created = True
 {body_lines}
     return _format_success_json(iri, f"created or reused {cls}", created=created)
 
 """
         )
+    for spec in context.contract.get("external_class_creators") or []:
+        tool_name = str((spec or {}).get("tool_name") or "").strip()
+        class_iri = str((spec or {}).get("class_iri") or "").strip()
+        class_local = str((spec or {}).get("class_local") or "").strip()
+        if not tool_name or not class_iri:
+            continue
+        parts.append(
+            f"""def {tool_name}(label: str) -> str:
+    iri = _ENTITY_CAPABILITIES[{class_iri!r}](label)
+    return _format_success_json(iri, "created or reused external T-Box range {class_local}", created=True)
+
+"""
+        )
+    entity_manifest = [f"create_{_py_name(cls)}" for cls in sorted(classes)]
+    entity_manifest.extend(
+        str((spec or {}).get("tool_name") or "").strip()
+        for spec in context.contract.get("external_class_creators") or []
+        if str((spec or {}).get("tool_name") or "").strip()
+    )
+    if has_om2_quantity:
+        entity_manifest.append("create_om2_quantity")
+    parts.append(f"\n__all__ = {entity_manifest!r}\n")
     return "".join(parts)
 
 
 def _relationships_script(context: AgenticGenerationContext) -> str:
-    props = {
-        name: prop
+    relationship_contracts = context.contract.get("relationship_tool_contracts") or {}
+    props = relationship_contracts or {
+        name: {"predicate_local": name}
         for name, prop in (context.parsed.get("properties") or {}).items()
         if (prop or {}).get("kind") == "object"
     }
     parts = [
         f"""from __future__ import annotations
 
-from .{_py_name(context.ontology.name)}_creation_base import GRAPH, NS, RDF, _add_object, _format_error_json, _format_success_json
+import re
+from typing import Annotated
+from pydantic import Field
+from ._fixed_rdf_runtime import package_relationship_capabilities
+from .{_py_name(context.ontology.name)}_creation_base import _format_error_json, _format_success_json
+
+_RELATIONSHIP_CAPABILITIES = package_relationship_capabilities()
 
 """
     ]
-    preferred_domains = {
-        prop_local: str((spec or {}).get("preferred_domain_local") or "").strip()
-        for prop_local, spec in (
-            context.contract.get("relationship_domain_contracts") or {}
-        ).items()
-        if str((spec or {}).get("preferred_domain_local") or "").strip()
-    }
     for prop in sorted(props.keys()):
         fn = _py_name(prop)
-        preferred = preferred_domains.get(prop)
-        preferred_line = (
-            f"    GRAPH.add((subject_iri, RDF.type, NS.{_py_name(preferred)}))\n"
-            if preferred
-            else ""
+        relationship_contract = props.get(prop) or {}
+        predicate_iri = str(
+            relationship_contract.get("predicate_iri") or ""
+        ).strip()
+        range_locals = [
+            str(value)
+            for value in relationship_contract.get("range_locals") or []
+            if str(value).strip()
+        ]
+        creator_tools = [
+            str(value)
+            for value in relationship_contract.get("creator_tools") or []
+            if str(value).strip()
+        ]
+        external_range_iris = [
+            str(value)
+            for value in relationship_contract.get("external_range_iris") or []
+            if str(value).strip()
+        ]
+        range_text = ", ".join(range_locals) or "T-Box-declared target"
+        desc = (
+            f"object_iri must be an absolute IRI for range {range_text}; "
+            "never a label/name/literal/plain text."
         )
+        if creator_tools:
+            creator_text = ", ".join(creator_tools)
+            desc += (
+                f" For generated targets, use {creator_text}; object_iri must be the subject IRI "
+                "returned by a successful creator call."
+            )
+        if external_range_iris and not relationship_contract.get(
+            "external_creator_specs"
+        ):
+            desc += (
+                " For external targets, pass an existing absolute IRI from the declared range; "
+                "do not invent a creator tool."
+            )
+        doc = f'"""Add {prop}. {desc}"""'
         parts.append(
-            f"""def add_{fn}(subject_iri: str, object_iri: str) -> str:
+            f"""def add_{fn}(subject_iri: str, object_iri: Annotated[str, Field(description={desc!r})]) -> str:
+    {doc}
     if not subject_iri:
         return _format_error_json("INVALID_SUBJECT_IRI", "subject_iri is required")
     if not object_iri:
         return _format_error_json("INVALID_OBJECT_IRI", "object_iri is required")
-{preferred_line}    created = _add_object(subject_iri, {prop!r}, object_iri)
-    return _format_success_json(object_iri, f"linked {prop}", created=created)
+    if not re.match(r"^https?://", str(subject_iri or "")):
+        return _format_error_json("INVALID_SUBJECT_IRI", "subject_iri must be an absolute IRI (http/https)")
+    if not re.match(r"^https?://", str(object_iri or "")):
+        return _format_error_json(
+            "INVALID_OBJECT_IRI",
+            "object_iri must be an absolute IRI (http/https), never a label/name/literal/plain text",
+        )
+    try:
+        result = _RELATIONSHIP_CAPABILITIES[{predicate_iri!r}](subject_iri, object_iri)
+    except (KeyError, ValueError) as exc:
+        return _format_error_json("RELATIONSHIP_CONTRACT_REJECTED", str(exc))
+    return _format_success_json(object_iri, f"linked {prop}", created=True, enforcement=result)
 
 """
         )
+    parts.append(
+        "\n__all__ = "
+        + repr([f"add_{_py_name(prop)}" for prop in sorted(props.keys())])
+        + "\n"
+    )
     return "".join(parts)
 
 
 def _main_script(context: AgenticGenerationContext) -> str:
     classes = sorted((context.parsed.get("classes") or {}).keys())
+    external_creator_tools = [
+        str((spec or {}).get("tool_name") or "").strip()
+        for spec in context.contract.get("external_class_creators") or []
+        if str((spec or {}).get("tool_name") or "").strip()
+    ]
+    external_check_tools = [
+        str((spec or {}).get("check_tool_name") or "").strip()
+        for spec in context.contract.get("external_class_creators") or []
+        if str((spec or {}).get("check_tool_name") or "").strip()
+    ]
     object_props = sorted(
         name
         for name, prop in (context.parsed.get("properties") or {}).items()
         if (prop or {}).get("kind") == "object"
     )
     ontology = _py_name(context.ontology.name)
+    has_om2_quantity = bool(context.contract.get("om2_quantity_properties"))
     top_local = str(
         (context.contract.get("top_entity") or {}).get("class_local") or ""
     ).strip()
@@ -924,15 +1016,26 @@ def _main_script(context: AgenticGenerationContext) -> str:
                     }
                 )
     imports = [
-        "import inspect",
-        "import json",
-        "import re",
-        "from rdflib import URIRef",
         "from fastmcp import FastMCP",
-        f"from .{ontology}_creation_base import GRAPH, NS, RDF, RDFS, export_memory_wrapper, init_memory_wrapper",
+        "from ._fixed_rdf_runtime import init_memory, export_memory",
         f"from .{ontology}_creation_entities import "
         + ", ".join(
-            f"create_{_py_name(cls)} as _create_{_py_name(cls)}" for cls in classes
+            [
+                *(f"create_{_py_name(cls)} as _create_{_py_name(cls)}" for cls in classes),
+                *(f"{tool} as _{tool}" for tool in external_creator_tools),
+                *(["create_om2_quantity as _create_om2_quantity"] if has_om2_quantity else []),
+            ]
+        ),
+        f"from .{ontology}_creation_checks import "
+        + ", ".join(
+            [
+                "check_ordered_members as _check_ordered_members",
+                *(
+                    f"check_existing_{_py_name(cls)} as _check_existing_{_py_name(cls)}"
+                    for cls in classes
+                ),
+                *(f"{tool} as _{tool}" for tool in external_check_tools),
+            ]
         ),
     ]
     if object_props:
@@ -951,6 +1054,7 @@ def _main_script(context: AgenticGenerationContext) -> str:
     create_map = (
         "{\n"
         + "".join(f"    {cls!r}: _create_{_py_name(cls)},\n" for cls in classes)
+        + "".join(f"    {tool!r}: _{tool},\n" for tool in external_creator_tools)
         + "}"
     )
     add_map = (
@@ -958,28 +1062,25 @@ def _main_script(context: AgenticGenerationContext) -> str:
         + "".join(f"    {prop!r}: _add_{_py_name(prop)},\n" for prop in object_props)
         + "}"
     )
-    parts.append("""@mcp.tool(name="init_memory")
-def init_memory(doi: str, top_level_entity_name: str = "top") -> str:
-    return init_memory_wrapper(doi, top_level_entity_name)
-
-@mcp.prompt(name="instruction")
+    parts.append("""@mcp.prompt(name="instruction")
 def instruction() -> str:
     return (
         "Use the available MCP tools to mutate and export the RDF graph. "
         "Never report that RDF triples were created, linked, exported, or validated unless "
         "the corresponding tools were actually called and returned successfully. "
-        "A prose-only response is not a successful KG-building run. "
-        "When extraction hints are supplied, prefer the materialize_hints tool because it "
-        "performs initialization, T-Box-compatible creation, top-level linking, and export in one call."
+        "A prose-only response is not a successful KG-building run. Use the class-specific "
+        "create tools and property-specific add tools explicitly, then call export_memory."
     )
 
 """)
-    parts.append("""@mcp.tool(name="export_memory")
-def export_memory() -> str:
-    return export_memory_wrapper()
-
-""")
-    parts.append(
+    for tool in external_creator_tools:
+        parts.append(f'mcp.tool(name={tool!r})(_{tool})\n')
+    for tool in external_check_tools:
+        parts.append(f'mcp.tool(name={tool!r})(_{tool})\n')
+    # Hint-to-tool orchestration belongs to the KG agent and its prompt. Generated
+    # packages expose only atomic create/add/lifecycle tools.
+    if False:
+        parts.append(
         f'''_CREATE_TOOLS = {create_map}
 _ADD_TOOLS = {add_map}
 _CLASS_ANCESTORS = {class_ancestor_map!r}
@@ -1405,9 +1506,17 @@ def materialize_hints(doi: str, top_level_entity_name: str, entity_label: str, h
 
 '''
     )
+    parts.append("""mcp.tool(name="init_memory")(init_memory)
+mcp.tool(name="export_memory")(export_memory)
+
+""")
     for cls in classes:
         fn = _py_name(cls)
         parts.append(f"""mcp.tool(name="create_{fn}")(_create_{fn})
+
+""")
+    if has_om2_quantity:
+        parts.append("""mcp.tool(name="create_om2_quantity")(_create_om2_quantity)
 
 """)
     for prop in object_props:
@@ -1415,6 +1524,16 @@ def materialize_hints(doi: str, top_level_entity_name: str, entity_label: str, h
         parts.append(f"""mcp.tool(name="add_{fn}")(_add_{fn})
 
 """)
+    parts.append("""mcp.tool(name="check_ordered_members")(_check_ordered_members)
+
+""")
+    for cls in classes:
+        fn = _py_name(cls)
+        parts.append(
+            f"""mcp.tool(name="check_existing_{fn}")(_check_existing_{fn})
+
+"""
+        )
     parts.append("""if __name__ == "__main__":
     mcp.run(transport="stdio")
 """)
@@ -1517,14 +1636,8 @@ def _format_value_kind_priority_contract(context: AgenticGenerationContext) -> s
 
 
 def _prompt_field_allowlist(context: AgenticGenerationContext) -> dict[str, set[str]]:
-    raw = context.contract.get("prompt_field_allowlist")
-    if not isinstance(raw, dict):
-        return {}
-    allowlist: dict[str, set[str]] = {}
-    for class_local, fields in raw.items():
-        if isinstance(fields, list):
-            allowlist[str(class_local)] = {str(field) for field in fields if str(field)}
-    return allowlist
+    """T-Box fields are exhaustive; runtime config cannot hide semantic fields."""
+    return {}
 
 
 def _prompt_class_is_filtered(context: AgenticGenerationContext, class_local: str) -> bool:
@@ -1817,6 +1930,9 @@ Ontology Source:
 - T-Box TTL: `{context.ontology.ttl_file}`
 - Top entity class: `{top.get("class_local") or ""}`
 
+Source Document:
+{{paper_content}}
+
 Core Rules:
 - Do not infer missing values.
 - Preserve source wording for labels and scalar values.
@@ -1854,10 +1970,10 @@ The label inside brackets should be the shortest stable source-supported identif
 
 def _kg_prompt(context: AgenticGenerationContext) -> str:
     top = context.contract.get("top_entity") or {}
-    top_local = str(top.get("class_local") or "TopEntity").strip() or "TopEntity"
-    top_create_tool = f"create_{_py_name(top_local)}"
+    top_local = str(top.get("class_local") or "").strip()
+    top_create_tool = f"create_{_py_name(top_local)}" if top_local else ""
     required_tool_lines: list[str] = []
-    if context.ontology.role == "main":
+    if context.ontology.role == "main" and top_local:
         required_tool_lines.append(
             f"- Top-entity KG pass only: create/reuse the `{top_local}` root from the top-entity list and do not create non-top required-link targets; later per-entity iterations materialize source-supported links."
         )
@@ -1885,10 +2001,22 @@ def _kg_prompt(context: AgenticGenerationContext) -> str:
         else "- No required link tools are declared."
     )
     integrity = json.dumps(context.integrity_profile, indent=2, ensure_ascii=False)
+    top_tool_rules = (
+        f"""- Then call `{top_create_tool}` for the top entity from the top-entity list.
+- For `{top_create_tool}`, pass the source-supported top entity label from inside brackets, never `top`, `{top_local}`, or generated shell labels such as `{top_local}-1`.
+- In this top-entity KG pass, create only the `{top_local}` root."""
+        if top_create_tool
+        else "- The T-Box declares no machine-readable top role; do not guess a top class or call a create-top tool."
+    )
     return f"""# KG Building Prompt: {context.ontology.name}
 
 Task:
 Create RDF triples using the generated MCP tools for this ontology only.
+
+Runtime Inputs:
+- Document identifier: `{{doi}}`
+- Source document: `{{paper_content}}`
+- Extracted top entities/hints: `{{top_entities}}`
 
 Ontology Source:
 - T-Box TTL: `{context.ontology.ttl_file}`
@@ -1896,12 +2024,9 @@ Ontology Source:
 
 Tool-Use Rules:
 - You must call tools. A prose-only answer is a failed run.
-- If extraction hints are available as JSON, prefer one call to `materialize_hints` with the document id, scoped top entity name, entity label, and raw hints JSON.
 - First call `init_memory` with the current document identifier and configured top-level entity context.
-- Then call `{top_create_tool}` for the top entity from the top-entity list.
+{top_tool_rules}
 - Reuse the scoped top entity when the contract says top-entity reuse is required.
-- For `{top_create_tool}`, pass the source-supported top entity label from inside brackets, never `top`, `{top_local}`, or generated shell labels such as `{top_local}-1`.
-- In this top-entity KG pass, create only the `{top_local}` root. Do not create or link `{top_local}` required-link targets, ordered members, outputs, inputs, yields, equipment, or placeholder entities; those belong to later per-entity iterations with source-supported extraction hints.
 - In the top-entity KG pass, do not create placeholder/shell targets for required links. In particular, do not create generic ordered-member targets just to satisfy a required link; later per-entity iterations must create source-supported members with concrete subclasses and ordering values.
 - Do not materialize generic ordered-member parent hints as placeholder members when specific ordered-member subclasses exist in the T-Box.
 - Do not create two ordered-member individuals for the same source operation, label, or ordering value; choose the single most specific class supported by the T-Box class comments.
@@ -1932,7 +2057,7 @@ Ontology-Derived Integrity Profile:
 ```json
 {integrity}
 ```
-{_medical_csv_roundtrip_prompt_addon(context)}
+{_configured_prompt_addon(context)}
 Export:
 After entity creation and linking, call the export tool and ensure the emitted Turtle parses successfully.
 """
@@ -1950,16 +2075,40 @@ def _iteration_extraction_prompt(
         )
         if str(name).strip()
     }
-    chemistry_enrichment = ""
-    if "pubchem" in external_tools or "enhanced_websearch" in external_tools:
-        chemistry_enrichment = """
-External Chemistry Enrichment:
-- For every extracted ChemicalInput, call a PubChem lookup tool using the source name or abbreviation before returning JSON.
-- Preserve the verbatim source label as `label`; put PubChem names and source abbreviations in `hasAlternativeNames`, deduplicated and semicolon-separated.
-- Put the PubChem molecular formula in `hasChemicalFormula`.
-- Use `google_search` only when PubChem cannot resolve the source label or when corroboration is needed; prefer authoritative PubChem or publisher pages over unsourced summaries.
-- External lookup results may enrich identity fields, but must not invent that a chemical participated in the synthesis unless the source document says it did.
-"""
+    enrichment_profile = (
+        iteration.get("external_enrichment_profile")
+        if isinstance(iteration.get("external_enrichment_profile"), dict)
+        else {}
+    )
+    allowed_classes = set((context.parsed.get("classes") or {}).keys())
+    allowed_properties = set((context.parsed.get("properties") or {}).keys())
+    target_class = str(enrichment_profile.get("target_class") or "").strip()
+    field_map = {
+        str(source): str(target)
+        for source, target in (enrichment_profile.get("field_map") or {}).items()
+        if str(source).strip()
+        and str(target).strip()
+        and str(target) in allowed_properties
+    }
+    enrichment_provider = str(enrichment_profile.get("provider") or "").strip()
+    enrichment_lines: list[str] = []
+    if (
+        enrichment_provider
+        and enrichment_provider in external_tools
+        and target_class in allowed_classes
+        and field_map
+    ):
+        enrichment_lines = [
+            "External enrichment contract:",
+            f"- Use `{enrichment_provider}` only for source-supported `{target_class}` identities.",
+            "- Preserve the source label and map provider values only to these T-Box fields:",
+            *(
+                f"  - `{source}` -> `{target}`"
+                for source, target in sorted(field_map.items())
+            ),
+            "- External results may enrich an existing source-supported identity, but never prove participation or create a new source fact.",
+        ]
+    external_enrichment = "\n".join(enrichment_lines)
     return f"""# Extraction Prompt: {context.ontology.name} Iteration {iteration.get("iteration_number")}
 
 Task:
@@ -1996,20 +2145,20 @@ Rules:
 - If source evidence supports any datatype field for a class linked from the current top entity, emit both the top-entity `_label` link to that class and the companion class section. After emitting one field for that linked class, scan the same structured source region for all other accepted fields of that class before returning JSON.
 - Use exact class local names from the Materializable Hint Contract as JSON section keys.
 - Inside each class section, use only `label` and the listed generated tool parameter names for that class.
-- Emit a class section only when the current target label or a source-supported linked target actually denotes an instance of that class; do not coerce process, event, or relation labels into material/product/container classes just because those classes are available.
+- Emit a class section only when the current target label or a source-supported linked target actually denotes an instance of that class; do not coerce one semantic category into another merely because both classes are available.
 - For ordered-member classes, ordering fields listed in the Materializable Hint Contract must be unique positive integers starting at 1. Do not emit duplicate, skipped, decimal, fractional, zero, negative, or between-step order values such as 1.5; renumber the ordered members as consecutive integers in source order.
 - Do not emit the same source operation, label, or ordering value as two different ordered-member class sections; choose the single most specific class supported by the T-Box class comments.
 - Do not emit a generic ordered-member parent class as a placeholder when source evidence supports one of its specific subclasses in the Materializable Hint Contract; emit the specific subclass section and its supported fields instead.
-- If the T-Box declares an ordered-member class whose comment says it introduces a linked target object, do not skip those initial introduction members when the source lists targets as present in a mixture, vessel, treatment, or starting condition; emit one ordered member per source-supported linked target before later operations.
-- Object label fields ending in `_label` must contain only the target entity label, never an appended amount, duration, temperature, role, or other scalar value; put those scalar values on the target class section using its listed fields.
+- If the T-Box declares an ordered-member class whose comment says it introduces a linked target object, emit one ordered member per source-supported linked target in source order.
+- Object label fields ending in `_label` must contain only the target entity label, never appended scalar or role data; put scalar values on the target class section using its listed fields.
 - Object label fields ending in `_label` must not append the Current Target Entity label as a context suffix. If the linked target is already present in existing/source hints, reuse that exact target label.
 - When one current top entity links to multiple non-top target classes in the same response, do not reuse the exact same label for different target-class instances. Use a stable class-distinct target label for each linked class, and use that same class-distinct label in both the top-entity `_label` field and the companion target-class section.
 - For ordered-member object-label fields whose target class has scalar fields, link to the same companion target object label that carries those scalar fields; do not mint a second context-specific target label for the link.
 - For every required ordered-member object-label link declared below, emit the `_label` field when the ordered-member label or source sentence identifies a target object present in the same hints.
 - When an object-label field points to a target class that has scalar fields and the source states those scalar values, emit a companion target-class object with the same `label` so the values are materialized on the linked target.
 - When an object-label field contains multiple linked targets, use a JSON list of labels and emit one companion target-class object per label; do not collapse multiple targets into one label string.
-- If a linked target is itself expressed as a formula-like label and the target class exposes a formula/value scalar field, copy the source-supported formula-like label into that scalar field too instead of leaving the target scalar empty.
-- If a T-Box object property comment says a target should link to source species, reagents, aliases, or materials, emit that object-label field for each source-supported target object; do not omit it merely because another formula/value field is already filled.
+- If a linked target label also explicitly supplies a value accepted by a target scalar field, preserve that source-supported value in the scalar field.
+- Follow object-property comments when they require source-supported links to target objects; do not omit a required link merely because another scalar field was filled.
 - If a general parameter string contains a scalar value that has a dedicated generated field in the Materializable Hint Contract, also emit the dedicated field instead of leaving the scalar only inside the parameter string.
 - For classes listed in the Mutually Exclusive Property Contract, emit at most one active property from each group for one entity instance. Use source evidence and T-Box comments to choose the best-supported one; omit the rest.
 - When a T-Box comment distinguishes final, confirmed, provisional, preliminary, intermediate, or subordinate evidence, follow that evidence priority exactly; do not promote provisional or intermediate source statements into final/confirmed fields unless the source explicitly makes them final or confirmed.
@@ -2019,7 +2168,7 @@ Rules:
 - Never emit schema placeholders or routing fields; use only the class sections and field names listed below.
 - Output only a compact JSON object, with no markdown fences or explanatory prose.
 
-{chemistry_enrichment}
+{external_enrichment}
 Materializable Hint Contract:
 {_format_materializable_hint_contract(context)}
 
@@ -2035,6 +2184,7 @@ Required Ordered-Member Object-Link Contract:
 {_tbox_comment_fidelity_contract()}
 
 Expected JSON Shape:
+Hint Schema: canonical-class-sections.v1
 - Top-level keys must be class locals from the Materializable Hint Contract.
 - Values may be a single object or an array of objects.
 - Each object must contain `label` when a source-supported label exists.
@@ -2049,7 +2199,7 @@ Datatype Properties:
 Object Properties:
 {_format_property_rows(context, kind="object")}
 
-{_medical_csv_roundtrip_prompt_addon(context)}
+{_configured_prompt_addon(context)}
 Source:
 {{paper_content}}
 """
@@ -2067,8 +2217,6 @@ Use the generated MCP tools to materialize the extracted hints for this iteratio
 
 Rules:
 - You must call tools. A prose-only answer is a failed run.
-- Prefer one call to `materialize_hints` with the current document id, scoped top entity label, entity label, and the raw JSON from Extraction Hints.
-- If `materialize_hints` returns status `ok`, use its returned TTL/export result as the basis for the final answer.
 - Reuse the scoped top entity URI supplied by the runtime.
 - Use exact class/property local names from the extracted hints and T-Box.
 - Treat the Materializable Hint Contract as the authoritative mapping between extracted hint keys and `create_*` tool parameters.
@@ -2086,9 +2234,6 @@ Rules:
 - Finish by calling `export_memory`; do not claim success until export succeeds.
 
 Mandatory Tool Sequence:
-Preferred path: call `materialize_hints` once. It initializes memory, creates hinted entities, links T-Box-compatible top-level targets, and exports memory.
-
-Fallback path if `materialize_hints` is unavailable:
 1. Call `init_memory` with the current document identifier and scoped top entity label.
 2. Create or reuse the scoped top entity using its `create_*` tool.
 3. For every extracted class section, call the matching `create_*` tool and pass every supported scalar parameter from the hints.
@@ -2120,9 +2265,11 @@ Required Ordered-Member Object-Link Contract:
 {_format_required_step_scoped_object_contract(context)}
 
 {_format_mutually_exclusive_property_contract(context)}
-{_medical_csv_roundtrip_prompt_addon(context)}
-Extraction Hints:
-{{paper_content}}
+{_configured_prompt_addon(context)}
+Authoritative Extracted Iteration Hints:
+- Materialize only the facts in this injected channel for the current entity and iteration.
+- Do not read, request, or re-extract raw paper content. Source text is not a KG Iteration 2+ input.
+{{iteration_hints}}
 """
 
 
@@ -2178,20 +2325,20 @@ Rules:
 - For identification or demographic fields, inspect source header blocks and nearby header tables before the main body when the class or property comments say those fields come from identifying or administrative source regions.
 - For short acronym-like datatype fields, if the exact acronym/token appears in source text in a relevant diagnosis, indication, observation, or field-value context and the T-Box comment says that token activates the field, emit the configured active checklist value for that field.
 - If source evidence supports any datatype field for a class linked from the current top entity, emit both the top-entity `_label` link to that class and the companion class section. After emitting one field for that linked class, scan the same structured source region for all other accepted fields of that class before returning JSON.
-- Emit a class section only when the current target label, an existing hinted member, or a source-supported linked target actually denotes an instance of that class; do not coerce process, event, or relation labels into material/product/container classes just because those classes are available.
+- Emit a class section only when the current target label, an existing hinted member, or a source-supported linked target actually denotes an instance of that class; do not coerce one semantic category into another merely because both classes are available.
 - For ordered-member classes, ordering fields listed in the Materializable Hint Contract must be unique positive integers starting at 1. Do not emit duplicate, skipped, decimal, fractional, zero, negative, or between-step order values such as 1.5; renumber the ordered members as consecutive integers in source order.
 - Do not emit the same source operation, label, or ordering value as two different ordered-member class sections; choose the single most specific class supported by the T-Box class comments.
 - Do not emit a generic ordered-member parent class as a placeholder when source evidence supports one of its specific subclasses in the Materializable Hint Contract; emit the specific subclass section and its supported fields instead.
-- If the T-Box declares an ordered-member class whose comment says it introduces a linked target object, do not skip those initial introduction members when the source lists targets as present in a mixture, vessel, treatment, or starting condition; emit one ordered member per source-supported linked target before later operations.
-- Object label fields ending in `_label` must contain only the target entity label, never an appended amount, duration, temperature, role, or other scalar value; put those scalar values on the target class section using its listed fields.
+- If the T-Box declares an ordered-member class whose comment says it introduces a linked target object, emit one ordered member per source-supported linked target in source order.
+- Object label fields ending in `_label` must contain only the target entity label, never appended scalar or role data; put scalar values on the target class section using its listed fields.
 - Object label fields ending in `_label` must not append the Current Target Entity label as a context suffix. If the linked target is already present in existing/source hints, reuse that exact target label.
 - When one current top entity links to multiple non-top target classes in the same response, do not reuse the exact same label for different target-class instances. Use a stable class-distinct target label for each linked class, and use that same class-distinct label in both the top-entity `_label` field and the companion target-class section.
 - For ordered-member object-label fields whose target class has scalar fields, link to the same companion target object label that carries those scalar fields; do not mint a second context-specific target label for the link.
 - For every required ordered-member object-label link declared below, emit the `_label` field when the ordered-member label, existing hints, or source sentence identifies a target object present in the same hints.
 - When an object-label field points to a target class that has scalar fields and the source states those scalar values, emit a companion target-class object with the same `label` so the values are materialized on the linked target.
 - When an object-label field contains multiple linked targets, use a JSON list of labels and emit one companion target-class object per label; do not collapse multiple targets into one label string.
-- If a linked target is itself expressed as a formula-like label and the target class exposes a formula/value scalar field, copy the source-supported formula-like label into that scalar field too instead of leaving the target scalar empty.
-- If a T-Box object property comment says a target should link to source species, reagents, aliases, or materials, emit that object-label field for each source-supported target object; do not omit it merely because another formula/value field is already filled.
+- If a linked target label also explicitly supplies a value accepted by a target scalar field, preserve that source-supported value in the scalar field.
+- Follow object-property comments when they require source-supported links to target objects; do not omit a required link merely because another scalar field was filled.
 - If a general parameter string contains a scalar value that has a dedicated generated field in the Materializable Hint Contract, also emit the dedicated field instead of leaving the scalar only inside the parameter string.
 - For classes listed in the Mutually Exclusive Property Contract, emit at most one active property from each group for one entity instance. Use source evidence and T-Box comments to choose the best-supported one; omit the rest.
 - When a T-Box comment distinguishes final, confirmed, provisional, preliminary, intermediate, or subordinate evidence, follow that evidence priority exactly; do not promote provisional or intermediate source statements into final/confirmed fields unless the source explicitly makes them final or confirmed.
@@ -2216,6 +2363,7 @@ Required Ordered-Member Object-Link Contract:
 {_tbox_comment_fidelity_contract()}
 
 Expected JSON Shape:
+Hint Schema: canonical-class-sections.v1
 - Top-level keys must be class locals from the Materializable Hint Contract.
 - Values may be a single object or an array of objects.
 - Each object must include enough stable fields from the existing hint item to identify the member being enriched, such as `label` and any ordering field listed for that class.
@@ -2230,7 +2378,7 @@ Datatype Properties:
 Object Properties:
 {_format_property_rows(context, kind="object")}
 
-{_medical_csv_roundtrip_prompt_addon(context)}
+{_configured_prompt_addon(context)}
 Source and Existing Hints:
 {{paper_content}}
 """
@@ -2298,14 +2446,7 @@ def _iteration_plan(context: AgenticGenerationContext) -> dict[str, Any]:
         }
         return {"iterations": [iteration]}
 
-    runtime = context.contract.get("runtime_policies") or {}
-    plan = runtime.get("iteration_plan") or {}
-    blueprint_path = Path(str(plan.get("iterations_blueprint_path") or ""))
-    if blueprint_path.is_file():
-        blueprint = json.loads(blueprint_path.read_text(encoding="utf-8"))
-        iterations = list(blueprint.get("iterations") or [])
-    else:
-        iterations = []
+    iterations = list(context.iteration_blueprint.get("iterations") or [])
 
     main_cfg = {
         "mcp_set_name": "run_created_mcp.json",
@@ -2341,6 +2482,55 @@ def _iteration_plan(context: AgenticGenerationContext) -> dict[str, Any]:
                 )
         materialized.append(iteration)
     return {"iterations": materialized}
+
+
+def generate_runtime_support_slice(
+    context: AgenticGenerationContext,
+    *,
+    iterations: dict[str, Any] | None = None,
+) -> list[str]:
+    """Materialize run-local pipeline support artifacts from current inputs."""
+    written: list[str] = []
+    materialized_iterations = iterations if iterations is not None else _iteration_plan(context)
+    if materialized_iterations.get("iterations"):
+        iterations_dir = (
+            Path(context.output_root) / "iterations" / context.ontology.name
+        )
+        iterations_dir.mkdir(parents=True, exist_ok=True)
+        iterations_path = iterations_dir / "iterations.json"
+        iterations_path.write_text(
+            json.dumps(materialized_iterations, indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        written.append(str(iterations_path))
+
+    top = context.contract.get("top_entity") or {}
+    top_class_iri = str(top.get("class_iri") or "").strip()
+    if not top_class_iri:
+        # Legacy meta-task compatibility only. The two-input domain-config path
+        # always supplies a GPT-5-selected top entity before support generation.
+        iter1 = context.pipeline_runtime_policies.get("iter1_top_entity_kg") or {}
+        configured_local = str(
+            (iter1.get("prompt_rules") or {}).get("top_level_entity_name") or ""
+        ).strip()
+        configured_class = (context.parsed.get("classes") or {}).get(
+            configured_local
+        ) or {}
+        top_class_iri = str(configured_class.get("iri") or "").strip()
+    if top_class_iri:
+        sparql_dir = Path(context.output_root) / "sparqls" / context.ontology.name
+        sparql_dir.mkdir(parents=True, exist_ok=True)
+        sparql_path = sparql_dir / "top_entity_parsing.sparql"
+        sparql_path.write_text(
+            "PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>\n\n"
+            "SELECT DISTINCT ?entity ?label WHERE {\n"
+            f"  ?entity a <{top_class_iri}> .\n"
+            "  OPTIONAL { ?entity rdfs:label ?label }\n"
+            "}\n",
+            encoding="utf-8",
+        )
+        written.append(str(sparql_path))
+    return written
 
 
 def generate_deterministic_prompt_slice(context: AgenticGenerationContext) -> list[str]:
@@ -2380,16 +2570,7 @@ def generate_deterministic_prompt_slice(context: AgenticGenerationContext) -> li
         path = prompts_dir / name
         path.write_text(content, encoding="utf-8")
         written.append(str(path))
-    if iterations.get("iterations"):
-        iterations_dir = (
-            Path(context.output_root) / "iterations" / context.ontology.name
-        )
-        iterations_dir.mkdir(parents=True, exist_ok=True)
-        iterations_path = iterations_dir / "iterations.json"
-        iterations_path.write_text(
-            json.dumps(iterations, indent=2, ensure_ascii=False), encoding="utf-8"
-        )
-        written.append(str(iterations_path))
+    written.extend(generate_runtime_support_slice(context, iterations=iterations))
     return written
 
 
@@ -2422,36 +2603,11 @@ def inject_repair_exercise_defects(context: AgenticGenerationContext) -> list[st
     return changed
 
 
-def repair_generated_artifacts(
-    context: AgenticGenerationContext, report: dict[str, Any]
-) -> list[str]:
-    failures = [str(x) for x in report.get("failures") or []]
-    repaired: list[str] = []
-    script_markers = (
-        "Missing create tools",
-        "Missing relationship tools",
-        "missing required step-scoped",
-        "syntax error",
-        "import failed",
-        "main.py imports",
-    )
-    prompt_markers = (
-        "prompt placeholder",
-        "Prompt",
-        "prompt",
-        "Foreign ontology symbols",
-    )
-    if any(any(marker in failure for marker in script_markers) for failure in failures):
-        repaired.extend(generate_deterministic_script_slice(context))
-    if any(any(marker in failure for marker in prompt_markers) for failure in failures):
-        repaired.extend(generate_deterministic_prompt_slice(context))
-    return repaired
-
-
 def run_agentic_generation_experiment(
     ontology_names: list[str],
     *,
     meta_task_config_path: str | Path | None = None,
+    domain_config_path: str | Path | None = None,
     output_root: str | Path = "ai_generated_contents_agentic_candidate",
     generate_scripts: bool = False,
     generate_prompts: bool = False,
@@ -2461,21 +2617,57 @@ def run_agentic_generation_experiment(
     llm_agent_generation: bool = False,
     generation_model: str = "gpt-5.2",
     max_agent_rounds: int = 2,
+    repair_only: bool = False,
+    generation_only: bool = False,
+    package_synthesis: bool = False,
+    runtime_adapter_synthesis: bool = False,
+    creation_foundation_synthesis: bool = False,
+    creation_foundation_module: str | None = None,
+    focused_repair: bool = False,
+    incremental_generation_repair: bool = False,
+    max_focus_targets: int = 3,
+    focused_package_integration: bool = False,
+    edit_backend: str = "exact_edits",
+    write_context_files: bool = True,
 ) -> dict[str, Any]:
-    contexts = build_contexts_for_ontologies(
-        ontology_names,
-        meta_task_config_path=meta_task_config_path,
-        output_root=output_root,
-        write_files=True,
-    )
+    if domain_config_path is not None:
+        if len(ontology_names) != 1:
+            raise ValueError("domain_config_path requires exactly one ontology")
+        contexts = [
+            build_domain_generation_context(
+                domain_config_path=domain_config_path,
+                output_root=output_root,
+                repository_root=Path.cwd(),
+                write_files=write_context_files,
+            )
+        ]
+        if contexts[0].ontology.name != ontology_names[0]:
+            raise ValueError(
+                "domain config ontology does not match requested ontology: "
+                f"{contexts[0].ontology.name!r} != {ontology_names[0]!r}"
+            )
+    else:
+        contexts = build_contexts_for_ontologies(
+            ontology_names,
+            meta_task_config_path=meta_task_config_path,
+            output_root=output_root,
+            write_files=write_context_files,
+        )
     all_contracts = [ctx.contract for ctx in contexts]
     reports = []
     for context in contexts:
         written: list[str] = []
-        if generate_scripts:
+        if generate_scripts and not repair_only:
             written.extend(generate_deterministic_script_slice(context))
-        if generate_prompts:
+        if generate_prompts and not repair_only:
             written.extend(generate_deterministic_prompt_slice(context))
+        if llm_agent_generation and not repair_only:
+            # Deterministic generation establishes only the required artifact slots.
+            # Remove its semantic content so every final line is authored by the LLM.
+            for raw_path in written:
+                path = Path(raw_path)
+                if path.is_file() and path.suffix in {".py", ".md"}:
+                    path.write_text("", encoding="utf-8")
         exercise_defects: list[str] = []
         if exercise_repair:
             exercise_defects = inject_repair_exercise_defects(context)
@@ -2487,17 +2679,37 @@ def run_agentic_generation_experiment(
         repair_history: list[dict[str, Any]] = []
         llm_agent_run: dict[str, Any] | None = None
         if llm_agent_generation and (generate_scripts or generate_prompts):
-            llm_agent_run = run_llm_agentic_generation_rounds_sync(
+            llm_agent_run = run_pure_llm_generation_rounds(
                 context,
                 model_name=generation_model,
                 foreign_contracts=foreign,
                 max_rounds=max_agent_rounds,
                 generate_scripts=generate_scripts,
                 generate_prompts=generate_prompts,
+                repair_only=repair_only,
+                generation_only=generation_only,
+                package_synthesis=package_synthesis,
+                runtime_adapter_synthesis=runtime_adapter_synthesis,
+                creation_foundation_synthesis=creation_foundation_synthesis,
+                creation_foundation_module=creation_foundation_module,
+                focused_repair=focused_repair,
+                incremental_generation_repair=incremental_generation_repair,
+                max_focus_targets=max_focus_targets,
+                focused_package_integration=focused_package_integration,
+                edit_backend=edit_backend,
             )
-        report = build_validation_report(
-            context, foreign_contracts=foreign, write_report=True
-        )
+            final_report = llm_agent_run.get("final_report")
+            report = (
+                dict(final_report)
+                if isinstance(final_report, dict)
+                else build_validation_report(
+                    context, foreign_contracts=foreign, write_report=True
+                )
+            )
+        else:
+            report = build_validation_report(
+                context, foreign_contracts=foreign, write_report=True
+            )
         repair_history.append(
             {
                 "iteration": 0,
@@ -2507,27 +2719,32 @@ def run_agentic_generation_experiment(
                 "repaired_files": [],
             }
         )
-        if repair_loop:
-            for iteration in range(1, max(1, max_repair_iterations) + 1):
-                if report.get("ok"):
-                    break
-                repaired = repair_generated_artifacts(context, report)
-                report = build_validation_report(
-                    context, foreign_contracts=foreign, write_report=True
-                )
-                repair_history.append(
-                    {
-                        "iteration": iteration,
-                        "ok": report.get("ok"),
-                        "failures": report.get("failures") or [],
-                        "feedback": report.get("feedback") or {},
-                        "repaired_files": repaired,
-                    }
-                )
+        if repair_loop and not llm_agent_generation and not report.get("ok"):
+            repair_history.append(
+                {
+                    "iteration": 1,
+                    "ok": False,
+                    "failures": [
+                        "scripted_repair_disabled: enable llm_agent_generation for LLM repair"
+                    ],
+                    "feedback": report.get("feedback") or {},
+                    "repaired_files": [],
+                }
+            )
         report["written_files"] = written
         report["exercise_defects"] = exercise_defects
         report["generation_mode"] = (
-            "llm_agent" if llm_agent_generation else "deterministic"
+            "focused_package_integration"
+            if focused_package_integration or package_synthesis
+            else "pure_llm_repair_only"
+            if repair_only
+            else (
+                "pure_llm_generation_checkpoint"
+                if generation_only
+                else "pure_llm_unified_diff"
+                if llm_agent_generation
+                else "deterministic_scaffold"
+            )
         )
         report["llm_agent_run"] = llm_agent_run
         report["repair_history"] = repair_history

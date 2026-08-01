@@ -13,6 +13,14 @@ from src.agents.scripts_and_prompts_generation.domain_generation_config import (
     WORKFLOW_PROFILES,
     load_domain_generation_config,
 )
+from src.agents.scripts_and_prompts_generation.pure_llm_generation import (
+    _prompt_tbox_slice,
+)
+from src.agents.scripts_and_prompts_generation.agentic_generation_runner import (
+    generate_deterministic_prompt_slice,
+    generate_deterministic_script_slice,
+)
+from src.utils.extraction_models import get_extraction_model
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -144,6 +152,7 @@ def test_domain_config_is_runtime_only_and_planners_are_gpt5() -> None:
     raw = json.loads(DOMAIN_CONFIG.read_text(encoding="utf-8"))
     assert "classes" not in json.dumps(raw)
     assert "responsibilities" not in json.dumps(raw)
+    assert get_extraction_model("model:gpt-5") == "gpt-5"
 
 
 def test_domain_config_rejects_semantic_overrides(tmp_path: Path) -> None:
@@ -172,16 +181,16 @@ def test_compiled_ontosynthesis_plan_preserves_pipeline_compatibility(
     iterations = context.iteration_blueprint["iterations"]
     assert [item["iteration_number"] for item in iterations] == [2, 3, 4]
     assert [item["model_config_key"] for item in iterations] == [
-        "iter2_hints",
-        "iter3_hints",
-        "iter4_hints",
+        "model:gpt-5",
+        "model:gpt-5",
+        "model:gpt-5",
     ]
     assert [item["use_agent"] for item in iterations] == [True, False, False]
     assert iterations[1]["has_pre_extraction"] is True
-    assert iterations[1]["pre_extraction_model_key"] == "advanced_model"
+    assert iterations[1]["pre_extraction_model_key"] == "model:gpt-5"
     assert [
         item["model_config_key"] for item in iterations[1]["sub_iterations"]
-    ] == ["iter3_1_enrichment", "iter3_2_enrichment"]
+    ] == ["model:gpt-5", "model:gpt-5"]
     assert iterations[0]["extraction_mcp_set_name"] == "chemistry.json"
     assert iterations[0]["extraction_mcp_tools"] == [
         "pubchem",
@@ -199,6 +208,10 @@ def test_compiled_ontosynthesis_plan_preserves_pipeline_compatibility(
         item["local"]
         for item in iterations[0]["semantic_scope"]["object_properties"]
     }
+    iter2_slice = _prompt_tbox_slice(context, iterations[0])
+    assert "DocumentContext" in iter2_slice["classes"]
+    assert "retrievedFrom" in iter2_slice["properties"]
+    assert "hasSynthesisStep" not in iter2_slice["properties"]
 
     manifest = json.loads(
         (
@@ -212,6 +225,33 @@ def test_compiled_ontosynthesis_plan_preserves_pipeline_compatibility(
         "tbox_bundle",
         "domain_config",
     ]
+
+    written = generate_deterministic_script_slice(
+        context
+    ) + generate_deterministic_prompt_slice(context)
+    assert written
+    generated_plan = json.loads(
+        (
+            tmp_path / "iterations" / "ontosynthesis" / "iterations.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert [item["iteration_number"] for item in generated_plan["iterations"]] == [
+        2,
+        3,
+        4,
+    ]
+    assert (
+        tmp_path
+        / "sparqls"
+        / "ontosynthesis"
+        / "top_entity_parsing.sparql"
+    ).read_text(encoding="utf-8").find(
+        "<https://www.theworldavatar.com/kg/OntoSyn/ChemicalSynthesis>"
+    ) > 0
+    iter2_prompt = (
+        tmp_path / "prompts" / "ontosynthesis" / "EXTRACTION_ITER_2.md"
+    ).read_text(encoding="utf-8")
+    assert "DocumentContext" in iter2_prompt
 
 
 def test_profile_shape_failure_is_fail_closed(tmp_path: Path) -> None:

@@ -33,10 +33,19 @@ Rules:
 
 PROMPT_DIAGNOSIS_AGENT_SYSTEM = """You are a diagnostic agent for ontology-driven prompt enhancement.
 
-Compare the complete mock source, gold hints, predicted hints, hint and graph differences, repeat outcomes, T-Box contract, and actual prompt inventory.
-Determine whether each failure is caused by a prompt instruction gap, a non-prompt implementation defect, unstable model behaviour, or insufficient evidence.
-You—not a keyword router—must select the existing prompt files that own each actionable problem and explain why.
-Return JSON only. Never propose fixture-specific prompt rules; express repairs as general T-Box/contract-derived intent.
+Compare the source, semantic judge observations, tool traces, repeat outcomes,
+T-Box contract, and actual prompt/script inventory. Determine whether each failure
+is caused by a prompt instruction gap, script/runtime implementation defect, both,
+unstable model behaviour, or insufficient evidence.
+Do not route from keywords or filenames. Cite inspected artifact content, tool calls,
+and contract evidence. Select only existing editable artifacts. Diagnosis does not
+produce patches. Never propose fixture-specific rules; express repair intent as
+general T-Box/contract-derived behavior. For a prompt repair, choose exactly one
+iteration prompt as this round's focus. State whether the owner is extraction or
+KG building, identify the iteration, and describe the failure mode abstractly.
+The mock source, GT comparison, labels, values, counts, identifiers, and triples
+are diagnostic evidence only: do not repeat them in summary, causal findings,
+suggested changes, or acceptance evidence.
 """
 
 
@@ -91,13 +100,16 @@ def build_prompt_diagnosis_task_prompt(*, payload: dict[str, Any]) -> str:
     """Build the read-only GPT diagnosis request."""
     return (
         PROMPT_DIAGNOSIS_AGENT_SYSTEM
-        + "\nRequired JSON keys: schema_version, status, summary, issues, "
-        "target_prompt_set, diagnostic_confidence. "
-        "status must be exactly one of: actionable, non_prompt_root_cause, "
-        "insufficient_evidence, ambiguous_targets. "
-        "Each issue must include issue_id, category, stage, evidence, root_cause, "
-        "target_prompts, must_preserve, and suggested_change. "
-        "Every selected target must exactly match a path in prompt_inventory.\n"
+        + "\nRequired JSON keys: schema_version, status, repair_kind, summary, "
+        "causal_findings, target_artifacts, dependency_order, must_preserve, "
+        "acceptance_evidence, diagnostic_confidence. "
+        "status must be exactly one of: actionable, script_actionable, mixed, "
+        "non_prompt_root_cause, insufficient_evidence, ambiguous_targets. "
+        "repair_kind must be prompt, script, mixed, none, or adjudicate. "
+        "Each causal finding must include observation_ids, source_path, "
+        "symbols_or_sections, cause, evidence, and downstream_impact. "
+        "Every selected target must exactly match an editable path in artifact_inventory. "
+        "Runtime evidence may be cited but never selected for editing.\n"
         + json.dumps(payload, indent=2, ensure_ascii=False)
     )
 

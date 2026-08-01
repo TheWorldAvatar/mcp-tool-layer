@@ -17,6 +17,11 @@ def _load_model_map() -> dict:
 
 
 def get_extraction_model(process_key: str) -> str:
+    if str(process_key).startswith("model:"):
+        model = str(process_key).split(":", 1)[1].strip()
+        if not model:
+            raise RuntimeError("Inline extraction model must not be empty")
+        return model
     mapping = _load_model_map()
     if process_key not in mapping or not str(mapping.get(process_key)).strip():
         raise RuntimeError(f"Extraction model not configured for key: {process_key}")

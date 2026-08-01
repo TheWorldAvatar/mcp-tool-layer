@@ -25,7 +25,8 @@ Produce ONE final `main.py` that:
   - returning a constant `INSTRUCTION_PROMPT: str`
 - Includes BOTH fragments’ imports and wrapper functions
   - De-duplicate imports safely
-  - Keep wrappers exactly as provided (same names and signatures AND docstrings)
+  - Keep wrappers exactly as provided (same names, signatures, `Annotated`/`Field` metadata, and docstrings)
+  - Treat relationship metadata as T-Box-compiled and opaque: never rewrite range locals, creator tools, absolute-IRI wording, or external-target handling
 - Ensures every tool wrapper is decorated with `@mcp.tool()` (if already decorated, keep it)
 - Ends with:
 
@@ -41,5 +42,6 @@ if __name__ == "__main__":
 4) Do NOT call any wrapper from itself (no recursion).
 5) If any underlying import uses `foo as _foo`, wrappers MUST call `_foo(...)`.
 6) Ensure every `@mcp.tool()` wrapper has a non-empty docstring; preserve docstrings from fragments.
+7) Do not infer or substitute relationship metadata from domain knowledge.
 
 

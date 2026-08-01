@@ -10,8 +10,8 @@ Scoped top-level entity rules:
 - Do not terminate or export memory until those required links are complete.
 
 
-======================= Paper Content =======================
-The following is the paper content for your task: 
+======================= Extracted Iteration Hints =======================
+The following extracted hints are the authoritative facts for this iteration:
 
-{paper_content}
+{iteration_hints}
 

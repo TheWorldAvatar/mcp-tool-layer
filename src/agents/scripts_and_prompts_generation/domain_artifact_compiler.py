@@ -45,6 +45,7 @@ def _runtime_blueprint(
 
     default_mcp = config.mcp_capabilities.get("kg_building") or {}
     external_mcp = config.mcp_capabilities.get("external_enrichment") or {}
+    runtime_model = config.models.get("runtime_extraction", "gpt-5")
     compiled: list[dict[str, Any]] = []
     for index, (semantic, runtime) in enumerate(
         zip(semantic_iterations, runtime_slots, strict=True), start=2
@@ -61,7 +62,7 @@ def _runtime_blueprint(
             "name": str(semantic.get("name") or f"iteration_{index}"),
             "description": str(semantic.get("description") or ""),
             "responsibilities": dict(semantic.get("responsibilities") or {}),
-            "model_config_key": str(runtime.get("model_config_key") or f"iter{index}_hints"),
+            "model_config_key": f"model:{runtime_model}",
             "per_entity": True,
             "use_agent": bool(runtime.get("use_agent", False)),
             "inputs": dict(runtime.get("inputs") or {"source": "stitched_paper"}),
@@ -93,7 +94,7 @@ def _runtime_blueprint(
         if semantic.get("requires_pre_extraction"):
             iteration["has_pre_extraction"] = True
             iteration["pre_extraction_model_key"] = str(
-                runtime.get("pre_extraction_model_key") or "advanced_model"
+                f"model:{runtime_model}"
             )
             iteration["inputs"] = {
                 "pre_extraction_source": "stitched_paper",
@@ -119,8 +120,7 @@ def _runtime_blueprint(
                         "description": str(focus.get("description") or ""),
                         "enriches": index,
                         "model_config_key": str(
-                            slot.get("model_config_key")
-                            or f"iter{index}_{sub_index}_enrichment"
+                            f"model:{runtime_model}"
                         ),
                         "per_entity": True,
                         "use_agent": bool(slot.get("use_agent", False)),

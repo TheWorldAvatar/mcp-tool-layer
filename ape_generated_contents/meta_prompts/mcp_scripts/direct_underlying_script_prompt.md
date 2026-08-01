@@ -12,11 +12,6 @@ Generate a complete MCP underlying script that implements all necessary function
 **Script Name**: `{script_name}`
 **Namespace URI**: `{namespace_uri}`
 
-**Reference Implementation Snippet** (for patterns and style only):
-```python
-{reference_snippet}
-```
-
 **T-Box Ontology**:
 ```turtle
 {ontology_ttl}
