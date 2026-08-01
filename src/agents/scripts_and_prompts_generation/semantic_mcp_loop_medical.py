@@ -47,26 +47,24 @@ from src.agents.scripts_and_prompts_generation.fix_package_structure import (
 from src.agents.scripts_and_prompts_generation.level1_code_repair import (
     invoke_json,
     level1_repair_loop,
-    repair_python_file_with_llm,
+)
+from src.agents.scripts_and_prompts_generation.llm_artifact_editor import (
+    run_llm_artifact_editor,
+)
+from src.agents.scripts_and_prompts_generation.semantic_loop_core import (
+    load_semantic_loop_config,
 )
 from src.pipelines.utils.hash import generate_hash
 
 ROOT = Path(__file__).resolve().parents[3]
-DEFAULT_META_TASK = ROOT / (
-    "configs/meta_task/meta_task_config_medical_non_flat_v4_one_iter.json"
+LOOP_CONFIG = load_semantic_loop_config(
+    ROOT / "configs/semantic_loops/medical.json",
+    repository_root=ROOT,
 )
-DEFAULT_TBOX = ROOT / "medical_case/medical_case_schema_de_non_flat_v4.ttl"
-DEFAULT_OUTPUT_ROOT = ROOT / "tmp" / "semantic_mcp_loop_medical"
-REQUIRED_COVERAGE = [
-    "MedicalCase",
-    "PatientInfo",
-    "CaseTimeline",
-    "SurgicalApproach",
-    "Procedure",
-    "SurgicalTeam",
-    "Diagnosis",
-    "PathologyOutcome",
-]
+DEFAULT_META_TASK = LOOP_CONFIG.meta_task_config
+DEFAULT_TBOX = LOOP_CONFIG.tbox_paths[0]
+DEFAULT_OUTPUT_ROOT = LOOP_CONFIG.output_root
+REQUIRED_COVERAGE = list(LOOP_CONFIG.required_coverage)
 
 
 def _log(msg: str) -> None:
@@ -353,7 +351,7 @@ def _write_medical_mcp_launcher(artifact_root: Path) -> Path:
     launcher = artifact_root / "launch_medical_mcp.py"
     launcher.write_text(
         textwrap.dedent(
-            f"""\
+            """\
             from __future__ import annotations
 
             import runpy
@@ -622,25 +620,26 @@ def apply_semantic_feedback_repairs(
         return []
     scripts_dir = Path(context.scripts_dir)
     targets = [
-        scripts_dir / "medical_creation_entities.py",
-        scripts_dir / "medical_creation_relationships.py",
-        scripts_dir / "medical_creation_base.py",
-        scripts_dir / "main.py",
+        path
+        for path in sorted(scripts_dir.glob("*.py"))
+        if not path.name.startswith("main_part_") and "_attempt_" not in path.name
     ]
-    repairs: list[dict[str, Any]] = []
-    for path in targets:
-        if not path.is_file():
-            continue
-        _log(f"[semantic] LLM patch from reasoner feedback → {path.name}")
-        repairs.append(
-            repair_python_file_with_llm(
-                model=model,
-                path=path,
-                max_repairs=max_repairs,
-                sticky_feedback=feedback_text,
-            )
-        )
-    return repairs
+    _log("[semantic] plain LLM transactional repair from reasoner feedback")
+    report = run_llm_artifact_editor(
+        model_name=model,
+        output_root=Path(context.output_root),
+        targets=targets,
+        task_prompt=(
+            "Diagnose the semantic/reasoner failures and decide which generated Python "
+            "files require changes. Produce the smallest coherent repair using only T-Box "
+            "classes/properties and the generation contract. Preserve required MedicalCase "
+            "links and mutual-exclusion semantics. The orchestrator deliberately does not "
+            "route failures to files for you.\n\nReasoner feedback:\n"
+            + feedback_text
+        ),
+        max_attempts=5,
+    )
+    return [report]
 
 
 def exercise_semantic_fail(scripts_dir: Path) -> list[str]:

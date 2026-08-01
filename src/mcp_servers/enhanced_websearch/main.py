@@ -5,6 +5,16 @@ from src.mcp_servers.enhanced_websearch.operations.docling_fetch import url_to_m
 
 mcp = FastMCP(name="enhanced_websearch")
 
+
+@mcp.prompt(name="instruction")
+def instruction_prompt() -> str:
+    """Provide concise guidance for agents using the search tools."""
+    return (
+        "Use these tools only when external web evidence is needed. "
+        "Search first, fetch only relevant URLs, and preserve source URLs in the result."
+    )
+
+
 @mcp.tool(name="google_search", description="""
 Search Google using Serper API.
 

@@ -34,16 +34,21 @@ def _flatten_exception_group(exc: BaseException) -> List[BaseException]:
     return leaves
 
 
+def exception_details(exc: BaseException) -> List[Dict[str, str]]:
+    """Return serializable leaf causes from ordinary and grouped exceptions."""
+    return [
+        {"type": type(item).__name__, "message": str(item)}
+        for item in _flatten_exception_group(exc)
+    ]
+
+
 def _tool_error_text(exc: BaseException) -> str:
     """Convert a tool exception into a recoverable observation for ReAct."""
-    leaves = _flatten_exception_group(exc)
     return json.dumps(
         {
             "ok": False,
             "error_type": type(exc).__name__,
-            "errors": [
-                {"type": type(item).__name__, "message": str(item)} for item in leaves
-            ],
+            "errors": exception_details(exc),
             "instruction": (
                 "Correct the tool arguments and retry. Do not treat this tool failure "
                 "as successful completion."
@@ -142,31 +147,115 @@ def _summarize_react_tool_activity(messages: List[Any]) -> Dict[str, Any]:
     tool_messages: List[ToolMessage] = [m for m in messages if isinstance(m, ToolMessage)]
 
     tool_call_names: List[str] = []
+    planned_tool_calls: List[Dict[str, Any]] = []
     for msg in ai_messages:
         for call in getattr(msg, "tool_calls", []) or []:
             name = str((call or {}).get("name") or "").strip()
             if name:
                 tool_call_names.append(name)
+            planned_tool_calls.append(
+                {
+                    "id": str((call or {}).get("id") or ""),
+                    "name": name,
+                    "args": (call or {}).get("args"),
+                }
+            )
 
     executed_tool_names: List[str] = []
-    tool_outputs: List[Dict[str, str]] = []
+    tool_outputs: List[Dict[str, Any]] = []
     for msg in tool_messages:
         name = str(getattr(msg, "name", "") or "").strip()
         if name:
             executed_tool_names.append(name)
         content = _normalize_ai_message_content(getattr(msg, "content", None))
+        parsed_content: Any = None
         if content:
-            tool_outputs.append({"name": name, "content": content})
+            try:
+                parsed_content = json.loads(content)
+            except (TypeError, ValueError):
+                parsed_content = None
+        tool_outputs.append(
+            {
+                "tool_call_id": str(getattr(msg, "tool_call_id", "") or ""),
+                "name": name,
+                "status": str(getattr(msg, "status", "") or ""),
+                "content": content,
+                "structured_content": parsed_content,
+            }
+        )
 
     return {
         "ai_message_count": len(ai_messages),
         "tool_message_count": len(tool_messages),
         "planned_tool_call_count": len(tool_call_names),
         "planned_tool_names": tool_call_names,
+        "planned_tool_calls": planned_tool_calls,
         "executed_tool_names": executed_tool_names,
         "executed_tool_name_set": sorted(set(executed_tool_names)),
         "tool_outputs": tool_outputs,
     }
+
+
+def _mcp_result_content(result: Any) -> tuple[str, Any]:
+    """Normalize a direct MCP fallback result for downstream trace handling."""
+    structured = getattr(result, "structuredContent", None)
+    if isinstance(structured, dict):
+        payload = structured.get("result", structured)
+        if isinstance(payload, str):
+            try:
+                return payload, json.loads(payload)
+            except (TypeError, ValueError):
+                return payload, None
+        return json.dumps(payload, ensure_ascii=False, default=str), payload
+    parts = getattr(result, "content", None) or []
+    text = "".join(
+        str(getattr(part, "text", "") or "")
+        for part in parts
+    ).strip()
+    try:
+        parsed = json.loads(text) if text else None
+    except (TypeError, ValueError):
+        parsed = None
+    return text, parsed
+
+
+def _is_structured_tool_rejection(result: Any, structured: Any) -> bool:
+    """Detect transport errors and standard structured rejection envelopes."""
+    if bool(getattr(result, "isError", False)):
+        return True
+    if not isinstance(structured, dict):
+        return False
+    return structured.get("ok") is False or str(
+        structured.get("status") or ""
+    ).casefold() in {"rejected", "error", "failed"}
+
+
+async def _call_required_mcp_tool(
+    session: Any,
+    *,
+    tool_name: str,
+    arguments: Dict[str, Any] | None = None,
+    phase: str,
+) -> Dict[str, Any]:
+    """Call a pipeline-required MCP tool and reject structured failures."""
+    result = await session.call_tool(tool_name, dict(arguments or {}))
+    content, structured = _mcp_result_content(result)
+    rejected = _is_structured_tool_rejection(result, structured)
+    output = {
+        "tool_call_id": f"pipeline-required-{phase}-tool",
+        "name": tool_name,
+        "status": "error" if rejected else "success",
+        "content": content,
+        "structured_content": structured,
+        "script_fallback": phase == "final",
+        "pipeline_required": True,
+        "phase": phase,
+    }
+    if rejected:
+        raise RuntimeError(
+            f"Required {phase} MCP tool `{tool_name}` was rejected: {content}"
+        )
+    return output
 
 
 class BaseAgent:
@@ -201,8 +290,17 @@ class BaseAgent:
         self,
         task_instruction: str,
         recursion_limit: int | None = None,
+        required_initial_tool: str | None = None,
+        required_initial_tool_args: Dict[str, Any] | None = None,
+        required_final_tool: str | None = None,
     ) -> Tuple[str, Dict[str, Any]]:
-        """Execute *task_instruction* through a ReAct agent wired to MCP tools."""
+        """
+        Execute *task_instruction* through a ReAct agent wired to MCP tools.
+
+        A required initial tool runs after its MCP session opens and before the
+        agent starts. A missing final tool is called as a fallback on that same
+        tool-bound session before the session is closed.
+        """
         # Truncate task instruction for logging to avoid console spam
         task_preview = task_instruction[:200] + "..." if len(task_instruction) > 200 else task_instruction
         self.logger.info(f"Starting BaseAgent run with task: {task_preview}")
@@ -243,6 +341,7 @@ class BaseAgent:
         reply_text = ""
         meta: Dict[str, Any] = {}
         final_call_token_usage: Dict[str, Any] = {}
+        required_initial_tool_call: Dict[str, Any] | None = None
 
         async with AsyncExitStack() as stack:
             sessions: Dict[str, Any] = {}
@@ -256,12 +355,16 @@ class BaseAgent:
 
             # Load tools bound to the open sessions (so tool calls reuse the session)
             tools = []
+            tool_sessions: Dict[str, Any] = {}
             for server_name, session in sessions.items():
                 try:
                     server_tools = await load_mcp_tools(session)
                     for tool in server_tools:
                         if hasattr(tool, "handle_tool_error"):
                             tool.handle_tool_error = _tool_error_text
+                        tool_name = str(getattr(tool, "name", "") or "").strip()
+                        if tool_name:
+                            tool_sessions[tool_name] = session
                     tools.extend(server_tools)
                     self.logger.info(f"Loaded {len(server_tools)} MCP tools from {server_name}")
                 except Exception as exc:
@@ -271,6 +374,25 @@ class BaseAgent:
             if not tools:
                 self.logger.error("No MCP tools were successfully loaded.")
                 raise RuntimeError("No MCP tools were successfully loaded.")
+
+            required_initial_name = str(required_initial_tool or "").strip()
+            if required_initial_name:
+                initial_session = tool_sessions.get(required_initial_name)
+                if initial_session is None:
+                    raise RuntimeError(
+                        f"Required initial MCP tool `{required_initial_name}` "
+                        "is not exposed by the open sessions"
+                    )
+                required_initial_tool_call = await _call_required_mcp_tool(
+                    initial_session,
+                    tool_name=required_initial_name,
+                    arguments=required_initial_tool_args,
+                    phase="initial",
+                )
+                self.logger.info(
+                    "Required initial MCP tool `%s` completed before agent execution",
+                    required_initial_name,
+                )
 
             # optional instruction prompts (fetch every time as they may change)
             instruction_msgs = []
@@ -313,18 +435,51 @@ class BaseAgent:
             except BaseException as e:
                 # Python 3.11+: langgraph can raise ExceptionGroup/TaskGroup errors.
                 # Surface the nested exceptions so pipeline logs are actionable.
-                sub_excs = getattr(e, "exceptions", None)
-                if sub_excs:
-                    try:
-                        self.logger.error(f"Agent raised an exception group with {len(sub_excs)} sub-exception(s):")
-                        for i, sub in enumerate(sub_excs, start=1):
-                            self.logger.error(f"  [{i}] {type(sub).__name__}: {sub}")
-                    except Exception:
-                        pass
+                leaves = exception_details(e)
+                if leaves:
+                    self.logger.error(
+                        "Agent failure leaf cause(s): %s",
+                        json.dumps(leaves, ensure_ascii=False),
+                    )
                 raise
             self.logger.info("Agent execution completed")
 
             tool_activity = _summarize_react_tool_activity(result["messages"])
+            if required_initial_tool_call is not None:
+                tool_activity["tool_outputs"].insert(0, required_initial_tool_call)
+                tool_activity["executed_tool_names"].insert(
+                    0, required_initial_tool_call["name"]
+                )
+                tool_activity["executed_tool_name_set"] = sorted(
+                    set(tool_activity["executed_tool_names"])
+                )
+                tool_activity["tool_message_count"] += 1
+            required_tool_fallback: Dict[str, Any] | None = None
+            required_name = str(required_final_tool or "").strip()
+            if (
+                required_name
+                and (
+                    not tool_activity["executed_tool_names"]
+                    or tool_activity["executed_tool_names"][-1] != required_name
+                )
+            ):
+                session = tool_sessions.get(required_name)
+                if session is None:
+                    raise RuntimeError(
+                        f"Required final MCP tool `{required_name}` "
+                        "is not exposed by the open sessions"
+                    )
+                required_tool_fallback = await _call_required_mcp_tool(
+                    session,
+                    tool_name=required_name,
+                    phase="final",
+                )
+                tool_activity["tool_outputs"].append(required_tool_fallback)
+                tool_activity["executed_tool_names"].append(required_name)
+                tool_activity["executed_tool_name_set"] = sorted(
+                    set(tool_activity["executed_tool_names"])
+                )
+                tool_activity["tool_message_count"] += 1
             self.logger.info(
                 "ReAct tool activity: planned_tool_calls=%s, tool_messages=%s, executed_tools=%s",
                 tool_activity["planned_tool_call_count"],
@@ -361,6 +516,8 @@ class BaseAgent:
             "aggregated_usage": aggregated,                    # run-level totals
             "per_call_usage": counter.calls_detail,            # list of per-call dicts
             "tool_activity": tool_activity,
+            "required_initial_tool_call": required_initial_tool_call,
+            "required_final_tool_fallback": required_tool_fallback,
         }
 
         self.logger.info(

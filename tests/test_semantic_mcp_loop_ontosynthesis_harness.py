@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import tempfile
 import unittest
@@ -17,11 +18,18 @@ from src.agents.scripts_and_prompts_generation.level1_code_repair import (
 )
 from src.agents.scripts_and_prompts_generation.semantic_mcp_loop_ontosynthesis import (
     SEMANTIC_POISON_PROP,
+    _context_from_scripts,
     exercise_level1_fail,
     exercise_semantic_fail,
     package_semantic_feedback,
     _primary_ordering_property,
+    _probe_artifacts_in_turtle,
+    _react_mcp_config_path,
+    _semantic_ontology_contract,
+    _select_react_output_ttls,
     _tbox_fixture_inventory,
+    _write_ontosynthesis_mcp_launcher,
+    _write_ontosynthesis_react_mcp_config,
     run_mcp_harness,
     run_prove_repairs,
     run_reasoner_gate,
@@ -42,6 +50,286 @@ TBOX = [
 
 
 class TestSemanticMcpLoopOntosynthesisHarness(unittest.TestCase):
+    def test_react_output_prefers_entity_closures_over_bootstrap_top(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp)
+            top = output / "top.ttl"
+            first = output / "entity-a.ttl"
+            second = output / "entity-b.ttl"
+            for path in (top, first, second):
+                path.write_text("<urn:s> <urn:p> <urn:o> .\n", encoding="utf-8")
+
+            self.assertEqual(
+                _select_react_output_ttls(output),
+                [first, second],
+            )
+
+    def test_react_output_uses_top_only_as_bootstrap_fallback(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp)
+            top = output / "top.ttl"
+            top.write_text("<urn:s> <urn:p> <urn:o> .\n", encoding="utf-8")
+
+            self.assertEqual(_select_react_output_ttls(output), [top])
+
+    def test_oracle_guard_rejects_validator_probe_artifacts(self) -> None:
+        ttl = """
+@prefix ex: <https://example.test/> .
+ex:item ex:label "Validator ChemicalSynthesis" .
+"""
+        self.assertIn(
+            "Validator ChemicalSynthesis",
+            _probe_artifacts_in_turtle(ttl),
+        )
+
+    def test_stage_behavior_probe_uses_isolated_registry(self) -> None:
+        import importlib
+
+        from rdflib import URIRef
+        from rdflib.namespace import RDF
+
+        from src.agents.scripts_and_prompts_generation import (
+            agentic_generation_validation,
+        )
+        from src.agents.scripts_and_prompts_generation.agentic_generation_runner import (
+            generate_deterministic_script_slice,
+        )
+
+        with tempfile.TemporaryDirectory(prefix="ontosyn_stage_probe_") as tmp:
+            root = Path(tmp)
+            context = build_agentic_generation_context(
+                ontology_name="ontosynthesis",
+                meta_task_config_path=META,
+                output_root=root,
+                write_files=True,
+            )
+            generate_deterministic_script_slice(context)
+            module = agentic_generation_validation._import_generated_main_module(
+                Path(context.scripts_dir), "ontosynthesis"
+            )
+            runtime = importlib.import_module(
+                f"{module.__package__}._fixed_rdf_runtime"
+            )
+            graph = runtime.retained_graph()
+            marker = URIRef("urn:test:canonical-marker")
+            graph.add((marker, RDF.type, URIRef("urn:test:Type")))
+            before = agentic_generation_validation._graph_fingerprint(graph)
+            entity_path = next(
+                Path(context.scripts_dir).glob("*_creation_entities.py")
+            )
+            relative = entity_path.relative_to(root).as_posix()
+
+            agentic_generation_validation._stage_artifact_contract_report(
+                context, [relative]
+            )
+
+            self.assertEqual(
+                before,
+                agentic_generation_validation._graph_fingerprint(graph),
+            )
+            self.assertFalse(
+                any(
+                    "Validator" in str(value)
+                    for triple in graph
+                    for value in triple
+                )
+            )
+
+    def test_same_runtime_file_isolated_between_import_packages(self) -> None:
+        import importlib.util
+        import sys
+        import types
+        from uuid import uuid4
+
+        from rdflib import URIRef
+        from rdflib.namespace import RDF
+
+        runtime_path = (
+            ROOT
+            / "src"
+            / "agents"
+            / "scripts_and_prompts_generation"
+            / "fixed_rdf_runtime.py"
+        )
+        runtimes = []
+        for _ in range(2):
+            package_name = f"_runtime_isolation_{uuid4().hex}"
+            package = types.ModuleType(package_name)
+            package.__path__ = [str(runtime_path.parent)]  # type: ignore[attr-defined]
+            sys.modules[package_name] = package
+            module_name = f"{package_name}.fixed_rdf_runtime"
+            spec = importlib.util.spec_from_file_location(module_name, runtime_path)
+            self.assertIsNotNone(spec)
+            self.assertIsNotNone(spec.loader if spec else None)
+            module = importlib.util.module_from_spec(spec)
+            sys.modules[module_name] = module
+            spec.loader.exec_module(module)
+            runtimes.append(module)
+
+        first_graph = runtimes[0].retained_graph()
+        second_graph = runtimes[1].retained_graph()
+        first_graph.add(
+            (URIRef("urn:test:first"), RDF.type, URIRef("urn:test:Type"))
+        )
+
+        self.assertIsNot(first_graph, second_graph)
+        self.assertEqual(0, len(second_graph))
+        self.assertNotEqual(runtimes[0]._REGISTRY_KEY, runtimes[1]._REGISTRY_KEY)
+
+    def test_runtime_hygiene_probe_restores_shared_graph(self) -> None:
+        from rdflib import Literal, URIRef
+        from rdflib.namespace import RDF
+        import importlib
+
+        from src.agents.scripts_and_prompts_generation import (
+            agentic_generation_validation,
+        )
+
+        with tempfile.TemporaryDirectory(prefix="ontosyn_probe_isolation_") as tmp:
+            root = Path(tmp)
+            context = build_agentic_generation_context(
+                ontology_name="ontosynthesis",
+                meta_task_config_path=META,
+                output_root=root,
+                write_files=True,
+            )
+            from src.agents.scripts_and_prompts_generation.agentic_generation_runner import (
+                generate_deterministic_script_slice,
+            )
+
+            generate_deterministic_script_slice(context)
+            module = agentic_generation_validation._import_generated_main_module(
+                Path(context.scripts_dir), "ontosynthesis"
+            )
+            runtime = importlib.import_module(
+                f"{module.__package__}._fixed_rdf_runtime"
+            )
+            graph = runtime.retained_graph()
+            marker = URIRef("urn:test:preexisting")
+            graph.add((marker, RDF.type, URIRef("urn:test:Type")))
+            graph.add((marker, URIRef("urn:test:value"), Literal("preserve")))
+            before = agentic_generation_validation._graph_fingerprint(graph)
+
+            agentic_generation_validation._runtime_graph_hygiene_report(context)
+
+            self.assertEqual(
+                before,
+                agentic_generation_validation._graph_fingerprint(graph),
+            )
+            self.assertFalse(
+                any(
+                    "Validator" in str(value)
+                    for triple in graph
+                    for value in triple
+                )
+            )
+
+    def test_reasoner_ignores_tbox_schema_copied_into_abox_export(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            tbox = root / "tbox.ttl"
+            abox = root / "abox.ttl"
+            tbox.write_text(
+                """
+@prefix ex: <https://example.org/> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+ex:Entity a owl:Class ;
+    ex:instanceIntegrityRule "one_individual_per_entity" .
+ex:relatesTo a owl:ObjectProperty .
+""",
+                encoding="utf-8",
+            )
+            abox.write_text(
+                tbox.read_text(encoding="utf-8") + "\nex:item a ex:Entity .\n",
+                encoding="utf-8",
+            )
+
+            report = run_reasoner_gate(
+                tbox_paths=[tbox],
+                abox_path=abox,
+                report_path=root / "reasoner.json",
+            )
+
+            self.assertEqual(
+                [],
+                (report.get("details") or {}).get("unknown_properties"),
+                msg=json.dumps(report, indent=2),
+            )
+
+    def test_copied_checkpoint_receives_current_enforced_runtime(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="ontosyn_checkpoint_") as tmp:
+            root = Path(tmp)
+            source_root = root / "source"
+            source_context = build_agentic_generation_context(
+                ontology_name="ontosynthesis",
+                meta_task_config_path=META,
+                output_root=source_root,
+                write_files=True,
+            )
+            source = Path(source_context.scripts_dir)
+            (source / "_fixed_rdf_runtime.py").write_text(
+                "def add_object_property(subject_iri, predicate_iri, object_iri):\n"
+                "    return None\n",
+                encoding="utf-8",
+            )
+            destination = root / "destination"
+
+            context = _context_from_scripts(
+                scripts_dir=source,
+                meta_task_config=META,
+                output_root=destination,
+            )
+
+            runtime = (
+                Path(context.scripts_dir) / "_fixed_rdf_runtime.py"
+            ).read_text(encoding="utf-8")
+            contract = Path(
+                context.scripts_dir, "_relationship_contract.json"
+            )
+            self.assertNotIn("def add_object_property", runtime)
+            self.assertIn("package_relationship_capabilities", runtime)
+            self.assertTrue(contract.is_file())
+            self.assertTrue(
+                json.loads(contract.read_text(encoding="utf-8")).get(
+                    "object_properties"
+                )
+            )
+
+    def test_launcher_adapts_object_tool_registry(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="ontosyn_launcher_") as tmp:
+            launcher = _write_ontosynthesis_mcp_launcher(Path(tmp))
+            text = launcher.read_text(encoding="utf-8")
+
+        self.assertIn('getattr(exported, "tools", None)', text)
+        self.assertIn("for tool_name, tool_fn in registry.items()", text)
+        self.assertNotIn("load_from_turtle_file", text)
+        self.assertIn('@server.prompt(name="instruction")', text)
+
+    def test_react_mcp_config_does_not_serialize_parent_secrets(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="ontosyn_config_") as tmp:
+            root = Path(tmp)
+            config_path = root / "mcp.json"
+            previous = os.environ.get("OPENAI_API_KEY")
+            os.environ["OPENAI_API_KEY"] = "must-not-be-serialized"
+            try:
+                _write_ontosynthesis_react_mcp_config(
+                    artifact_root=root,
+                    config_path=config_path,
+                    data_dir=root / "data",
+                )
+            finally:
+                if previous is None:
+                    os.environ.pop("OPENAI_API_KEY", None)
+                else:
+                    os.environ["OPENAI_API_KEY"] = previous
+            payload = json.loads(config_path.read_text(encoding="utf-8"))
+            env = payload["llm_created_mcp"]["env"]
+
+        self.assertNotIn("OPENAI_API_KEY", env)
+        self.assertTrue(all(key.startswith("TWA_") for key in env))
+
     @classmethod
     def setUpClass(cls) -> None:
         if not FIXTURE.is_file() or not META.is_file():
@@ -84,6 +372,37 @@ class TestSemanticMcpLoopOntosynthesisHarness(unittest.TestCase):
         )
         # Orchestrator helpers must not hard-require a fixed UMC-1 subset.
         self.assertGreaterEqual(len(inventory["all_class_locals"]), 10)
+
+    def test_semantic_contract_projects_tbox_comments_without_domain_rules(self) -> None:
+        projected = _semantic_ontology_contract(self.context)
+        source_properties = self.context.parsed.get("properties") or {}
+        expected_comments = {
+            str(meta.get("iri") or ""): str(meta.get("comment") or "")
+            for meta in source_properties.values()
+            if isinstance(meta, dict) and str(meta.get("comment") or "")
+        }
+        projected_comments = {
+            str(item.get("iri") or ""): str(item.get("comment") or "")
+            for item in projected["tbox_property_rules"]
+            if str(item.get("comment") or "")
+        }
+
+        self.assertTrue(expected_comments)
+        self.assertEqual(projected_comments, expected_comments)
+
+    def test_react_mcp_configs_are_isolated_by_run(self) -> None:
+        first = _react_mcp_config_path(
+            artifact_root=Path("candidate-a"),
+            data_dir=Path("runtime-a"),
+        )
+        second = _react_mcp_config_path(
+            artifact_root=Path("candidate-b"),
+            data_dir=Path("runtime-b"),
+        )
+
+        self.assertNotEqual(first, second)
+        self.assertEqual(first.parent, ROOT / "configs")
+        self.assertTrue(first.name.startswith("test_mcp_ontosynthesis_semantic_"))
 
     def test_harness_and_hermit_gate(self) -> None:
         fixture = json.loads(FIXTURE.read_text(encoding="utf-8"))

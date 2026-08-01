@@ -1,0 +1,27 @@
+{
+  "schema_version": "semantic-loop-config.v1",
+  "domain_id": "ontosynthesis",
+  "ontology_name": "ontosynthesis",
+  "meta_task_config": "configs/meta_task/meta_task_config.json",
+  "tbox_paths": [
+    "data/ontologies/ontosynthesis.ttl",
+    "data/ontologies/ontomops-subgraph.ttl",
+    "data/ontologies/ontospecies-subgraph.ttl",
+    "data/ontologies/om2.ttl"
+  ],
+  "output_root": "tmp/semantic_mcp_loop_ontosynthesis",
+  "published_output_dir": "ontosynthesis_output",
+  "unit_system": {
+    "id": "om2",
+    "tbox_paths": [
+      "data/ontologies/om2.ttl"
+    ],
+    "reasoner_violation_keys": [
+      "om2_quantity_violations"
+    ],
+    "repair_guidance": [
+      "For every object property whose range is a configured quantity class, create the declared quantity type.",
+      "Each configured quantity must have exactly one numerical value and exactly one unit."
+    ]
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "schema_version": "semantic-loop-config.v1",
+  "domain_id": "medical",
+  "ontology_name": "medical",
+  "meta_task_config": "configs/meta_task/meta_task_config_medical_non_flat_v4_one_iter.json",
+  "tbox_paths": [
+    "medical_case/medical_case_schema_de_non_flat_v4.ttl"
+  ],
+  "output_root": "tmp/semantic_mcp_loop_medical",
+  "published_output_dir": "medical_output",
+  "required_coverage": [
+    "MedicalCase",
+    "PatientInfo",
+    "CaseTimeline",
+    "SurgicalApproach",
+    "Procedure",
+    "SurgicalTeam",
+    "Diagnosis",
+    "PathologyOutcome"
+  ],
+  "unit_system": {
+    "id": "none",
+    "tbox_paths": [],
+    "reasoner_violation_keys": [],
+    "repair_guidance": []
+  }
+}

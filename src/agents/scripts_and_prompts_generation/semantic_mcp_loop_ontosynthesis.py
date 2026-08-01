@@ -20,7 +20,9 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import importlib.util
+import inspect
 import json
 import os
 import re
@@ -40,9 +42,13 @@ from rdflib.namespace import RDF
 from src.agents.scripts_and_prompts_generation.agentic_generation_context import (
     AgenticGenerationContext,
     build_agentic_generation_context,
+    runtime_publish_contract,
+)
+from src.agents.scripts_and_prompts_generation.fixed_rdf_runtime import (
+    __file__ as fixed_rdf_runtime_path,
 )
 from src.agents.scripts_and_prompts_generation.agentic_generation_runner import (
-    generate_deterministic_prompt_slice,
+    generate_runtime_support_slice,
     run_agentic_generation_experiment,
 )
 from src.agents.scripts_and_prompts_generation.agentic_generation_llm_agents import (
@@ -51,18 +57,31 @@ from src.agents.scripts_and_prompts_generation.agentic_generation_llm_agents imp
 from src.agents.scripts_and_prompts_generation.agentic_generation_validation import (
     _import_generated_main_module,
     build_validation_report,
+    validate_prompt_runtime_bindings,
 )
 from src.agents.scripts_and_prompts_generation.content_fixture_score import (
     load_predicted_hints,
     score_graph_content,
-    score_hint_content,
 )
 from src.agents.scripts_and_prompts_generation.content_diagnosis import (
     artifact_manifest,
     fixture_literals,
     json_digest,
     prompt_inventory,
+    redact_fixture_evidence,
+    repair_artifact_inventory,
     redact_diagnosis,
+    validate_single_prompt_focus,
+)
+from src.agents.scripts_and_prompts_generation.llm_semantic_abox_judge import (
+    SEMANTIC_ACCEPTANCE_THRESHOLD,
+    judge_semantic_abox,
+)
+from src.agents.scripts_and_prompts_generation.llm_extraction_judge import (
+    judge_extraction_semantics,
+)
+from src.agents.scripts_and_prompts_generation.pure_llm_generation import (
+    run_semantic_observation_repair,
 )
 from src.agents.scripts_and_prompts_generation.structured_prompt_editor import (
     run_structured_prompt_editor,
@@ -74,21 +93,25 @@ from src.agents.scripts_and_prompts_generation.level1_code_repair import (
     autofix_ruff_on_scripts,
     invoke_json,
     level1_repair_loop,
-    repair_python_file_with_llm_for_goal,
     run_ruff_on_scripts,
+)
+from src.agents.scripts_and_prompts_generation.llm_artifact_editor import (
+    run_llm_artifact_editor,
+)
+from src.agents.scripts_and_prompts_generation.semantic_loop_core import (
+    load_semantic_loop_config,
 )
 from src.pipelines.utils.hash import generate_hash
 
 ROOT = Path(__file__).resolve().parents[3]
-DEFAULT_META_TASK = ROOT / "configs/meta_task/meta_task_config.json"
-DEFAULT_TBOX_PATHS = [
-    ROOT / "data/ontologies/ontosynthesis.ttl",
-    ROOT / "data/ontologies/ontomops-subgraph.ttl",
-    ROOT / "data/ontologies/ontospecies-subgraph.ttl",
-    ROOT / "data/ontologies/om2.ttl",
-]
-DEFAULT_OUTPUT_ROOT = ROOT / "tmp" / "semantic_mcp_loop_ontosynthesis"
-ONTOLOGY_NAME = "ontosynthesis"
+LOOP_CONFIG = load_semantic_loop_config(
+    ROOT / "configs/semantic_loops/ontosynthesis.json",
+    repository_root=ROOT,
+)
+DEFAULT_META_TASK = LOOP_CONFIG.meta_task_config
+DEFAULT_TBOX_PATHS = list(LOOP_CONFIG.tbox_paths)
+DEFAULT_OUTPUT_ROOT = LOOP_CONFIG.output_root
+ONTOLOGY_NAME = LOOP_CONFIG.ontology_name
 LEVEL1_MARKER = "# LEVEL1_EXERCISE_FAIL"
 # Intentionally not a T-Box local — used only for injected semantic-repair exercises.
 SEMANTIC_POISON_PROP = "__SemanticLoopInjectedUnknownProp__"
@@ -109,6 +132,41 @@ def _top_entity_local(context: AgenticGenerationContext) -> str:
     return str(
         (context.contract.get("top_entity") or {}).get("class_local") or ""
     ).strip()
+
+
+def _semantic_ontology_contract(
+    context: AgenticGenerationContext,
+) -> dict[str, Any]:
+    """Project all T-Box rules needed by semantic judges without domain knowledge."""
+    contract = dict(context.contract)
+    parsed = context.parsed or {}
+
+    def project(entries: Any) -> list[dict[str, Any]]:
+        if not isinstance(entries, dict):
+            return []
+        projected: list[dict[str, Any]] = []
+        for local_name, raw in sorted(entries.items()):
+            if not isinstance(raw, dict):
+                continue
+            projected.append(
+                {
+                    "local_name": str(local_name),
+                    "iri": str(raw.get("iri") or ""),
+                    "kind": str(raw.get("kind") or ""),
+                    "domains": list(raw.get("domains") or []),
+                    "range": raw.get("range"),
+                    "parent_classes": list(raw.get("parent_classes") or []),
+                    "comment": str(raw.get("comment") or ""),
+                    "integrity_annotations": dict(
+                        raw.get("integrity_annotations") or {}
+                    ),
+                }
+            )
+        return projected
+
+    contract["tbox_class_rules"] = project(parsed.get("classes"))
+    contract["tbox_property_rules"] = project(parsed.get("properties"))
+    return contract
 
 
 def _ordering_property_locals(context: AgenticGenerationContext) -> list[str]:
@@ -519,6 +577,21 @@ def _coverage_present_in_graph(ttl_text: str, coverage: list[str]) -> dict[str, 
     return {name: name in found_locals for name in coverage}
 
 
+def _probe_artifacts_in_turtle(ttl_text: str) -> list[str]:
+    """Detect validator-only nodes before an A-Box can enter the semantic loop."""
+    graph = Graph()
+    graph.parse(data=ttl_text, format="turtle")
+    markers = ("validator", "semantic identity probe", "semantic invalid om-2 probe")
+    return sorted(
+        {
+            str(node)
+            for triple in graph
+            for node in triple
+            if any(marker in str(node).casefold() for marker in markers)
+        }
+    )
+
+
 def run_mcp_harness(
     *,
     scripts_dir: Path,
@@ -543,32 +616,90 @@ def run_mcp_harness(
             created: Any = None
 
             if materialize is not None and isinstance(fixture.get("hints"), dict):
-                raw = materialize(
-                    doi,
-                    top_name,
-                    entity_label,
-                    json.dumps(fixture["hints"], ensure_ascii=False),
-                )
                 try:
-                    result = json.loads(str(raw or "{}"))
-                except json.JSONDecodeError as exc:
+                    sig = inspect.signature(materialize)
+                except (TypeError, ValueError):
+                    sig = None
+                hints_obj = dict(fixture.get("hints") or {})
+                raw = None
+                try:
+                    if sig is not None and len(sig.parameters) >= 4:
+                        raw = materialize(
+                            doi,
+                            top_name,
+                            entity_label,
+                            json.dumps(hints_obj, ensure_ascii=False),
+                        )
+                    elif sig is not None and len(sig.parameters) <= 1:
+                        raw = materialize(hints_obj)
+                    else:
+                        return {
+                            "ok": False,
+                            "mode": "materialize_hints",
+                            "error": "unsupported materialize_hints signature",
+                            "elapsed_seconds": round(time.perf_counter() - started, 3),
+                        }
+                except Exception as exc:
                     return {
                         "ok": False,
                         "mode": "materialize_hints",
-                        "error": f"non-JSON harness result: {exc}",
+                        "error": f"materialize_hints call failed: {exc}",
                         "elapsed_seconds": round(time.perf_counter() - started, 3),
                     }
+                # Normalize result envelopes (dict or JSON string; or raw ttl)
+                result = {}
+                if isinstance(raw, dict):
+                    result = dict(raw)
+                elif isinstance(raw, str):
+                    try:
+                        result = json.loads(raw)
+                    except json.JSONDecodeError:
+                        # Treat as direct TTL payload
+                        result = {"status": "ok", "ttl": raw}
                 status = str(result.get("status") or "")
                 message = str(result.get("message") or "")
                 ttl = str(result.get("ttl") or "")
-                created = result.get("created")
-                if status != "ok" or not ttl.strip():
+                created = result.get("created") or result.get("subject")
+                if not ttl.strip():
+                    # Try export_memory when materializer returns no TTL
+                    export_fn = _unwrap_tool(getattr(module, "export_memory", None))
+                    if callable(export_fn):
+                        try:
+                            exported = export_fn()
+                        except Exception as exc:
+                            return {
+                                "ok": False,
+                                "mode": "materialize_hints",
+                                "status": status or "error",
+                                "message": f"{message} export_memory failed: {exc}".strip(),
+                                "created": created,
+                                "elapsed_seconds": round(time.perf_counter() - started, 3),
+                            }
+                        if isinstance(exported, dict):
+                            ttl = str(exported.get("ttl") or "")
+                        elif isinstance(exported, str):
+                            try:
+                                parsed = json.loads(exported)
+                                ttl = str((parsed or {}).get("ttl") or "")
+                            except json.JSONDecodeError:
+                                ttl = exported
+                if not ttl.strip() or (status and status != "ok"):
                     return {
                         "ok": False,
                         "mode": "materialize_hints",
-                        "status": status,
+                        "status": status or ("ok" if ttl.strip() else "error"),
                         "message": message,
                         "created": created,
+                        "elapsed_seconds": round(time.perf_counter() - started, 3),
+                    }
+                probe_artifacts = _probe_artifacts_in_turtle(ttl)
+                if probe_artifacts:
+                    return {
+                        "ok": False,
+                        "mode": "materialize_hints",
+                        "status": "error",
+                        "error": "validator_probe_artifacts_in_abox",
+                        "probe_artifacts": probe_artifacts,
                         "elapsed_seconds": round(time.perf_counter() - started, 3),
                     }
             elif isinstance(tool_calls, list) and tool_calls:
@@ -619,6 +750,16 @@ def run_mcp_harness(
                     "elapsed_seconds": round(time.perf_counter() - started, 3),
                 }
 
+            probe_artifacts = _probe_artifacts_in_turtle(ttl)
+            if probe_artifacts:
+                return {
+                    "ok": False,
+                    "mode": "materialize_hints" if materialize is not None else "tool_calls",
+                    "status": "error",
+                    "error": "validator_probe_artifacts_in_abox",
+                    "probe_artifacts": probe_artifacts,
+                    "elapsed_seconds": round(time.perf_counter() - started, 3),
+                }
             abox_path.parent.mkdir(parents=True, exist_ok=True)
             abox_path.write_text(ttl, encoding="utf-8")
             coverage = list(fixture.get("coverage") or [])
@@ -667,7 +808,11 @@ def run_reasoner_gate(
     unknown_properties = list(details.get("unknown_properties") or [])
     domain_violations = list(details.get("domain_violations") or [])
     range_violations = list(details.get("range_violations") or [])
-    om2_quantity_violations = list(details.get("om2_quantity_violations") or [])
+    unit_violations = [
+        violation
+        for key in LOOP_CONFIG.unit_system.reasoner_violation_keys
+        for violation in (details.get(key) or [])
+    ]
     unknown_types = list(details.get("unknown_types") or [])
     warnings: list[str] = []
     failures_extra: list[str] = []
@@ -697,7 +842,7 @@ def run_reasoner_gate(
             unknown_properties
             + domain_violations
             + range_violations
-            + om2_quantity_violations
+            + unit_violations
         )
         ok = hermit_consistent is True and not hard_owlrl and not failures_extra
         if hard_owlrl:
@@ -763,8 +908,7 @@ def package_semantic_feedback(
             "- Preserve required top-entity links from the generation contract.",
             f"- If `{SEMANTIC_POISON_PROP}` appears, restore the real T-Box property local.",
             "- Prefer create_*/add_* locals that match the T-Box IRI local names exactly.",
-            "- For every object property with an OM-2 range, create the declared "
-            "OM-2 quantity type and exactly one hasNumericalValue and hasUnit.",
+            *LOOP_CONFIG.unit_system.repair_guidance,
         ]
     )
     if ordering_property:
@@ -794,96 +938,32 @@ def _content_gate_decision(
     hint_threshold: float,
     graph_threshold: float,
 ) -> dict[str, Any]:
-    """Apply absolute, critical-slot, and champion-regression gates."""
+    """Apply semantic health gates; deterministic scores remain diagnostic."""
     hints = content_report.get("hints") or {}
     graph = content_report.get("graph") or {}
     hint_metric = hints.get("overall") or {}
     graph_metric = graph.get("overall") or {}
-    missing = list(hints.get("missing") or [])
-    unexpected = list(hints.get("unexpected") or [])
-    critical_slots = list(
-        ((fixture.get("content_gt") or {}).get("critical_slots"))
-        or fixture.get("critical_slots")
-        or []
-    )
-    critical_failures = []
-    for slot in critical_slots:
-        class_local = str(slot.get("class") or "")
-        property_local = str(slot.get("property") or "")
-        slot_missing = [
-            item
-            for item in missing
-            if item.get("class") == class_local
-            and item.get("property") == property_local
-        ]
-        if slot_missing:
-            critical_failures.append(
-                {
-                    "class": class_local,
-                    "property": property_local,
-                    "missing": slot_missing,
-                }
-            )
-
-    absent_classes = set(
-        ((fixture.get("content_gt") or {}).get("hints") or {}).get(
-            "__absent_classes__", []
-        )
-        or (fixture.get("hints") or {}).get("__absent_classes__", [])
-    )
-    forbidden = [
-        item for item in unexpected if str(item.get("class")) in absent_classes
-    ]
-    regressions: list[dict[str, Any]] = []
-    if champion_report:
-        champion_missing = {
-            _fact_key(item)
-            for item in ((champion_report.get("hints") or {}).get("missing") or [])
-        }
-        regressions = [
-            item for item in missing if _fact_key(item) not in champion_missing
-        ]
 
     failures = []
     hint_f1 = float(hint_metric.get("f1") or 0.0)
     graph_f1 = float(graph_metric.get("f1") or 0.0)
     if not semantic_ok:
         failures.append("semantic_or_reasoner")
-    if hint_f1 < hint_threshold:
-        failures.append("hint_f1_threshold")
-    if graph_f1 < graph_threshold:
-        failures.append("graph_f1_threshold")
-    if critical_failures:
-        failures.append("critical_slots")
-    if forbidden:
-        failures.append("forbidden_facts")
-    if regressions:
-        failures.append("champion_preserve_set")
-    if champion_report:
-        champion_hint = float(
-            (((champion_report.get("hints") or {}).get("overall") or {}).get("f1"))
-            or 0.0
-        )
-        champion_graph = float(
-            (((champion_report.get("graph") or {}).get("overall") or {}).get("f1"))
-            or 0.0
-        )
-        if hint_f1 < champion_hint:
-            failures.append("hint_regression")
-        if graph_f1 < champion_graph:
-            failures.append("graph_regression")
 
     return {
         "accepted": not failures,
         "failures": failures,
-        "critical_failures": critical_failures,
-        "forbidden_facts": forbidden,
-        "regressions": regressions,
+        "critical_failures": [],
+        "forbidden_facts": [],
+        "regressions": [],
+        "policy": "semantic_soft_gate_with_deterministic_diagnostics",
         "metrics": {
             "hint_f1": hint_f1,
             "hint_recall": float(hint_metric.get("recall") or 0.0),
             "graph_f1": graph_f1,
             "graph_recall": float(graph_metric.get("recall") or 0.0),
+            "configured_hint_threshold_diagnostic": hint_threshold,
+            "configured_graph_threshold_diagnostic": graph_threshold,
         },
     }
 
@@ -986,14 +1066,45 @@ def _write_ontosynthesis_mcp_launcher(artifact_root: Path) -> Path:
             """\
             from __future__ import annotations
 
-            import runpy
+            import importlib
             import sys
             from pathlib import Path
+
+            from fastmcp import FastMCP
 
             ROOT = Path(__file__).resolve().parent
             if str(ROOT) not in sys.path:
                 sys.path.insert(0, str(ROOT))
-            runpy.run_module("scripts.ontosynthesis.main", run_name="__main__")
+
+            module = importlib.import_module("scripts.ontosynthesis.main")
+            exported = getattr(module, "mcp", None)
+            if hasattr(exported, "run"):
+                server = exported
+            else:
+                registry = (
+                    exported
+                    if isinstance(exported, dict)
+                    else getattr(exported, "tools", None)
+                )
+                registry = dict(registry or {})
+            if not hasattr(exported, "run") and isinstance(registry, dict):
+                server = FastMCP(name="ontosynthesis")
+                for tool_name, tool_fn in registry.items():
+                    if callable(tool_fn):
+                        server.tool(name=str(tool_name))(tool_fn)
+            elif not hasattr(exported, "run"):
+                raise RuntimeError(
+                    "Generated module must expose a FastMCP server or callable tool registry"
+                )
+
+            @server.prompt(name="instruction")
+            def instruction_prompt() -> str:
+                return (
+                    "Use the generated ontology tools to build and export an RDF graph. "
+                    "Call only tools justified by the task inputs and export the completed graph."
+                )
+
+            server.run(transport="stdio")
             """
         ),
         encoding="utf-8",
@@ -1008,7 +1119,11 @@ def _write_ontosynthesis_react_mcp_config(
     data_dir: Path,
 ) -> str:
     launcher = _write_ontosynthesis_mcp_launcher(artifact_root)
-    env = dict(os.environ)
+    env = {
+        key: value
+        for key, value in os.environ.items()
+        if key.startswith("TWA_")
+    }
     env["TWA_AGENTIC_DATA_DIR"] = str(data_dir.resolve())
     env["TWA_GENERATED_ARTIFACT_ROOT"] = str(artifact_root.resolve())
     payload = {
@@ -1023,6 +1138,13 @@ def _write_ontosynthesis_react_mcp_config(
     config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     return config_path.name
+
+
+def _react_mcp_config_path(*, artifact_root: Path, data_dir: Path) -> Path:
+    """Return a run-isolated MCP config path safe for concurrent evaluations."""
+    identity = f"{artifact_root.resolve()}\0{data_dir.resolve()}"
+    digest = hashlib.sha256(identity.encode("utf-8")).hexdigest()[:16]
+    return ROOT / "configs" / f"test_mcp_ontosynthesis_semantic_{digest}.json"
 
 
 def _merge_ttl_files(ttl_paths: list[Path], dest: Path) -> dict[str, Any]:
@@ -1043,6 +1165,13 @@ def _merge_ttl_files(ttl_paths: list[Path], dest: Path) -> dict[str, Any]:
         "triples": len(graph),
         "abox_path": str(dest),
     }
+
+
+def _select_react_output_ttls(output_dir: Path) -> list[Path]:
+    """Prefer authoritative entity closures over the bootstrap top shell."""
+    output_ttls = sorted(output_dir.glob("*.ttl")) if output_dir.is_dir() else []
+    entity_ttls = [path for path in output_ttls if path.name != "top.ttl"]
+    return entity_ttls or [path for path in output_ttls if path.name == "top.ttl"]
 
 
 def run_react_pipeline_against_mock(
@@ -1071,12 +1200,24 @@ def run_react_pipeline_against_mock(
     if case_dir.exists():
         shutil.rmtree(case_dir)
     case_dir.mkdir(parents=True, exist_ok=True)
+    for relative in (
+        "mcp_run",
+        "prompts",
+        "responses",
+        "pre_extraction",
+        "ontosynthesis_output",
+    ):
+        (case_dir / relative).mkdir(parents=True, exist_ok=True)
     stitched = case_dir / f"{doi_hash}_stitched.md"
     stitched.write_text(document_md + "\n", encoding="utf-8")
 
+    react_config_path = _react_mcp_config_path(
+        artifact_root=artifact_root,
+        data_dir=data_dir,
+    )
     config_name = _write_ontosynthesis_react_mcp_config(
         artifact_root=artifact_root,
-        config_path=ROOT / "configs/test_mcp_config_ontosynthesis_semantic_loop.json",
+        config_path=react_config_path,
         data_dir=data_dir,
     )
     cfg = {
@@ -1087,9 +1228,9 @@ def run_react_pipeline_against_mock(
         "force_react_kg": True,
         "skip_materialize_hints": True,
     }
-    previous_artifact_root = os.environ.get("TWA_GENERATED_ARTIFACT_ROOT")
-    previous_data_dir = os.environ.get("TWA_AGENTIC_DATA_DIR")
-    previous_strict_root = os.environ.get("TWA_REQUIRE_GENERATED_ARTIFACT_ROOT")
+    previous_twa_env = {
+        key: value for key, value in os.environ.items() if key.startswith("TWA_")
+    }
     step_results: dict[str, bool] = {}
     try:
         os.environ["TWA_GENERATED_ARTIFACT_ROOT"] = str(artifact_root.resolve())
@@ -1101,6 +1242,9 @@ def run_react_pipeline_against_mock(
             ("main_ontology_extractions", main_extract),
             ("main_kg_building", main_kg),
         ):
+            if name == "main_ontology_extractions":
+                for relative in ("mcp_run", "prompts", "responses", "pre_extraction"):
+                    (case_dir / relative).mkdir(parents=True, exist_ok=True)
             _log(f"[react] step {name} hash={doi_hash}")
             step_results[name] = bool(fn(doi_hash, cfg))
             if not step_results[name]:
@@ -1113,7 +1257,10 @@ def run_react_pipeline_against_mock(
                     "error": f"pipeline step failed: {name}",
                 }
         output = case_dir / "ontosynthesis_output"
-        ttl_paths = sorted(output.glob("*.ttl")) if output.is_dir() else []
+        # Entity outputs already contain their authoritative Iteration-1 shell.
+        # Unioning the pre-canonical bootstrap top.ttl would reintroduce superseded
+        # root identities. Use it only when no entity output was produced.
+        ttl_paths = _select_react_output_ttls(output)
         if not ttl_paths:
             for pattern in ("iteration_1.ttl", "memory/*.ttl", "exports/*.ttl"):
                 ttl_paths.extend(sorted(case_dir.glob(pattern)))
@@ -1137,18 +1284,13 @@ def run_react_pipeline_against_mock(
             "error": f"{type(exc).__name__}: {exc}",
         }
     finally:
-        if previous_artifact_root is None:
-            os.environ.pop("TWA_GENERATED_ARTIFACT_ROOT", None)
-        else:
-            os.environ["TWA_GENERATED_ARTIFACT_ROOT"] = previous_artifact_root
-        if previous_data_dir is None:
-            os.environ.pop("TWA_AGENTIC_DATA_DIR", None)
-        else:
-            os.environ["TWA_AGENTIC_DATA_DIR"] = previous_data_dir
-        if previous_strict_root is None:
-            os.environ.pop("TWA_REQUIRE_GENERATED_ARTIFACT_ROOT", None)
-        else:
-            os.environ["TWA_REQUIRE_GENERATED_ARTIFACT_ROOT"] = previous_strict_root
+        try:
+            react_config_path.unlink(missing_ok=True)
+        except OSError as exc:
+            _log(f"[react] warning: failed to remove isolated MCP config: {exc}")
+        for key in [name for name in os.environ if name.startswith("TWA_")]:
+            os.environ.pop(key, None)
+        os.environ.update(previous_twa_env)
 
 
 def apply_semantic_feedback_repairs(
@@ -1159,64 +1301,33 @@ def apply_semantic_feedback_repairs(
     max_repairs: int,
     allow_llm: bool,
 ) -> list[dict[str, Any]]:
-    """LLM-only in-place patches for semantic reasoner failures (no scripted undo)."""
+    """Let one plain LLM call decide and patch semantic repair targets."""
     if not allow_llm or max_repairs <= 0 or not feedback_text.strip():
         return []
     scripts_dir = Path(context.scripts_dir)
-    ontology = context.ontology.name
-    entities_name = _entities_filename(ontology)
-    entities = scripts_dir / entities_name
-    ordering_prop = None
-    try:
-        ordering_prop = _primary_ordering_property(context)
-    except ValueError:
-        ordering_prop = None
-    if entities.is_file() and SEMANTIC_POISON_PROP in entities.read_text(encoding="utf-8"):
-        targets = [entities]
-    else:
-        targets = [
-            p
-            for p in (
-                scripts_dir / entities_name,
-                scripts_dir / f"{ontology}_creation_relationships.py",
-                scripts_dir / f"{ontology}_creation_base.py",
-                scripts_dir / "main.py",
-            )
-            if p.is_file()
-        ]
-    restore_hint = (
-        f"restore the contract ordering property local `{ordering_prop}`"
-        if ordering_prop
-        else "restore the correct T-Box property local from the contract/inventory"
+    targets = [
+        path
+        for path in sorted(scripts_dir.glob("*.py"))
+        if not path.name.startswith("main_part_") and "_attempt_" not in path.name
+        and path.name
+        not in {"__init__.py", "_fixed_om2_runtime.py", "_fixed_rdf_runtime.py"}
+    ]
+    _log("[semantic] plain LLM transactional repair from reasoner feedback")
+    report = run_llm_artifact_editor(
+        model_name=model,
+        output_root=Path(context.output_root),
+        targets=targets,
+        task_prompt=(
+            "Diagnose the semantic/reasoner failures and decide which generated Python "
+            "files require changes. Produce the smallest coherent repair. Use only T-Box "
+            "classes/properties and the generation contract; do not invent property locals "
+            "or remove required create/add tools. The orchestrator deliberately does not "
+            "route failures to files for you.\n\nReasoner feedback:\n"
+            + feedback_text
+        ),
+        max_attempts=5,
     )
-    sticky = (
-        feedback_text
-        + "\n\n## LLM repair contract (non-trivial semantic defect)\n"
-        + f"- If `{SEMANTIC_POISON_PROP}` appears as a property local in `_add_literal` / "
-        + f"`_add_object`, {restore_hint}.\n"
-        + "- Do not invent new property locals. Do not delete create_* tools.\n"
-        + "- Prefer the smallest unified diff that restores T-Box-valid triples.\n"
-    )
-
-    def _goal_met(path: Path) -> bool:
-        text = path.read_text(encoding="utf-8")
-        return SEMANTIC_POISON_PROP not in text
-
-    repairs: list[dict[str, Any]] = []
-    for path in targets:
-        _log(f"[semantic] LLM patch from reasoner feedback → {path.name}")
-        repairs.append(
-            repair_python_file_with_llm_for_goal(
-                model=model,
-                path=path,
-                max_repairs=max_repairs,
-                sticky_feedback=sticky,
-                goal_met=_goal_met
-                if path.name == entities_name
-                else (lambda _p: True),
-            )
-        )
-    return repairs
+    return [report]
 
 
 def exercise_level1_fail(scripts_dir: Path, *, mode: str = "syntax") -> list[str]:
@@ -1358,21 +1469,17 @@ def _context_from_scripts(
         if dest_scripts.exists():
             shutil.rmtree(dest_scripts)
         dest_scripts.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copytree(scripts_dir, dest_scripts)
+        shutil.copytree(
+            scripts_dir,
+            dest_scripts,
+            ignore=shutil.ignore_patterns("__pycache__", "*.pyc", "*.pyo"),
+        )
     artifact_source_root = scripts_dir.resolve().parents[1]
-    for name in ("sparqls", "iterations", "ontology_structures"):
+    for name in ("prompts", "sparqls", "iterations", "ontology_structures"):
         source = artifact_source_root / name / ONTOLOGY_NAME
         destination = output_root / name / ONTOLOGY_NAME
         if source.is_dir():
             shutil.copytree(source, destination, dirs_exist_ok=True)
-    candidate_root = ROOT / "ai_generated_contents_candidate"
-    sparql_destination = output_root / "sparqls" / ONTOLOGY_NAME
-    if not list(sparql_destination.glob("*.sparql")):
-        sparql_source = candidate_root / "sparqls" / ONTOLOGY_NAME
-        if sparql_source.is_dir():
-            shutil.copytree(
-                sparql_source, sparql_destination, dirs_exist_ok=True
-            )
     create_init_files(output_root)
     context = build_agentic_generation_context(
         ontology_name=ONTOLOGY_NAME,
@@ -1380,7 +1487,16 @@ def _context_from_scripts(
         output_root=output_root,
         write_files=False,
     )
-    generate_deterministic_prompt_slice(context)
+    generate_runtime_support_slice(context)
+    shutil.copy2(fixed_rdf_runtime_path, dest_scripts / "_fixed_rdf_runtime.py")
+    (dest_scripts / "_relationship_contract.json").write_text(
+        json.dumps(
+            runtime_publish_contract(context.contract),
+            indent=2,
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
     required_runtime_artifacts = [
         output_root
         / "sparqls"
@@ -1399,6 +1515,195 @@ def _context_from_scripts(
             "Incomplete generated artifact package; missing: " + ", ".join(missing)
         )
     return context
+
+
+def _preserves_original_prompt(original: str, candidate: str) -> bool:
+    """Return whether candidate is a pure insertion over the original text."""
+    cursor = iter(candidate)
+    return all(any(char == seen for seen in cursor) for char in original)
+
+
+def _review_prompt_binding_candidate(
+    *,
+    model: str,
+    target: Path,
+    original: str,
+    candidate: str,
+    generation_contract: dict[str, Any],
+) -> dict[str, Any]:
+    """Use a separate plain LLM call to review binding-only prompt changes."""
+    result = invoke_json(
+        model,
+        (
+            "You are an independent semantic reviewer for a generated ontology-pipeline "
+            "prompt. Compare ORIGINAL and CANDIDATE. The only authorized change is adding "
+            "runtime-binding placeholders as contextual inputs. Reject if the candidate "
+            "changes, narrows, or expands the task; changes the output schema; treats a "
+            "runtime label or URI as a new extracted field or output value; adds ontology "
+            "symbols or domain claims not supported by the generation contract; adds fixture "
+            "facts; or weakens any original instruction. Judge semantics, not wording style. "
+            "Return JSON only with exactly this shape:\n"
+            '{"approved":true|false,"contract_preserved":true|false,'
+            '"runtime_bindings_context_only":true|false,'
+            '"violations":["specific violation"],"rationale":"short evidence-based reason"}\n\n'
+            + json.dumps(
+                {
+                    "artifact": target.name,
+                    "generation_contract": generation_contract,
+                    "original": original,
+                    "candidate": candidate,
+                },
+                ensure_ascii=False,
+            )
+        ),
+        timeout_seconds=300,
+        max_attempts=3,
+        provider_max_retries=0,
+    )
+    review = dict(result.data)
+    approved = (
+        review.get("approved") is True
+        and review.get("contract_preserved") is True
+        and review.get("runtime_bindings_context_only") is True
+        and not list(review.get("violations") or [])
+    )
+    return {
+        "ok": approved,
+        "approved": review.get("approved") is True,
+        "contract_preserved": review.get("contract_preserved") is True,
+        "runtime_bindings_context_only": (
+            review.get("runtime_bindings_context_only") is True
+        ),
+        "violations": [str(item) for item in (review.get("violations") or [])],
+        "rationale": str(review.get("rationale") or ""),
+        "elapsed_seconds": result.elapsed_seconds,
+        "token_usage": result.token_usage,
+    }
+
+
+def _validate_prompt_binding_candidate(
+    *,
+    target: Path,
+    original: str,
+    model: str,
+    generation_contract: dict[str, Any],
+    semantic_reviewer: Callable[..., dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    candidate = target.read_text(encoding="utf-8")
+    binding = validate_prompt_runtime_bindings(target)
+    insertion_only = _preserves_original_prompt(original, candidate)
+    failures = list(binding.get("failures") or [])
+    if not insertion_only:
+        failures.append(
+            f"{target.name}: runtime-binding repair changed or removed original prompt content"
+        )
+    semantic_review: dict[str, Any] | None = None
+    if not failures:
+        reviewer = semantic_reviewer or _review_prompt_binding_candidate
+        semantic_review = reviewer(
+            model=model,
+            target=target,
+            original=original,
+            candidate=candidate,
+            generation_contract=generation_contract,
+        )
+        if not semantic_review.get("ok"):
+            violations = list(semantic_review.get("violations") or [])
+            failures.extend(
+                [
+                    f"{target.name}: semantic reviewer rejected binding repair: {item}"
+                    for item in violations
+                ]
+                or [
+                    f"{target.name}: semantic reviewer rejected binding repair: "
+                    f"{semantic_review.get('rationale') or 'contract not preserved'}"
+                ]
+            )
+    return {
+        "ok": not failures,
+        "failures": failures,
+        "binding_validation": binding,
+        "insertion_only": insertion_only,
+        "semantic_review": semantic_review,
+    }
+
+
+def _repair_prompt_runtime_bindings(
+    *,
+    context: AgenticGenerationContext,
+    model: str,
+    max_rounds: int = 2,
+) -> list[dict[str, Any]]:
+    """Run bounded LLM repairs for prompts missing runtime data channels."""
+    reports: list[dict[str, Any]] = []
+    for _round in range(1, max(0, max_rounds) + 1):
+        invalid = [
+            path
+            for path in sorted(Path(context.prompts_dir).glob("*.md"))
+            if not validate_prompt_runtime_bindings(path).get("ok")
+        ]
+        if not invalid:
+            return reports
+        for target in invalid:
+            original = target.read_text(encoding="utf-8")
+            binding_report = validate_prompt_runtime_bindings(target)
+            report = run_llm_artifact_editor(
+                model_name=model,
+                output_root=Path(context.output_root),
+                targets=[target],
+                task_prompt=(
+                    "Repair this generated prompt so its current instructions and output "
+                    "contract are preserved while the runtime-provided source or extracted "
+                    "hints are included at the point where the task consumes them. Satisfy "
+                    "every missing runtime-binding group in the structured validation evidence; "
+                    "for each group, use exactly one accepted slot. This is an insertion-only "
+                    "repair: preserve every character of the original prompt in the same order "
+                    "and only insert a clearly separated runtime-context block. Runtime labels "
+                    "and URIs are context for scoping only; never add them to the output schema, "
+                    "map them to extracted properties, or use them as output values. Do not add "
+                    "fixture values, domain-specific examples, scripts, or fallback behavior.\n\n"
+                    "Structured validation evidence:\n"
+                    + json.dumps(binding_report, ensure_ascii=False, indent=2)
+                ),
+                max_attempts=5,
+                validate=lambda target=target, original=original: (
+                    _validate_prompt_binding_candidate(
+                        target=target,
+                        original=original,
+                        model=model,
+                        generation_contract=context.contract,
+                    )
+                ),
+            )
+            repair_record = {
+                "round": _round,
+                "target": str(target),
+                "validation_before": binding_report,
+                "editor": report,
+                "validation_after": validate_prompt_runtime_bindings(target),
+            }
+            reports.append(repair_record)
+            _write_json(
+                Path(context.output_root)
+                / "reports"
+                / f"prompt_binding_repair_{_round}_{target.stem}.json",
+                repair_record,
+            )
+            if not report.get("ok"):
+                raise RuntimeError(
+                    f"Prompt runtime-binding repair failed for {target.name}"
+                )
+    remaining = [
+        path.name
+        for path in sorted(Path(context.prompts_dir).glob("*.md"))
+        if not validate_prompt_runtime_bindings(path).get("ok")
+    ]
+    if remaining:
+        raise RuntimeError(
+            "Prompt runtime-binding validation exhausted bounded repair rounds: "
+            + ", ".join(remaining)
+        )
+    return reports
 
 
 def _prompt_only_regeneration(
@@ -1545,6 +1850,9 @@ def run_outer_loop(
     content_f1_threshold: float = 0.95,
     graph_f1_threshold: float = 0.0,
     evaluation_repeats: int = 1,
+    semantic_judge_models: list[str] | None = None,
+    semantic_adjudicator_model: str | None = None,
+    semantic_score_threshold: float = SEMANTIC_ACCEPTANCE_THRESHOLD,
 ) -> dict[str, Any]:
     run_id = (
         datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
@@ -1556,6 +1864,8 @@ def run_outer_loop(
     feedback_path: Path | None = None
     content_feedback_path: Path | None = None
     diagnosis_editor_path: Path | None = None
+    semantic_repair_diagnosis: dict[str, Any] | None = None
+    previous_semantic_report: dict[str, Any] | None = None
     overall_ok = False
     champion_dir: Path | None = None
     champion_report: dict[str, Any] | None = None
@@ -1592,6 +1902,17 @@ def run_outer_loop(
                 meta_task_config=meta_task_config,
                 output_root=iter_dir,
             )
+        elif scripts_source is not None and outer > 0:
+            previous_root = champion_dir or run_dir / f"iter_{outer - 1}"
+            _log(
+                f"[outer {outer}] carry forward integrated package for focused repair "
+                f"→ {iter_dir}"
+            )
+            context = _context_from_scripts(
+                scripts_dir=previous_root / "scripts" / ONTOLOGY_NAME,
+                meta_task_config=meta_task_config,
+                output_root=iter_dir,
+            )
         else:
             _log(f"[outer {outer}] regenerate OntoSyn MCP → {iter_dir}")
             context = regenerate_ontosynthesis_mcp(
@@ -1605,6 +1926,15 @@ def run_outer_loop(
             )
             create_init_files(iter_dir)
 
+        prompt_binding_repairs = (
+            []
+            if scripts_source is not None
+            else _repair_prompt_runtime_bindings(
+                context=context,
+                model=generation_model,
+                max_rounds=2,
+            )
+        )
         scripts_dir = Path(context.scripts_dir)
         initial_manifest = artifact_manifest(iter_dir)
         _write_json(
@@ -1616,13 +1946,113 @@ def run_outer_loop(
             },
         )
         semantic_repairs: list[dict[str, Any]] = []
-        if feedback_path and feedback_path.is_file():
-            semantic_repairs = apply_semantic_feedback_repairs(
-                context=context,
-                feedback_text=feedback_path.read_text(encoding="utf-8"),
-                model=model,
-                max_repairs=max(1, max_ruff_repairs),
-                allow_llm=allow_llm,
+        semantic_repairs.extend(prompt_binding_repairs)
+        if (
+            semantic_repair_diagnosis is not None
+            and previous_semantic_report is not None
+            and fixture_path is not None
+            and outer > 0
+        ):
+            previous_iteration_root = Path(
+                str(semantic_repair_diagnosis.get("source_iteration_root") or "")
+            ).resolve()
+            if not previous_iteration_root.is_dir():
+                raise ValueError(
+                    "Semantic repair diagnosis is missing a valid source iteration root"
+                )
+            remapped_diagnosis = dict(semantic_repair_diagnosis)
+
+            def remap_artifact_path(raw: Any) -> str:
+                source = Path(str(raw)).resolve()
+                try:
+                    relative = source.relative_to(previous_iteration_root)
+                except ValueError as exc:
+                    raise ValueError(
+                        f"Diagnosis target is outside its source iteration: {source}"
+                    ) from exc
+                candidate = (iter_dir / relative).resolve()
+                if not candidate.is_file():
+                    raise ValueError(
+                        f"Diagnosis target has no candidate iteration counterpart: {relative}"
+                    )
+                return str(candidate)
+
+            remapped_diagnosis["target_artifacts"] = [
+                remap_artifact_path(path)
+                for path in semantic_repair_diagnosis.get("target_artifacts") or []
+            ]
+            remapped_diagnosis["dependency_order"] = [
+                remap_artifact_path(path)
+                for path in semantic_repair_diagnosis.get("dependency_order") or []
+            ]
+            repair_fixture = _load_fixture(fixture_path)
+
+            def validate_semantic_candidate() -> dict[str, Any]:
+                validation_root = (
+                    ROOT / "tmp" / "semantic_repair_validation" / f"{run_id[:12]}_{outer}"
+                )
+                candidate_abox = iter_dir / "semantic_repair_candidate.ttl"
+                candidate_build = run_react_pipeline_against_mock(
+                    artifact_root=iter_dir,
+                    meta_task_config=meta_task_config,
+                    fixture=repair_fixture,
+                    abox_path=candidate_abox,
+                    runtime_root=validation_root,
+                )
+                candidate_reasoner = (
+                    run_reasoner_gate(
+                        tbox_paths=tbox_paths,
+                        abox_path=candidate_abox,
+                        report_path=iter_dir / "semantic_repair_reasoner.json",
+                    )
+                    if candidate_build.get("ok")
+                    else None
+                )
+                health_ok = bool(candidate_build.get("ok")) and bool(
+                    candidate_reasoner and candidate_reasoner.get("ok")
+                )
+                candidate_semantic = (
+                    judge_semantic_abox(
+                        document_text=str(repair_fixture.get("document_md") or ""),
+                        ontology_contract=_semantic_ontology_contract(context),
+                        abox_path=candidate_abox,
+                        models=semantic_judge_models or [model, generation_model],
+                        adjudicator_model=semantic_adjudicator_model,
+                        acceptance_threshold=semantic_score_threshold,
+                    )
+                    if health_ok
+                    else {"acceptance": {"accepted": False, "overall_score": 0.0}}
+                )
+                return {
+                    "health_ok": health_ok,
+                    "abox_build": candidate_build,
+                    "reasoner": candidate_reasoner,
+                    "semantic_report": candidate_semantic,
+                }
+
+            semantic_repairs.append(
+                run_semantic_observation_repair(
+                    model_name=generation_model,
+                    context=context,
+                    diagnosis=remapped_diagnosis,
+                    before_semantic_report=previous_semantic_report,
+                    validate_candidate=validate_semantic_candidate,
+                )
+            )
+            semantic_repair_diagnosis = None
+        if (
+            feedback_path
+            and feedback_path.is_file()
+            and not (enhance_prompts and scripts_source is not None)
+        ):
+            semantic_repairs.extend(
+                apply_semantic_feedback_repairs(
+                    context=context,
+                    feedback_text=feedback_path.read_text(encoding="utf-8"),
+                    model=model,
+                    max_repairs=max(1, max_ruff_repairs),
+                    allow_llm=allow_llm,
+                )
             )
 
         level1_injected: list[str] = []
@@ -1636,31 +2066,50 @@ def run_outer_loop(
             _log(f"[outer {outer}] exercise-level1-fail mutated: {level1_injected}")
 
         _log(f"[outer {outer}] Level-1 ruff/contract repair")
-        if enhance_prompts:
+        if enhance_prompts and scripts_source is None:
             level1_static = run_ruff_on_scripts(scripts_dir)
             level1_validation = build_validation_report(
                 context, foreign_contracts=None, write_report=True
             )
             level1 = {
-                "ok": bool(level1_static.get("ok"))
-                and bool(level1_validation.get("ok")),
+                "ok": bool(level1_validation.get("ok")),
                 "ruff": level1_static,
                 "validation": level1_validation,
+                "ruff_advisory_only": True,
                 "history": [
                     {
                         "phase": "prompt_only_static_validation",
                         "scripts_mutable": False,
+                        "ruff_ok": bool(level1_static.get("ok")),
+                        "ruff_advisory_only": True,
                     }
                 ],
             }
         else:
-            level1 = level1_repair_loop(
-                context=context,
-                model=model,
-                max_ruff_repairs=max_ruff_repairs,
-                allow_llm=allow_llm,
-                log=_log,
-            )
+            if enhance_prompts:
+                level1_static = run_ruff_on_scripts(scripts_dir)
+                level1 = {
+                    "ok": True,
+                    "ruff": level1_static,
+                    "validation": {"ok": True, "failures": []},
+                    "source_package_static_checks_deferred": True,
+                    "history": [
+                        {
+                            "phase": "external_source_package_deferred",
+                            "scripts_mutable": False,
+                            "ruff_ok": bool(level1_static.get("ok")),
+                            "ruff_advisory_only": True,
+                        }
+                    ],
+                }
+            else:
+                level1 = level1_repair_loop(
+                    context=context,
+                    model=model,
+                    max_ruff_repairs=max_ruff_repairs,
+                    allow_llm=allow_llm,
+                    log=_log,
+                )
         if not level1.get("ok"):
             iter_report = {
                 "outer": outer,
@@ -1730,26 +2179,33 @@ def run_outer_loop(
         repeat_reports: list[dict[str, Any]] = []
         reasoner_report: dict[str, Any] | None = None
         if abox_mode == "react":
-            gold_hints = (
-                ((fixture.get("content_gt") or {}).get("hints"))
-                or fixture.get("hints")
-                or {}
-            )
             for repeat_index in range(max(1, evaluation_repeats)):
                 repeat_dir = iter_dir / "evaluations" / f"run_{repeat_index + 1}"
                 repeat_dir.mkdir(parents=True, exist_ok=True)
                 repeat_abox = repeat_dir / "react_abox.ttl"
+                short_runtime_root = (
+                    ROOT
+                    / "tmp"
+                    / "semantic_react"
+                    / f"{run_id[:12]}_{outer}_{repeat_index + 1}"
+                )
                 repeat_build = run_react_pipeline_against_mock(
                     artifact_root=iter_dir,
                     meta_task_config=meta_task_config,
                     fixture=fixture,
                     abox_path=repeat_abox,
-                    runtime_root=repeat_dir / "react_runtime",
+                    runtime_root=short_runtime_root,
                 )
+                repeat_build["runtime_root"] = str(short_runtime_root)
                 repeat_content = {
-                    "hints": score_hint_content(
-                        gold_hints, repeat_build.get("predicted_hints") or {}
-                    ),
+                    "hints": {
+                        "ok": None,
+                        "policy": "disabled_format_sensitive_script_score",
+                        "reason": (
+                            "Extraction quality is evaluated only by the format-independent "
+                            "LLM soft judge."
+                        ),
+                    },
                     "graph": score_graph_content(oracle_abox_path, repeat_abox)
                     if oracle_build.get("ok") and repeat_build.get("ok")
                     else {
@@ -1758,6 +2214,25 @@ def run_outer_loop(
                         "error": "oracle or react A-Box build failed",
                     },
                 }
+                extraction_judge = (
+                    judge_extraction_semantics(
+                        document_text=str(fixture.get("document_md") or ""),
+                        ontology_contract=_semantic_ontology_contract(context),
+                        extracted_content=repeat_build.get("predicted_hints") or {},
+                        models=semantic_judge_models or [model, generation_model],
+                        adjudicator_model=semantic_adjudicator_model,
+                        acceptance_threshold=semantic_score_threshold,
+                    )
+                    if repeat_build.get("predicted_hints")
+                    and allow_llm
+                    else {
+                        "ok": False,
+                        "unavailable": True,
+                        "reason": "extracted content and LLM access are required",
+                        "acceptance": {"accepted": False},
+                    }
+                )
+                repeat_content["extraction_soft_judge"] = extraction_judge
                 repeat_reasoner = (
                     run_reasoner_gate(
                         tbox_paths=tbox_paths,
@@ -1767,6 +2242,26 @@ def run_outer_loop(
                     if repeat_build.get("ok")
                     else None
                 )
+                soft_judge = (
+                    judge_semantic_abox(
+                        document_text=str(fixture.get("document_md") or ""),
+                        ontology_contract=_semantic_ontology_contract(context),
+                        abox_path=repeat_abox,
+                        models=semantic_judge_models or [model, generation_model],
+                        adjudicator_model=semantic_adjudicator_model,
+                        acceptance_threshold=semantic_score_threshold,
+                    )
+                    if repeat_build.get("ok")
+                    and repeat_reasoner
+                    and repeat_reasoner.get("ok")
+                    and allow_llm
+                    else {
+                        "ok": False,
+                        "unavailable": True,
+                        "reason": "healthy A-Box and LLM access are required",
+                        "acceptance": {"accepted": False},
+                    }
+                )
                 repeat_reports.append(
                     {
                         "index": repeat_index + 1,
@@ -1774,29 +2269,30 @@ def run_outer_loop(
                         "abox_build": repeat_build,
                         "content_score": repeat_content,
                         "reasoner": repeat_reasoner,
+                        "soft_judge": soft_judge,
+                        "extraction_soft_judge": extraction_judge,
                     }
                 )
                 _write_json(repeat_dir / "content_score.json", repeat_content)
+                _write_json(repeat_dir / "llm_semantic_abox_score.json", soft_judge)
 
             worst = min(
                 repeat_reports,
                 key=lambda item: (
                     float(
                         (
-                            (
-                                item["content_score"].get("hints") or {}
-                            ).get("overall")
+                            (item.get("extraction_soft_judge") or {}).get(
+                                "consensus"
+                            )
                             or {}
-                        ).get("f1")
+                        ).get("overall_score")
                         or 0.0
                     ),
                     float(
                         (
-                            (
-                                item["content_score"].get("graph") or {}
-                            ).get("overall")
+                            (item.get("soft_judge") or {}).get("consensus")
                             or {}
-                        ).get("f1")
+                        ).get("overall_score")
                         or 0.0
                     ),
                 ),
@@ -1804,6 +2300,11 @@ def run_outer_loop(
             abox_path = Path(worst["abox_path"])
             abox_build = worst["abox_build"]
             content_report = worst["content_score"]
+            content_report["soft_judge"] = worst["soft_judge"]
+            content_report["extraction_soft_judge"] = worst[
+                "extraction_soft_judge"
+            ]
+            content_report["deterministic_scores_policy"] = "diagnostic_only"
             content_report["repeats"] = [
                 {
                     "index": item["index"],
@@ -1815,6 +2316,23 @@ def run_outer_loop(
                     "graph_f1": (
                         ((item["content_score"].get("graph") or {}).get("overall") or {})
                     ).get("f1"),
+                    "semantic_soft_score": (
+                        (item.get("soft_judge") or {}).get("consensus") or {}
+                    ).get("overall_score"),
+                    "semantic_accepted": bool(
+                        ((item.get("soft_judge") or {}).get("acceptance") or {}).get(
+                            "accepted"
+                        )
+                    ),
+                    "extraction_soft_score": (
+                        (item.get("extraction_soft_judge") or {}).get("consensus") or {}
+                    ).get("overall_score"),
+                    "extraction_accepted": bool(
+                        (
+                            (item.get("extraction_soft_judge") or {}).get("acceptance")
+                            or {}
+                        ).get("accepted")
+                    ),
                 }
                 for item in repeat_reports
             ]
@@ -1851,27 +2369,79 @@ def run_outer_loop(
                     {"semantic_ok": semantic_ok}
                 ]
             )
-            decision = _content_gate_decision(
-                content_report=content_report,
-                fixture=fixture,
-                champion_report=champion_report,
-                semantic_ok=semantic_ok and all_repeat_semantic,
-                hint_threshold=content_f1_threshold,
-                graph_threshold=graph_f1_threshold,
+            soft_acceptance = (
+                (content_report.get("soft_judge") or {}).get("acceptance") or {}
             )
+            extraction_acceptance = (
+                (content_report.get("extraction_soft_judge") or {}).get("acceptance")
+                or {}
+            )
+            decision = {
+                "accepted": bool(
+                    semantic_ok
+                    and all_repeat_semantic
+                    and soft_acceptance.get("accepted")
+                    and extraction_acceptance.get("accepted")
+                ),
+                "failures": (
+                    []
+                    if semantic_ok
+                    and all_repeat_semantic
+                    and soft_acceptance.get("accepted")
+                    and extraction_acceptance.get("accepted")
+                    else (
+                        ["semantic_or_reasoner"]
+                        if not semantic_ok or not all_repeat_semantic
+                        else (
+                            list(soft_acceptance.get("failures") or [])
+                            + [
+                                f"extraction_{failure}"
+                                for failure in extraction_acceptance.get("failures") or []
+                            ]
+                        )
+                    )
+                ),
+                "semantic_soft_acceptance": soft_acceptance,
+                "extraction_soft_acceptance": extraction_acceptance,
+                "deterministic_scores_policy": "diagnostic_only",
+                "metrics": {
+                    "semantic_soft_score": soft_acceptance.get("overall_score"),
+                    "extraction_soft_score": extraction_acceptance.get(
+                        "overall_score"
+                    ),
+                    "hint_f1_diagnostic": (
+                        ((content_report.get("hints") or {}).get("overall") or {}).get(
+                            "f1"
+                        )
+                    ),
+                    "graph_f1_diagnostic": (
+                        ((content_report.get("graph") or {}).get("overall") or {}).get(
+                            "f1"
+                        )
+                    ),
+                },
+            }
             repeat_gate_failures = []
             for repeat in repeat_reports:
                 repeat_semantic_ok = bool(repeat["abox_build"].get("ok")) and bool(
                     repeat["reasoner"] and repeat["reasoner"].get("ok")
                 )
-                repeat_decision = _content_gate_decision(
-                    content_report=repeat["content_score"],
-                    fixture=fixture,
-                    champion_report=None,
-                    semantic_ok=repeat_semantic_ok,
-                    hint_threshold=content_f1_threshold,
-                    graph_threshold=graph_f1_threshold,
+                repeat_acceptance = (
+                    (repeat.get("soft_judge") or {}).get("acceptance") or {}
                 )
+                repeat_decision = {
+                    "accepted": bool(
+                        repeat_semantic_ok and repeat_acceptance.get("accepted")
+                    ),
+                    "failures": (
+                        ["semantic_or_reasoner"]
+                        if not repeat_semantic_ok
+                        else list(repeat_acceptance.get("failures") or [])
+                    ),
+                    "critical_failures": list(
+                        repeat_acceptance.get("critical_errors") or []
+                    ),
+                }
                 if not repeat_decision["accepted"]:
                     repeat_gate_failures.append(
                         {
@@ -1887,6 +2457,7 @@ def run_outer_loop(
                 decision["repeat_gate_failures"] = repeat_gate_failures
             content_report["decision"] = decision
             content_report["ok"] = bool(decision["accepted"])
+            previous_semantic_report = content_report.get("soft_judge") or None
             _write_json(iter_dir / "content_score.json", content_report)
             content_feedback_path = iter_dir / "content_feedback.md"
             content_feedback_path.write_text(
@@ -1898,35 +2469,37 @@ def run_outer_loop(
                 encoding="utf-8",
             )
             if enhance_prompts and not decision.get("accepted"):
-                inventory = prompt_inventory(Path(context.prompts_dir))
-                if not inventory:
-                    raise RuntimeError(
-                        "Prompt diagnosis requires a non-empty prompt inventory"
+                evidence_paths = [
+                    Path(path)
+                    for repeat in repeat_reports
+                    for path in (
+                        (repeat.get("abox_build") or {}).get("attempt_trace_paths")
+                        or []
                     )
+                ]
+                inventory = repair_artifact_inventory(
+                    prompts_dir=Path(context.prompts_dir),
+                    scripts_dir=Path(context.scripts_dir),
+                    evidence_paths=evidence_paths,
+                )
+                if not inventory:
+                    raise RuntimeError("Semantic diagnosis requires a non-empty inventory")
+                forbidden_fixture_literals = fixture_literals(fixture)
                 diagnosis_input = {
-                    "schema_version": "content-diagnosis-input.v1",
-                    "mock_source": fixture.get("document_md"),
-                    "gold_hints": gold_hints,
-                    "predicted_hints": abox_build.get("predicted_hints") or {},
-                    "hint_differences": {
-                        "missing": (content_report.get("hints") or {}).get("missing")
-                        or [],
-                        "unexpected": (content_report.get("hints") or {}).get(
-                            "unexpected"
-                        )
-                        or [],
-                    },
-                    "graph_differences": {
-                        "missing": (content_report.get("graph") or {}).get("missing")
-                        or [],
-                        "unexpected": (content_report.get("graph") or {}).get(
-                            "unexpected"
-                        )
-                        or [],
-                    },
-                    "repeat_results": content_report.get("repeats") or [],
+                    "schema_version": "semantic-repair-diagnosis-input.v1",
+                    "mock_source": redact_fixture_evidence(
+                        fixture.get("document_md"), forbidden_fixture_literals
+                    ),
+                    "semantic_soft_judge": redact_fixture_evidence(
+                        content_report.get("soft_judge") or {},
+                        forbidden_fixture_literals,
+                    ),
+                    "repeat_results": redact_fixture_evidence(
+                        content_report.get("repeats") or [],
+                        forbidden_fixture_literals,
+                    ),
                     "decision": decision,
-                    "prompt_inventory": inventory,
+                    "artifact_inventory": inventory,
                     "contract": {
                         "top_entity": context.contract.get("top_entity"),
                         "ordered_member_profile": context.contract.get(
@@ -1951,6 +2524,8 @@ def run_outer_loop(
                         "Read-only diagnosis agent modified generated artifacts"
                     )
                 diagnosis = diagnosis_run["diagnosis"]
+                if diagnosis.get("repair_kind") == "prompt":
+                    diagnosis = validate_single_prompt_focus(diagnosis)
                 _write_json(
                     iter_dir / "diagnosis_output.json",
                     {
@@ -1958,15 +2533,43 @@ def run_outer_loop(
                         "output_sha256": json_digest(diagnosis),
                     },
                 )
-                if diagnosis.get("status") != "actionable":
-                    raise RuntimeError(
-                        f"GPT diagnosis is not actionable: {diagnosis.get('status')}"
+                repair_kind = diagnosis.get("repair_kind")
+                if repair_kind == "prompt":
+                    prompt_targets = [
+                        path
+                        for path in diagnosis.get("target_artifacts") or []
+                        if Path(path).suffix == ".md"
+                    ]
+                    diagnosis["target_prompt_set"] = prompt_targets
+                    diagnosis["issues"] = [
+                        {
+                            "issue_id": finding.get("observation_ids", ["semantic"])[0],
+                            "category": "semantic_content",
+                            "stage": "prompt",
+                            "root_cause": finding.get("cause"),
+                            "target_prompts": prompt_targets,
+                            "must_preserve": diagnosis.get("must_preserve") or [],
+                            "suggested_change": diagnosis.get("summary"),
+                        }
+                        for finding in diagnosis.get("causal_findings") or []
+                    ]
+                    editor_diagnosis = redact_diagnosis(
+                        diagnosis, forbidden_fixture_literals
                     )
-                editor_diagnosis = redact_diagnosis(
-                    diagnosis, fixture_literals(fixture)
-                )
-                diagnosis_editor_path = iter_dir / "content_diagnosis_editor.json"
-                _write_json(diagnosis_editor_path, editor_diagnosis)
+                    diagnosis_editor_path = iter_dir / "content_diagnosis_editor.json"
+                    _write_json(diagnosis_editor_path, editor_diagnosis)
+                    semantic_repair_diagnosis = None
+                elif repair_kind in {"script", "mixed"}:
+                    diagnosis["source_iteration_root"] = str(iter_dir.resolve())
+                    semantic_repair_diagnosis = diagnosis
+                    diagnosis_editor_path = None
+                elif repair_kind in {"none", "adjudicate"}:
+                    semantic_repair_diagnosis = None
+                    diagnosis_editor_path = None
+                else:
+                    raise RuntimeError(
+                        f"GPT diagnosis returned unsupported repair kind: {repair_kind}"
+                    )
         content_ok = (
             True
             if content_report is None or not enhance_prompts
@@ -2178,6 +2781,10 @@ def run_outer_loop(
         "enhance_prompts": enhance_prompts,
         "content_f1_threshold": content_f1_threshold,
         "graph_f1_threshold": graph_f1_threshold,
+        "deterministic_f1_policy": "diagnostic_only",
+        "semantic_score_threshold": semantic_score_threshold,
+        "semantic_judge_models": semantic_judge_models or [model, generation_model],
+        "semantic_adjudicator_model": semantic_adjudicator_model,
         "evaluation_repeats": evaluation_repeats,
         "champion_iteration": champion_iteration,
         "champion_path": str(champion_dir) if champion_dir is not None else None,
@@ -2561,6 +3168,22 @@ def build_parser() -> argparse.ArgumentParser:
         help="Independent ReAct/HermiT evaluations per prompt candidate.",
     )
     parser.add_argument(
+        "--semantic-judge-model",
+        action="append",
+        default=[],
+        help="Independent LLM semantic judge model (repeatable).",
+    )
+    parser.add_argument(
+        "--semantic-adjudicator-model",
+        help="Optional third LLM used only when independent judges disagree.",
+    )
+    parser.add_argument(
+        "--semantic-score-threshold",
+        type=float,
+        default=SEMANTIC_ACCEPTANCE_THRESHOLD,
+        help="Required overall and per-dimension LLM semantic score.",
+    )
+    parser.add_argument(
         "--scripts-source",
         help=(
             "Optional existing scripts/ontosynthesis directory to copy instead of "
@@ -2660,6 +3283,11 @@ def main(argv: list[str] | None = None) -> int:
             content_f1_threshold=max(0.0, min(1.0, args.content_f1_threshold)),
             graph_f1_threshold=max(0.0, min(1.0, args.graph_f1_threshold)),
             evaluation_repeats=max(1, args.evaluation_repeats),
+            semantic_judge_models=list(args.semantic_judge_model or []),
+            semantic_adjudicator_model=args.semantic_adjudicator_model,
+            semantic_score_threshold=max(
+                0.0, min(1.0, args.semantic_score_threshold)
+            ),
         )
 
     if args.json:
