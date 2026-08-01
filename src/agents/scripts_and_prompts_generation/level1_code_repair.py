@@ -153,17 +153,25 @@ def extract_json_object(text: str) -> dict[str, Any]:
     return data
 
 
-def invoke_json(model: str, prompt: str) -> LLMJsonResult:
+def invoke_json(
+    model: str,
+    prompt: str,
+    *,
+    timeout_seconds: int | None = None,
+    max_attempts: int = 3,
+    provider_max_retries: int | None = None,
+) -> LLMJsonResult:
     last_detail = ""
-    for attempt in range(1, 4):
+    attempts = max(1, max_attempts)
+    for attempt in range(1, attempts + 1):
         llm = LLMCreator(
             model=model,
             remote_model=True,
             model_config=ModelConfig(
-                max_tokens=_env_int("TWA_GENERATION_MAX_TOKENS", 32000),
-                timeout=_env_int("TWA_GENERATION_TIMEOUT", 600),
+                timeout=timeout_seconds or _env_int("TWA_GENERATION_TIMEOUT", 600),
                 temperature=0,
                 top_p=0.1,
+                max_retries=provider_max_retries,
             ),
         ).setup_llm()
         effective_prompt = prompt
@@ -183,7 +191,7 @@ def invoke_json(model: str, prompt: str) -> LLMJsonResult:
         except (json.JSONDecodeError, ValueError) as exc:
             preview = (raw or "").replace("\r", "")[:800]
             last_detail = f"len={len(raw or '')} preview={preview!r}"
-            if attempt == 3:
+            if attempt == attempts:
                 raise RuntimeError(
                     f"LLM did not return a JSON object ({last_detail})"
                 ) from exc
@@ -200,7 +208,8 @@ def check_python_file(path: Path) -> list[CheckResult]:
     scripts_dir = path.parent.resolve()
     return [
         run_command(
-            [sys.executable, "-m", "ruff", "format", path.name], cwd=scripts_dir
+            [sys.executable, "-m", "ruff", "format", "--check", path.name],
+            cwd=scripts_dir,
         ),
         run_command(
             [sys.executable, "-m", "ruff", "check", path.name], cwd=scripts_dir
@@ -472,23 +481,33 @@ def repair_python_file_with_llm_for_goal(
 
 
 def run_ruff_on_scripts(scripts_dir: Path) -> dict[str, Any]:
-    """Format/check/compile every *.py under scripts_dir (except attempt backups)."""
+    """Lint/compile every script; report formatting differences as advisory."""
     results: list[dict[str, Any]] = []
     ok = True
     for path in sorted(scripts_dir.glob("*.py")):
         if path.name.startswith("main_part_") or "_attempt_" in path.name:
             continue
         file_results = check_python_file(path)
-        file_ok = all(item.ok for item in file_results)
+        blocking_results = [
+            item for item in file_results if "ruff format --check" not in item.name
+        ]
+        format_results = [
+            item for item in file_results if "ruff format --check" in item.name
+        ]
+        file_ok = all(item.ok for item in blocking_results)
+        format_ok = all(item.ok for item in format_results)
         ok = ok and file_ok
         results.append(
             {
                 "file": path.name,
                 "ok": file_ok,
+                "format_ok": format_ok,
+                "format_advisory_only": True,
                 "checks": [
                     {
                         "name": item.name,
                         "ok": item.ok,
+                        "blocking": "ruff format --check" not in item.name,
                         "stdout": item.stdout[-1000:],
                         "stderr": item.stderr[-1000:],
                     }
@@ -545,31 +564,32 @@ def level1_repair_loop(
     ruff_report = run_ruff_on_scripts(scripts_dir)
     history.append({"phase": "ruff_initial", "ok": ruff_report["ok"], "report": ruff_report})
 
-    if not ruff_report["ok"]:
-        _log("[level1] applying non-LLM ruff format/check --fix")
-        autofix = autofix_ruff_on_scripts(scripts_dir)
-        ruff_report = autofix["recheck"]
-        history.append(
-            {
-                "phase": "ruff_autofix",
-                "ok": ruff_report["ok"],
-                "applied": autofix["applied"],
-            }
+    if not ruff_report["ok"] and allow_llm and max_ruff_repairs > 0:
+        from src.agents.scripts_and_prompts_generation.llm_artifact_editor import (
+            run_llm_artifact_editor,
         )
 
-    if not ruff_report["ok"] and allow_llm and max_ruff_repairs > 0:
-        for item in ruff_report["files"]:
-            if item["ok"]:
-                continue
-            path = scripts_dir / item["file"]
-            _log(f"[level1] ruff LLM repair → {path.name}")
-            repair = repair_python_file_with_llm(
-                model=model,
-                path=path,
-                max_repairs=max_ruff_repairs,
-                sticky_feedback="Fix ruff format/check and py_compile failures.",
-            )
-            history.append({"phase": "ruff_llm_repair", "file": path.name, **repair})
+        targets = [
+            path
+            for path in sorted(scripts_dir.glob("*.py"))
+            if not path.name.startswith("main_part_") and "_attempt_" not in path.name
+        ]
+        _log("[level1] plain LLM decides transactional lint/syntax repair")
+        repair = run_llm_artifact_editor(
+            model_name=model,
+            output_root=Path(context.output_root),
+            targets=targets,
+            task_prompt=(
+                "Diagnose and repair all Python formatting, lint, import, and syntax failures "
+                "shown below. Decide which files need changes. Preserve generated ontology "
+                "behavior and make the smallest coherent patch. No formatter or scripted "
+                "autofix will modify content for you.\n\n"
+                + json.dumps(ruff_report, ensure_ascii=False)
+            ),
+            max_attempts=5,
+        )
+        history.append({"phase": "ruff_llm_repair", **repair})
+        ruff_report = run_ruff_on_scripts(scripts_dir)
 
     validation_report = build_validation_report(
         context, foreign_contracts=None, write_report=True
@@ -589,51 +609,44 @@ def level1_repair_loop(
         and repairs_done < max_ruff_repairs
     ):
         failures = list(validation_report.get("failures") or [])
-        grouped = group_validation_failures(failures)
-        if not grouped:
-            _log("[level1] validation failures not mapped to files; stopping")
-            history.append(
-                {
-                    "phase": "validation_unmapped",
-                    "failures": failures,
-                }
-            )
-            break
         repairs_done += 1
         full_failures = "\n".join(failures)
         fb = validation_report.get("feedback") or {}
         extra = "\n".join(
             (fb.get("prompt_agent") or []) + (fb.get("coding_agent") or [])
         )
-        round_repairs: list[dict[str, Any]] = []
-        for fname, msgs in sorted(grouped.items()):
-            path = (
-                scripts_dir / fname
-                if (scripts_dir / fname).is_file()
-                else prompts_dir / fname
+        from src.agents.scripts_and_prompts_generation.llm_artifact_editor import (
+            run_llm_artifact_editor,
+        )
+
+        targets = [
+            path
+            for path in (
+                *sorted(scripts_dir.glob("*.py")),
+                *sorted(prompts_dir.glob("*.md")),
             )
-            if not path.is_file() or not path.name.endswith(".py"):
-                # Minimal harness loop only patches Python; prompt failures are reported.
-                continue
-            sticky = (
-                "Machine validation reported the following for this file:\n"
-                + "\n".join(f"- {m}" for m in msgs)
-                + "\n\nFull failure bundle:\n"
+            if path.is_file()
+            and not path.name.startswith("main_part_")
+            and "_attempt_" not in path.name
+        ]
+        _log("[level1] plain LLM decides bundle-validation repair targets")
+        round_repair = run_llm_artifact_editor(
+            model_name=model,
+            output_root=Path(context.output_root),
+            targets=targets,
+            task_prompt=(
+                "Diagnose the complete machine-validation bundle and decide which generated "
+                "scripts or prompts require changes. Produce the smallest coherent edits. "
+                "Do not use filename matching or assume every file needs an edit.\n\n"
+                "Full failures:\n"
                 + full_failures
                 + "\n\nStructured feedback:\n"
                 + extra
-            )
-            _log(f"[level1] validation LLM repair → {fname}")
-            round_repairs.append(
-                repair_python_file_with_llm(
-                    model=model,
-                    path=path,
-                    max_repairs=1,
-                    sticky_feedback=sticky,
-                )
-            )
+            ),
+            max_attempts=5,
+        )
         history.append(
-            {"phase": f"validation_repair_{repairs_done}", "repairs": round_repairs}
+            {"phase": f"validation_repair_{repairs_done}", "repair": round_repair}
         )
         ruff_report = run_ruff_on_scripts(scripts_dir)
         history.append(
@@ -654,10 +667,14 @@ def level1_repair_loop(
         )
 
     final_ruff = run_ruff_on_scripts(scripts_dir)
-    ok = bool(final_ruff.get("ok")) and bool(validation_report.get("ok"))
+    # Ruff remains diagnostic evidence, while syntax/import/contract/runtime
+    # failures are enforced by the generation validation report below. This
+    # prevents style-only findings from blocking behavioral evaluation.
+    ok = bool(validation_report.get("ok"))
     return {
         "ok": ok,
         "ruff": final_ruff,
+        "ruff_advisory_only": True,
         "validation": {
             "ok": bool(validation_report.get("ok")),
             "failures": list(validation_report.get("failures") or []),
