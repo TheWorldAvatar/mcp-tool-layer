@@ -46,6 +46,13 @@ OWL_BUILTINS = {
 }
 RDF_TYPE = RDF.type
 OM2 = Namespace("http://www.ontology-of-units-of-measure.org/resource/om-2/")
+QUALITATIVE_TEMPERATURE_LABELS = {
+    "room temperature",
+    "room temp",
+    "ambient temperature",
+    "ambient temp",
+    "rt",
+}
 KNOWN_PROFILES = {
     "ontosynthesis": {
         "tbox": [
@@ -281,8 +288,18 @@ def _check_om2_quantity_structure(
                     f"{_local_name(quantity)} for {_local_name(prop)} must be typed "
                     f"{sorted(_local_name(value) for value in expected_types)}"
                 )
+            labels = {
+                " ".join(str(value).strip().casefold().split())
+                for value in abox_graph.objects(quantity, RDFS.label)
+            }
+            qualitative_temperature = (
+                OM2.Temperature in expected_types
+                and bool(labels & QUALITATIVE_TEMPERATURE_LABELS)
+            )
             numerical_values = list(abox_graph.objects(quantity, OM2.hasNumericalValue))
             units = list(abox_graph.objects(quantity, OM2.hasUnit))
+            if qualitative_temperature and not numerical_values and not units:
+                continue
             if len(numerical_values) != 1:
                 violations.append(
                     f"{_local_name(quantity)} for {_local_name(prop)} must have exactly "

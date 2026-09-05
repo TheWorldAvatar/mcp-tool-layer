@@ -10,7 +10,10 @@ import json
 from rdflib import Graph, Namespace, URIRef
 from typing import Dict, List, Any, Optional
 
-from scripts.output_conversion_ttl_to_json.name_utils import extend_unique_names
+from scripts.output_conversion_ttl_to_json.name_utils import (
+    collapse_labeled_syntheses,
+    extend_unique_names,
+)
 
 
 def load_ttl_files(file_paths: List[str]) -> Graph:
@@ -28,6 +31,24 @@ def get_namespaces(graph: Graph) -> Dict[str, Namespace]:
     for prefix, namespace in graph.namespaces():
         namespaces[prefix] = namespace
         print(f"Found namespace: {prefix} -> {namespace}")
+    # Turtle prefixes are serialization aliases, not ontology identity. rdflib
+    # may rename a canonical prefix to ns1/ns2 when merging graphs, so queries
+    # must bind the known ontology IRIs independently of those aliases.
+    namespaces["ontosyn"] = Namespace(
+        "https://www.theworldavatar.com/kg/OntoSyn/"
+    )
+    namespaces["ontomops"] = Namespace(
+        "https://www.theworldavatar.com/kg/ontomops/"
+    )
+    namespaces["ontospecies"] = Namespace(
+        "http://www.theworldavatar.com/ontology/ontospecies/OntoSpecies.owl#"
+    )
+    namespaces["rdf"] = Namespace(
+        "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+    )
+    namespaces["rdfs"] = Namespace(
+        "http://www.w3.org/2000/01/rdf-schema#"
+    )
     return namespaces
 
 
@@ -63,21 +84,18 @@ def query_synthesis_procedures(graph: Graph, namespaces: Dict[str, Namespace]) -
     
     print("Executing SPARQL query for ChemicalSynthesis entities...")
     results = graph.query(query)
-    
-    syntheses = []
-    for row in results:
-        synthesis_uri = str(row.synthesis)
-        synthesis_label = str(row.synthesisLabel)
-        syntheses.append({
-            'uri': synthesis_uri,
-            'label': synthesis_label
-        })
-        # Use ASCII-safe printing to avoid Unicode encoding errors
+    syntheses = collapse_labeled_syntheses(
+        (row.synthesis, row.synthesisLabel) for row in results
+    )
+    for item in syntheses:
         try:
-            print(f"Found synthesis: {synthesis_label}")
+            print(f"Found synthesis: {item['label']}")
         except UnicodeEncodeError:
-            print(f"Found synthesis: {synthesis_label.encode('ascii', 'replace').decode('ascii')}")
-    
+            print(
+                "Found synthesis: "
+                + item["label"].encode("ascii", "replace").decode("ascii")
+            )
+
     print(f"Total ChemicalSynthesis entities found: {len(syntheses)}")
     return syntheses
 
@@ -339,8 +357,9 @@ def query_synthesis_outputs(graph: Graph, namespaces: Dict[str, Namespace], synt
                 rec['CCDCNumber'] = sp['ccdc_id']
             if debug and 'iri' not in rec:
                 rec['iri'] = output_uri
-        else:
-            # ChemicalOutput: attach yield and try to map to MOP formula via isRepresentedBy
+        if _is_chemical_output(output_uri):
+            # ChemicalOutput can also be typed as ontospecies:Species. Always
+            # follow its explicit product representation for MOP identity.
             mop_uri = _mop_via_is_represented_by(output_uri)
             if mop_uri:
                 info = ontomops_data.get(mop_uri.lower(), {})

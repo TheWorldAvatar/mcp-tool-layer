@@ -10,10 +10,17 @@ import json
 import re
 from rdflib import Graph, Namespace, URIRef
 from typing import Dict, List, Any, Optional
-from scripts.output_conversion_ttl_to_json.name_utils import extend_unique_names
+
+from scripts.output_conversion_ttl_to_json.name_utils import (
+    collapse_labeled_syntheses,
+    extend_unique_names,
+    filter_product_names,
+)
 from scripts.output_conversion_ttl_to_json.step.chemicalinput_query import query_synthesis_inputs
 from scripts.output_conversion_ttl_to_json.step.ccdc_query import query_ccdc_numbers
 from scripts.output_conversion_ttl_to_json.step.step_query import query_synthesis_steps
+from src.agents.scripts_and_prompts_generation.fixed_om2_runtime import resolve_om2_unit
+from evaluation.utils.chemical_name_aliases import canonical_field_value
 
 
 def load_ttl_file(file_path: str) -> Graph:
@@ -30,6 +37,23 @@ def get_namespaces(graph: Graph) -> Dict[str, Namespace]:
     for prefix, namespace in graph.namespaces():
         namespaces[prefix] = namespace
         print(f"Found namespace: {prefix} -> {namespace}")
+    # Prefix labels may be rewritten to ns1/ns2 during graph merging. Bind
+    # conversion queries by canonical ontology IRI rather than serialized alias.
+    namespaces["ontosyn"] = Namespace(
+        "https://www.theworldavatar.com/kg/OntoSyn/"
+    )
+    namespaces["ontomops"] = Namespace(
+        "https://www.theworldavatar.com/kg/ontomops/"
+    )
+    namespaces["ontospecies"] = Namespace(
+        "http://www.theworldavatar.com/ontology/ontospecies/OntoSpecies.owl#"
+    )
+    namespaces["rdf"] = Namespace(
+        "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+    )
+    namespaces["rdfs"] = Namespace(
+        "http://www.w3.org/2000/01/rdf-schema#"
+    )
     return namespaces
 
 
@@ -56,12 +80,9 @@ def query_chemical_syntheses(graph: Graph, namespaces: Dict[str, Namespace]) -> 
 
     print("Executing SPARQL query for ChemicalSynthesis entities (labels only)...")
     results = graph.query(query)
-    syntheses: List[Dict[str, str]] = []
-    for row in results:
-        syntheses.append({
-            'uri': str(row.synthesis),
-            'label': str(row.synthesisLabel)
-        })
+    syntheses = collapse_labeled_syntheses(
+        (row.synthesis, row.synthesisLabel) for row in results
+    )
     print(f"Total ChemicalSynthesis entities found: {len(syntheses)}")
     return syntheses
 
@@ -97,6 +118,10 @@ def query_outputs(graph: Graph, synthesis_uri: str) -> Dict[str, List[str]]:
         ?syn ontosyn:hasChemicalOutput ?co .
         ?co a ontosyn:ChemicalOutput .
         OPTIONAL { ?co rdfs:label ?productLabel }
+        OPTIONAL {
+          ?co ontosyn:isRepresentedBy ?representedMop .
+          ?representedMop ontomops:hasCCDCNumber ?ccdcVal .
+        }
       }
       UNION
       { # OntoMOPs MetalOrganicPolyhedron as output
@@ -147,22 +172,24 @@ def query_syntheses_via_steps(graph: Graph, namespaces: Dict[str, Namespace]) ->
 
     print("Executing fallback SPARQL for syntheses via hasSynthesisStep...")
     results = graph.query(query)
-
     syntheses = []
-    for row in results:
-        synthesis_uri = str(row.synthesis)
-        synthesis_label = str(row.synthesisLabel) if row.synthesisLabel else synthesis_uri
-        syntheses.append({
-            'uri': synthesis_uri,
-            'label': synthesis_label,
-            'output_label': "",
-            'ccdc_number': ""
-        })
-        # Use ASCII-safe printing to avoid Unicode encoding errors
+    for item in collapse_labeled_syntheses(
+        (
+            row.synthesis,
+            row.synthesisLabel if row.synthesisLabel else row.synthesis,
+        )
+        for row in results
+    ):
+        item["output_label"] = ""
+        item["ccdc_number"] = ""
+        syntheses.append(item)
         try:
-            print(f"Found synthesis via step link: {synthesis_label}")
+            print(f"Found synthesis via step link: {item['label']}")
         except UnicodeEncodeError:
-            print(f"Found synthesis via step link: {synthesis_label.encode('ascii', 'replace').decode('ascii')}")
+            print(
+                "Found synthesis via step link: "
+                + item["label"].encode("ascii", "replace").decode("ascii")
+            )
 
     print(f"Total syntheses found via steps: {len(syntheses)}")
     return syntheses
@@ -193,26 +220,71 @@ def _format_quantity_value(value: float) -> str:
 
 
 def _om2_unit_label(unit_iri: str, *, quantity_kind: str = "") -> str:
-    """Convert common OM-2 unit IRIs to the labels used by the evaluator."""
-    local = str(unit_iri or "").rstrip("/#").rsplit("/", 1)[-1].rsplit("#", 1)[-1]
+    """Map an OM-2 unit IRI (or resolvable alias) to the evaluator's canonical label."""
+    raw = str(unit_iri or "").strip()
+    try:
+        resolved = resolve_om2_unit(raw)
+        local = str(resolved).rstrip("/#").rsplit("/", 1)[-1].rsplit("#", 1)[-1]
+    except ValueError:
+        local = raw.rstrip("/#").rsplit("/", 1)[-1].rsplit("#", 1)[-1]
     compact = re.sub(r"[^A-Za-z0-9]", "", local).lower()
     aliases = {
         "hour": "h",
         "minute": "min",
         "second": "s",
         "day": "day",
+        "week": "week",
+        "month": "month",
         "degreecelsius": "degree celsius",
         "degreefahrenheit": "degree fahrenheit",
         "kelvin": "kelvin",
+        "degreecelsiusperhour": "degree celsius per hour",
+        "degreecelsiusperminute": "degree celsius per minute",
+        "degreecelsiuspersecond": "degree celsius per second",
+        "degreecelsiusperminutetime": "degree celsius per minute",
+        "degreecelsiuspersecondtime": "degree celsius per second",
+        "kelvinperhour": "degree celsius per hour",
+        "millilitre": "ml",
+        "litre": "l",
+        "microlitre": "ul",
+        "nanolitre": "nl",
+        "cubiccentimetre": "ml",
+        "percent": "%",
+        "pascal": "pa",
+        "kilopascal": "kpa",
+        "megapascal": "mpa",
+        "bar": "bar",
+        "standardatmosphere": "atm",
     }
     if compact in aliases:
         return aliases[compact]
-    # Split simple CamelCase locals as a readable fallback.
-    return re.sub(r"(?<!^)(?=[A-Z])", " ", local).strip().lower() or str(unit_iri)
+    return re.sub(r"(?<!^)(?=[A-Z])", " ", local).strip().lower() or raw
 
 
 def _format_om2_quantity(value: float, unit_iri: str, *, quantity_kind: str = "") -> str:
     return f"{_format_quantity_value(value)} {_om2_unit_label(unit_iri, quantity_kind=quantity_kind)}"
+
+
+def _format_om2_measure(value: Any, unit: Any, label: str = "", *, quantity_kind: str = "") -> Optional[str]:
+    """Score from hasNumericalValue + hasUnit. Use label only when that pair is absent."""
+    has_value = value is not None and str(value).strip() != ""
+    has_unit = unit is not None and str(unit).strip() != ""
+    if has_value and has_unit:
+        try:
+            return _format_om2_quantity(float(value), str(unit), quantity_kind=quantity_kind)
+        except (TypeError, ValueError):
+            return None
+    if has_value or has_unit:
+        return None
+    text = (label or "").strip()
+    if (
+        text
+        and text.lower() not in {"n/a", "na"}
+        and not text.startswith("http")
+        and not _is_internal_quantity_label(text)
+    ):
+        return text
+    return None
 
 
 def extract_duration(graph: Graph, namespaces: Dict[str, Namespace], step_uri: str) -> str:
@@ -232,8 +304,8 @@ def extract_duration(graph: Graph, namespaces: Dict[str, Namespace], step_uri: s
     SELECT DISTINCT ?durationValue ?durationUnit ?durationLabel
     WHERE {
         ?step ontosyn:hasStepDuration ?durationUri .
-        ?durationUri om-2:hasNumericalValue ?durationValue .
-        ?durationUri om-2:hasUnit ?durationUnit .
+        OPTIONAL { ?durationUri om-2:hasNumericalValue ?durationValue }
+        OPTIONAL { ?durationUri om-2:hasUnit ?durationUnit }
         OPTIONAL { ?durationUri rdfs:label ?durationLabel }
     }
     """
@@ -241,25 +313,14 @@ def extract_duration(graph: Graph, namespaces: Dict[str, Namespace], step_uri: s
     results = graph.query(query, initBindings={'step': URIRef(step_uri)})
     
     for row in results:
-        if row.durationValue and row.durationUnit:
-            try:
-                duration_value = float(row.durationValue)
-                duration_unit = str(row.durationUnit)
-                duration_label = str(row.durationLabel) if row.durationLabel else ""
-
-                # Prefer human-readable label only when it is not an internal Step_* placeholder.
-                if (
-                    duration_label
-                    and duration_label != "N/A"
-                    and not duration_label.startswith("http")
-                    and not _is_internal_quantity_label(duration_label)
-                ):
-                    return duration_label
-
-                return _format_om2_quantity(duration_value, duration_unit, quantity_kind="duration")
-                
-            except (ValueError, TypeError):
-                continue
+        formatted = _format_om2_measure(
+            row.durationValue,
+            row.durationUnit,
+            str(row.durationLabel).strip() if row.durationLabel else "",
+            quantity_kind="duration",
+        )
+        if formatted:
+            return formatted
     
     return "N/A"
 
@@ -281,8 +342,8 @@ def extract_temperature(graph: Graph, namespaces: Dict[str, Namespace], step_uri
     SELECT DISTINCT ?tempValue ?tempUnit ?tempLabel
     WHERE {
         ?step ?temperatureProperty ?tempUri .
-        ?tempUri om-2:hasNumericalValue ?tempValue .
-        ?tempUri om-2:hasUnit ?tempUnit .
+        OPTIONAL { ?tempUri om-2:hasNumericalValue ?tempValue }
+        OPTIONAL { ?tempUri om-2:hasUnit ?tempUnit }
         OPTIONAL { ?tempUri rdfs:label ?tempLabel }
     }
     """
@@ -290,31 +351,23 @@ def extract_temperature(graph: Graph, namespaces: Dict[str, Namespace], step_uri
     results = graph.query(query, initBindings={'step': URIRef(step_uri), 'temperatureProperty': URIRef(temperature_property)})
     
     for row in results:
-        if row.tempValue and row.tempUnit:
-            try:
-                temp_value = float(row.tempValue)
-                temp_unit = str(row.tempUnit)
-                temp_label = str(row.tempLabel) if row.tempLabel else ""
-
-                if (
-                    temp_label
-                    and temp_label != "N/A"
-                    and not temp_label.startswith("http")
-                    and not _is_internal_quantity_label(temp_label)
-                ):
-                    return temp_label
-
-                return _format_om2_quantity(temp_value, temp_unit, quantity_kind="temperature")
-                
-            except (ValueError, TypeError):
-                continue
+        formatted = _format_om2_measure(
+            row.tempValue,
+            row.tempUnit,
+            str(row.tempLabel).strip() if row.tempLabel else "",
+            quantity_kind="temperature",
+        )
+        if formatted:
+            return formatted
     
     return "N/A"
 
 
 def extract_temperature_rate(graph: Graph, namespaces: Dict[str, Namespace], step_uri: str) -> str:
     """Extract heating/cooling rate via ontosyn:hasTemperatureRate.
-    Format as e.g. "10 °C per hour" for om-2:kelvinPerHour.
+
+    Scoring uses om-2:hasNumericalValue + om-2:hasUnit (IRI or resolvable alias).
+    rdfs:label is used only when that pair is absent.
     """
     ontosyn = namespaces.get('ontosyn')
     if not ontosyn:
@@ -326,7 +379,7 @@ def extract_temperature_rate(graph: Graph, namespaces: Dict[str, Namespace], ste
     PREFIX om-2: <http://www.ontology-of-units-of-measure.org/resource/om-2/>
     SELECT DISTINCT ?val ?unit ?label WHERE {
       ?step ontosyn:hasTemperatureRate ?rate .
-      ?rate om-2:hasNumericalValue ?val .
+      OPTIONAL { ?rate om-2:hasNumericalValue ?val }
       OPTIONAL { ?rate om-2:hasUnit ?unit }
       OPTIONAL { ?rate rdfs:label ?label }
     } LIMIT 1
@@ -338,23 +391,14 @@ def extract_temperature_rate(graph: Graph, namespaces: Dict[str, Namespace], ste
         results = []
 
     for row in results:
-        try:
-            v = float(row.val) if getattr(row, 'val', None) is not None else None
-        except Exception:
-            v = None
-        unit_iri = str(row.unit) if getattr(row, 'unit', None) else ""
-        label = str(row.label) if getattr(row, 'label', None) else ""
-
-        if label and not label.startswith("http"):
-            return label
-
-        if v is None:
-            continue
-
-        # Return rate with value and unit as-is
-        if unit_iri:
-            return f"{v} {unit_iri}"
-        return str(v)
+        formatted = _format_om2_measure(
+            getattr(row, "val", None),
+            getattr(row, "unit", None),
+            str(row.label).strip() if getattr(row, "label", None) else "",
+            quantity_kind="temperature_rate",
+        )
+        if formatted:
+            return formatted
 
     return "N/A"
 
@@ -386,24 +430,14 @@ def extract_transferred_amount(graph: Graph, namespaces: Dict[str, Namespace], s
         results = []
     
     for row in results:
-        label = str(row.label) if getattr(row, 'label', None) else ""
-        
-        # Prefer label if available and clean
-        if label and not label.startswith("http"):
-            return label
-        
-        # Otherwise construct from value and unit
-        try:
-            v = float(row.val) if getattr(row, 'val', None) is not None else None
-        except Exception:
-            v = None
-        
-        unit_iri = str(row.unit) if getattr(row, 'unit', None) else ""
-        
-        if v is not None:
-            if unit_iri:
-                return f"{v} {unit_iri}"
-            return str(v)
+        formatted = _format_om2_measure(
+            getattr(row, "val", None),
+            getattr(row, "unit", None),
+            str(row.label).strip() if getattr(row, "label", None) else "",
+            quantity_kind="volume",
+        )
+        if formatted:
+            return formatted
     
     return "N/A"
 
@@ -631,7 +665,28 @@ def query_step_chemicals(graph: Graph, namespaces: Dict[str, Namespace], step_ur
         return {"addedChemical": [], "solvent": [], "washingSolvent": []}
     
     # Queries for chemicals: include label, alternative names and chemical formula values
-    def _chem_query_for(prop_iri: str) -> str:
+    def _chem_query_for(
+        prop_iri: str, *, suppress_shared_occurrence_amount: bool = True
+    ) -> str:
+        amount_filter = (
+            f"""
+          FILTER NOT EXISTS {{
+            ?otherStep ?otherRole ?chemical .
+            VALUES ?otherRole {{
+              ontosyn:hasAddedChemicalInput
+              ontosyn:hasSolventDissolve
+              ontosyn:hasWashingSolvent
+              ontosyn:hasWashingChemical
+              ontosyn:hasSeparationSolvent
+              ontosyn:hasDryingAgent
+              ontosyn:removesSpecies
+            }}
+            FILTER (?otherStep != ?step || ?otherRole != {prop_iri})
+          }}
+            """
+            if suppress_shared_occurrence_amount
+            else ""
+        )
         return f"""
     PREFIX ontosyn: <https://www.theworldavatar.com/kg/OntoSyn/>
     PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
@@ -641,7 +696,10 @@ def query_step_chemicals(graph: Graph, namespaces: Dict[str, Namespace], step_ur
     WHERE {{
         ?step {prop_iri} ?chemical .
         OPTIONAL {{ ?chemical rdfs:label ?label }}
-        OPTIONAL {{ ?chemical ontosyn:hasAmount ?amount }}
+        OPTIONAL {{
+          ?chemical ontosyn:hasAmount ?amount .
+          {amount_filter}
+        }}
         OPTIONAL {{ ?chemical ontosyn:hasAlternativeNames ?alt }}
         OPTIONAL {{
           ?chemical ontosyn:hasChemicalFormula ?cf .
@@ -652,7 +710,13 @@ def query_step_chemicals(graph: Graph, namespaces: Dict[str, Namespace], step_ur
     }}
     """
 
-    added_chemicals_query = _chem_query_for("ontosyn:hasAddedChemicalInput")
+    # A ChemicalInput occurrence's hasAmount denotes the amount introduced by
+    # its Add step even when that exact occurrence is referenced later in a
+    # different role (for example as a washing solvent).
+    added_chemicals_query = _chem_query_for(
+        "ontosyn:hasAddedChemicalInput",
+        suppress_shared_occurrence_amount=False,
+    )
     solvent_chemicals_query = _chem_query_for("ontosyn:hasSolventDissolve")
     
     def process_chemicals(query: str) -> List[Dict[str, Any]]:
@@ -695,47 +759,8 @@ def query_step_chemicals(graph: Graph, namespaces: Dict[str, Namespace], step_ur
     
     def process_washing_solvents() -> List[Dict[str, Any]]:
         """Separate function to query washing solvents using both possible property names."""
-        # Try ontosyn:hasWashingSolvent first
-        query1 = """
-        PREFIX ontosyn: <https://www.theworldavatar.com/kg/OntoSyn/>
-        PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-        PREFIX os: <http://www.theworldavatar.com/ontology/ontospecies/OntoSpecies.owl#>
-        
-        SELECT DISTINCT ?chemical ?label ?amount ?alt ?cfLabel ?cfVal ?cfValSyn
-        WHERE {
-            ?step ontosyn:hasWashingSolvent ?chemical .
-            OPTIONAL { ?chemical rdfs:label ?label }
-            OPTIONAL { ?chemical ontosyn:hasAmount ?amount }
-            OPTIONAL { ?chemical ontosyn:hasAlternativeNames ?alt }
-            OPTIONAL {
-              ?chemical ontosyn:hasChemicalFormula ?cf .
-              OPTIONAL { ?cf rdfs:label ?cfLabel }
-              OPTIONAL { ?cf os:hasChemicalFormulaValue ?cfVal }
-              OPTIONAL { ?cf ontosyn:hasChemicalFormulaValue ?cfValSyn }
-            }
-        }
-        """
-        
-        # Try ontosyn:hasWashingChemical as fallback
-        query2 = """
-        PREFIX ontosyn: <https://www.theworldavatar.com/kg/OntoSyn/>
-        PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-        PREFIX os: <http://www.theworldavatar.com/ontology/ontospecies/OntoSpecies.owl#>
-        
-        SELECT DISTINCT ?chemical ?label ?amount ?alt ?cfLabel ?cfVal ?cfValSyn
-        WHERE {
-            ?step ontosyn:hasWashingChemical ?chemical .
-            OPTIONAL { ?chemical rdfs:label ?label }
-            OPTIONAL { ?chemical ontosyn:hasAmount ?amount }
-            OPTIONAL { ?chemical ontosyn:hasAlternativeNames ?alt }
-            OPTIONAL {
-              ?chemical ontosyn:hasChemicalFormula ?cf .
-              OPTIONAL { ?cf rdfs:label ?cfLabel }
-              OPTIONAL { ?cf os:hasChemicalFormulaValue ?cfVal }
-              OPTIONAL { ?cf ontosyn:hasChemicalFormulaValue ?cfValSyn }
-            }
-        }
-        """
+        query1 = _chem_query_for("ontosyn:hasWashingSolvent")
+        query2 = _chem_query_for("ontosyn:hasWashingChemical")
         
         # Try first query
         try:
@@ -804,8 +829,10 @@ def build_step_json(step_details: Dict[str, Any], chemicals: Dict[str, List[Dict
     
     # Normalize atmosphere
     atmosphere_val = step_details.get('vessel_environment') or "N/A"
-    if isinstance(atmosphere_val, str) and atmosphere_val.strip().lower() == "ambient air":
-        atmosphere_val = "Air"
+    if isinstance(atmosphere_val, str):
+        atmosphere_val = canonical_field_value("atmosphere", atmosphere_val.strip())
+        if atmosphere_val == "air":
+            atmosphere_val = "Air"
 
     # Normalize target pH: use -1 when not available
     target_ph_val = step_details.get('target_ph')
@@ -842,7 +869,7 @@ def build_step_json(step_details: Dict[str, Any], chemicals: Dict[str, List[Dict
             "targetTemperature": step_details.get('target_temperature') or "N/A",
             "heatingCoolingRate": step_details.get('heating_cooling_rate') or "N/A",
             "underVacuum": step_details.get('is_vacuum') if step_details.get('is_vacuum') is not None else False,
-            "sealedVessel": step_details.get('is_sealed') if step_details.get('is_sealed') is not None else False,
+            "sealedVessel": step_details.get('is_sealed') if step_details.get('is_sealed') is not None else True,
             "stir": step_details.get('is_stirred') if step_details.get('is_stirred') is not None else False,
         })
     elif step_type == "Filter":
@@ -1018,13 +1045,7 @@ def build_json_structure(graph: Graph, namespaces: Dict[str, Namespace], synthes
         if product_labels:
             prod_names.extend(product_labels)
         
-        # Deduplicate while preserving order
-        seen_names: set[str] = set()
-        prod_names_dedup: List[str] = []
-        for nm in prod_names:
-            if nm and nm not in seen_names:
-                seen_names.add(nm)
-                prod_names_dedup.append(nm)
+        prod_names_dedup = filter_product_names(prod_names)
 
         synthesis_entry = {
             "steps": steps_full,

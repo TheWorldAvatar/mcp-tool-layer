@@ -45,6 +45,12 @@ def main() -> None:
     parser.add_argument("--debug", action="store_true", help="Include debug fields (IRIs) in JSON outputs where supported")
     parser.add_argument("--hash", type=str, help="Process only the specified hash (e.g., '3a4646d4')")
     parser.add_argument("--data-dir", type=Path, default=None, help="Pipeline data root to merge from (default: data)")
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=None,
+        help="Write merged TTL/JSON here instead of evaluation/data/merged_tll",
+    )
     # Allow running only one stage when specified
     group = parser.add_mutually_exclusive_group()
     group.add_argument("--merge", action="store_true", help="Only perform merge/linking stage and write TTLs")
@@ -56,7 +62,14 @@ def main() -> None:
         data_root = repo_root / data_root
     
     # Discover all hash directories from data folder
-    hash_dirs = [p for p in data_root.iterdir() if p.is_dir() and not p.name.startswith('.')]
+    hash_dirs = [
+        p
+        for p in data_root.iterdir()
+        if p.is_dir()
+        and not p.name.startswith(".")
+        and len(p.name) == 8
+        and all(ch in "0123456789abcdef" for ch in p.name.lower())
+    ]
     hash_values = sorted([p.name for p in hash_dirs])
     
     # Filter to specific hash if requested
@@ -71,7 +84,10 @@ def main() -> None:
     else:
         print(f"Found {len(hash_values)} hash directories in {data_root}")
 
-    output_root = repo_root / "evaluation" / "data" / "merged_tll"
+    if args.output_dir is not None:
+        output_root = args.output_dir if args.output_dir.is_absolute() else repo_root / args.output_dir
+    else:
+        output_root = repo_root / "evaluation" / "data" / "merged_tll"
     output_root.mkdir(parents=True, exist_ok=True)
 
     do_merge = args.merge or (not args.merge and not args.conversion)
@@ -109,11 +125,13 @@ def main() -> None:
         if do_conversion:
             # Load from existing merged TTL if not produced in this run
             if pruned_g is None:
-                if not out_path.exists():
+                data_root_path = hash_dir / f"{hash_value}.ttl"
+                source_path = data_root_path if data_root_path.exists() else out_path
+                if not source_path.exists():
                     # No TTL to convert from; skip
                     continue
                 pruned_g = Graph()
-                pruned_g.parse(str(out_path), format="turtle")
+                pruned_g.parse(str(source_path), format="turtle")
 
             # Emit CBU JSON per hash, built from pruned graph
             cbu_json = build_cbu_json_from_graph(pruned_g)

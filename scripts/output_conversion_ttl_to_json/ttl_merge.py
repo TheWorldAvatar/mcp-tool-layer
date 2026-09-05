@@ -16,6 +16,8 @@ import hashlib
 from rdflib import BNode, Graph, Namespace, RDF, RDFS, URIRef, Literal
 from rdflib.namespace import OWL
 
+from scripts.output_conversion_ttl_to_json.name_utils import is_hashed_artifact_label
+
 
 # Namespaces
 RDF_NS = RDF
@@ -26,12 +28,14 @@ ONTOSPECIES = Namespace("http://www.theworldavatar.com/ontology/ontospecies/Onto
 
 
 def _list_ttl_files(path: str) -> List[str]:
-    if not os.path.isdir(path):
+    from src.pipelines.utils.runtime_paths import list_runtime_files, runtime_path_exists
+
+    if not runtime_path_exists(path):
         return []
     return [
-        os.path.join(path, f)
-        for f in os.listdir(path)
-        if f.lower().endswith(".ttl") and os.path.isfile(os.path.join(path, f))
+        candidate
+        for candidate in list_runtime_files(path, suffix=".ttl")
+        if candidate.lower().endswith(".ttl")
     ]
 
 
@@ -76,8 +80,10 @@ def _gather_files_for_hash(hash_dir: str) -> Tuple[List[str], List[str], List[st
 
 
 def _parse_into_graph(graph: Graph, ttl_files: Iterable[str]) -> None:
+    from src.pipelines.utils.runtime_paths import read_runtime_text
+
     for path in ttl_files:
-        graph.parse(path, format="turtle")
+        graph.parse(data=read_runtime_text(path), format="turtle")
 
 
 def _merge_ontospecies_files_without_step_subgraph(
@@ -96,9 +102,11 @@ def _merge_ontospecies_files_without_step_subgraph(
     - all `ontosyn:hasSynthesisStep` edges
     - all triples whose subject or object is a step node typed as `ontosyn:SynthesisStep`
     """
+    from src.pipelines.utils.runtime_paths import read_runtime_text
+
     for path in ttl_files:
         fg = Graph()
-        fg.parse(path, format="turtle")
+        fg.parse(data=read_runtime_text(path), format="turtle")
 
         step_nodes: Set[URIRef] = {
             step
@@ -118,10 +126,58 @@ def _merge_ontospecies_files_without_step_subgraph(
                 continue
             if isinstance(o, URIRef) and o in step_nodes:
                 continue
+            if _is_extension_synthesis_label_alias(graph, fg, s, p, o):
+                continue
             cleaned.add((s, p, o))
 
         for triple in cleaned:
             graph.add(triple)
+
+
+def _is_chemical_synthesis(graph: Graph, node: object) -> bool:
+    return isinstance(node, URIRef) and (node, RDF_NS.type, ONTOSYN.ChemicalSynthesis) in graph
+
+
+def _is_extension_synthesis_label_alias(
+    merged: Graph,
+    extension: Graph,
+    subject: object,
+    predicate: object,
+    obj: object,
+) -> bool:
+    """Drop extension ChemicalSynthesis labels that collide with the main-graph identity.
+
+    Occurrence-surface extension TTLs often stamp the Windows-truncated export stem
+    (``Name--<12-hex>.ttl``) as ``rdfs:label`` on the same synthesis IRI. Unioning
+    that alias makes SPARQL ``SELECT ?synthesis ?synthesisLabel`` emit a second
+    synthesis and the scorer treats the hashed name as Pred-only.
+    """
+    if predicate != RDFS_NS.label or not isinstance(subject, URIRef):
+        return False
+    if not (
+        _is_chemical_synthesis(extension, subject)
+        or _is_chemical_synthesis(merged, subject)
+    ):
+        return False
+    label = str(obj).strip()
+    if is_hashed_artifact_label(label):
+        return True
+    return any(merged.objects(subject, RDFS_NS.label))
+
+
+def _drop_hashed_synthesis_alias_labels(graph: Graph) -> Graph:
+    """Remove hashed filename labels when a human ChemicalSynthesis label exists."""
+    doomed = []
+    for synth in graph.subjects(RDF_NS.type, ONTOSYN.ChemicalSynthesis):
+        labels = [str(value) for value in graph.objects(synth, RDFS_NS.label)]
+        if not any(not is_hashed_artifact_label(label) for label in labels):
+            continue
+        for literal in graph.objects(synth, RDFS_NS.label):
+            if is_hashed_artifact_label(str(literal)):
+                doomed.append((synth, RDFS_NS.label, literal))
+    for triple in doomed:
+        graph.remove(triple)
+    return graph
 
 
 def _normalize_synthesis_label_from_filename(base_name: str) -> str:
@@ -342,6 +398,7 @@ def merge_for_hash(
     _merge_ontospecies_files_without_step_subgraph(g, ontomops_files)
     _parse_into_graph(g, integrated_files)
     g = _dedupe_synthesis_nodes_by_label(g)
+    g = _drop_hashed_synthesis_alias_labels(g)
     _attach_steps_from_ontospecies_files(g, ontospecies_files)
 
     return g

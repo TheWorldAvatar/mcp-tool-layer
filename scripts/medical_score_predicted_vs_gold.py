@@ -24,6 +24,12 @@ import sys
 from difflib import SequenceMatcher
 from pathlib import Path
 
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from evaluation.utils.german_english_normalize import same_german_english_text
+
 
 META_FIELDS = {"_ttl_file", "_doi_hash"}
 
@@ -48,6 +54,8 @@ def _is_relaxed_free_text_col(col: str) -> bool:
 
 def _same_cell(gold: str, pred: str, col: str, *, relaxed_free_text: bool) -> bool:
     if _norm(gold) == _norm(pred):
+        return True
+    if same_german_english_text(gold, pred):
         return True
     if not relaxed_free_text or not _is_relaxed_free_text_col(col):
         return False

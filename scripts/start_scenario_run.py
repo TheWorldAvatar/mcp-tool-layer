@@ -23,6 +23,16 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from src.pipelines.utils.machine_paths import (
+    configured_runtime_root,
+    link_run_dir_runtime,
+    resolve_scenario_runtime,
+    write_runtime_origin,
+)
+from src.pipelines.utils.runtime_cleanup import validate_runtime_path_budget
 
 TEMPLATE_BY_KEY = {
     ("medical", "eval30"): ROOT / "configs" / "scenarios" / "pipeline_medical_eval30.json",
@@ -151,8 +161,24 @@ def main(argv: list[str] | None = None) -> int:
     # Include dataset so medical eval30 vs dev5 (same tag) do not collide.
     run_id = f"{date_stamp}_{args.dataset}_{tag}"
     run_dir = ROOT / "scenarios" / args.domain / "runs" / run_id
-    runtime_dir = run_dir / "runtime"
+    runtime_dir = resolve_scenario_runtime(
+        repo=ROOT,
+        run_dir=run_dir,
+        run_id=run_id,
+        configured_data_dir=run_dir / "runtime",
+    )
     evaluation_dir = run_dir / "evaluation"
+    try:
+        validate_runtime_path_budget(runtime_dir)
+    except ValueError as exc:
+        raise SystemExit(f"Refusing unsafe run name: {exc}") from exc
+    machine_root = configured_runtime_root(ROOT)
+    if machine_root is not None:
+        runtime_dir.mkdir(parents=True, exist_ok=True)
+        write_runtime_origin(
+            run_dir=run_dir, runtime=runtime_dir, runtime_root=machine_root
+        )
+        link_run_dir_runtime(run_dir, runtime_dir)
 
     if run_dir.exists() and not args.force and not args.print_only:
         raise SystemExit(

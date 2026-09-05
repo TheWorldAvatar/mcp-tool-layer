@@ -27,6 +27,7 @@ try:
     from openai import OpenAI
 except ImportError as e:
     raise RuntimeError("openai is required. Install with: pip install openai") from e
+from models.llm_call_telemetry import instrument_openai_client
 
 try:
     from dotenv import load_dotenv
@@ -64,8 +65,8 @@ def _get_client(timeout: float = 120.0) -> OpenAI:
         )
 
     if base_url:
-        return OpenAI(api_key=api_key, base_url=base_url, timeout=timeout)
-    return OpenAI(api_key=api_key, timeout=timeout)
+        return instrument_openai_client(OpenAI(api_key=api_key, base_url=base_url, timeout=timeout))
+    return instrument_openai_client(OpenAI(api_key=api_key, timeout=timeout))
 
 
 def _render_page_to_data_url(page: "fitz.Page", dpi: int = 180) -> str:

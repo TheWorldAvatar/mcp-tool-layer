@@ -5,7 +5,8 @@ Characterisation TTL → JSON conversion using rdflib + SPARQL.
 Changes from prior version:
 - Pulls Elemental Analysis values:
   hasElementalAnalysisData → hasWeightPercentage{Experimental,Calculated} → …Value
-- Keeps existing IR device/data and HNMR device placeholders
+- Reads OntoSpecies HNMRData (hasShifts, usesSolvent, hasTemperature)
+- When a species has several CCDC deposits, keep the one aligned to the product name
 - CLI: python ontosynthesis_characterisation_conversion.py [ttl_path] [out_json]
 
 Source basis: ontosynthesis_characterisation_conversion.py.  # for traceability
@@ -66,6 +67,92 @@ def _select_first_row(graph: Graph, query: str) -> Optional[Dict[str, Any]]:
 def _select_all_rows(graph: Graph, query: str) -> List[Dict[str, Any]]:
     results = graph.query(query)
     return [_row_to_dict(row) for row in results]
+
+
+_EMPTY_LITERALS = {
+    "",
+    "n/a",
+    "na",
+    "n.a.",
+    "none",
+    "null",
+    "-",
+    "not specified",
+    "unspecified",
+    "unknown",
+}
+_ALIGNMENT_STOPWORDS = {"ccdc", "number", "for", "the", "of", "a", "an"}
+
+
+def _is_blank_literal(value: Optional[str]) -> bool:
+    return str(value or "").strip().lower() in _EMPTY_LITERALS
+
+
+def _clean_literal(value: Optional[str]) -> str:
+    text = str(value or "").strip()
+    return "N/A" if _is_blank_literal(text) else text
+
+
+def _identity_tokens(value: str) -> List[str]:
+    return [tok for tok in re.split(r"[^a-z0-9]+", str(value or "").lower()) if tok]
+
+
+def _label_alignment_score(label: str, product_names: List[str]) -> tuple[int, int, int]:
+    """Score how closely a CCDC node label matches the current product names.
+
+    Same idea as main chemicals/steps conversion: keep the identifier that
+    belongs to this product's human label, not an extra sibling deposit.
+    """
+    label_tokens = _identity_tokens(label)
+    label_sig = [tok for tok in label_tokens if tok not in _ALIGNMENT_STOPWORDS]
+    label_text = " ".join(label_sig)
+    best = (0, 0, 0)
+    for name in product_names:
+        name_sig = [tok for tok in _identity_tokens(name) if tok not in _ALIGNMENT_STOPWORDS]
+        if not name_sig:
+            continue
+        name_text = " ".join(name_sig)
+        exact = 1 if name_text and name_text in label_text else 0
+        overlap = len(set(name_sig) & set(label_sig))
+        extra = len(set(label_sig) - set(name_sig))
+        best = max(best, (exact, overlap, -extra))
+    return best
+
+
+def _select_aligned_ccdc(
+    candidates: List[tuple[str, str]],
+    product_names: List[str],
+) -> str:
+    cleaned: List[tuple[str, str]] = []
+    seen: set[str] = set()
+    for value, label in candidates:
+        number = str(value or "").strip()
+        if not number or number.upper() in {"N/A", "NA"}:
+            continue
+        if number in seen:
+            continue
+        seen.add(number)
+        cleaned.append((number, str(label or "").strip()))
+    if not cleaned:
+        return "N/A"
+    if len(cleaned) == 1:
+        return cleaned[0][0]
+    cleaned.sort(key=lambda item: item[0])
+    cleaned.sort(
+        key=lambda item: _label_alignment_score(item[1], product_names),
+        reverse=True,
+    )
+    return cleaned[0][0]
+
+
+def _clean_hnmr_shifts(value: Optional[str]) -> str:
+    text = _clean_literal(value)
+    if text == "N/A":
+        return text
+    # T-box stores peak lists; leading delta marks are notation, not values.
+    text = re.sub(r"^(?:δ|∆|delta)\s*", "", text, flags=re.IGNORECASE)
+    text = re.sub(r"(?:,\s*)(?:δ|∆|delta)\s*", ", ", text, flags=re.IGNORECASE)
+    return text.strip() or "N/A"
 
 
 # ---------- Discovery queries ----------
@@ -161,16 +248,19 @@ def query_characterisation_devices(graph: Graph, namespaces: Dict[str, Namespace
             q_hnmr = f"""
             PREFIX ontospecies: <http://www.theworldavatar.com/ontology/ontospecies/OntoSpecies.owl#>
             PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-            SELECT DISTINCT ?deviceName ?frequency WHERE {{
+            SELECT DISTINCT ?deviceName ?deviceLabel ?frequency WHERE {{
               <{species}> ontospecies:hasCharacterizationSession ?cs .
               ?cs ontospecies:hasHNMRDevice ?device .
-              OPTIONAL {{ ?device rdfs:label ?deviceName }}
+              OPTIONAL {{ ?device ontospecies:hasDeviceName ?deviceName }}
+              OPTIONAL {{ ?device rdfs:label ?deviceLabel }}
               OPTIONAL {{ ?device ontospecies:hasFrequency ?frequency }}
             }} LIMIT 1
             """
             row = _select_first_row(graph, q_hnmr)
             if row:
-                info: Dict[str, Any] = {"deviceName": row.get("deviceName") or "N/A"}
+                info: Dict[str, Any] = {
+                    "deviceName": _clean_literal(row.get("deviceName") or row.get("deviceLabel"))
+                }
                 if row.get("frequency"):
                     info["frequency"] = row["frequency"]
                 devices["HNMRDevice"] = info
@@ -179,29 +269,35 @@ def query_characterisation_devices(graph: Graph, namespaces: Dict[str, Namespace
             q_ea = f"""
             PREFIX ontospecies: <http://www.theworldavatar.com/ontology/ontospecies/OntoSpecies.owl#>
             PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-            SELECT DISTINCT ?deviceName WHERE {{
+            SELECT DISTINCT ?deviceName ?deviceLabel WHERE {{
               <{species}> ontospecies:hasCharacterizationSession ?cs .
               ?cs ontospecies:hasElementalAnalysisDevice ?device .
-              OPTIONAL {{ ?device rdfs:label ?deviceName }}
+              OPTIONAL {{ ?device ontospecies:hasDeviceName ?deviceName }}
+              OPTIONAL {{ ?device rdfs:label ?deviceLabel }}
             }} LIMIT 1
             """
             row = _select_first_row(graph, q_ea)
             if row:
-                devices["ElementalAnalysisDevice"] = {"deviceName": row.get("deviceName") or "N/A"}
+                devices["ElementalAnalysisDevice"] = {
+                    "deviceName": _clean_literal(row.get("deviceName") or row.get("deviceLabel"))
+                }
 
             # IR device
             q_irdev = f"""
             PREFIX ontospecies: <http://www.theworldavatar.com/ontology/ontospecies/OntoSpecies.owl#>
             PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-            SELECT DISTINCT ?deviceName WHERE {{
+            SELECT DISTINCT ?deviceName ?deviceLabel WHERE {{
               <{species}> ontospecies:hasCharacterizationSession ?cs .
               ?cs ontospecies:hasInfraredSpectroscopyDevice ?device .
-              OPTIONAL {{ ?device rdfs:label ?deviceName }}
+              OPTIONAL {{ ?device ontospecies:hasDeviceName ?deviceName }}
+              OPTIONAL {{ ?device rdfs:label ?deviceLabel }}
             }} LIMIT 1
             """
             row = _select_first_row(graph, q_irdev)
             if row:
-                devices["InfraredSpectroscopyDevice"] = {"deviceName": row.get("deviceName") or "N/A"}
+                devices["InfraredSpectroscopyDevice"] = {
+                    "deviceName": _clean_literal(row.get("deviceName") or row.get("deviceLabel"))
+                }
 
     return devices
 
@@ -319,37 +415,46 @@ def query_characterisation_data(graph: Graph, namespaces: Dict[str, Namespace]) 
             if _is_guest_variant_for_species_label(species_label):
                 continue
 
-            # CCDC number via canonical route: Species -> hasCCDCNumber -> hasCCDCNumberValue
-            q_ccdc_val = f"""
+            # Keep names scoped to the current species; synthesis label is only
+            # used to align a CCDC when the species carries more than one.
+            names: List[str] = []
+            if species_label and not _is_blank_literal(species_label):
+                names.append(species_label)
+            q_product_name = f"""
             PREFIX ontospecies: <http://www.theworldavatar.com/ontology/ontospecies/OntoSpecies.owl#>
-            SELECT DISTINCT ?ccdcVal WHERE {{
-              OPTIONAL {{
-                <{species}> ontospecies:hasCCDCNumber ?ccdc .
-                OPTIONAL {{ ?ccdc ontospecies:hasCCDCNumberValue ?ccdcVal }}
-              }}
-            }} LIMIT 1
+            SELECT DISTINCT ?productName WHERE {{
+              <{species}> ontospecies:hasProductName ?productName
+            }}
             """
-            ccdc_row = _select_first_row(graph, q_ccdc_val) or {}
-            ccdc_number = ccdc_row.get("ccdcVal") or None
-            if not ccdc_number:
-                # Fallback to legacy properties if value not present
-                q_ccdc_legacy = f"""
-                PREFIX ontospecies: <http://www.theworldavatar.com/ontology/ontospecies/OntoSpecies.owl#>
-                PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-                PREFIX dc: <http://purl.org/dc/elements/1.1/>
-                SELECT DISTINCT ?ccdcId ?ccdcLabel WHERE {{
-                  OPTIONAL {{
-                    <{species}> ontospecies:hasCCDCNumber ?ccdc .
-                    OPTIONAL {{ ?ccdc ontospecies:hasCCDCNumberValue ?_v }}
-                    OPTIONAL {{ ?ccdc dc:identifier ?ccdcId }}
-                    OPTIONAL {{ ?ccdc rdfs:label ?ccdcLabel }}
-                  }}
-                }} LIMIT 1
-                """
-                legacy_row = _select_first_row(graph, q_ccdc_legacy) or {}
-                ccdc_number = legacy_row.get("ccdcId") or legacy_row.get("ccdcLabel") or "N/A"
-            # Normalize
-            ccdc_number = (ccdc_number or "").strip() or "N/A"
+            for row in _select_all_rows(graph, q_product_name):
+                product_name = (row.get("productName") or "").strip()
+                if product_name and product_name not in names and not _is_blank_literal(product_name):
+                    names.append(product_name)
+            alignment_names = list(names)
+            for synth_label in graph.objects(synth, RDFS.label):
+                text = str(synth_label).strip()
+                if text and text not in alignment_names and not _is_blank_literal(text):
+                    alignment_names.append(text)
+
+            # All CCDC nodes on this species. Main conversion also collects every
+            # deposit, then keeps the one that belongs to this product label.
+            q_ccdc = f"""
+            PREFIX ontospecies: <http://www.theworldavatar.com/ontology/ontospecies/OntoSpecies.owl#>
+            PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+            PREFIX dc: <http://purl.org/dc/elements/1.1/>
+            SELECT DISTINCT ?ccdcVal ?ccdcId ?ccdcLabel WHERE {{
+              <{species}> ontospecies:hasCCDCNumber ?ccdc .
+              OPTIONAL {{ ?ccdc ontospecies:hasCCDCNumberValue ?ccdcVal }}
+              OPTIONAL {{ ?ccdc dc:identifier ?ccdcId }}
+              OPTIONAL {{ ?ccdc rdfs:label ?ccdcLabel }}
+            }}
+            """
+            ccdc_candidates: List[tuple[str, str]] = []
+            for row in _select_all_rows(graph, q_ccdc):
+                value = (row.get("ccdcVal") or row.get("ccdcId") or "").strip()
+                if value:
+                    ccdc_candidates.append((value, (row.get("ccdcLabel") or "").strip()))
+            ccdc_number = _select_aligned_ccdc(ccdc_candidates, alignment_names)
 
             # The benchmark's ElementalAnalysis.chemicalFormula expects an EA-specific field.
             # When the graph does not provide one explicitly, prefer N/A over species formulas.
@@ -403,31 +508,28 @@ def query_characterisation_data(graph: Graph, namespaces: Dict[str, Namespace]) 
             except Exception:
                 pass
 
-            # HNMR data placeholder (extend when structure available)
             q_nmr = f"""
             PREFIX ontospecies: <http://www.theworldavatar.com/ontology/ontospecies/OntoSpecies.owl#>
-            PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-            SELECT DISTINCT ?label WHERE {{
-              OPTIONAL {{ <{species}> ontospecies:hasHNMRData ?n . ?n rdfs:label ?label }}
-            }} LIMIT 1
+            SELECT DISTINCT ?shifts ?temperature ?solventName WHERE {{
+              <{species}> ontospecies:hasHNMRData ?nmr .
+              OPTIONAL {{ ?nmr ontospecies:hasShifts ?shifts }}
+              OPTIONAL {{ ?nmr ontospecies:hasTemperature ?temperature }}
+              OPTIONAL {{
+                ?nmr ontospecies:usesSolvent ?solv .
+                OPTIONAL {{ ?solv ontospecies:hasSolventName ?solventName }}
+              }}
+            }}
             """
-            _nmr_row = _select_first_row(graph, q_nmr) or {}
-
-            # Keep names scoped to the current species only; synthesis/output aliases
-            # create cross-product pollution in merged benchmark graphs.
-            names: List[str] = []
-            if species_label:
-                names.append(species_label)
-            q_product_name = f"""
-            PREFIX ontospecies: <http://www.theworldavatar.com/ontology/ontospecies/OntoSpecies.owl#>
-            SELECT DISTINCT ?productName WHERE {{
-              OPTIONAL {{ <{species}> ontospecies:hasProductName ?productName }}
-            }} LIMIT 1
-            """
-            product_name_row = _select_first_row(graph, q_product_name) or {}
-            product_name = (product_name_row.get("productName") or "").strip()
-            if product_name and product_name not in names:
-                names.append(product_name)
+            hnmr_shifts = "N/A"
+            hnmr_temperature = "N/A"
+            hnmr_solvent = "N/A"
+            for row in _select_all_rows(graph, q_nmr):
+                if hnmr_shifts == "N/A":
+                    hnmr_shifts = _clean_hnmr_shifts(row.get("shifts"))
+                if hnmr_temperature == "N/A":
+                    hnmr_temperature = _clean_literal(row.get("temperature"))
+                if hnmr_solvent == "N/A":
+                    hnmr_solvent = _clean_literal(row.get("solventName"))
 
             if ccdc_number == "N/A":
                 continue
@@ -439,9 +541,9 @@ def query_characterisation_data(graph: Graph, namespaces: Dict[str, Namespace]) 
                     "weightPercentageExperimental": wp_exp,
                 },
                 "HNMR": {
-                    "shifts": "N/A",
-                    "solvent": "N/A",
-                    "temperature": "N/A",
+                    "shifts": hnmr_shifts,
+                    "solvent": hnmr_solvent,
+                    "temperature": hnmr_temperature,
                 },
                 "InfraredSpectroscopy": {"bands": ir_bands, "material": ir_material},
                 "productCCDCNumber": ccdc_number,
