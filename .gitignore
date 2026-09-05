@@ -170,6 +170,7 @@ guard_state.json
 /experiments/
 /extraction_corpora/
 /ai_generated_contents*/
+/saved_generation_batches/
 /third_party/
 /mini_marie/
 
