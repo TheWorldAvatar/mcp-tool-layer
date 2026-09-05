@@ -1,0 +1,22 @@
+{
+  "papers": [
+    {
+      "hash": "3f239659",
+      "doi": "10.1039/C5RA26357C",
+      "title": "Cu12(TMTA)8 nanocage from TMTAH3 and CuCl2",
+      "text": "scenarios/mops/runs/20260825_eval30_gpt4o-topentity/runtime/3f239659/3f239659_stitched.md"
+    },
+    {
+      "hash": "178ef569",
+      "doi": "10.1002/chem.201700848",
+      "title": "MOP-MIA / MOP-EIA / MOP-PRIA",
+      "text": "scenarios/mops/runs/20260825_eval30_gpt4o-topentity/runtime/178ef569/178ef569_stitched.md"
+    },
+    {
+      "hash": "a014d993",
+      "doi": "10.1002/anie.201811027",
+      "title": "VMOP-alpha / VMOP-beta and transformations",
+      "text": "scenarios/mops/runs/20260825_eval30_gpt4o-topentity/runtime/a014d993/a014d993_stitched.md"
+    }
+  ]
+}

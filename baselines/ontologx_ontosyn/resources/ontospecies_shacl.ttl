@@ -1,0 +1,400 @@
+@prefix ontospecies: <http://www.theworldavatar.com/ontology/ontospecies/OntoSpecies.owl#> .
+@prefix periodic: <http://www.daml.org/2003/01/periodictable/PeriodicTable#> .
+@prefix ontosyn: <https://www.theworldavatar.com/kg/OntoSyn/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# OntoSpecies SHACL for OntoLogX extension (inherit OntoSyn main graph).
+# Generated from data/ontologies/ontospecies-subgraph.ttl.
+# closedByTypes is omitted so a ChemicalOutput may also be a Species.
+
+periodic:ElementShape a sh:NodeShape ;
+  sh:targetClass periodic:Element ;
+  sh:property [
+    sh:path ontospecies:hasAtomicWeight ;
+    sh:class ontospecies:AtomicWeight ;
+    sh:nodeKind sh:IRI
+  ] ;
+  sh:property [
+    sh:path ontospecies:hasElementName ;
+    sh:datatype xsd:string ;
+    sh:minCount 0 ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path ontospecies:hasElementSymbol ;
+    sh:datatype xsd:string ;
+    sh:minCount 0 ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:datatype xsd:string
+  ] .
+
+ontospecies:AtomicWeightShape a sh:NodeShape ;
+  sh:targetClass ontospecies:AtomicWeight ;
+  sh:property [
+    sh:path ontospecies:hasAtomicWeightValue ;
+    sh:or ( [ sh:datatype xsd:float ] [ sh:datatype xsd:double ] ) ;
+    sh:minCount 0 ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:datatype xsd:string
+  ] .
+
+ontospecies:CCDCNumberShape a sh:NodeShape ;
+  sh:targetClass ontospecies:CCDCNumber ;
+  sh:property [
+    sh:path ontospecies:hasCCDCNumberValue ;
+    sh:datatype xsd:string ;
+    sh:minCount 1 ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:datatype xsd:string
+  ] .
+
+ontospecies:CharacterizationSessionShape a sh:NodeShape ;
+  sh:targetClass ontospecies:CharacterizationSession ;
+  sh:property [
+    sh:path ontospecies:usesDevice ;
+    sh:class ontospecies:Device ;
+    sh:nodeKind sh:IRI
+  ] ;
+  sh:property [
+    sh:path ontospecies:hasHNMRDevice ;
+    sh:class ontospecies:HNMRDevice ;
+    sh:nodeKind sh:IRI
+  ] ;
+  sh:property [
+    sh:path ontospecies:hasElementalAnalysisDevice ;
+    sh:class ontospecies:ElementalAnalysisDevice ;
+    sh:nodeKind sh:IRI
+  ] ;
+  sh:property [
+    sh:path ontospecies:hasInfraredSpectroscopyDevice ;
+    sh:class ontospecies:InfraredSpectroscopyDevice ;
+    sh:nodeKind sh:IRI
+  ] ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:datatype xsd:string
+  ] .
+
+ontospecies:ChemicalFormulaShape a sh:NodeShape ;
+  sh:targetClass ontospecies:ChemicalFormula ;
+  sh:property [
+    sh:path ontospecies:hasChemicalFormulaValue ;
+    sh:datatype xsd:string ;
+    sh:minCount 1 ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:datatype xsd:string
+  ] .
+
+ontospecies:ChemicalShiftShape a sh:NodeShape ;
+  sh:targetClass ontospecies:ChemicalShift ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:datatype xsd:string
+  ] .
+
+ontospecies:DeviceShape a sh:NodeShape ;
+  sh:targetClass ontospecies:Device ;
+  sh:property [
+    sh:path ontospecies:hasDeviceName ;
+    sh:datatype xsd:string ;
+    sh:minCount 0 ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:datatype xsd:string
+  ] .
+
+ontospecies:ElementalAnalysisDataShape a sh:NodeShape ;
+  sh:targetClass ontospecies:ElementalAnalysisData ;
+  sh:property [
+    sh:path ontospecies:hasWeightPercentageCalculated ;
+    sh:class ontospecies:WeightPercentage ;
+    sh:nodeKind sh:IRI
+  ] ;
+  sh:property [
+    sh:path ontospecies:hasWeightPercentageExperimental ;
+    sh:class ontospecies:WeightPercentage ;
+    sh:nodeKind sh:IRI
+  ] ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:datatype xsd:string
+  ] .
+
+ontospecies:ElementalAnalysisDeviceShape a sh:NodeShape ;
+  sh:targetClass ontospecies:ElementalAnalysisDevice ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:datatype xsd:string
+  ] .
+
+ontospecies:HNMRDataShape a sh:NodeShape ;
+  sh:targetClass ontospecies:HNMRData ;
+  sh:property [
+    sh:path ontospecies:hasChemicalShift ;
+    sh:class ontospecies:ChemicalShift ;
+    sh:nodeKind sh:IRI
+  ] ;
+  sh:property [
+    sh:path ontospecies:usesSolvent ;
+    sh:class ontospecies:Solvent ;
+    sh:nodeKind sh:IRI
+  ] ;
+  sh:property [
+    sh:path ontospecies:hasShifts ;
+    sh:datatype xsd:string ;
+    sh:minCount 0 ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path ontospecies:hasTemperature ;
+    sh:datatype xsd:string ;
+    sh:minCount 0 ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:datatype xsd:string
+  ] .
+
+ontospecies:HNMRDeviceShape a sh:NodeShape ;
+  sh:targetClass ontospecies:HNMRDevice ;
+  sh:property [
+    sh:path ontospecies:hasFrequency ;
+    sh:datatype xsd:string ;
+    sh:minCount 0 ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:datatype xsd:string
+  ] .
+
+ontospecies:InfraredBandShape a sh:NodeShape ;
+  sh:targetClass ontospecies:InfraredBand ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:datatype xsd:string
+  ] .
+
+ontospecies:InfraredSpectroscopyDataShape a sh:NodeShape ;
+  sh:targetClass ontospecies:InfraredSpectroscopyData ;
+  sh:property [
+    sh:path ontospecies:hasInfraredBand ;
+    sh:class ontospecies:InfraredBand ;
+    sh:nodeKind sh:IRI
+  ] ;
+  sh:property [
+    sh:path ontospecies:usesMaterial ;
+    sh:class ontospecies:Material ;
+    sh:nodeKind sh:IRI
+  ] ;
+  sh:property [
+    sh:path ontospecies:hasBands ;
+    sh:datatype xsd:string ;
+    sh:minCount 0 ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:datatype xsd:string
+  ] .
+
+ontospecies:InfraredSpectroscopyDeviceShape a sh:NodeShape ;
+  sh:targetClass ontospecies:InfraredSpectroscopyDevice ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:datatype xsd:string
+  ] .
+
+ontospecies:MaterialShape a sh:NodeShape ;
+  sh:targetClass ontospecies:Material ;
+  sh:property [
+    sh:path ontospecies:hasMaterialName ;
+    sh:datatype xsd:string ;
+    sh:minCount 0 ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:datatype xsd:string
+  ] .
+
+ontospecies:MolecularFormulaShape a sh:NodeShape ;
+  sh:targetClass ontospecies:MolecularFormula ;
+  sh:property [
+    sh:path ontospecies:hasMolecularFormulaValue ;
+    sh:datatype xsd:string ;
+    sh:minCount 1 ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:datatype xsd:string
+  ] .
+
+ontospecies:SolventShape a sh:NodeShape ;
+  sh:targetClass ontospecies:Solvent ;
+  sh:property [
+    sh:path ontospecies:hasSolventName ;
+    sh:datatype xsd:string ;
+    sh:minCount 0 ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:datatype xsd:string
+  ] .
+
+ontospecies:SpeciesShape a sh:NodeShape ;
+  sh:targetClass ontospecies:Species ;
+  sh:property [
+    sh:path ontospecies:hasCharacterizationSession ;
+    sh:class ontospecies:CharacterizationSession ;
+    sh:nodeKind sh:IRI ;
+    sh:minCount 0 ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path ontospecies:hasHNMRData ;
+    sh:class ontospecies:HNMRData ;
+    sh:nodeKind sh:IRI
+  ] ;
+  sh:property [
+    sh:path ontospecies:hasElementalAnalysisData ;
+    sh:class ontospecies:ElementalAnalysisData ;
+    sh:nodeKind sh:IRI
+  ] ;
+  sh:property [
+    sh:path ontospecies:hasInfraredSpectroscopyData ;
+    sh:class ontospecies:InfraredSpectroscopyData ;
+    sh:nodeKind sh:IRI
+  ] ;
+  sh:property [
+    sh:path ontospecies:hasMolecularFormula ;
+    sh:class ontospecies:MolecularFormula ;
+    sh:nodeKind sh:IRI ;
+    sh:minCount 0 ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path ontospecies:hasChemicalFormula ;
+    sh:class ontospecies:ChemicalFormula ;
+    sh:nodeKind sh:IRI ;
+    sh:minCount 0 ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path ontospecies:hasCCDCNumber ;
+    sh:class ontospecies:CCDCNumber ;
+    sh:nodeKind sh:IRI ;
+    sh:minCount 0 ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path ontospecies:hasProductName ;
+    sh:datatype xsd:string ;
+    sh:minCount 0 ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:datatype xsd:string ;
+    sh:minCount 0 ;
+    sh:maxCount 1
+  ] .
+
+ontospecies:WeightPercentageShape a sh:NodeShape ;
+  sh:targetClass ontospecies:WeightPercentage ;
+  sh:property [
+    sh:path ontospecies:hasElement ;
+    sh:class periodic:Element ;
+    sh:nodeKind sh:IRI
+  ] ;
+  sh:property [
+    sh:path ontospecies:hasWeightPercentageCalculatedValue ;
+    sh:datatype xsd:string
+  ] ;
+  sh:property [
+    sh:path ontospecies:hasWeightPercentageExperimentalValue ;
+    sh:datatype xsd:string
+  ] ;
+  sh:property [
+    sh:path ontospecies:hasPercentageValue ;
+    sh:or ( [ sh:datatype xsd:float ] [ sh:datatype xsd:double ] ) ;
+    sh:minCount 0 ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:datatype xsd:string
+  ] .
+
+
+# Extension success criterion: the inherited ChemicalSynthesis must expose
+# its product as ontospecies:Species (same node as ChemicalOutput, or a
+# newly linked output). Characterization is optional.
+
+ontospecies:SpeciesOutputRequiredShape a sh:NodeShape ;
+  sh:targetClass ontosyn:ChemicalSynthesis ;
+  sh:sparql [
+    sh:message "ChemicalSynthesis must haveChemicalOutput a node typed ontospecies:Species" ;
+    sh:select '''
+      PREFIX ontosyn: <https://www.theworldavatar.com/kg/OntoSyn/>
+      PREFIX ontospecies: <http://www.theworldavatar.com/ontology/ontospecies/OntoSpecies.owl#>
+      SELECT $this
+      WHERE {
+        FILTER NOT EXISTS {
+          $this ontosyn:hasChemicalOutput ?out .
+          ?out a ontospecies:Species .
+        }
+      }
+    '''
+  ] .
+
+ontospecies:UniqueSpeciesOutputShape a sh:NodeShape ;
+  sh:targetClass ontosyn:ChemicalSynthesis ;
+  sh:sparql [
+    sh:message "At most one ontospecies:Species may be linked via hasChemicalOutput" ;
+    sh:select '''
+      PREFIX ontosyn: <https://www.theworldavatar.com/kg/OntoSyn/>
+      PREFIX ontospecies: <http://www.theworldavatar.com/ontology/ontospecies/OntoSpecies.owl#>
+      SELECT $this
+      WHERE {
+        $this ontosyn:hasChemicalOutput ?a, ?b .
+        FILTER(?a != ?b)
+        ?a a ontospecies:Species .
+        ?b a ontospecies:Species .
+      }
+    '''
+  ] .
+
+ontospecies:SpeciesMustBeOutputShape a sh:NodeShape ;
+  sh:targetClass ontospecies:Species ;
+  sh:sparql [
+    sh:message "ontospecies:Species must be a ChemicalOutput; do not mint a detached species identity" ;
+    sh:select '''
+      PREFIX ontosyn: <https://www.theworldavatar.com/kg/OntoSyn/>
+      SELECT $this
+      WHERE {
+        FILTER NOT EXISTS { ?synth ontosyn:hasChemicalOutput $this . }
+      }
+    '''
+  ] .
+

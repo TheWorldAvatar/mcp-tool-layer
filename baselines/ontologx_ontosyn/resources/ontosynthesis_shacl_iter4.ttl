@@ -1,0 +1,173 @@
+@prefix ontosyn: <https://www.theworldavatar.com/kg/OntoSyn/> .
+@prefix om-2: <http://www.ontology-of-units-of-measure.org/resource/om-2/> .
+@prefix ontomops: <https://www.theworldavatar.com/kg/ontomops/> .
+@prefix bibo: <http://purl.org/ontology/bibo/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# OntoSynthesis SHACL for Pipeline iter4 owned surface only.
+# Parallel to resources/iteration_surfaces.json. Not the full-graph oracle.
+# Generated from data/ontologies/ontosynthesis.ttl plus data/ontologies/om2.ttl.
+# slot_kind: remainder
+
+om-2:AmountOfSubstanceFractionShape a sh:NodeShape ;
+  sh:targetClass om-2:AmountOfSubstanceFraction ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:datatype xsd:string
+  ] ;
+  sh:property [
+    sh:path om-2:hasNumericalValue ;
+    sh:or ( [ sh:datatype xsd:double ] [ sh:datatype xsd:integer ] )
+  ] ;
+  sh:property [
+    sh:path om-2:hasUnit ;
+    sh:class om-2:AmountFractionUnit ;
+    sh:nodeKind sh:IRI ;
+    sh:in ( om-2:percent )
+  ] .
+
+om-2:DurationShape a sh:NodeShape ;
+  sh:targetClass om-2:Duration ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:datatype xsd:string
+  ] ;
+  sh:property [
+    sh:path om-2:hasNumericalValue ;
+    sh:or ( [ sh:datatype xsd:double ] [ sh:datatype xsd:integer ] )
+  ] ;
+  sh:property [
+    sh:path om-2:hasUnit ;
+    sh:class om-2:DurationUnit ;
+    sh:nodeKind sh:IRI ;
+    sh:in ( om-2:day om-2:hour om-2:minute om-2:second )
+  ] .
+
+om-2:PressureShape a sh:NodeShape ;
+  sh:targetClass om-2:Pressure ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:datatype xsd:string
+  ] ;
+  sh:property [
+    sh:path om-2:hasNumericalValue ;
+    sh:or ( [ sh:datatype xsd:double ] [ sh:datatype xsd:integer ] )
+  ] ;
+  sh:property [
+    sh:path om-2:hasUnit ;
+    sh:class om-2:PressureUnit ;
+    sh:nodeKind sh:IRI ;
+    sh:in ( om-2:bar om-2:kilopascal om-2:megapascal om-2:millibar om-2:millimetreOfMercury om-2:pascal om-2:poundForcePerSquareInch om-2:standardAtmosphere om-2:torr )
+  ] .
+
+om-2:TemperatureShape a sh:NodeShape ;
+  sh:targetClass om-2:Temperature ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:datatype xsd:string
+  ] ;
+  sh:property [
+    sh:path om-2:hasNumericalValue ;
+    sh:or ( [ sh:datatype xsd:double ] [ sh:datatype xsd:integer ] )
+  ] ;
+  sh:property [
+    sh:path om-2:hasUnit ;
+    sh:class om-2:TemperatureUnit ;
+    sh:nodeKind sh:IRI ;
+    sh:in ( om-2:degreeCelsius om-2:degreeFahrenheit om-2:kelvin )
+  ] .
+
+om-2:TemperatureRateShape a sh:NodeShape ;
+  sh:targetClass om-2:TemperatureRate ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:datatype xsd:string
+  ] ;
+  sh:property [
+    sh:path om-2:hasNumericalValue ;
+    sh:or ( [ sh:datatype xsd:double ] [ sh:datatype xsd:integer ] )
+  ] ;
+  sh:property [
+    sh:path om-2:hasUnit ;
+    sh:class om-2:TemperatureRateUnit ;
+    sh:nodeKind sh:IRI ;
+    sh:in ( om-2:degreeCelsiusPerHour om-2:degreeCelsiusPerMinute )
+  ] .
+
+om-2:VolumeShape a sh:NodeShape ;
+  sh:targetClass om-2:Volume ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:datatype xsd:string
+  ] ;
+  sh:property [
+    sh:path om-2:hasNumericalValue ;
+    sh:or ( [ sh:datatype xsd:double ] [ sh:datatype xsd:integer ] )
+  ] ;
+  sh:property [
+    sh:path om-2:hasUnit ;
+    sh:class om-2:VolumeUnit ;
+    sh:nodeKind sh:IRI ;
+    sh:in ( om-2:cubicCentimetre om-2:litre om-2:microlitre om-2:millilitre om-2:nanolitre )
+  ] .
+
+ontosyn:ChemicalSynthesisShape a sh:NodeShape ;
+  sh:targetClass ontosyn:ChemicalSynthesis ;
+  sh:property [
+    sh:path ontosyn:hasEquipment ;
+    sh:class ontosyn:Equipment ;
+    sh:nodeKind sh:IRI
+  ] ;
+  sh:property [
+    sh:path ontosyn:hasYield ;
+    sh:class om-2:AmountOfSubstanceFraction ;
+    sh:nodeKind sh:IRI ;
+    sh:minCount 0 ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:datatype xsd:string ;
+    sh:minCount 1 ;
+    sh:maxCount 1
+  ] .
+
+ontosyn:EquipmentShape a sh:NodeShape ;
+  sh:targetClass ontosyn:Equipment ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:datatype xsd:string ;
+    sh:minCount 1 ;
+    sh:maxCount 1
+  ] .
+
+
+ontosyn:MeasureLabelShape a sh:NodeShape ;
+  sh:targetClass om-2:Temperature, om-2:Duration, om-2:Pressure, om-2:Volume, om-2:TemperatureRate, om-2:AmountOfSubstanceFraction ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:minCount 1 ;
+    sh:maxCount 1 ;
+    sh:datatype xsd:string
+  ] .
+
+ontosyn:NumericMeasureNeedsIriUnitShape a sh:NodeShape ;
+  sh:targetClass om-2:Temperature, om-2:Duration, om-2:Pressure, om-2:Volume, om-2:TemperatureRate, om-2:AmountOfSubstanceFraction ;
+  sh:sparql [
+    sh:message "A numeric OM-2 measure must have om-2:hasUnit pointing at an OM-2 unit IRI, not a string" ;
+    sh:select '''
+      PREFIX om-2: <http://www.ontology-of-units-of-measure.org/resource/om-2/>
+      SELECT $this ?unit
+      WHERE {
+        $this om-2:hasNumericalValue ?value .
+        FILTER NOT EXISTS {
+          $this om-2:hasUnit ?unit .
+          FILTER(isIRI(?unit))
+        }
+      }
+    '''
+  ] .
+

@@ -1,0 +1,772 @@
+@prefix ontosyn: <https://www.theworldavatar.com/kg/OntoSyn/> .
+@prefix om-2: <http://www.ontology-of-units-of-measure.org/resource/om-2/> .
+@prefix ontomops: <https://www.theworldavatar.com/kg/ontomops/> .
+@prefix bibo: <http://purl.org/ontology/bibo/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# OntoSynthesis SHACL for Pipeline iter3 owned surface only.
+# Parallel to resources/iteration_surfaces.json. Not the full-graph oracle.
+# Generated from data/ontologies/ontosynthesis.ttl plus data/ontologies/om2.ttl.
+# slot_kind: ordered
+
+om-2:AmountOfSubstanceFractionShape a sh:NodeShape ;
+  sh:targetClass om-2:AmountOfSubstanceFraction ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:datatype xsd:string
+  ] .
+
+om-2:DurationShape a sh:NodeShape ;
+  sh:targetClass om-2:Duration ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:datatype xsd:string
+  ] .
+
+om-2:PressureShape a sh:NodeShape ;
+  sh:targetClass om-2:Pressure ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:datatype xsd:string
+  ] .
+
+om-2:TemperatureShape a sh:NodeShape ;
+  sh:targetClass om-2:Temperature ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:datatype xsd:string
+  ] .
+
+om-2:TemperatureRateShape a sh:NodeShape ;
+  sh:targetClass om-2:TemperatureRate ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:datatype xsd:string
+  ] .
+
+om-2:VolumeShape a sh:NodeShape ;
+  sh:targetClass om-2:Volume ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:datatype xsd:string
+  ] .
+
+ontosyn:AddShape a sh:NodeShape ;
+  sh:targetClass ontosyn:Add ;
+  sh:property [
+    sh:path ontosyn:hasAddedChemicalInput ;
+    sh:class ontosyn:ChemicalInput ;
+    sh:nodeKind sh:IRI ;
+    sh:minCount 1 ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path ontosyn:hasStepDuration ;
+    sh:class om-2:Duration ;
+    sh:nodeKind sh:IRI
+  ] ;
+  sh:property [
+    sh:path ontosyn:hasVessel ;
+    sh:class ontosyn:Vessel ;
+    sh:nodeKind sh:IRI
+  ] ;
+  sh:property [
+    sh:path ontosyn:hasVesselEnvironment ;
+    sh:class ontosyn:VesselEnvironment ;
+    sh:nodeKind sh:IRI ;
+    sh:minCount 0 ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path ontosyn:hasOrder ;
+    sh:datatype xsd:integer ;
+    sh:minCount 1 ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path ontosyn:hasTargetPh ;
+    sh:datatype xsd:double
+  ] ;
+  sh:property [
+    sh:path ontosyn:isLayered ;
+    sh:datatype xsd:boolean
+  ] ;
+  sh:property [
+    sh:path ontosyn:isStirred ;
+    sh:datatype xsd:boolean
+  ] ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:datatype xsd:string ;
+    sh:minCount 1 ;
+    sh:maxCount 1
+  ] .
+
+ontosyn:ChemicalInputShape a sh:NodeShape ;
+  sh:targetClass ontosyn:ChemicalInput ;
+  sh:property [
+    sh:path ontosyn:hasAmount ;
+    sh:datatype xsd:string ;
+    sh:minCount 0 ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path ontosyn:hasAlternativeNames ;
+    sh:datatype xsd:string
+  ] ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:datatype xsd:string ;
+    sh:minCount 1 ;
+    sh:maxCount 1
+  ] .
+
+ontosyn:ChemicalOutputShape a sh:NodeShape ;
+  sh:targetClass ontosyn:ChemicalOutput ;
+  sh:property [
+    sh:path ontosyn:hasAlternativeNames ;
+    sh:datatype xsd:string
+  ] ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:datatype xsd:string ;
+    sh:minCount 1 ;
+    sh:maxCount 1
+  ] .
+
+ontosyn:ChemicalSynthesisShape a sh:NodeShape ;
+  sh:targetClass ontosyn:ChemicalSynthesis ;
+  sh:property [
+    sh:path ontosyn:usesEquipment ;
+    sh:class ontosyn:Equipment ;
+    sh:nodeKind sh:IRI
+  ] ;
+  sh:property [
+    sh:path ontosyn:hasSynthesisStep ;
+    sh:class ontosyn:SynthesisStep ;
+    sh:nodeKind sh:IRI ;
+    sh:minCount 1
+  ] ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:datatype xsd:string ;
+    sh:minCount 1 ;
+    sh:maxCount 1
+  ] .
+
+ontosyn:CrystallizeShape a sh:NodeShape ;
+  sh:targetClass ontosyn:Crystallize ;
+  sh:property [
+    sh:path ontosyn:hasCrystallizationTargetTemperature ;
+    sh:class om-2:Temperature ;
+    sh:nodeKind sh:IRI
+  ] ;
+  sh:property [
+    sh:path ontosyn:hasStepDuration ;
+    sh:class om-2:Duration ;
+    sh:nodeKind sh:IRI
+  ] ;
+  sh:property [
+    sh:path ontosyn:hasVessel ;
+    sh:class ontosyn:Vessel ;
+    sh:nodeKind sh:IRI
+  ] ;
+  sh:property [
+    sh:path ontosyn:hasVesselEnvironment ;
+    sh:class ontosyn:VesselEnvironment ;
+    sh:nodeKind sh:IRI ;
+    sh:minCount 0 ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path ontosyn:hasOrder ;
+    sh:datatype xsd:integer ;
+    sh:minCount 1 ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:datatype xsd:string ;
+    sh:minCount 1 ;
+    sh:maxCount 1
+  ] .
+
+ontosyn:DryShape a sh:NodeShape ;
+  sh:targetClass ontosyn:Dry ;
+  sh:property [
+    sh:path ontosyn:hasDryingAgent ;
+    sh:class ontosyn:ChemicalInput ;
+    sh:nodeKind sh:IRI
+  ] ;
+  sh:property [
+    sh:path ontosyn:hasDryingPressure ;
+    sh:class om-2:Pressure ;
+    sh:nodeKind sh:IRI
+  ] ;
+  sh:property [
+    sh:path ontosyn:hasDryingTemperature ;
+    sh:class om-2:Temperature ;
+    sh:nodeKind sh:IRI
+  ] ;
+  sh:property [
+    sh:path ontosyn:hasStepDuration ;
+    sh:class om-2:Duration ;
+    sh:nodeKind sh:IRI
+  ] ;
+  sh:property [
+    sh:path ontosyn:hasVessel ;
+    sh:class ontosyn:Vessel ;
+    sh:nodeKind sh:IRI
+  ] ;
+  sh:property [
+    sh:path ontosyn:hasVesselEnvironment ;
+    sh:class ontosyn:VesselEnvironment ;
+    sh:nodeKind sh:IRI ;
+    sh:minCount 0 ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path ontosyn:hasOrder ;
+    sh:datatype xsd:integer ;
+    sh:minCount 1 ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:datatype xsd:string ;
+    sh:minCount 1 ;
+    sh:maxCount 1
+  ] .
+
+ontosyn:EvaporateShape a sh:NodeShape ;
+  sh:targetClass ontosyn:Evaporate ;
+  sh:property [
+    sh:path ontosyn:hasEvaporationPressure ;
+    sh:class om-2:Pressure ;
+    sh:nodeKind sh:IRI
+  ] ;
+  sh:property [
+    sh:path ontosyn:hasEvaporationTemperature ;
+    sh:class om-2:Temperature ;
+    sh:nodeKind sh:IRI
+  ] ;
+  sh:property [
+    sh:path ontosyn:hasStepDuration ;
+    sh:class om-2:Duration ;
+    sh:nodeKind sh:IRI
+  ] ;
+  sh:property [
+    sh:path ontosyn:hasVessel ;
+    sh:class ontosyn:Vessel ;
+    sh:nodeKind sh:IRI
+  ] ;
+  sh:property [
+    sh:path ontosyn:hasVesselEnvironment ;
+    sh:class ontosyn:VesselEnvironment ;
+    sh:nodeKind sh:IRI ;
+    sh:minCount 0 ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path ontosyn:isEvaporatedToVolume ;
+    sh:class om-2:Volume ;
+    sh:nodeKind sh:IRI
+  ] ;
+  sh:property [
+    sh:path ontosyn:removesSpecies ;
+    sh:class ontosyn:ChemicalInput ;
+    sh:nodeKind sh:IRI
+  ] ;
+  sh:property [
+    sh:path ontosyn:hasOrder ;
+    sh:datatype xsd:integer ;
+    sh:minCount 1 ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path ontosyn:hasRotaryEvaporator ;
+    sh:datatype xsd:boolean
+  ] ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:datatype xsd:string ;
+    sh:minCount 1 ;
+    sh:maxCount 1
+  ] .
+
+ontosyn:FilterShape a sh:NodeShape ;
+  sh:targetClass ontosyn:Filter ;
+  sh:property [
+    sh:path ontosyn:hasStepDuration ;
+    sh:class om-2:Duration ;
+    sh:nodeKind sh:IRI
+  ] ;
+  sh:property [
+    sh:path ontosyn:hasVessel ;
+    sh:class ontosyn:Vessel ;
+    sh:nodeKind sh:IRI
+  ] ;
+  sh:property [
+    sh:path ontosyn:hasVesselEnvironment ;
+    sh:class ontosyn:VesselEnvironment ;
+    sh:nodeKind sh:IRI ;
+    sh:minCount 0 ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path ontosyn:hasWashingSolvent ;
+    sh:class ontosyn:ChemicalInput ;
+    sh:nodeKind sh:IRI
+  ] ;
+  sh:property [
+    sh:path ontosyn:hasOrder ;
+    sh:datatype xsd:integer ;
+    sh:minCount 1 ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path ontosyn:isRepeated ;
+    sh:datatype xsd:integer
+  ] ;
+  sh:property [
+    sh:path ontosyn:isVacuumFiltration ;
+    sh:datatype xsd:boolean
+  ] ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:datatype xsd:string ;
+    sh:minCount 1 ;
+    sh:maxCount 1
+  ] .
+
+ontosyn:HeatChillShape a sh:NodeShape ;
+  sh:targetClass ontosyn:HeatChill ;
+  sh:property [
+    sh:path ontosyn:hasHeatChillDevice ;
+    sh:class ontosyn:HeatChillDevice ;
+    sh:nodeKind sh:IRI
+  ] ;
+  sh:property [
+    sh:path ontosyn:hasStepDuration ;
+    sh:class om-2:Duration ;
+    sh:nodeKind sh:IRI
+  ] ;
+  sh:property [
+    sh:path ontosyn:hasTargetTemperature ;
+    sh:class om-2:Temperature ;
+    sh:nodeKind sh:IRI
+  ] ;
+  sh:property [
+    sh:path ontosyn:hasTemperatureRate ;
+    sh:class om-2:TemperatureRate ;
+    sh:nodeKind sh:IRI
+  ] ;
+  sh:property [
+    sh:path ontosyn:hasVessel ;
+    sh:class ontosyn:Vessel ;
+    sh:nodeKind sh:IRI
+  ] ;
+  sh:property [
+    sh:path ontosyn:hasVesselEnvironment ;
+    sh:class ontosyn:VesselEnvironment ;
+    sh:nodeKind sh:IRI ;
+    sh:minCount 0 ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path ontosyn:hasOrder ;
+    sh:datatype xsd:integer ;
+    sh:minCount 1 ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path ontosyn:hasVacuum ;
+    sh:datatype xsd:boolean
+  ] ;
+  sh:property [
+    sh:path ontosyn:isSealed ;
+    sh:datatype xsd:boolean
+  ] ;
+  sh:property [
+    sh:path ontosyn:isStirredHeatChill ;
+    sh:datatype xsd:boolean
+  ] ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:datatype xsd:string ;
+    sh:minCount 1 ;
+    sh:maxCount 1
+  ] .
+
+ontosyn:HeatChillDeviceShape a sh:NodeShape ;
+  sh:targetClass ontosyn:HeatChillDevice ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:datatype xsd:string
+  ] .
+
+ontosyn:SeparateShape a sh:NodeShape ;
+  sh:targetClass ontosyn:Separate ;
+  sh:property [
+    sh:path ontosyn:hasSeparationSolvent ;
+    sh:class ontosyn:ChemicalInput ;
+    sh:nodeKind sh:IRI
+  ] ;
+  sh:property [
+    sh:path ontosyn:hasStepDuration ;
+    sh:class om-2:Duration ;
+    sh:nodeKind sh:IRI
+  ] ;
+  sh:property [
+    sh:path ontosyn:hasVessel ;
+    sh:class ontosyn:Vessel ;
+    sh:nodeKind sh:IRI
+  ] ;
+  sh:property [
+    sh:path ontosyn:hasVesselEnvironment ;
+    sh:class ontosyn:VesselEnvironment ;
+    sh:nodeKind sh:IRI ;
+    sh:minCount 0 ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path ontosyn:isSeparationType ;
+    sh:class ontosyn:SeparationType ;
+    sh:nodeKind sh:IRI
+  ] ;
+  sh:property [
+    sh:path ontosyn:hasOrder ;
+    sh:datatype xsd:integer ;
+    sh:minCount 1 ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:datatype xsd:string ;
+    sh:minCount 1 ;
+    sh:maxCount 1
+  ] .
+
+ontosyn:SeparationTypeShape a sh:NodeShape ;
+  sh:targetClass ontosyn:SeparationType ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:datatype xsd:string
+  ] .
+
+ontosyn:SonicateShape a sh:NodeShape ;
+  sh:targetClass ontosyn:Sonicate ;
+  sh:property [
+    sh:path ontosyn:hasStepDuration ;
+    sh:class om-2:Duration ;
+    sh:nodeKind sh:IRI
+  ] ;
+  sh:property [
+    sh:path ontosyn:hasVessel ;
+    sh:class ontosyn:Vessel ;
+    sh:nodeKind sh:IRI
+  ] ;
+  sh:property [
+    sh:path ontosyn:hasVesselEnvironment ;
+    sh:class ontosyn:VesselEnvironment ;
+    sh:nodeKind sh:IRI ;
+    sh:minCount 0 ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path ontosyn:hasOrder ;
+    sh:datatype xsd:integer ;
+    sh:minCount 1 ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:datatype xsd:string ;
+    sh:minCount 1 ;
+    sh:maxCount 1
+  ] .
+
+ontosyn:StirShape a sh:NodeShape ;
+  sh:targetClass ontosyn:Stir ;
+  sh:property [
+    sh:path ontosyn:hasStepDuration ;
+    sh:class om-2:Duration ;
+    sh:nodeKind sh:IRI
+  ] ;
+  sh:property [
+    sh:path ontosyn:hasStirringTemperature ;
+    sh:class om-2:Temperature ;
+    sh:nodeKind sh:IRI
+  ] ;
+  sh:property [
+    sh:path ontosyn:hasVessel ;
+    sh:class ontosyn:Vessel ;
+    sh:nodeKind sh:IRI
+  ] ;
+  sh:property [
+    sh:path ontosyn:hasVesselEnvironment ;
+    sh:class ontosyn:VesselEnvironment ;
+    sh:nodeKind sh:IRI ;
+    sh:minCount 0 ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path ontosyn:hasOrder ;
+    sh:datatype xsd:integer ;
+    sh:minCount 1 ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path ontosyn:isWait ;
+    sh:datatype xsd:boolean
+  ] ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:datatype xsd:string ;
+    sh:minCount 1 ;
+    sh:maxCount 1
+  ] .
+
+ontosyn:SynthesisStepShape a sh:NodeShape ;
+  sh:targetClass ontosyn:SynthesisStep ;
+  sh:property [
+    sh:path ontosyn:usesEquipment ;
+    sh:class ontosyn:Equipment ;
+    sh:nodeKind sh:IRI
+  ] ;
+  sh:property [
+    sh:path ontosyn:hasStepDuration ;
+    sh:class om-2:Duration ;
+    sh:nodeKind sh:IRI
+  ] ;
+  sh:property [
+    sh:path ontosyn:hasVessel ;
+    sh:class ontosyn:Vessel ;
+    sh:nodeKind sh:IRI
+  ] ;
+  sh:property [
+    sh:path ontosyn:hasVesselEnvironment ;
+    sh:class ontosyn:VesselEnvironment ;
+    sh:nodeKind sh:IRI ;
+    sh:minCount 0 ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path ontosyn:hasParameter ;
+    sh:datatype xsd:string
+  ] ;
+  sh:property [
+    sh:path ontosyn:hasOrder ;
+    sh:datatype xsd:integer ;
+    sh:minCount 1 ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:datatype xsd:string ;
+    sh:minCount 1 ;
+    sh:maxCount 1
+  ] .
+
+ontosyn:TransferShape a sh:NodeShape ;
+  sh:targetClass ontosyn:Transfer ;
+  sh:property [
+    sh:path ontosyn:hasStepDuration ;
+    sh:class om-2:Duration ;
+    sh:nodeKind sh:IRI
+  ] ;
+  sh:property [
+    sh:path ontosyn:hasTransferedAmount ;
+    sh:class om-2:Volume ;
+    sh:nodeKind sh:IRI
+  ] ;
+  sh:property [
+    sh:path ontosyn:hasVessel ;
+    sh:class ontosyn:Vessel ;
+    sh:nodeKind sh:IRI
+  ] ;
+  sh:property [
+    sh:path ontosyn:hasVesselEnvironment ;
+    sh:class ontosyn:VesselEnvironment ;
+    sh:nodeKind sh:IRI ;
+    sh:minCount 0 ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path ontosyn:isTransferedTo ;
+    sh:class ontosyn:Vessel ;
+    sh:nodeKind sh:IRI
+  ] ;
+  sh:property [
+    sh:path ontosyn:hasOrder ;
+    sh:datatype xsd:integer ;
+    sh:minCount 1 ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:datatype xsd:string ;
+    sh:minCount 1 ;
+    sh:maxCount 1
+  ] .
+
+ontosyn:VesselShape a sh:NodeShape ;
+  sh:targetClass ontosyn:Vessel ;
+  sh:property [
+    sh:path ontosyn:hasVesselType ;
+    sh:class ontosyn:VesselType ;
+    sh:nodeKind sh:IRI
+  ] ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:datatype xsd:string ;
+    sh:minCount 0 ;
+    sh:maxCount 1
+  ] .
+
+ontosyn:VesselEnvironmentShape a sh:NodeShape ;
+  sh:targetClass ontosyn:VesselEnvironment ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:datatype xsd:string ;
+    sh:minCount 1 ;
+    sh:maxCount 1
+  ] .
+
+ontosyn:VesselTypeShape a sh:NodeShape ;
+  sh:targetClass ontosyn:VesselType ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:datatype xsd:string
+  ] .
+
+
+ontosyn:UniqueStepOrderShape a sh:NodeShape ;
+  sh:targetClass ontosyn:ChemicalSynthesis ;
+  sh:sparql [
+    sh:message "ontosyn:hasOrder must be unique within one ChemicalSynthesis" ;
+    sh:select '''
+      PREFIX ontosyn: <https://www.theworldavatar.com/kg/OntoSyn/>
+      SELECT $this ?order
+      WHERE {
+        $this ontosyn:hasSynthesisStep ?a, ?b .
+        FILTER(?a != ?b)
+        ?a ontosyn:hasOrder ?order .
+        ?b ontosyn:hasOrder ?order .
+      }
+    '''
+  ] .
+
+ontosyn:ContiguousStepOrderShape a sh:NodeShape ;
+  sh:targetClass ontosyn:ChemicalSynthesis ;
+  sh:sparql [
+    sh:message "ontosyn:hasOrder must start at 1 and max(order) must equal step count" ;
+    sh:select '''
+      PREFIX ontosyn: <https://www.theworldavatar.com/kg/OntoSyn/>
+      PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+      SELECT $this ?minO ?maxO ?n
+      WHERE {
+        {
+          SELECT $this (COUNT(?step) AS ?n) (MIN(xsd:integer(?ord)) AS ?minO) (MAX(xsd:integer(?ord)) AS ?maxO)
+          WHERE {
+            $this ontosyn:hasSynthesisStep ?step .
+            ?step ontosyn:hasOrder ?ord .
+          }
+        }
+        FILTER(?minO != 1 || ?maxO != ?n)
+      }
+    '''
+  ] .
+
+ontosyn:BareSynthesisStepShape a sh:NodeShape ;
+  sh:targetClass ontosyn:SynthesisStep ;
+  sh:sparql [
+    sh:message "SynthesisStep must also be a concrete subclass (Add/Stir/HeatChill/...)" ;
+    sh:select '''
+      PREFIX ontosyn: <https://www.theworldavatar.com/kg/OntoSyn/>
+      PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+      SELECT $this
+      WHERE {
+        $this a ontosyn:SynthesisStep .
+        FILTER NOT EXISTS { $this a ontosyn:Add }
+        FILTER NOT EXISTS { $this a ontosyn:Stir }
+        FILTER NOT EXISTS { $this a ontosyn:HeatChill }
+        FILTER NOT EXISTS { $this a ontosyn:Evaporate }
+        FILTER NOT EXISTS { $this a ontosyn:Sonicate }
+        FILTER NOT EXISTS { $this a ontosyn:Crystallize }
+        FILTER NOT EXISTS { $this a ontosyn:Transfer }
+        FILTER NOT EXISTS { $this a ontosyn:Separate }
+        FILTER NOT EXISTS { $this a ontosyn:Filter }
+        FILTER NOT EXISTS { $this a ontosyn:Dry }
+      }
+    '''
+  ] .
+
+ontosyn:WashFilterNeedsSolventShape a sh:NodeShape ;
+  sh:targetClass ontosyn:Filter ;
+  sh:sparql [
+    sh:message "Filter whose label describes a wash must have ontosyn:hasWashingSolvent" ;
+    sh:select '''
+      PREFIX ontosyn: <https://www.theworldavatar.com/kg/OntoSyn/>
+      PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+      SELECT $this ?label
+      WHERE {
+        $this rdfs:label ?label .
+        FILTER(REGEX(LCASE(STR(?label)), "wash"))
+        FILTER NOT EXISTS { $this ontosyn:hasWashingSolvent ?solvent }
+      }
+    '''
+  ] .
+
+ontosyn:HeatHoldIsNotStirShape a sh:NodeShape ;
+  sh:targetClass ontosyn:Stir ;
+  sh:sparql [
+    sh:message "A solvothermal heat-and-hold belongs on HeatChill, not Stir" ;
+    sh:select '''
+      PREFIX ontosyn: <https://www.theworldavatar.com/kg/OntoSyn/>
+      PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+      SELECT $this ?label
+      WHERE {
+        $this rdfs:label ?label .
+        FILTER(REGEX(LCASE(STR(?label)), "heat|solvothermal|degc|°c"))
+      }
+    '''
+  ] .
+
+ontosyn:CoolingNeedsTemperatureShape a sh:NodeShape ;
+  sh:targetClass ontosyn:HeatChill ;
+  sh:sparql [
+    sh:message "Cooling / room-temperature HeatChill must keep hasTargetTemperature" ;
+    sh:select '''
+      PREFIX ontosyn: <https://www.theworldavatar.com/kg/OntoSyn/>
+      PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+      SELECT $this ?label
+      WHERE {
+        $this rdfs:label ?label .
+        FILTER(REGEX(LCASE(STR(?label)), "cool|room temperature|ambient"))
+        FILTER NOT EXISTS { $this ontosyn:hasTargetTemperature ?temp }
+      }
+    '''
+  ] .
+
+ontosyn:VesselEnvironmentValuesShape a sh:NodeShape ;
+  sh:targetClass ontosyn:VesselEnvironment ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:minCount 1 ;
+    sh:maxCount 1 ;
+    sh:datatype xsd:string
+  ] .
+
+ontosyn:MeasureLabelShape a sh:NodeShape ;
+  sh:targetClass om-2:Temperature, om-2:Duration, om-2:Pressure, om-2:Volume, om-2:TemperatureRate, om-2:AmountOfSubstanceFraction ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:minCount 1 ;
+    sh:maxCount 1 ;
+    sh:datatype xsd:string
+  ] .
+

@@ -1,0 +1,125 @@
+{
+  "source": "ai_generated_contents_ontosyn_extensions_gpt5_20260825/iterations/ontosynthesis/iterations.json",
+  "note": "Pipeline compiled iteration-owned surfaces. OntoLogX layered mode injects one layer at a time. Full-graph mode does not use these closures. Parallel per-layer SHACL: ontosynthesis_shacl_iter{2,3,4}.ttl via generate_shacl.py / --layered-surface-shacl.",
+  "layers": {
+    "2": {
+      "name": "iter2",
+      "slot_kind": "foundation",
+      "classes": [
+        "ChemicalInput",
+        "ChemicalOutput",
+        "DocumentContext",
+        "Equipment",
+        "Supplier"
+      ],
+      "linked_helper_targets": [
+        "ChemicalSynthesis",
+        "Document",
+        "Material",
+        "MetalOrganicPolyhedron"
+      ],
+      "object_properties": [
+        "hasChemicalInput",
+        "hasChemicalOutput",
+        "hasDocumentContext",
+        "isRepresentedBy",
+        "isSuppliedBy",
+        "referencesMaterial",
+        "retrievedFrom"
+      ],
+      "datatype_properties": [
+        "hasAlternativeNames",
+        "hasAmount",
+        "hasChemicalDescription",
+        "hasChemicalFormula",
+        "hasPurity",
+        "hasCCDCNumber",
+        "rdfs:label"
+      ]
+    },
+    "3": {
+      "name": "iter3",
+      "slot_kind": "ordered",
+      "classes": [
+        "Add",
+        "Dry",
+        "Evaporate",
+        "Filter",
+        "HeatChill",
+        "HeatChillDevice",
+        "Separate",
+        "SeparationType",
+        "Sonicate",
+        "Stir",
+        "Transfer",
+        "Vessel",
+        "VesselEnvironment",
+        "VesselType"
+      ],
+      "linked_helper_targets": [
+        "ChemicalInput"
+      ],
+      "object_properties": [
+        "hasAddedChemicalInput",
+        "hasCrystallizationTargetTemperature",
+        "hasDryingAgent",
+        "hasDryingPressure",
+        "hasDryingTemperature",
+        "hasEvaporationPressure",
+        "hasEvaporationTemperature",
+        "hasHeatChillDevice",
+        "hasSeparationSolvent",
+        "hasStepDuration",
+        "hasStirringTemperature",
+        "hasSynthesisStep",
+        "hasTargetTemperature",
+        "hasTemperatureRate",
+        "hasTransferedAmount",
+        "hasVessel",
+        "hasVesselEnvironment",
+        "hasVesselType",
+        "hasWashingSolvent",
+        "isEvaporatedToVolume",
+        "isSeparationType",
+        "isTransferedTo",
+        "removesSpecies",
+        "usesEquipment"
+      ],
+      "datatype_properties": [
+        "hasAmount",
+        "hasAlternativeNames",
+        "hasOrder",
+        "hasParameter",
+        "hasTargetPh",
+        "isLayered",
+        "isStirred",
+        "isSealed",
+        "isStirredHeatChill",
+        "hasVacuum",
+        "hasRotaryEvaporator",
+        "isRepeated",
+        "isVacuumFiltration",
+        "isWait",
+        "rdfs:label"
+      ]
+    },
+    "4": {
+      "name": "iter4",
+      "slot_kind": "remainder",
+      "classes": [],
+      "linked_helper_targets": [
+        "Equipment",
+        "AmountOfSubstanceFraction"
+      ],
+      "object_properties": [
+        "hasEquipment",
+        "hasYield"
+      ],
+      "datatype_properties": [
+        "rdfs:label",
+        "om-2:hasNumericalValue",
+        "om-2:hasUnit"
+      ]
+    }
+  }
+}

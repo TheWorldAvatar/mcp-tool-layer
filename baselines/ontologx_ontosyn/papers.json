@@ -1,0 +1,22 @@
+{
+  "papers": [
+    {
+      "hash": "1b9180ec",
+      "doi": "10.1021/acs.inorgchem.4c02394",
+      "title": "Steerable Structural Evolvement of Metastable VMOPs",
+      "text": "scenarios/mops/runs/20260825_eval30_gpt4o-topentity/runtime/1b9180ec/1b9180ec_stitched.md"
+    },
+    {
+      "hash": "49613153",
+      "doi": "10.1039/C6DT02764D",
+      "title": "VMOP-16 and VMOP-17",
+      "text": "scenarios/mops/runs/20260825_eval30_gpt4o-topentity/runtime/49613153/49613153_stitched.md"
+    },
+    {
+      "hash": "9e93418f",
+      "doi": "10.1021/acsami.7b09339",
+      "title": "Cr-1 / Cr-2 / Cr-3 cages",
+      "text": "scenarios/mops/runs/20260825_eval30_gpt4o-topentity/runtime/9e93418f/9e93418f_stitched.md"
+    }
+  ]
+}

@@ -1,0 +1,1124 @@
+{
+  "schema_version": "ox-strict-noprompt-surface.v1",
+  "source_artifact": "ai_generated_contents_occurrence_surface_20260902_indep10",
+  "note": "Compiled from the official Pipeline occurrence MCP tool descriptions and instruction. No TBox comments.",
+  "owner_occurrences": [
+    {
+      "owner_class": "Add",
+      "parent_predicate": "hasSynthesisStep",
+      "parent_is_bound_root": true,
+      "ordered": true,
+      "allowed_arguments": [
+        "label",
+        "parent_iri",
+        "hasOrder",
+        "hasParameter",
+        "hasTargetPh",
+        "isLayered",
+        "isStirred",
+        "hasStepDuration",
+        "hasAddedChemicalInput_label",
+        "hasAddedChemicalInput_hasAlternativeNames",
+        "hasAddedChemicalInput_hasAmount",
+        "hasAddedChemicalInput_hasChemicalDescription",
+        "hasAddedChemicalInput_hasChemicalFormula",
+        "hasAddedChemicalInput_hasPurity",
+        "hasVessel_label",
+        "hasVesselEnvironment_label",
+        "usesEquipment_label",
+        "isSuppliedBy_label",
+        "referencesMaterial_label",
+        "hasVesselType_label"
+      ],
+      "self_facets": [
+        "hasOrder",
+        "hasParameter",
+        "hasStepDuration",
+        "hasTargetPh",
+        "isLayered",
+        "isStirred"
+      ],
+      "nested_ownership": [
+        {
+          "argument": "hasAddedChemicalInput_hasAlternativeNames",
+          "owner_path": "self.hasAddedChemicalInput",
+          "property": "hasAlternativeNames",
+          "role": "nested_datatype",
+          "requires": [
+            "hasAddedChemicalInput_label"
+          ]
+        },
+        {
+          "argument": "hasAddedChemicalInput_hasAmount",
+          "owner_path": "self.hasAddedChemicalInput",
+          "property": "hasAmount",
+          "role": "nested_datatype",
+          "requires": [
+            "hasAddedChemicalInput_label"
+          ]
+        },
+        {
+          "argument": "hasAddedChemicalInput_hasChemicalDescription",
+          "owner_path": "self.hasAddedChemicalInput",
+          "property": "hasChemicalDescription",
+          "role": "nested_datatype",
+          "requires": [
+            "hasAddedChemicalInput_label"
+          ]
+        },
+        {
+          "argument": "hasAddedChemicalInput_hasChemicalFormula",
+          "owner_path": "self.hasAddedChemicalInput",
+          "property": "hasChemicalFormula",
+          "role": "nested_datatype",
+          "requires": [
+            "hasAddedChemicalInput_label"
+          ]
+        },
+        {
+          "argument": "hasAddedChemicalInput_hasPurity",
+          "owner_path": "self.hasAddedChemicalInput",
+          "property": "hasPurity",
+          "role": "nested_datatype",
+          "requires": [
+            "hasAddedChemicalInput_label"
+          ]
+        },
+        {
+          "argument": "hasAddedChemicalInput_label",
+          "owner_path": "self.hasAddedChemicalInput",
+          "property": "hasAddedChemicalInput",
+          "role": "fresh_dependent_label",
+          "requires": []
+        },
+        {
+          "argument": "hasVesselEnvironment_label",
+          "owner_path": "self.hasVesselEnvironment",
+          "property": "hasVesselEnvironment",
+          "role": "reusable_link_label",
+          "requires": []
+        },
+        {
+          "argument": "hasVesselType_label",
+          "owner_path": "self.hasVessel.hasVesselType",
+          "property": "hasVesselType",
+          "role": "nested_reusable_label",
+          "requires": [
+            "hasVessel_label"
+          ]
+        },
+        {
+          "argument": "hasVessel_label",
+          "owner_path": "self.hasVessel",
+          "property": "hasVessel",
+          "role": "reusable_link_label",
+          "requires": []
+        },
+        {
+          "argument": "isSuppliedBy_label",
+          "owner_path": "self.hasAddedChemicalInput.isSuppliedBy",
+          "property": "isSuppliedBy",
+          "role": "nested_reusable_label",
+          "requires": [
+            "hasAddedChemicalInput_label"
+          ]
+        },
+        {
+          "argument": "referencesMaterial_label",
+          "owner_path": "self.hasAddedChemicalInput.referencesMaterial",
+          "property": "referencesMaterial",
+          "role": "nested_reusable_label",
+          "requires": [
+            "hasAddedChemicalInput_label"
+          ]
+        },
+        {
+          "argument": "usesEquipment_label",
+          "owner_path": "self.usesEquipment",
+          "property": "usesEquipment",
+          "role": "reusable_link_label",
+          "requires": []
+        }
+      ]
+    },
+    {
+      "owner_class": "ChemicalInput",
+      "parent_predicate": "hasChemicalInput",
+      "parent_is_bound_root": true,
+      "ordered": false,
+      "allowed_arguments": [
+        "label",
+        "parent_iri",
+        "hasAlternativeNames",
+        "hasAmount",
+        "hasChemicalDescription",
+        "hasChemicalFormula",
+        "hasPurity",
+        "isSuppliedBy_label",
+        "referencesMaterial_label"
+      ],
+      "self_facets": [
+        "hasAlternativeNames",
+        "hasAmount",
+        "hasChemicalDescription",
+        "hasChemicalFormula",
+        "hasPurity"
+      ],
+      "nested_ownership": [
+        {
+          "argument": "isSuppliedBy_label",
+          "owner_path": "self.isSuppliedBy",
+          "property": "isSuppliedBy",
+          "role": "reusable_link_label",
+          "requires": []
+        },
+        {
+          "argument": "referencesMaterial_label",
+          "owner_path": "self.referencesMaterial",
+          "property": "referencesMaterial",
+          "role": "reusable_link_label",
+          "requires": []
+        }
+      ]
+    },
+    {
+      "owner_class": "ChemicalOutput",
+      "parent_predicate": "hasChemicalOutput",
+      "parent_is_bound_root": true,
+      "ordered": false,
+      "allowed_arguments": [
+        "label",
+        "parent_iri",
+        "hasAlternativeNames",
+        "hasChemicalDescription",
+        "hasChemicalFormula",
+        "hasYield",
+        "isRepresentedBy_label",
+        "isRepresentedBy_hasCCDCNumber"
+      ],
+      "self_facets": [
+        "hasAlternativeNames",
+        "hasChemicalDescription",
+        "hasChemicalFormula"
+      ],
+      "nested_ownership": [
+        {
+          "argument": "isRepresentedBy_hasCCDCNumber",
+          "owner_path": "self.isRepresentedBy",
+          "property": "hasCCDCNumber",
+          "role": "nested_datatype",
+          "requires": [
+            "isRepresentedBy_label"
+          ]
+        },
+        {
+          "argument": "isRepresentedBy_label",
+          "owner_path": "self.isRepresentedBy",
+          "property": "isRepresentedBy",
+          "role": "reusable_link_label",
+          "requires": []
+        }
+      ]
+    },
+    {
+      "owner_class": "Crystallize",
+      "parent_predicate": "hasSynthesisStep",
+      "parent_is_bound_root": true,
+      "ordered": true,
+      "allowed_arguments": [
+        "label",
+        "parent_iri",
+        "hasOrder",
+        "hasParameter",
+        "hasCrystallizationTargetTemperature",
+        "hasStepDuration",
+        "hasVessel_label",
+        "hasVesselEnvironment_label",
+        "usesEquipment_label",
+        "hasVesselType_label"
+      ],
+      "self_facets": [
+        "hasCrystallizationTargetTemperature",
+        "hasOrder",
+        "hasParameter",
+        "hasStepDuration"
+      ],
+      "nested_ownership": [
+        {
+          "argument": "hasVesselEnvironment_label",
+          "owner_path": "self.hasVesselEnvironment",
+          "property": "hasVesselEnvironment",
+          "role": "reusable_link_label",
+          "requires": []
+        },
+        {
+          "argument": "hasVesselType_label",
+          "owner_path": "self.hasVessel.hasVesselType",
+          "property": "hasVesselType",
+          "role": "nested_reusable_label",
+          "requires": [
+            "hasVessel_label"
+          ]
+        },
+        {
+          "argument": "hasVessel_label",
+          "owner_path": "self.hasVessel",
+          "property": "hasVessel",
+          "role": "reusable_link_label",
+          "requires": []
+        },
+        {
+          "argument": "usesEquipment_label",
+          "owner_path": "self.usesEquipment",
+          "property": "usesEquipment",
+          "role": "reusable_link_label",
+          "requires": []
+        }
+      ]
+    },
+    {
+      "owner_class": "Dry",
+      "parent_predicate": "hasSynthesisStep",
+      "parent_is_bound_root": true,
+      "ordered": true,
+      "allowed_arguments": [
+        "label",
+        "parent_iri",
+        "hasOrder",
+        "hasParameter",
+        "hasDryingPressure",
+        "hasDryingTemperature",
+        "hasStepDuration",
+        "hasDryingAgent_label",
+        "hasDryingAgent_hasAlternativeNames",
+        "hasDryingAgent_hasAmount",
+        "hasDryingAgent_hasChemicalDescription",
+        "hasDryingAgent_hasChemicalFormula",
+        "hasDryingAgent_hasPurity",
+        "hasVessel_label",
+        "hasVesselEnvironment_label",
+        "usesEquipment_label",
+        "isSuppliedBy_label",
+        "referencesMaterial_label",
+        "hasVesselType_label"
+      ],
+      "self_facets": [
+        "hasDryingPressure",
+        "hasDryingTemperature",
+        "hasOrder",
+        "hasParameter",
+        "hasStepDuration"
+      ],
+      "nested_ownership": [
+        {
+          "argument": "hasDryingAgent_hasAlternativeNames",
+          "owner_path": "self.hasDryingAgent",
+          "property": "hasAlternativeNames",
+          "role": "nested_datatype",
+          "requires": [
+            "hasDryingAgent_label"
+          ]
+        },
+        {
+          "argument": "hasDryingAgent_hasAmount",
+          "owner_path": "self.hasDryingAgent",
+          "property": "hasAmount",
+          "role": "nested_datatype",
+          "requires": [
+            "hasDryingAgent_label"
+          ]
+        },
+        {
+          "argument": "hasDryingAgent_hasChemicalDescription",
+          "owner_path": "self.hasDryingAgent",
+          "property": "hasChemicalDescription",
+          "role": "nested_datatype",
+          "requires": [
+            "hasDryingAgent_label"
+          ]
+        },
+        {
+          "argument": "hasDryingAgent_hasChemicalFormula",
+          "owner_path": "self.hasDryingAgent",
+          "property": "hasChemicalFormula",
+          "role": "nested_datatype",
+          "requires": [
+            "hasDryingAgent_label"
+          ]
+        },
+        {
+          "argument": "hasDryingAgent_hasPurity",
+          "owner_path": "self.hasDryingAgent",
+          "property": "hasPurity",
+          "role": "nested_datatype",
+          "requires": [
+            "hasDryingAgent_label"
+          ]
+        },
+        {
+          "argument": "hasDryingAgent_label",
+          "owner_path": "self.hasDryingAgent",
+          "property": "hasDryingAgent",
+          "role": "fresh_dependent_label",
+          "requires": []
+        },
+        {
+          "argument": "hasVesselEnvironment_label",
+          "owner_path": "self.hasVesselEnvironment",
+          "property": "hasVesselEnvironment",
+          "role": "reusable_link_label",
+          "requires": []
+        },
+        {
+          "argument": "hasVesselType_label",
+          "owner_path": "self.hasVessel.hasVesselType",
+          "property": "hasVesselType",
+          "role": "nested_reusable_label",
+          "requires": [
+            "hasVessel_label"
+          ]
+        },
+        {
+          "argument": "hasVessel_label",
+          "owner_path": "self.hasVessel",
+          "property": "hasVessel",
+          "role": "reusable_link_label",
+          "requires": []
+        },
+        {
+          "argument": "isSuppliedBy_label",
+          "owner_path": "self.hasDryingAgent.isSuppliedBy",
+          "property": "isSuppliedBy",
+          "role": "nested_reusable_label",
+          "requires": [
+            "hasDryingAgent_label"
+          ]
+        },
+        {
+          "argument": "referencesMaterial_label",
+          "owner_path": "self.hasDryingAgent.referencesMaterial",
+          "property": "referencesMaterial",
+          "role": "nested_reusable_label",
+          "requires": [
+            "hasDryingAgent_label"
+          ]
+        },
+        {
+          "argument": "usesEquipment_label",
+          "owner_path": "self.usesEquipment",
+          "property": "usesEquipment",
+          "role": "reusable_link_label",
+          "requires": []
+        }
+      ]
+    },
+    {
+      "owner_class": "Evaporate",
+      "parent_predicate": "hasSynthesisStep",
+      "parent_is_bound_root": true,
+      "ordered": true,
+      "allowed_arguments": [
+        "label",
+        "parent_iri",
+        "hasOrder",
+        "hasParameter",
+        "hasRotaryEvaporator",
+        "hasEvaporationPressure",
+        "hasEvaporationTemperature",
+        "hasStepDuration",
+        "isEvaporatedToVolume",
+        "removesSpecies_label",
+        "removesSpecies_hasAlternativeNames",
+        "removesSpecies_hasAmount",
+        "removesSpecies_hasChemicalDescription",
+        "removesSpecies_hasChemicalFormula",
+        "removesSpecies_hasPurity",
+        "hasVessel_label",
+        "hasVesselEnvironment_label",
+        "usesEquipment_label",
+        "hasVesselType_label",
+        "isSuppliedBy_label",
+        "referencesMaterial_label"
+      ],
+      "self_facets": [
+        "hasEvaporationPressure",
+        "hasEvaporationTemperature",
+        "hasOrder",
+        "hasParameter",
+        "hasRotaryEvaporator",
+        "hasStepDuration",
+        "isEvaporatedToVolume"
+      ],
+      "nested_ownership": [
+        {
+          "argument": "hasVesselEnvironment_label",
+          "owner_path": "self.hasVesselEnvironment",
+          "property": "hasVesselEnvironment",
+          "role": "reusable_link_label",
+          "requires": []
+        },
+        {
+          "argument": "hasVesselType_label",
+          "owner_path": "self.hasVessel.hasVesselType",
+          "property": "hasVesselType",
+          "role": "nested_reusable_label",
+          "requires": [
+            "hasVessel_label"
+          ]
+        },
+        {
+          "argument": "hasVessel_label",
+          "owner_path": "self.hasVessel",
+          "property": "hasVessel",
+          "role": "reusable_link_label",
+          "requires": []
+        },
+        {
+          "argument": "isSuppliedBy_label",
+          "owner_path": "self.removesSpecies.isSuppliedBy",
+          "property": "isSuppliedBy",
+          "role": "nested_reusable_label",
+          "requires": [
+            "removesSpecies_label"
+          ]
+        },
+        {
+          "argument": "referencesMaterial_label",
+          "owner_path": "self.removesSpecies.referencesMaterial",
+          "property": "referencesMaterial",
+          "role": "nested_reusable_label",
+          "requires": [
+            "removesSpecies_label"
+          ]
+        },
+        {
+          "argument": "removesSpecies_hasAlternativeNames",
+          "owner_path": "self.removesSpecies",
+          "property": "hasAlternativeNames",
+          "role": "nested_datatype",
+          "requires": [
+            "removesSpecies_label"
+          ]
+        },
+        {
+          "argument": "removesSpecies_hasAmount",
+          "owner_path": "self.removesSpecies",
+          "property": "hasAmount",
+          "role": "nested_datatype",
+          "requires": [
+            "removesSpecies_label"
+          ]
+        },
+        {
+          "argument": "removesSpecies_hasChemicalDescription",
+          "owner_path": "self.removesSpecies",
+          "property": "hasChemicalDescription",
+          "role": "nested_datatype",
+          "requires": [
+            "removesSpecies_label"
+          ]
+        },
+        {
+          "argument": "removesSpecies_hasChemicalFormula",
+          "owner_path": "self.removesSpecies",
+          "property": "hasChemicalFormula",
+          "role": "nested_datatype",
+          "requires": [
+            "removesSpecies_label"
+          ]
+        },
+        {
+          "argument": "removesSpecies_hasPurity",
+          "owner_path": "self.removesSpecies",
+          "property": "hasPurity",
+          "role": "nested_datatype",
+          "requires": [
+            "removesSpecies_label"
+          ]
+        },
+        {
+          "argument": "removesSpecies_label",
+          "owner_path": "self.removesSpecies",
+          "property": "removesSpecies",
+          "role": "fresh_dependent_label",
+          "requires": []
+        },
+        {
+          "argument": "usesEquipment_label",
+          "owner_path": "self.usesEquipment",
+          "property": "usesEquipment",
+          "role": "reusable_link_label",
+          "requires": []
+        }
+      ]
+    },
+    {
+      "owner_class": "ExecutionPoint",
+      "parent_predicate": "",
+      "parent_is_bound_root": false,
+      "ordered": false,
+      "allowed_arguments": [
+        "label"
+      ],
+      "self_facets": [],
+      "nested_ownership": []
+    },
+    {
+      "owner_class": "Filter",
+      "parent_predicate": "hasSynthesisStep",
+      "parent_is_bound_root": true,
+      "ordered": true,
+      "allowed_arguments": [
+        "label",
+        "parent_iri",
+        "hasOrder",
+        "hasParameter",
+        "isRepeated",
+        "isVacuumFiltration",
+        "hasStepDuration",
+        "hasWashingSolvent_label",
+        "hasWashingSolvent_hasAlternativeNames",
+        "hasWashingSolvent_hasAmount",
+        "hasWashingSolvent_hasChemicalDescription",
+        "hasWashingSolvent_hasChemicalFormula",
+        "hasWashingSolvent_hasPurity",
+        "hasVessel_label",
+        "hasVesselEnvironment_label",
+        "usesEquipment_label",
+        "hasVesselType_label",
+        "isSuppliedBy_label",
+        "referencesMaterial_label"
+      ],
+      "self_facets": [
+        "hasOrder",
+        "hasParameter",
+        "hasStepDuration",
+        "isRepeated",
+        "isVacuumFiltration"
+      ],
+      "nested_ownership": [
+        {
+          "argument": "hasVesselEnvironment_label",
+          "owner_path": "self.hasVesselEnvironment",
+          "property": "hasVesselEnvironment",
+          "role": "reusable_link_label",
+          "requires": []
+        },
+        {
+          "argument": "hasVesselType_label",
+          "owner_path": "self.hasVessel.hasVesselType",
+          "property": "hasVesselType",
+          "role": "nested_reusable_label",
+          "requires": [
+            "hasVessel_label"
+          ]
+        },
+        {
+          "argument": "hasVessel_label",
+          "owner_path": "self.hasVessel",
+          "property": "hasVessel",
+          "role": "reusable_link_label",
+          "requires": []
+        },
+        {
+          "argument": "hasWashingSolvent_hasAlternativeNames",
+          "owner_path": "self.hasWashingSolvent",
+          "property": "hasAlternativeNames",
+          "role": "nested_datatype",
+          "requires": [
+            "hasWashingSolvent_label"
+          ]
+        },
+        {
+          "argument": "hasWashingSolvent_hasAmount",
+          "owner_path": "self.hasWashingSolvent",
+          "property": "hasAmount",
+          "role": "nested_datatype",
+          "requires": [
+            "hasWashingSolvent_label"
+          ]
+        },
+        {
+          "argument": "hasWashingSolvent_hasChemicalDescription",
+          "owner_path": "self.hasWashingSolvent",
+          "property": "hasChemicalDescription",
+          "role": "nested_datatype",
+          "requires": [
+            "hasWashingSolvent_label"
+          ]
+        },
+        {
+          "argument": "hasWashingSolvent_hasChemicalFormula",
+          "owner_path": "self.hasWashingSolvent",
+          "property": "hasChemicalFormula",
+          "role": "nested_datatype",
+          "requires": [
+            "hasWashingSolvent_label"
+          ]
+        },
+        {
+          "argument": "hasWashingSolvent_hasPurity",
+          "owner_path": "self.hasWashingSolvent",
+          "property": "hasPurity",
+          "role": "nested_datatype",
+          "requires": [
+            "hasWashingSolvent_label"
+          ]
+        },
+        {
+          "argument": "hasWashingSolvent_label",
+          "owner_path": "self.hasWashingSolvent",
+          "property": "hasWashingSolvent",
+          "role": "fresh_dependent_label",
+          "requires": []
+        },
+        {
+          "argument": "isSuppliedBy_label",
+          "owner_path": "self.hasWashingSolvent.isSuppliedBy",
+          "property": "isSuppliedBy",
+          "role": "nested_reusable_label",
+          "requires": [
+            "hasWashingSolvent_label"
+          ]
+        },
+        {
+          "argument": "referencesMaterial_label",
+          "owner_path": "self.hasWashingSolvent.referencesMaterial",
+          "property": "referencesMaterial",
+          "role": "nested_reusable_label",
+          "requires": [
+            "hasWashingSolvent_label"
+          ]
+        },
+        {
+          "argument": "usesEquipment_label",
+          "owner_path": "self.usesEquipment",
+          "property": "usesEquipment",
+          "role": "reusable_link_label",
+          "requires": []
+        }
+      ]
+    },
+    {
+      "owner_class": "HeatChill",
+      "parent_predicate": "hasSynthesisStep",
+      "parent_is_bound_root": true,
+      "ordered": true,
+      "allowed_arguments": [
+        "label",
+        "parent_iri",
+        "hasOrder",
+        "hasParameter",
+        "hasVacuum",
+        "isSealed",
+        "isStirredHeatChill",
+        "hasStepDuration",
+        "hasTargetTemperature",
+        "hasTemperatureRate",
+        "hasHeatChillDevice_label",
+        "hasVessel_label",
+        "hasVesselEnvironment_label",
+        "usesEquipment_label",
+        "hasVesselType_label"
+      ],
+      "self_facets": [
+        "hasOrder",
+        "hasParameter",
+        "hasStepDuration",
+        "hasTargetTemperature",
+        "hasTemperatureRate",
+        "hasVacuum",
+        "isSealed",
+        "isStirredHeatChill"
+      ],
+      "nested_ownership": [
+        {
+          "argument": "hasHeatChillDevice_label",
+          "owner_path": "self.hasHeatChillDevice",
+          "property": "hasHeatChillDevice",
+          "role": "reusable_link_label",
+          "requires": []
+        },
+        {
+          "argument": "hasVesselEnvironment_label",
+          "owner_path": "self.hasVesselEnvironment",
+          "property": "hasVesselEnvironment",
+          "role": "reusable_link_label",
+          "requires": []
+        },
+        {
+          "argument": "hasVesselType_label",
+          "owner_path": "self.hasVessel.hasVesselType",
+          "property": "hasVesselType",
+          "role": "nested_reusable_label",
+          "requires": [
+            "hasVessel_label"
+          ]
+        },
+        {
+          "argument": "hasVessel_label",
+          "owner_path": "self.hasVessel",
+          "property": "hasVessel",
+          "role": "reusable_link_label",
+          "requires": []
+        },
+        {
+          "argument": "usesEquipment_label",
+          "owner_path": "self.usesEquipment",
+          "property": "usesEquipment",
+          "role": "reusable_link_label",
+          "requires": []
+        }
+      ]
+    },
+    {
+      "owner_class": "Separate",
+      "parent_predicate": "hasSynthesisStep",
+      "parent_is_bound_root": true,
+      "ordered": true,
+      "allowed_arguments": [
+        "label",
+        "parent_iri",
+        "hasOrder",
+        "hasParameter",
+        "hasStepDuration",
+        "hasSeparationSolvent_label",
+        "hasSeparationSolvent_hasAlternativeNames",
+        "hasSeparationSolvent_hasAmount",
+        "hasSeparationSolvent_hasChemicalDescription",
+        "hasSeparationSolvent_hasChemicalFormula",
+        "hasSeparationSolvent_hasPurity",
+        "hasVessel_label",
+        "hasVesselEnvironment_label",
+        "isSeparationType_label",
+        "usesEquipment_label",
+        "isSuppliedBy_label",
+        "referencesMaterial_label",
+        "hasVesselType_label"
+      ],
+      "self_facets": [
+        "hasOrder",
+        "hasParameter",
+        "hasStepDuration"
+      ],
+      "nested_ownership": [
+        {
+          "argument": "hasSeparationSolvent_hasAlternativeNames",
+          "owner_path": "self.hasSeparationSolvent",
+          "property": "hasAlternativeNames",
+          "role": "nested_datatype",
+          "requires": [
+            "hasSeparationSolvent_label"
+          ]
+        },
+        {
+          "argument": "hasSeparationSolvent_hasAmount",
+          "owner_path": "self.hasSeparationSolvent",
+          "property": "hasAmount",
+          "role": "nested_datatype",
+          "requires": [
+            "hasSeparationSolvent_label"
+          ]
+        },
+        {
+          "argument": "hasSeparationSolvent_hasChemicalDescription",
+          "owner_path": "self.hasSeparationSolvent",
+          "property": "hasChemicalDescription",
+          "role": "nested_datatype",
+          "requires": [
+            "hasSeparationSolvent_label"
+          ]
+        },
+        {
+          "argument": "hasSeparationSolvent_hasChemicalFormula",
+          "owner_path": "self.hasSeparationSolvent",
+          "property": "hasChemicalFormula",
+          "role": "nested_datatype",
+          "requires": [
+            "hasSeparationSolvent_label"
+          ]
+        },
+        {
+          "argument": "hasSeparationSolvent_hasPurity",
+          "owner_path": "self.hasSeparationSolvent",
+          "property": "hasPurity",
+          "role": "nested_datatype",
+          "requires": [
+            "hasSeparationSolvent_label"
+          ]
+        },
+        {
+          "argument": "hasSeparationSolvent_label",
+          "owner_path": "self.hasSeparationSolvent",
+          "property": "hasSeparationSolvent",
+          "role": "fresh_dependent_label",
+          "requires": []
+        },
+        {
+          "argument": "hasVesselEnvironment_label",
+          "owner_path": "self.hasVesselEnvironment",
+          "property": "hasVesselEnvironment",
+          "role": "reusable_link_label",
+          "requires": []
+        },
+        {
+          "argument": "hasVesselType_label",
+          "owner_path": "self.hasVessel.hasVesselType",
+          "property": "hasVesselType",
+          "role": "nested_reusable_label",
+          "requires": [
+            "hasVessel_label"
+          ]
+        },
+        {
+          "argument": "hasVessel_label",
+          "owner_path": "self.hasVessel",
+          "property": "hasVessel",
+          "role": "reusable_link_label",
+          "requires": []
+        },
+        {
+          "argument": "isSeparationType_label",
+          "owner_path": "self.isSeparationType",
+          "property": "isSeparationType",
+          "role": "reusable_link_label",
+          "requires": []
+        },
+        {
+          "argument": "isSuppliedBy_label",
+          "owner_path": "self.hasSeparationSolvent.isSuppliedBy",
+          "property": "isSuppliedBy",
+          "role": "nested_reusable_label",
+          "requires": [
+            "hasSeparationSolvent_label"
+          ]
+        },
+        {
+          "argument": "referencesMaterial_label",
+          "owner_path": "self.hasSeparationSolvent.referencesMaterial",
+          "property": "referencesMaterial",
+          "role": "nested_reusable_label",
+          "requires": [
+            "hasSeparationSolvent_label"
+          ]
+        },
+        {
+          "argument": "usesEquipment_label",
+          "owner_path": "self.usesEquipment",
+          "property": "usesEquipment",
+          "role": "reusable_link_label",
+          "requires": []
+        }
+      ]
+    },
+    {
+      "owner_class": "Sonicate",
+      "parent_predicate": "hasSynthesisStep",
+      "parent_is_bound_root": true,
+      "ordered": true,
+      "allowed_arguments": [
+        "label",
+        "parent_iri",
+        "hasOrder",
+        "hasParameter",
+        "hasStepDuration",
+        "hasVessel_label",
+        "hasVesselEnvironment_label",
+        "usesEquipment_label",
+        "hasVesselType_label"
+      ],
+      "self_facets": [
+        "hasOrder",
+        "hasParameter",
+        "hasStepDuration"
+      ],
+      "nested_ownership": [
+        {
+          "argument": "hasVesselEnvironment_label",
+          "owner_path": "self.hasVesselEnvironment",
+          "property": "hasVesselEnvironment",
+          "role": "reusable_link_label",
+          "requires": []
+        },
+        {
+          "argument": "hasVesselType_label",
+          "owner_path": "self.hasVessel.hasVesselType",
+          "property": "hasVesselType",
+          "role": "nested_reusable_label",
+          "requires": [
+            "hasVessel_label"
+          ]
+        },
+        {
+          "argument": "hasVessel_label",
+          "owner_path": "self.hasVessel",
+          "property": "hasVessel",
+          "role": "reusable_link_label",
+          "requires": []
+        },
+        {
+          "argument": "usesEquipment_label",
+          "owner_path": "self.usesEquipment",
+          "property": "usesEquipment",
+          "role": "reusable_link_label",
+          "requires": []
+        }
+      ]
+    },
+    {
+      "owner_class": "Stir",
+      "parent_predicate": "hasSynthesisStep",
+      "parent_is_bound_root": true,
+      "ordered": true,
+      "allowed_arguments": [
+        "label",
+        "parent_iri",
+        "hasOrder",
+        "hasParameter",
+        "isWait",
+        "hasStepDuration",
+        "hasStirringTemperature",
+        "hasVessel_label",
+        "hasVesselEnvironment_label",
+        "usesEquipment_label",
+        "hasVesselType_label"
+      ],
+      "self_facets": [
+        "hasOrder",
+        "hasParameter",
+        "hasStepDuration",
+        "hasStirringTemperature",
+        "isWait"
+      ],
+      "nested_ownership": [
+        {
+          "argument": "hasVesselEnvironment_label",
+          "owner_path": "self.hasVesselEnvironment",
+          "property": "hasVesselEnvironment",
+          "role": "reusable_link_label",
+          "requires": []
+        },
+        {
+          "argument": "hasVesselType_label",
+          "owner_path": "self.hasVessel.hasVesselType",
+          "property": "hasVesselType",
+          "role": "nested_reusable_label",
+          "requires": [
+            "hasVessel_label"
+          ]
+        },
+        {
+          "argument": "hasVessel_label",
+          "owner_path": "self.hasVessel",
+          "property": "hasVessel",
+          "role": "reusable_link_label",
+          "requires": []
+        },
+        {
+          "argument": "usesEquipment_label",
+          "owner_path": "self.usesEquipment",
+          "property": "usesEquipment",
+          "role": "reusable_link_label",
+          "requires": []
+        }
+      ]
+    },
+    {
+      "owner_class": "Transfer",
+      "parent_predicate": "hasSynthesisStep",
+      "parent_is_bound_root": true,
+      "ordered": true,
+      "allowed_arguments": [
+        "label",
+        "parent_iri",
+        "hasOrder",
+        "hasParameter",
+        "isLayeredTransfer",
+        "hasStepDuration",
+        "hasTransferedAmount",
+        "hasVessel_label",
+        "hasVesselEnvironment_label",
+        "isTransferedTo_label",
+        "usesEquipment_label",
+        "hasVesselType_label"
+      ],
+      "self_facets": [
+        "hasOrder",
+        "hasParameter",
+        "hasStepDuration",
+        "hasTransferedAmount",
+        "isLayeredTransfer"
+      ],
+      "nested_ownership": [
+        {
+          "argument": "hasVesselEnvironment_label",
+          "owner_path": "self.hasVesselEnvironment",
+          "property": "hasVesselEnvironment",
+          "role": "reusable_link_label",
+          "requires": []
+        },
+        {
+          "argument": "hasVesselType_label",
+          "owner_path": "self.isTransferedTo.hasVesselType",
+          "property": "hasVesselType",
+          "role": "nested_reusable_label",
+          "requires": [
+            "isTransferedTo_label"
+          ]
+        },
+        {
+          "argument": "hasVessel_label",
+          "owner_path": "self.hasVessel",
+          "property": "hasVessel",
+          "role": "reusable_link_label",
+          "requires": []
+        },
+        {
+          "argument": "isTransferedTo_label",
+          "owner_path": "self.isTransferedTo",
+          "property": "isTransferedTo",
+          "role": "reusable_link_label",
+          "requires": []
+        },
+        {
+          "argument": "usesEquipment_label",
+          "owner_path": "self.usesEquipment",
+          "property": "usesEquipment",
+          "role": "reusable_link_label",
+          "requires": []
+        }
+      ]
+    }
+  ],
+  "root_linkers": [
+    {
+      "predicate": "hasDocumentContext",
+      "subject_class": "ChemicalSynthesis",
+      "object_class": "DocumentContext"
+    },
+    {
+      "predicate": "hasEquipment",
+      "subject_class": "ChemicalSynthesis",
+      "object_class": "LabEquipment"
+    },
+    {
+      "predicate": "retrievedFrom",
+      "subject_class": "ChemicalSynthesis",
+      "object_class": "Document"
+    }
+  ],
+  "reusable_classes": [
+    "Document",
+    "DocumentContext",
+    "Equipment",
+    "HeatChillDevice",
+    "LabEquipment",
+    "Material",
+    "MetalOrganicPolyhedron",
+    "SeparationType",
+    "Supplier",
+    "Vessel",
+    "VesselEnvironment",
+    "VesselType"
+  ]
+}
