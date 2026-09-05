@@ -132,6 +132,40 @@ def test_relationship_tool_contracts_are_compiled_only_from_tbox(
     assert contracts["hasUnknown"]["target_handling"] == "untyped_existing_iri"
 
 
+def test_abstract_ordered_parent_range_uses_concrete_subclass_creators(
+    tmp_path: Path,
+) -> None:
+    tbox = tmp_path / "abstract-range.ttl"
+    tbox.write_text(
+        """
+@prefix ex: <https://example.test/schema/> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+ex:Root a owl:Class .
+ex:Action a owl:Class .
+ex:ConcreteA a owl:Class ; rdfs:subClassOf ex:Action .
+ex:ConcreteB a owl:Class ; rdfs:subClassOf ex:Action .
+ex:hasAction a owl:ObjectProperty ;
+  rdfs:domain ex:Root ;
+  rdfs:range ex:Action .
+""".strip(),
+        encoding="utf-8",
+    )
+
+    contract = build_relationship_tool_contracts_from_tbox(tbox)["hasAction"]
+
+    assert contract["range_locals"] == ["Action"]
+    assert contract["materialization_target_locals"] == [
+        "ConcreteA",
+        "ConcreteB",
+    ]
+    assert contract["creator_tools"] == [
+        "create_ConcreteA",
+        "create_ConcreteB",
+    ]
+    assert "create_Action" not in contract["creator_tools"]
+
+
 def test_agentic_relationship_generation_consumes_compiled_contract(
     tmp_path: Path,
 ) -> None:
@@ -199,10 +233,47 @@ def test_agentic_relationship_validator_consumes_same_compiled_contract(
         encoding="utf-8",
     )
 
-    failures, warnings = _relationship_param_description_report(context)
-
-    assert failures == []
+    baseline_failures, warnings = _relationship_param_description_report(context)
     assert warnings == []
+
+    relationship_path = scripts_dir / "synthetic_creation_relationships.py"
+    relationship_path.write_text(
+        "from __future__ import annotations\n"
+        + relationship_path.read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    failures, _ = _relationship_param_description_report(context)
+    assert any("must not enable deferred annotations" in failure for failure in failures)
+    assert len(failures) == len(baseline_failures) + 1
+
+
+def test_relationship_description_phrases_are_not_hard_validated(
+    tmp_path: Path,
+) -> None:
+    scripts_dir = tmp_path / "scripts"
+    scripts_dir.mkdir()
+    (scripts_dir / "synthetic_creation_relationships.py").write_text(
+        "def add_hasInternal(subject_iri: str, object_iri: str, "
+        "reuse_authorization_token: str | None = None) -> str:\n"
+        "    return '{}'\n",
+        encoding="utf-8",
+    )
+    context = SimpleNamespace(
+        ontology=SimpleNamespace(name="synthetic"),
+        scripts_dir=scripts_dir,
+        parsed={"properties": {"hasInternal": {"kind": "object"}}},
+        contract={
+            "relationship_tool_contracts": {
+                "hasInternal": {
+                    "domain_iris": ["https://example.test/Source"],
+                    "range_locals": ["InternalTarget"],
+                    "creator_tools": ["create_InternalTarget"],
+                }
+            }
+        },
+    )
+    failures, _ = _relationship_param_description_report(context)
+    assert failures == []
 
 
 def test_relationship_metadata_repair_skill_is_domain_agnostic() -> None:

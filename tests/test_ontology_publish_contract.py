@@ -1,7 +1,8 @@
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
-from rdflib import Graph, RDF, URIRef
+from rdflib import Graph, Literal, RDF, RDFS, URIRef
 
 from src.agents.scripts_and_prompts_generation.generation_contracts import (
     build_generation_contract_bundle,
@@ -17,10 +18,105 @@ from src.pipelines.main_kg_building.build import (
     _repair_published_entity_ttl,
     _validate_entity_ttl_structure,
 )
+from src.pipelines.utils.ttl_publisher import (
+    _reusable_class_iris,
+    enforce_published_graph_hygiene,
+    publish_ttl,
+)
+from src.pipelines.utils import ttl_publisher
 
 
 NS = "https://example.test/ontology/"
 ENTITY = "https://example.test/entity/root"
+
+
+def test_publish_ttl_can_bypass_all_semantic_composition(
+    tmp_path: Path, monkeypatch
+) -> None:
+    doi = "paper"
+    source = tmp_path / doi / "intermediate.ttl"
+    top = tmp_path / doi / "memory" / "top.ttl"
+    source.parent.mkdir(parents=True)
+    top.parent.mkdir(parents=True)
+    source.write_text(
+        f"@prefix ex: <{NS}> .\n<{ENTITY}> a ex:Root ; ex:marker \"entity\" .\n",
+        encoding="utf-8",
+    )
+    top.write_text(
+        f"@prefix ex: <{NS}> .\n<{ENTITY}> ex:topMarker \"top\" .\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        ttl_publisher,
+        "get_output_naming_config",
+        lambda **_: SimpleNamespace(
+            output_dir="output",
+            entity_ttl_pattern="{entity_safe}.ttl",
+        ),
+    )
+    monkeypatch.setattr(
+        ttl_publisher,
+        "_get_main_entity_kg_policy",
+        lambda _: {"publish": {"merge_top_ttl_into_entity_ttl": True}},
+    )
+
+    published = publish_ttl(
+        doi_hash=doi,
+        ontology_name="fixture",
+        entity_safe="entity",
+        data_dir=str(tmp_path),
+        src_candidates=[str(source)],
+        apply_semantic_processing=False,
+    )
+
+    assert published is not None
+    graph = Graph().parse(published, format="turtle")
+    assert (URIRef(ENTITY), URIRef(f"{NS}marker"), Literal("entity")) in graph
+    assert (URIRef(ENTITY), URIRef(f"{NS}topMarker"), Literal("top")) not in graph
+
+
+def test_publish_hygiene_deduplicates_only_policy_reusable_classes() -> None:
+    root = URIRef(f"{NS}root")
+    occurrence_class = URIRef(f"{NS}Occurrence")
+    has_occurrence = URIRef(f"{NS}hasOccurrence")
+    first = URIRef(f"{NS}first")
+    second = URIRef(f"{NS}second")
+    graph = Graph()
+    graph.add((root, RDF.type, URIRef(f"{NS}Root")))
+    for node in (first, second):
+        graph.add((root, has_occurrence, node))
+        graph.add((node, RDF.type, occurrence_class))
+        graph.add((node, RDFS.label, Literal("same label")))
+
+    non_reusable = {
+        "reuse_policy": {
+            "classes": [
+                {"class_iri": str(occurrence_class), "reusable": False}
+            ]
+        }
+    }
+    preserved = enforce_published_graph_hygiene(
+        graph,
+        top_entity=root,
+        messages=[],
+        reusable_class_iris=_reusable_class_iris(non_reusable),
+    )
+    assert set(preserved.objects(root, has_occurrence)) == {first, second}
+
+    reusable = {
+        "reuse_policy": {
+            "classes": [
+                {"class_iri": str(occurrence_class), "reusable": True}
+            ]
+        }
+    }
+    merged = enforce_published_graph_hygiene(
+        graph,
+        top_entity=root,
+        messages=[],
+        reusable_class_iris=_reusable_class_iris(reusable),
+    )
+    assert len(set(merged.objects(root, has_occurrence))) == 1
 
 
 def _write_fixture(
@@ -138,6 +234,55 @@ def test_wrong_object_range_fails(tmp_path: Path) -> None:
 
     assert not ok
     assert any("range mismatch" in message for message in messages)
+
+
+def test_required_links_defer_known_external_top_roots_to_own_fragments(
+    tmp_path: Path,
+) -> None:
+    external = f"{NS}external-root"
+    source = f"{NS}source"
+    entity = tmp_path / "entity.ttl"
+    entity.write_text(
+        (
+            f"@prefix ex: <{NS}> .\n"
+            f"<{ENTITY}> a ex:Root ; ex:retrievedFrom <{source}> .\n"
+            f"<{external}> a ex:Root .\n"
+            f"<{source}> a ex:Document .\n"
+        ),
+        encoding="utf-8",
+    )
+    contract = {
+        "resolved_ttl_file": "active.ttl",
+        "subclass_closure": [],
+        "object_properties": [],
+        "required_links": [
+            {
+                "subject_class_iri": f"{NS}Root",
+                "predicate_iri": f"{NS}retrievedFrom",
+                "target_class_iri": f"{NS}Document",
+                "min_count": 1,
+            }
+        ],
+    }
+
+    ok, messages = _validate_entity_ttl_structure(
+        ttl_path=str(entity),
+        entity_uri=ENTITY,
+        entity_label="root",
+        ontology_contract=contract,
+        known_top_entity_uris={ENTITY, external},
+    )
+    assert ok, messages
+
+    local_ok, local_messages = _validate_entity_ttl_structure(
+        ttl_path=str(entity),
+        entity_uri=ENTITY,
+        entity_label="root",
+        ontology_contract=contract,
+        known_top_entity_uris={ENTITY},
+    )
+    assert not local_ok
+    assert any(external in message for message in local_messages)
 
 
 def test_legacy_shell_validation_mutation_does_not_change_contract(

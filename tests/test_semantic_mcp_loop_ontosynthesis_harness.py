@@ -8,6 +8,8 @@ import shutil
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
 from src.agents.scripts_and_prompts_generation.agentic_generation_context import (
     build_agentic_generation_context,
@@ -18,7 +20,17 @@ from src.agents.scripts_and_prompts_generation.level1_code_repair import (
 )
 from src.agents.scripts_and_prompts_generation.semantic_mcp_loop_ontosynthesis import (
     SEMANTIC_POISON_PROP,
+    _canonicalize_fixture_exclusions,
+    _canonicalize_required_link_hints,
+    _canonicalize_top_entity_evidence,
     _context_from_scripts,
+    _fixture_required_link_gaps,
+    _fixture_hint_shape_gaps,
+    _fixture_failure_score,
+    _fixture_blocking_gaps,
+    _fixture_ordering_gaps,
+    _fixture_ordered_parent_link_gaps,
+    _fixture_top_entity_evidence_gaps,
     exercise_level1_fail,
     exercise_semantic_fail,
     package_semantic_feedback,
@@ -33,6 +45,7 @@ from src.agents.scripts_and_prompts_generation.semantic_mcp_loop_ontosynthesis i
     run_mcp_harness,
     run_prove_repairs,
     run_reasoner_gate,
+    generate_mock_fixture,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -50,6 +63,332 @@ TBOX = [
 
 
 class TestSemanticMcpLoopOntosynthesisHarness(unittest.TestCase):
+    def test_fixture_hint_shape_enforces_object_and_nested_target_ownership(
+        self,
+    ) -> None:
+        inventory = {
+            "classes": {
+                "Source": {"parent_classes": []},
+                "Target": {"parent_classes": []},
+            },
+            "properties": {
+                "linksTo": {
+                    "kind": "object",
+                    "domains": ["Source"],
+                    "range": "Target",
+                },
+                "targetCode": {
+                    "kind": "datatype",
+                    "domains": ["Target"],
+                    "range": "string",
+                },
+            },
+        }
+        valid = _fixture_hint_shape_gaps(
+            inventory=inventory,
+            hints={
+                "Source": {
+                    "label": "source",
+                    "linksTo": {"label": "target", "targetCode": "code"},
+                }
+            },
+        )
+        invalid = _fixture_hint_shape_gaps(
+            inventory=inventory,
+            hints={
+                "Source": {
+                    "label": "source",
+                    "linksTo": "target",
+                    "targetCode": "code",
+                }
+            },
+        )
+        self.assertEqual([], valid)
+        self.assertEqual(
+            {
+                "object_property_requires_label_or_nested_object",
+                "property_domain_mismatch",
+            },
+            {item["code"] for item in invalid},
+        )
+
+    def test_fixture_hint_shape_allows_contract_declared_scalar_quantity(
+        self,
+    ) -> None:
+        gaps = _fixture_hint_shape_gaps(
+            inventory={
+                "classes": {"Owner": {"parent_classes": []}},
+                "properties": {
+                    "hasQuantity": {
+                        "kind": "object",
+                        "domains": ["Owner"],
+                        "range": "Quantity",
+                        "hint_value_mode": "scalar_quantity",
+                    }
+                },
+            },
+            hints={"Owner": {"label": "owner", "hasQuantity": "5 unit"}},
+        )
+        self.assertEqual([], gaps)
+
+    def test_fixture_ordering_requires_unique_positive_integers(self) -> None:
+        gaps = _fixture_ordering_gaps(
+            inventory={
+                "primary_ordering_property": "hasOrder",
+                "ordered_member_classes": ["Step"],
+            },
+            hints={
+                "Step": [
+                    {"label": "A", "hasOrder": 1},
+                    {"label": "B", "hasOrder": 1},
+                    {"label": "C"},
+                ]
+            },
+        )
+        self.assertEqual(
+            {"duplicate_order", "invalid_or_missing_order"},
+            {item["code"] for item in gaps},
+        )
+
+    def test_fixture_requires_every_ordered_member_parent_link(self) -> None:
+        gaps = _fixture_ordered_parent_link_gaps(
+            inventory={
+                "top_entity_local": "Top",
+                "ordered_member_classes": ["ConcreteStep"],
+                "classes": {
+                    "Top": {"parent_classes": []},
+                    "Step": {"parent_classes": []},
+                    "ConcreteStep": {"parent_classes": ["Step"]},
+                },
+                "properties": {
+                    "hasStep": {
+                        "domains": ["Top"],
+                        "range": "Step",
+                    }
+                },
+            },
+            hints={
+                "Top": {
+                    "label": "Top A",
+                    "hasStep_label": ["Step A"],
+                },
+                "ConcreteStep": [
+                    {"label": "Step A"},
+                    {"label": "Step B"},
+                ],
+            },
+        )
+        self.assertEqual(["Step B"], gaps[0]["missing_labels"])
+
+    def test_fixture_failure_score_preserves_monotonic_staged_repairs(self) -> None:
+        two_structural = {
+            "missing_properties_in_hints": ["a", "b"],
+            "semantic_violations": [
+                {"code": "structural_review_blocked"}
+            ],
+        }
+        one_structural = {
+            "missing_properties_in_hints": ["a"],
+            "semantic_violations": [
+                {"code": "structural_review_blocked"}
+            ],
+        }
+        semantic_only = {
+            "semantic_violations": [
+                {"code": "unsupported_fact"},
+                {"code": "wrong_scope"},
+            ]
+        }
+        self.assertLess(
+            _fixture_failure_score(one_structural),
+            _fixture_failure_score(two_structural),
+        )
+        self.assertLess(
+            _fixture_failure_score(semantic_only),
+            _fixture_failure_score(one_structural),
+        )
+
+    def test_fixture_repair_feedback_hides_structural_review_placeholder(
+        self,
+    ) -> None:
+        blocking = _fixture_blocking_gaps(
+            {
+                "missing_properties_in_hints": ["propertyA"],
+                "semantic_violations": [
+                    {"code": "structural_review_blocked"}
+                ],
+                "required_class_count": 20,
+            }
+        )
+        self.assertEqual(
+            {"missing_properties_in_hints": ["propertyA"]},
+            blocking,
+        )
+
+    def test_fixture_canonicalization_uses_only_tbox_derived_repairs(self) -> None:
+        inventory = {
+            "structurally_unreachable_classes": ["Unreachable"],
+            "required_links": [
+                {
+                    "subject_class_iri": "https://example.com/Top",
+                    "predicate_iri": "https://example.com/fromSource",
+                }
+            ],
+        }
+        exclusions = _canonicalize_fixture_exclusions(
+            inventory=inventory,
+            exclusions=[
+                {
+                    "kind": "class",
+                    "local": "Unreachable",
+                    "reason": "No path.",
+                    "tbox_evidence": "",
+                }
+            ],
+        )
+        hints = {"Top": {"label": "Top A"}}
+        _canonicalize_required_link_hints(
+            inventory=inventory,
+            document_md="Top A fromSource Source A.",
+            hints=hints,
+            assertions=[
+                {
+                    "subject_class": "Top",
+                    "subject_label": "Top A",
+                    "predicate": "fromSource",
+                    "object_label": "Source A",
+                }
+            ],
+        )
+        self.assertIn("incoming_object_properties=[]", exclusions[0]["tbox_evidence"])
+        self.assertEqual("Source A", hints["Top"]["fromSource_label"])
+
+    def test_required_link_walk_assigns_nested_object_range_class(self) -> None:
+        gaps = _fixture_required_link_gaps(
+            inventory={
+                "properties": {
+                    "hasYield": {
+                        "kind": "object",
+                        "range": "AmountOfSubstanceFraction",
+                    },
+                    "retrievedFrom": {"kind": "object", "range": "Document"},
+                },
+                "required_links": [
+                    {
+                        "subject_class_iri": "https://example.com/ChemicalSynthesis",
+                        "predicate_iri": "https://example.com/retrievedFrom",
+                        "target_class_iri": "https://example.com/Document",
+                        "min_count": 1,
+                    }
+                ],
+            },
+            document_md="Synthesis A retrievedFrom Document A.",
+            hints={
+                "ChemicalSynthesis": {
+                    "label": "Synthesis A",
+                    "hasYield": {"label": "68%"},
+                    "retrievedFrom_label": "Document A",
+                },
+                "Document": {"label": "Document A"},
+            },
+            assertions=[
+                {
+                    "subject_label": "Synthesis A",
+                    "predicate": "retrievedFrom",
+                    "object_label": "Document A",
+                }
+            ],
+        )
+        self.assertEqual([], gaps)
+
+    def test_fixture_generation_repairs_persisted_baseline_instead_of_regenerating(
+        self,
+    ) -> None:
+        baseline = {
+            "document_md": "Top A is documented.",
+            "hints": {"Top": {"label": "Top A"}},
+            "coverage": ["Top"],
+            "property_coverage": ["missingProperty"],
+            "top_entity_evidence": [],
+        }
+        llm_result = SimpleNamespace(
+            data=baseline,
+            elapsed_seconds=1.0,
+            token_usage={"total_tokens": 10},
+            raw_response=json.dumps(baseline),
+        )
+        incomplete_gaps = {
+            "missing_properties_in_hints": ["missingProperty"],
+            "required_link_assertion_gaps": [],
+            "semantic_violations": [
+                {
+                    "code": "structural_review_blocked",
+                    "detail": "deterministic fixture checks must pass first",
+                }
+            ],
+        }
+        complete_gaps = {
+            "missing_properties_in_hints": [],
+            "required_link_assertion_gaps": [],
+            "semantic_violations": [],
+        }
+
+        def exact_editor(**kwargs: object) -> dict[str, object]:
+            target = list(kwargs["targets"])[0]  # type: ignore[index]
+            candidate = json.loads(target.read_text(encoding="utf-8"))
+            candidate["hints"]["Top"]["missingProperty"] = "value"
+            target.write_text(json.dumps(candidate), encoding="utf-8")
+            validation = kwargs["validate"]()  # type: ignore[index,operator]
+            return {"ok": validation["ok"], "attempts": [{"validation": validation}]}
+
+        with tempfile.TemporaryDirectory() as tmp, patch(
+            "src.agents.scripts_and_prompts_generation."
+            "semantic_mcp_loop_ontosynthesis.invoke_json",
+            return_value=llm_result,
+        ) as invoke, patch(
+            "src.agents.scripts_and_prompts_generation."
+            "semantic_mcp_loop_ontosynthesis._fixture_prompt",
+            return_value="fixture prompt",
+        ), patch(
+            "src.agents.scripts_and_prompts_generation."
+            "semantic_mcp_loop_ontosynthesis._fixture_repair_prompt",
+            return_value="repair prompt",
+        ), patch(
+            "src.agents.scripts_and_prompts_generation."
+            "semantic_mcp_loop_ontosynthesis._tbox_fixture_inventory",
+            return_value={
+                "top_entity_local": "Top",
+                "top_entity_allows_multiple": False,
+            },
+        ), patch(
+            "src.agents.scripts_and_prompts_generation."
+            "semantic_mcp_loop_ontosynthesis._evaluate_fixture_candidate",
+            side_effect=[
+                (incomplete_gaps, {"ok": False, "violations": []}, False),
+                (complete_gaps, {"ok": True, "violations": []}, True),
+            ],
+        ), patch(
+            "src.agents.scripts_and_prompts_generation."
+            "semantic_mcp_loop_ontosynthesis.run_llm_exact_edit_editor",
+            side_effect=exact_editor,
+        ):
+            destination = Path(tmp) / "fixture.json"
+            result = generate_mock_fixture(
+                context=SimpleNamespace(),
+                model="gpt-5",
+                dest=destination,
+                max_attempts=3,
+            )
+
+            self.assertTrue(result["tbox_coverage_complete"])
+            self.assertEqual(1, invoke.call_count)
+            self.assertTrue(
+                (Path(tmp) / "fixture_attempts" / "baseline_candidate.json").is_file()
+            )
+            self.assertTrue(
+                (Path(tmp) / "fixture_attempts" / "repair_report.json").is_file()
+            )
+
     def test_react_output_prefers_entity_closures_over_bootstrap_top(
         self,
     ) -> None:
@@ -235,8 +574,7 @@ ex:item ex:label "Validator ChemicalSynthesis" .
                 """
 @prefix ex: <https://example.org/> .
 @prefix owl: <http://www.w3.org/2002/07/owl#> .
-ex:Entity a owl:Class ;
-    ex:instanceIntegrityRule "one_individual_per_entity" .
+ex:Entity a owl:Class .
 ex:relatesTo a owl:ObjectProperty .
 """,
                 encoding="utf-8",
@@ -373,6 +711,132 @@ ex:relatesTo a owl:ObjectProperty .
         # Orchestrator helpers must not hard-require a fixed UMC-1 subset.
         self.assertGreaterEqual(len(inventory["all_class_locals"]), 10)
 
+    def test_fixture_required_links_close_over_nested_targets(self) -> None:
+        inventory = _tbox_fixture_inventory(self.context)
+        hints = {
+            "ChemicalSynthesis": {
+                "label": "SYN_MOP",
+                "retrievedFrom_label": "DOC_SI",
+                "inheritsFromProcedure_label": "SYN_TEMPLATE",
+            }
+        }
+        incomplete = _fixture_required_link_gaps(
+            inventory=inventory,
+            document_md=(
+                "SYN_MOP retrievedFrom DOC_SI. "
+                "SYN_MOP inheritsFromProcedure SYN_TEMPLATE."
+            ),
+            hints=hints,
+            assertions=[
+                {
+                    "subject_label": "SYN_MOP",
+                    "subject_class": "ChemicalSynthesis",
+                    "predicate": "retrievedFrom",
+                    "object_label": "DOC_SI",
+                }
+            ],
+        )
+        self.assertIn(
+            {
+                "subject_label": "SYN_TEMPLATE",
+                "subject_class": "ChemicalSynthesis",
+                "predicate": "retrievedFrom",
+                "target_class": "Document",
+                "min_count": 1,
+                "declared_target_count": 0,
+            },
+            incomplete,
+        )
+
+        complete = _fixture_required_link_gaps(
+            inventory=inventory,
+            document_md=(
+                "SYN_MOP retrievedFrom DOC_SI. "
+                "SYN_MOP inheritsFromProcedure SYN_TEMPLATE. "
+                "SYN_TEMPLATE retrievedFrom DOC_SI."
+            ),
+            hints=hints,
+            assertions=[
+                {
+                    "subject_label": "SYN_MOP",
+                    "subject_class": "ChemicalSynthesis",
+                    "predicate": "retrievedFrom",
+                    "object_label": "DOC_SI",
+                },
+                {
+                    "subject_label": "SYN_TEMPLATE",
+                    "subject_class": "ChemicalSynthesis",
+                    "predicate": "retrievedFrom",
+                    "object_label": "DOC_SI",
+                },
+            ],
+        )
+        self.assertEqual([], complete)
+
+    def test_fixture_top_entities_require_distinct_verbatim_evidence(self) -> None:
+        document = "Entity A has fact alpha. Entity B has fact beta."
+        gaps = _fixture_top_entity_evidence_gaps(
+            document_md=document,
+            top_labels=["Entity A", "Entity B"],
+            evidence=[
+                {
+                    "label": "Entity A",
+                    "evidence": ["Entity A has fact alpha."],
+                },
+                {
+                    "label": "Entity B",
+                    "evidence": ["Entity A has fact alpha."],
+                },
+            ],
+        )
+        self.assertIn(
+            {
+                "code": "shared_top_entity_evidence",
+                "labels": ["Entity A", "Entity B"],
+                "evidence": ["Entity A has fact alpha."],
+            },
+            gaps,
+        )
+
+        self.assertEqual(
+            [],
+            _fixture_top_entity_evidence_gaps(
+                document_md=document,
+                top_labels=["Entity A", "Entity B"],
+                evidence=[
+                    {
+                        "label": "Entity A",
+                        "evidence": ["Entity A has fact alpha."],
+                    },
+                    {
+                        "label": "Entity B",
+                        "evidence": ["Entity B has fact beta."],
+                    },
+                ],
+            ),
+        )
+
+    def test_top_entity_evidence_canonicalization_does_not_change_semantics(
+        self,
+    ) -> None:
+        document = "Entity A has fact alpha.\nEntity B has fact beta."
+        self.assertEqual(
+            [
+                {"label": "Entity A", "evidence": ["Entity A has fact alpha."]},
+                {"label": "Entity B", "evidence": ["Entity B has fact beta."]},
+            ],
+            _canonicalize_top_entity_evidence(
+                document_md=document,
+                top_labels=["Entity A", "Entity B"],
+                evidence=[
+                    {
+                        "label": "Entity A",
+                        "evidence": ["Entity A has fact alpha plus invented text."],
+                    }
+                ],
+            ),
+        )
+
     def test_semantic_contract_projects_tbox_comments_without_domain_rules(self) -> None:
         projected = _semantic_ontology_contract(self.context)
         source_properties = self.context.parsed.get("properties") or {}
@@ -399,8 +863,13 @@ ex:relatesTo a owl:ObjectProperty .
             artifact_root=Path("candidate-b"),
             data_dir=Path("runtime-b"),
         )
+        concurrent = _react_mcp_config_path(
+            artifact_root=Path("candidate-a"),
+            data_dir=Path("runtime-a"),
+        )
 
         self.assertNotEqual(first, second)
+        self.assertNotEqual(first, concurrent)
         self.assertEqual(first.parent, ROOT / "configs")
         self.assertTrue(first.name.startswith("test_mcp_ontosynthesis_semantic_"))
 

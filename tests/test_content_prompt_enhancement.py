@@ -306,6 +306,23 @@ ex:item a ex:Entity .
             )
             self.assertEqual(merged["Add"][0]["hasOrder"], 1)
 
+    def test_predicted_hints_preserve_non_json_runtime_text(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="ontosyn_hint_text_") as tmp:
+            case_dir = Path(tmp)
+            run_dir = case_dir / "mcp_run"
+            run_dir.mkdir()
+            text = "1) Step type: Add\n- hasOrder: 1\n"
+            (run_dir / "iter3_hints_case.txt").write_text(
+                text,
+                encoding="utf-8",
+            )
+
+            merged = load_predicted_hints(case_dir)
+
+            artifact = merged["runtime_hint_artifacts"][0]
+            self.assertEqual(artifact["representation"], "text")
+            self.assertEqual(artifact["content"], text)
+
     def test_generated_om2_contract_uses_fixed_runtime(self) -> None:
         with tempfile.TemporaryDirectory(prefix="ontosyn_om2_contract_") as tmp:
             root = Path(tmp)
@@ -372,6 +389,47 @@ ex:duration1 a om:Duration .
             violations = (report.get("details") or {}).get("om2_quantity_violations") or []
             self.assertFalse(report["ok"])
             self.assertEqual(len(violations), 2)
+
+    def test_abox_gate_accepts_controlled_qualitative_temperature(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="ontosyn_qualitative_temp_") as tmp:
+            root = Path(tmp)
+            tbox = root / "tbox.ttl"
+            abox = root / "abox.ttl"
+            tbox.write_text(
+                """
+@prefix ex: <https://example.com/> .
+@prefix om: <http://www.ontology-of-units-of-measure.org/resource/om-2/> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+ex:Step a owl:Class .
+om:Temperature a owl:Class .
+ex:hasTemperature a owl:ObjectProperty ;
+  rdfs:domain ex:Step ;
+  rdfs:range om:Temperature .
+om:hasNumericalValue a owl:DatatypeProperty .
+om:hasUnit a owl:ObjectProperty .
+""".strip(),
+                encoding="utf-8",
+            )
+            abox.write_text(
+                """
+@prefix ex: <https://example.com/> .
+@prefix om: <http://www.ontology-of-units-of-measure.org/resource/om-2/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+ex:step1 a ex:Step ; ex:hasTemperature ex:roomTemperature .
+ex:roomTemperature a om:Temperature ;
+  rdfs:label "room temperature" .
+""".strip(),
+                encoding="utf-8",
+            )
+            report = validate([tbox], [abox], run_hermit=False)
+            violations = (
+                (report.get("details") or {}).get("om2_quantity_violations") or []
+            )
+            self.assertEqual(violations, [])
+            self.assertTrue(report["ok"])
 
 
 if __name__ == "__main__":

@@ -62,6 +62,71 @@ def test_exact_edit_applies_unique_replacement_and_builds_audit_diff(
     assert report["files"][0]["before_sha256"] != report["files"][0]["after_sha256"]
 
 
+def test_additive_policy_preserves_old_text_and_allows_small_insertion(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "prompt.md"
+    target.write_text("# Rules\n\n- Preserve order.\n", encoding="utf-8")
+    payload = _payload(
+        "prompt.md",
+        _digest(target),
+        [
+            {
+                "edit_id": "add-rule",
+                "kind": "replace_exact",
+                "old_text": "- Preserve order.",
+                "new_text": (
+                    "- Preserve order.\n"
+                    "- Record layered transfers with the T-Box property."
+                ),
+            }
+        ],
+    )
+
+    report = apply_exact_edit_payload(
+        output_root=tmp_path,
+        targets=[target],
+        edit_payload=payload,
+        additive_only=True,
+        max_added_lines=2,
+        max_operations=1,
+    )
+
+    assert report["ok"], report
+    assert "- Preserve order." in target.read_text(encoding="utf-8")
+
+
+def test_additive_policy_rejects_rewrite_atomically(tmp_path: Path) -> None:
+    target = tmp_path / "prompt.md"
+    original = "# Rules\n\n- Preserve order.\n"
+    target.write_text(original, encoding="utf-8")
+    payload = _payload(
+        "prompt.md",
+        _digest(target),
+        [
+            {
+                "edit_id": "rewrite-rule",
+                "kind": "replace_exact",
+                "old_text": "- Preserve order.",
+                "new_text": "- Reconstruct and optimize all step ordering.",
+            }
+        ],
+    )
+
+    report = apply_exact_edit_payload(
+        output_root=tmp_path,
+        targets=[target],
+        edit_payload=payload,
+        additive_only=True,
+        max_added_lines=2,
+        max_operations=1,
+    )
+
+    assert not report["ok"]
+    assert report["failures"][0]["code"] == "non_additive_exact_edit"
+    assert target.read_text(encoding="utf-8") == original
+
+
 @pytest.mark.parametrize(
     "content,old,code",
     [
@@ -355,6 +420,120 @@ def test_exact_llm_retry_reports_unauthorized_and_allowed_paths(
     assert '"unauthorized_paths": ["checks.py"]' in calls[1]
     assert '"allowed_editable_paths": ["scripts/onto/checks.py"]' in calls[1]
     assert target.read_text(encoding="utf-8") == "VALUE = 2\n"
+
+
+def test_field_schema_error_retries_beyond_normal_attempt_limit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = tmp_path / "checks.py"
+    target.write_text('FIELD = "original"\n', encoding="utf-8")
+    prompts: list[str] = []
+    responses = [
+        _payload(
+            "checks.py",
+            _digest(target),
+            [
+                {
+                    "edit_id": "wrong-field",
+                    "kind": "replace_exact",
+                    "old_text": 'FIELD = "original"',
+                    "new_text": 'FIELD = "violation_code"',
+                }
+            ],
+        ),
+        _payload(
+            "checks.py",
+            _digest(target),
+            [
+                {
+                    "edit_id": "right-field",
+                    "kind": "replace_exact",
+                    "old_text": 'FIELD = "original"',
+                    "new_text": 'FIELD = "code"',
+                }
+            ],
+        ),
+    ]
+
+    def fake_invoke(*args, **kwargs):
+        prompts.append(args[1])
+        return LLMJsonResult(
+            data=responses.pop(0),
+            elapsed_seconds=0.0,
+            token_usage={},
+        )
+
+    def validate():
+        if "violation_code" in target.read_text(encoding="utf-8"):
+            return {
+                "ok": False,
+                "failures": [
+                    "FIELD_SCHEMA_ERROR rename `violation_code` to required key `code`"
+                ],
+            }
+        return {"ok": True, "failures": []}
+
+    monkeypatch.setattr(exact_edit_editor, "invoke_json", fake_invoke)
+    report = exact_edit_editor.run_llm_exact_edit_editor(
+        model_name="test",
+        output_root=tmp_path,
+        targets=[target],
+        task_prompt="repair",
+        max_attempts=1,
+        validate=validate,
+    )
+
+    assert report["ok"], report
+    assert len(prompts) == 2
+    assert "FIELD_SCHEMA_ERROR" in prompts[1]
+    assert "not limited by the normal attempt budget" in prompts[1]
+    assert target.read_text(encoding="utf-8") == 'FIELD = "code"\n'
+
+
+def test_field_schema_retry_stops_on_repeated_semantic_candidate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = tmp_path / "checks.py"
+    target.write_text('FIELD = "original"\n', encoding="utf-8")
+    calls = 0
+
+    def fake_invoke(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        return LLMJsonResult(
+            data=_payload(
+                "checks.py",
+                _digest(target),
+                [
+                    {
+                        "edit_id": f"attempt-{calls}",
+                        "kind": "replace_exact",
+                        "old_text": 'FIELD = "original"',
+                        "new_text": 'FIELD = "violation_code"',
+                    }
+                ],
+            ),
+            elapsed_seconds=0.0,
+            token_usage={},
+        )
+
+    monkeypatch.setattr(exact_edit_editor, "invoke_json", fake_invoke)
+    report = exact_edit_editor.run_llm_exact_edit_editor(
+        model_name="test",
+        output_root=tmp_path,
+        targets=[target],
+        task_prompt="repair",
+        max_attempts=1,
+        validate=lambda: {
+            "ok": False,
+            "failures": ["FIELD_SCHEMA_ERROR use required key `code`"],
+        },
+    )
+
+    assert not report["ok"]
+    assert calls == 2
+    assert report["failures"][0]["code"] == "field_schema_retry_no_progress"
+    assert target.read_text(encoding="utf-8") == 'FIELD = "original"\n'
 
 
 def test_exact_edit_failure_codes_are_finite_and_unknown_codes_are_normalized() -> None:

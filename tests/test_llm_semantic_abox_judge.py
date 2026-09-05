@@ -129,16 +129,56 @@ def test_semantic_judge_excludes_contract_identified_free_text_from_scoring() ->
     assert "infer this only from the supplied contract" in prompt
 
 
+def test_semantic_judge_prompt_scopes_prior_facts_and_negative_evidence() -> None:
+    prompt = build_semantic_judge_prompt(
+        document_text=(
+            "For the occurrence:\n- hasYield: 49%\n"
+            "No laboratory equipment is explicitly named."
+        ),
+        ontology_contract={
+            "iteration_audit_scope": {
+                "policy": "trusted prior iterations; negative evidence means omit",
+                "owned_object_properties": ["hasEquipment", "hasYield"],
+            }
+        },
+        abox_turtle=(
+            "<urn:syn> <urn:hasChemicalInput> <urn:in> ; "
+            "<urn:hasYield> <urn:yield> ."
+        ),
+    )
+
+    assert "Iteration-scoped audit" in prompt
+    assert "trusted out-of-scope context" in prompt
+    assert "Prior-iteration structure that remains in the graph is not a hallucination" in prompt
+    assert "Negative evidence" in prompt
+    assert "Correct omission is successful coverage" in prompt
+    assert "Do not invent a positive obligation" in prompt
+
+
 def test_extraction_judge_is_format_independent() -> None:
     prompt = build_extraction_judge_prompt(
         document_text="A sample was heated for 2 h.",
         ontology_contract={"classes": ["Step"]},
         extracted_content={"arbitrary": {"nested": ["heated", "2 h"]}},
+        prior_feedback=[
+            "Require hasAmount for a reported yield.",
+            "Reject hasAmount for the same reported yield.",
+        ],
     )
 
     assert "Evaluate meaning, not serialization" in prompt
     assert "Do not require field names" in prompt
     assert "does not define an extraction serialization schema" in prompt
+    assert '"deductions"' in prompt
+    assert "strict closed evidence boundary" in prompt
+    assert "Never use external knowledge" in prompt
+    assert "A source token supports only the meaning explicitly expressed" in prompt
+    assert "Do not coerce a source value into a merely available property" in prompt
+    assert "molecular formula" not in prompt
+    assert "elemental analysis" not in prompt
+    assert "yield property" not in prompt
+    assert "Do not alternately require and prohibit the same assertion" in prompt
+    assert "Require hasAmount for a reported yield." in prompt
 
 
 def test_extraction_judge_uses_soft_semantic_acceptance() -> None:
@@ -152,6 +192,29 @@ def test_extraction_judge_uses_soft_semantic_acceptance() -> None:
 
     assert report["policy"] == "format_independent_llm_soft_score"
     assert report["acceptance"]["accepted"] is True
+
+
+def test_extraction_judge_repairs_invalid_score_ledger() -> None:
+    invalid = _judgement(0.96)
+    invalid.data.pop("deductions")
+    responses = iter([invalid, _judgement(0.96)])
+    prompts: list[str] = []
+
+    def invoke(_model: str, prompt: str, **_kwargs) -> LLMJsonResult:
+        prompts.append(prompt)
+        return next(responses)
+
+    report = judge_extraction_semantics(
+        document_text="A neutral item exists.",
+        ontology_contract={"classes": ["NeutralItem"]},
+        extracted_content="Neutral item",
+        models=["judge-a"],
+        invoke=invoke,
+    )
+
+    assert report["acceptance"]["accepted"] is True
+    assert len(prompts) == 2
+    assert "missing `deductions`" in prompts[1]
 
 
 def test_semantic_judge_aggregates_independent_soft_scores(tmp_path: Path) -> None:

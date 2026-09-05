@@ -88,10 +88,10 @@ def test_atomic_probe_rejects_partial_mutation() -> None:
     assert len(runtime.graph) == 0
 
 
-def test_creator_call_recipe_supplies_required_order() -> None:
+def test_creator_call_recipe_discovers_freely_named_ordering_parameter() -> None:
     def create_Add(
         label: str,
-        order: int,
+        sequence_index: int,
         *,
         value: float | None = None,
     ) -> str:
@@ -122,5 +122,78 @@ def test_creator_call_recipe_supplies_required_order() -> None:
     )
     assert recipe["kwargs"] == {
         "label": "Shared graph probe",
-        "order": 1,
+        "sequence_index": 1,
     }
+    assert recipe["unbound_required"] == []
+
+
+def test_creator_call_recipe_does_not_hard_fail_on_renamed_optional() -> None:
+    def create_Add(
+        label: str,
+        sequence_index: int,
+        *,
+        parameter: str | None = None,
+    ) -> str:
+        return json.dumps({"status": "ok", "iri": "https://example.org/add"})
+
+    contract = {
+        "public_tool": "create_Add",
+        "ordered_member": True,
+        "ordering_property_local": "hasOrder",
+        "datatype_inputs": [
+            {
+                "property_local": "hasOrder",
+                "python_type": "int",
+                "required": True,
+            },
+            {
+                "property_local": "hasParameter",
+                "python_type": "str",
+                "required": False,
+            },
+        ],
+    }
+    recipe = creator_call_recipe(
+        contract,
+        create_Add,
+        label="Shared graph probe",
+        include_optional_datatypes=True,
+    )
+    assert recipe["kwargs"] == {
+        "label": "Shared graph probe",
+        "sequence_index": 1,
+    }
+    assert "hasParameter" in recipe["parameter_bindings"]["unbound_properties"]
+
+
+def test_creator_atomicity_probe_treats_name_mismatch_as_evidence_not_failure() -> None:
+    runtime = Runtime()
+
+    def create_Class(label: str, *, parameter: str | None = None) -> str:
+        if not isinstance(label, str) or not label.strip():
+            return json.dumps({"status": "error"})
+        iri = URIRef("https://example.org/" + label.replace(" ", "_"))
+        runtime.graph.add((iri, RDF.type, CLASS))
+        return json.dumps({"status": "ok", "iri": str(iri)})
+
+    report = probe_generated_creator_atomicity(
+        module=SimpleNamespace(create_Class=create_Class),
+        runtime=runtime,
+        creator_contracts=[
+            {
+                "public_tool": "create_Class",
+                "datatype_inputs": [
+                    {
+                        "property_local": "hasParameter",
+                        "property_iri": str(PROP),
+                        "python_type": "str",
+                        "required": False,
+                    }
+                ],
+            }
+        ],
+    )
+    assert report["ok"] is True
+    assert report["creators"]["create_Class"]["parameter_bindings"][
+        "unbound_properties"
+    ] == ["hasParameter"]

@@ -15,7 +15,7 @@ def _context(tmp_path: Path) -> SimpleNamespace:
     return SimpleNamespace(
         scripts_dir=scripts_dir,
         output_root=tmp_path,
-        ontology=SimpleNamespace(name="onto"),
+        ontology=SimpleNamespace(name="onto", role="main"),
         parsed={
             "classes": {
                 "Entity": {"iri": "urn:onto:Entity", "parent_classes": []},
@@ -79,6 +79,7 @@ def test_entity_generation_contract_projects_datatypes_into_domain_creators(
             "property_iri": "urn:onto:hasName",
             "range_iri": "http://www.w3.org/2001/XMLSchema#string",
             "python_type": "str",
+            "tbox_comment": "",
             "required": False,
         }
     ]
@@ -90,6 +91,7 @@ def test_entity_generation_contract_projects_datatypes_into_domain_creators(
             "property_iri": "urn:onto:hasOrder",
             "range_iri": "http://www.w3.org/2001/XMLSchema#integer",
             "python_type": "int",
+            "tbox_comment": "",
             "required": False,
         }
     ]

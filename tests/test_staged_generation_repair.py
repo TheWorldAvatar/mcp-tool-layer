@@ -2,18 +2,27 @@
 
 from __future__ import annotations
 
+import json
+from concurrent.futures import Future
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
 from src.agents.scripts_and_prompts_generation import pure_llm_generation
+from src.agents.scripts_and_prompts_generation.agentic_generation_context import (
+    AgenticGenerationContext,
+    OntologySpec,
+)
 from src.agents.scripts_and_prompts_generation.level1_code_repair import LLMJsonResult
 
 
-def _context(tmp_path: Path) -> SimpleNamespace:
+def _context(tmp_path: Path) -> AgenticGenerationContext:
     scripts = tmp_path / "scripts" / "onto"
     prompts = tmp_path / "prompts" / "onto"
+    structures = tmp_path / "ontology_structures" / "onto"
+    reports = tmp_path / "reports" / "onto"
     scripts.mkdir(parents=True)
     prompts.mkdir(parents=True)
     (scripts / "main.py").write_text("", encoding="utf-8")
@@ -24,16 +33,28 @@ def _context(tmp_path: Path) -> SimpleNamespace:
     ):
         (scripts / f"onto{suffix}").write_text("__all__ = []\n", encoding="utf-8")
     (prompts / "ITER.md").write_text("", encoding="utf-8")
-    return SimpleNamespace(
+    return AgenticGenerationContext(
         output_root=str(tmp_path),
+        ontology_structure_dir=str(structures),
         scripts_dir=str(scripts),
         prompts_dir=str(prompts),
+        parsed_summary_path=str(structures / "parsed.json"),
+        parsed_markdown_path=str(structures / "parsed.md"),
+        contract_path=str(structures / "generation_contract.json"),
+        integrity_profile_path=str(structures / "integrity_profile.json"),
+        report_path=str(reports / "generation_report.json"),
+        config_provenance_path=str(structures / "config_provenance.json"),
         parsed={"classes": {}, "properties": {}},
         contract={"ontology_name": "onto"},
-        ontology=SimpleNamespace(
+        integrity_profile={},
+        pipeline_runtime_policies={},
+        iteration_blueprint={},
+        config_provenance={},
+        ontology=OntologySpec(
             name="onto",
             role="main",
             ttl_file="onto.ttl",
+            meta_task_config_path="meta.json",
         ),
     )
 
@@ -118,20 +139,23 @@ def test_entity_prompt_context_contains_only_owned_parsed_classes(
     tmp_path: Path,
 ) -> None:
     context = _context(tmp_path)
-    context.parsed = {
-        "classes": {
-            "Owned": {"iri": "urn:owned:Owned", "parent_classes": []},
-        }
-    }
-    context.contract = {
-        "ontology_publish_contract": {
-            "classes": [
-                {"class_iri": "urn:owned:Owned"},
-                {"class_iri": "urn:external:Referenced"},
-                {"class_iri": "http://www.w3.org/2001/XMLSchema#integer"},
-            ]
-        }
-    }
+    context = replace(
+        context,
+        parsed={
+            "classes": {
+                "Owned": {"iri": "urn:owned:Owned", "parent_classes": []},
+            }
+        },
+        contract={
+            "ontology_publish_contract": {
+                "classes": [
+                    {"class_iri": "urn:owned:Owned"},
+                    {"class_iri": "urn:external:Referenced"},
+                    {"class_iri": "http://www.w3.org/2001/XMLSchema#integer"},
+                ]
+            }
+        },
+    )
     target = Path(context.scripts_dir) / "synthetic_creation_entities.py"
 
     prompt = pure_llm_generation._generation_task(
@@ -185,7 +209,7 @@ def test_iter1_kg_meta_contract_is_generic_and_tbox_projection_isolated(
                 },
                 "properties": {},
             },
-            ontology=SimpleNamespace(name=ontology_name),
+            ontology=SimpleNamespace(name=ontology_name, role="main"),
         )
 
     alpha = pure_llm_generation._prompt_artifact_generation_contract(
@@ -269,6 +293,217 @@ def test_fixed_dependency_order_matches_pipeline_architecture(tmp_path: Path) ->
         "EXTRACTION_ITER_1.md",
         "KG_BUILDING_ITER_2.md",
     ]
+
+
+def test_parallel_generation_waves_follow_dependency_boundaries(
+    tmp_path: Path,
+) -> None:
+    targets = [
+        tmp_path / "x_creation_base.py",
+        tmp_path / "x_creation_entities.py",
+        tmp_path / "x_creation_relationships.py",
+        tmp_path / "x_creation_checks.py",
+        tmp_path / "main.py",
+        tmp_path / "EXTRACTION_ITER_1.md",
+        tmp_path / "KG_BUILDING_ITER_2.md",
+    ]
+
+    assert pure_llm_generation._parallel_generation_wave(
+        targets[0], targets
+    ) == [targets[0]]
+    assert pure_llm_generation._parallel_generation_wave(
+        targets[1], targets
+    ) == [targets[1], targets[2]]
+    assert pure_llm_generation._parallel_generation_wave(
+        targets[3], targets
+    ) == [targets[3]]
+    assert pure_llm_generation._parallel_generation_wave(
+        targets[5], targets
+    ) == [targets[5], targets[6]]
+
+
+def test_parallel_generation_wave_is_bounded_and_collects_results(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    context = _context(tmp_path)
+    targets = [Path(context.prompts_dir) / f"ITER_{index}.md" for index in range(4)]
+    for target in targets:
+        target.write_text("", encoding="utf-8")
+    observed_workers: list[int] = []
+    observed_contexts: list[str] = []
+
+    class FakeProcessPool:
+        def __init__(self, *, max_workers, mp_context):
+            observed_workers.append(max_workers)
+            assert mp_context.get_start_method() == "spawn"
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+        def submit(self, fn, payload):
+            future = Future()
+            future.set_result(fn(payload))
+            return future
+
+    def fake_editor(*, targets, **_kwargs):
+        observed_contexts.append(str(targets[0]))
+        targets[0].write_text("generated", encoding="utf-8")
+        return {"ok": True, "changed_files": [str(targets[0])], "failures": []}
+
+    monkeypatch.setattr(
+        pure_llm_generation, "run_llm_unified_diff_editor", fake_editor
+    )
+    monkeypatch.setattr(
+        pure_llm_generation, "_generation_task", lambda **_kwargs: "test task"
+    )
+    monkeypatch.setattr(
+        pure_llm_generation, "ProcessPoolExecutor", FakeProcessPool
+    )
+
+    results = pure_llm_generation._generate_artifact_wave(
+        context=context,
+        report={"ok": False, "failures": []},
+        targets=targets,
+        model_name="test",
+        edit_backend="exact_edits",
+        max_workers=2,
+    )
+
+    assert observed_workers == [2]
+    assert len(set(observed_contexts)) == len(targets)
+    assert all(str(tmp_path.resolve()) not in value for value in observed_contexts)
+    assert set(results) == set(targets)
+    assert all(result["ok"] for result in results.values())
+    assert all(target.read_text(encoding="utf-8") == "" for target in targets)
+    for target in targets:
+        patch = pure_llm_generation._publish_isolated_candidate(
+            target, results[target]
+        )
+        assert patch["ok"]
+        assert "_isolated_candidate_bytes" not in patch
+        assert target.read_text(encoding="utf-8") == "generated"
+
+
+def test_parallel_attempt_log_preserves_every_validation_failure(
+    tmp_path: Path,
+) -> None:
+    attempts = [
+        {
+            "attempt": attempt,
+            "ok": False,
+            "failures": [{"code": "candidate_validation_failed"}],
+            "validation": {
+                "ok": False,
+                "failures": [f"ITER_3.md: failure from attempt {attempt}"],
+            },
+            "rollback_performed": True,
+            "elapsed_seconds": float(attempt),
+        }
+        for attempt in range(1, 6)
+    ]
+
+    pure_llm_generation._persist_parallel_candidate_attempts(
+        output_root=tmp_path,
+        ontology_name="onto",
+        artifact="prompts/onto/ITER_3.md",
+        patch={"ok": False, "attempts": attempts},
+    )
+
+    log_path = (
+        tmp_path
+        / "reports"
+        / "onto"
+        / "parallel_candidate_attempts.jsonl"
+    )
+    records = [
+        json.loads(line)
+        for line in log_path.read_text(encoding="utf-8").splitlines()
+    ]
+    assert [record["attempt"] for record in records] == [1, 2, 3, 4, 5]
+    assert records[0]["artifact"] == "prompts/onto/ITER_3.md"
+    assert records[-1]["validation_failures"] == [
+        "ITER_3.md: failure from attempt 5"
+    ]
+
+
+def test_parallel_wave_defers_successful_sibling_publication(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    context = _context(tmp_path)
+    targets = [Path(context.prompts_dir) / f"ITER_{index}.md" for index in range(2)]
+    for target in targets:
+        target.write_text("", encoding="utf-8")
+
+    class FakeProcessPool:
+        def __init__(self, **_kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+        def submit(self, fn, payload):
+            future = Future()
+            future.set_result(fn(payload))
+            return future
+
+    def fake_editor(*, targets, **_kwargs):
+        target = targets[0]
+        if target.name == "ITER_0.md":
+            target.write_text("accepted", encoding="utf-8")
+            return {"ok": True, "changed_files": [str(target)], "failures": []}
+        return {"ok": False, "changed_files": [], "failures": ["provider_error"]}
+
+    monkeypatch.setattr(
+        pure_llm_generation, "run_llm_unified_diff_editor", fake_editor
+    )
+    monkeypatch.setattr(
+        pure_llm_generation, "_generation_task", lambda **_kwargs: "test task"
+    )
+    monkeypatch.setattr(
+        pure_llm_generation, "ProcessPoolExecutor", FakeProcessPool
+    )
+
+    results = pure_llm_generation._generate_artifact_wave(
+        context=context,
+        report={"ok": False, "failures": []},
+        targets=targets,
+        model_name="test",
+        edit_backend="exact_edits",
+        max_workers=2,
+    )
+
+    assert results[targets[0]]["ok"]
+    assert not results[targets[1]]["ok"]
+    assert targets[0].read_text(encoding="utf-8") == ""
+    assert targets[1].read_text(encoding="utf-8") == ""
+
+    published = pure_llm_generation._publish_isolated_candidate(
+        targets[0], results[targets[0]]
+    )
+    assert published["ok"]
+    assert targets[0].read_text(encoding="utf-8") == "accepted"
+
+
+def test_parallel_candidate_publication_fails_closed_without_bytes(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "ITER.md"
+    target.write_text("", encoding="utf-8")
+
+    result = pure_llm_generation._publish_isolated_candidate(
+        target,
+        {"ok": True, "failures": []},
+    )
+
+    assert result["ok"] is False
+    assert result["failures"] == ["isolated_candidate_bytes_missing"]
+    assert target.read_text(encoding="utf-8") == ""
 
 
 def test_reviewer_acceptance_clears_stale_mechanical_failure_fields() -> None:
@@ -372,6 +607,54 @@ def test_repair_focus_selects_known_golden_skills(
         "small-unified-diff",
     ]
     assert '"skill_id": "mcp-tool-discoverability"' in captured["prompt"]
+
+
+def test_repair_focus_discards_selected_failure_as_own_dependency(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    context = _context(tmp_path)
+    observation = {
+        "check_id": "generation.prompt_runtime_binding",
+        "subject_key": "onto/EXTRACTION_ITER_3.md",
+        "stage": "prompt",
+        "status": "fail",
+        "observed_artifacts": ["prompts/onto/EXTRACTION_ITER_3.md"],
+        "blocked_by": [],
+        "evidence": {},
+        "message": "missing runtime binding",
+    }
+    observation_id = (
+        "generation.prompt_runtime_binding::onto/EXTRACTION_ITER_3.md"
+    )
+    monkeypatch.setattr(
+        pure_llm_generation,
+        "invoke_json",
+        lambda *_args, **_kwargs: LLMJsonResult(
+            data={
+                "status": "selected",
+                "focus_id": "repair-iter3-binding",
+                "observation_ids": [observation_id],
+                "dependency_ids": [observation_id],
+                "objective": "restore the binding",
+                "repair_skill_ids": [],
+                "max_target_files": 1,
+            },
+            elapsed_seconds=0.0,
+            token_usage={},
+        ),
+    )
+
+    focus = pure_llm_generation._request_repair_focus(
+        model_name="test",
+        context=context,
+        report={"ok": False, "observations": [observation]},
+        active_focus=None,
+        previous_steps=[],
+        max_target_files=1,
+    )
+
+    assert focus["observation_ids"] == [observation_id]
+    assert focus["dependency_ids"] == []
 
 
 def test_repair_focus_rejects_unknown_golden_skill(
@@ -571,6 +854,55 @@ def test_impact_plan_requires_declared_coedits(
         )
 
 
+def test_impact_plan_normalizes_path_annotated_required_coedits(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    context = _context(tmp_path)
+    entity_path = "scripts/onto/onto_creation_entities.py"
+    targets = [Path(context.output_root) / entity_path]
+    monkeypatch.setattr(
+        pure_llm_generation,
+        "invoke_json",
+        lambda *args, **kwargs: LLMJsonResult(
+            data={
+                "status": "actionable",
+                "objective": "add missing creator",
+                "targets": [entity_path],
+                "required_coedits": [
+                    f"{entity_path}::Add the missing module-scope creator.",
+                    f"{entity_path}::Register the creator in __all__.",
+                ],
+                "read_only_dependencies": [],
+                "dependency_order": [
+                    f"{entity_path}::Patch creator before dependents."
+                ],
+                "impact_plan": [],
+                "must_preserve": [],
+                "acceptance_focus": [],
+            },
+            elapsed_seconds=0.0,
+            token_usage={},
+        ),
+    )
+
+    plan = pure_llm_generation._request_impact_plan(
+        model_name="test",
+        context=context,
+        targets=targets,
+        report={"ok": False, "failures": ["missing creator"]},
+        inspection_scope={
+            "status": "inspect",
+            "inspect_paths": [entity_path],
+        },
+        diagnosis={"status": "diagnosed", "causal_findings": []},
+        previous_steps=[],
+        focus={"max_target_files": 3},
+    )
+
+    assert plan["required_coedits"] == [entity_path]
+    assert plan["dependency_order"] == [entity_path]
+
+
 def test_causal_plan_can_change_strategy_for_same_target(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -721,6 +1053,52 @@ def test_observation_transition_rejects_previously_passing_regression() -> None:
     assert delta["regression_observation_ids"] == ["syntax.base"]
 
 
+def test_observation_transition_resolves_disappearing_focused_failure() -> None:
+    before = {
+        "observations": [
+            {"check_id": "external.semantic", "status": "fail"},
+            {"check_id": "syntax.base", "status": "pass"},
+        ]
+    }
+    after = {
+        "observations": [
+            {"check_id": "syntax.base", "status": "pass"},
+        ]
+    }
+
+    delta = pure_llm_generation._observation_transition_report(
+        before_report=before,
+        after_report=after,
+        focus_observation_ids=["external.semantic"],
+    )
+
+    assert delta["focus_progress"]
+    assert not delta["protected_regression"]
+    assert delta["resolved_observation_ids"] == ["external.semantic"]
+    assert delta["missing_observation_ids"] == ["external.semantic"]
+
+
+def test_all_green_stage_and_semantic_reviews_override_delta_bookkeeping() -> None:
+    assert pure_llm_generation._stage_and_semantic_reviews_pass(
+        candidate_report={"stage_ok": True},
+        semantic_validation={"decision": "pass", "critical_errors": []},
+        semantic_review_required=True,
+    )
+
+
+def test_all_green_gate_requires_each_configured_review() -> None:
+    assert not pure_llm_generation._stage_and_semantic_reviews_pass(
+        candidate_report={"stage_ok": False},
+        semantic_validation={"decision": "pass", "critical_errors": []},
+        semantic_review_required=True,
+    )
+    assert not pure_llm_generation._stage_and_semantic_reviews_pass(
+        candidate_report={"stage_ok": True},
+        semantic_validation={"decision": "repair", "critical_errors": ["defect"]},
+        semantic_review_required=True,
+    )
+
+
 def test_observation_transition_rejects_missing_or_new_unblocked_failure() -> None:
     before = {
         "observations": [
@@ -804,14 +1182,112 @@ def test_fixed_artifact_dependency_order_preserves_complete_inventory(
     assert set(ordered) == expected
 
 
+def test_stage_focused_repair_commits_strict_partial_progress(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    context = _context(tmp_path)
+    target = Path(context.scripts_dir) / "main.py"
+    target.write_text("VALUE = 1\n", encoding="utf-8")
+    before_report = {
+        "ok": False,
+        "stage_ok": False,
+        "failures": ["signature_a", "signature_b", "signature_c", "signature_d"],
+        "observations": [],
+    }
+    after_report = {
+        "ok": False,
+        "stage_ok": False,
+        "failures": ["signature_d"],
+        "observations": [],
+    }
+
+    monkeypatch.setattr(
+        pure_llm_generation,
+        "_request_repair_focus",
+        lambda **kwargs: {
+            "status": "selected",
+            "focus_id": "creation-check-signatures",
+            "objective": "repair fixed runtime signatures",
+            "observation_ids": [],
+        },
+    )
+    monkeypatch.setattr(
+        pure_llm_generation,
+        "_request_inspection_scope",
+        lambda **kwargs: {
+            "status": "inspect",
+            "inspect_paths": ["scripts/onto/main.py"],
+        },
+    )
+    monkeypatch.setattr(
+        pure_llm_generation,
+        "_request_causal_diagnosis",
+        lambda **kwargs: {"status": "diagnosed", "causal_findings": []},
+    )
+    monkeypatch.setattr(
+        pure_llm_generation,
+        "_request_impact_plan",
+        lambda **kwargs: {
+            "status": "actionable",
+            "objective": "repair fixed runtime signatures",
+            "targets": ["scripts/onto/main.py"],
+        },
+    )
+    monkeypatch.setattr(
+        pure_llm_generation,
+        "build_validation_report",
+        lambda *args, **kwargs: after_report,
+    )
+
+    def fail_if_delta_reviewed(**kwargs):
+        pytest.fail("strict partial progress must not depend on an LLM delta review")
+
+    monkeypatch.setattr(
+        pure_llm_generation, "_request_delta_review", fail_if_delta_reviewed
+    )
+
+    def fake_editor(*, validate, **kwargs):
+        target.write_text("VALUE = 2\n", encoding="utf-8")
+        validation = validate()
+        assert validation["ok"]
+        assert validation["delta_review"]["skipped"]
+        return {"ok": True, "validation": validation}
+
+    monkeypatch.setattr(
+        pure_llm_generation, "run_llm_unified_diff_editor", fake_editor
+    )
+
+    report, result = pure_llm_generation._run_stage_focused_repair(
+        model_name="test",
+        context=context,
+        targets=[target],
+        report=before_report,
+        foreign_contracts=None,
+        active_artifacts=["scripts/onto/main.py"],
+        max_focus_targets=1,
+        edit_backend="exact_edits",
+    )
+
+    assert result["accepted"]
+    assert report["failures"] == ["signature_d"]
+    assert target.read_text(encoding="utf-8") == "VALUE = 2\n"
+
+
 def test_staged_repair_replans_after_each_accepted_step(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     context = _context(tmp_path)
+    (Path(context.scripts_dir) / "main.py").write_text(
+        "VALUE = 1\n", encoding="utf-8"
+    )
+    (Path(context.prompts_dir) / "ITER.md").write_text(
+        "Existing prompt\n", encoding="utf-8"
+    )
     reports = [
         {"ok": False, "failures": ["script_failure", "prompt_failure"]},
-        {"ok": False, "failures": ["script_failure", "prompt_failure"]},
+        {"ok": True, "failures": []},
         {"ok": False, "failures": ["prompt_failure"]},
+        {"ok": True, "failures": []},
         {"ok": True, "failures": []},
     ]
     plans = [
@@ -851,7 +1327,7 @@ def test_staged_repair_replans_after_each_accepted_step(
     monkeypatch.setattr(
         pure_llm_generation,
         "validate_prompt_runtime_bindings",
-        lambda path: {"ok": True, "failures": []},
+        lambda *args, **kwargs: {"ok": True, "failures": []},
     )
     monkeypatch.setattr(
         pure_llm_generation,
@@ -879,6 +1355,7 @@ def test_staged_repair_replans_after_each_accepted_step(
         max_rounds=2,
         generate_scripts=True,
         generate_prompts=True,
+        repair_only=True,
     )
 
     assert result["ok"]
@@ -894,10 +1371,13 @@ def test_rejected_step_rolls_back_then_replans(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     context = _context(tmp_path)
+    (Path(context.scripts_dir) / "main.py").write_text(
+        "VALUE = 1\n", encoding="utf-8"
+    )
     reports = [
         {"ok": False, "failures": ["remaining"]},
         {"ok": False, "failures": ["remaining"]},
-        {"ok": False, "failures": ["remaining"]},
+        {"ok": True, "failures": []},
         {"ok": True, "failures": []},
     ]
     plans = [
@@ -963,6 +1443,7 @@ def test_rejected_step_rolls_back_then_replans(
         max_rounds=2,
         generate_scripts=True,
         generate_prompts=False,
+        repair_only=True,
     )
 
     assert result["ok"]
@@ -977,6 +1458,7 @@ def test_completed_inspection_reuses_diagnosis_and_continues_planning(
     reports = [
         {"ok": False, "failures": ["remaining"]},
         {"ok": False, "failures": ["remaining"]},
+        {"ok": True, "failures": []},
         {"ok": True, "failures": []},
     ]
     diagnosis = {"status": "diagnosed", "causal_findings": [{"cause": "known"}]}

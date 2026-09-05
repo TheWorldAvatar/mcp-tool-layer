@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from src.agents.scripts_and_prompts_generation import structured_prompt_editor
 from src.agents.scripts_and_prompts_generation.structured_prompt_editor import (
     apply_structured_edits,
 )
@@ -76,3 +77,29 @@ def test_structured_editor_rejects_outside_and_ambiguous_replacements(
     )
     assert not ambiguous["ok"]
     assert any("match_count" in item for item in ambiguous["failures"])
+
+
+def test_proven_conflict_allows_minimal_non_additive_replacement(
+    tmp_path: Path, monkeypatch
+) -> None:
+    root, prompt, _ = _package(tmp_path)
+    captured = {}
+
+    def fake_editor(**kwargs):
+        captured.update(kwargs)
+        return {"ok": True, "changed_files": [prompt.as_posix()]}
+
+    monkeypatch.setattr(
+        structured_prompt_editor, "run_llm_artifact_editor", fake_editor
+    )
+
+    structured_prompt_editor.run_structured_prompt_editor(
+        model_name="test",
+        output_root=root,
+        targets=[prompt],
+        diagnosis={"allow_conflict_replacement": True},
+        contract={},
+    )
+
+    assert captured["additive_only"] is False
+    assert "minimal conflict-replacement editing" in captured["task_prompt"]

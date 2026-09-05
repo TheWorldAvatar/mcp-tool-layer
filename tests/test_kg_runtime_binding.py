@@ -84,3 +84,24 @@ def test_kg_legacy_hint_slot_still_gets_missing_identity_context() -> None:
     assert "Current entity label: route" in rendered
     assert "https://example.com/route" in rendered
     assert len(warnings) == 1
+
+
+def test_kg_context_injects_current_identity_dossier() -> None:
+    rendered, warnings = bind_kg_runtime_context(
+        "Materialize:\n{iteration_hints}",
+        doi_hash="doi",
+        entity_label="specific route",
+        entity_uri="urn:route:2",
+        hints_content="{}",
+        iter_num=2,
+        identity_dossier={
+            "scope_index": 2,
+            "source_anchor": "TopEntity-2 [specific route]",
+            "explicit_iteration_1_facts": [],
+        },
+    )
+
+    assert "ENTITY IDENTITY DOSSIER: BEGIN" in rendered
+    assert '"source_anchor": "TopEntity-2 [specific route]"' in rendered
+    assert "Materialize only facts for this exact scope" in rendered
+    assert warnings == []

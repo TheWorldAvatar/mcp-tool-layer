@@ -62,6 +62,7 @@ class TestEntityFirstPipelineOrder(unittest.TestCase):
 
     def test_kg_completes_all_iterations_and_publish_per_entity(self) -> None:
         calls: list[str] = []
+        known_sets: list[set[str]] = []
         entities = [
             {"label": "Entity A", "uri": "urn:a"},
             {"label": "Entity B", "uri": "urn:b"},
@@ -73,6 +74,7 @@ class TestEntityFirstPipelineOrder(unittest.TestCase):
         ]
 
         async def process_entity(**kwargs: object) -> bool:
+            known_sets.append(kwargs["known_top_entity_uris"])  # type: ignore[arg-type]
             entity = kwargs["top_entities"][0]  # type: ignore[index]
             label = entity["label"]
             for iteration in kwargs["iterations"]:  # type: ignore[union-attr]
@@ -115,6 +117,7 @@ class TestEntityFirstPipelineOrder(unittest.TestCase):
                 "Entity B:publish",
             ],
         )
+        self.assertEqual(known_sets, [{"urn:a", "urn:b"}, {"urn:a", "urn:b"}])
 
 
 if __name__ == "__main__":

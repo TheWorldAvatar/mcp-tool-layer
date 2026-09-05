@@ -6,6 +6,9 @@ from src.agents.scripts_and_prompts_generation.agentic_generation_validation imp
 from src.agents.scripts_and_prompts_generation.agentic_generation_context import (
     build_agentic_generation_context,
 )
+from src.agents.scripts_and_prompts_generation.agentic_generation_runner import (
+    generate_deterministic_prompt_slice,
+)
 from src.agents.scripts_and_prompts_generation.pure_llm_generation import (
     _prompt_artifact_generation_contract,
     _resolve_top_entity_from_tbox,
@@ -34,7 +37,9 @@ def test_iter1_generation_contract_uses_pipeline_top_entity_selection(
         (),
         {
             "output_root": str(tmp_path),
-            "ontology": type("Ontology", (), {"name": "ontosynthesis"})(),
+            "ontology": type(
+                "Ontology", (), {"name": "ontosynthesis", "role": "main"}
+            )(),
             "parsed": {
                 "classes": {
                     "ChemicalSynthesis": {
@@ -100,6 +105,53 @@ def test_kg_prompt_accepts_hints_injection_slot(tmp_path: Path) -> None:
     report = validate_prompt_runtime_bindings(prompt)
 
     assert report["ok"]
+
+
+def test_kg_prompt_rejects_duplicate_runtime_data_injection(tmp_path: Path) -> None:
+    prompt = tmp_path / "KG_BUILDING_ITER_2.md"
+    prompt.write_text(
+        "Document: {doi}\nEntity: {entity_label} ({entity_uri})\n"
+        "Primary hints:\n{iteration_hints}\n"
+        "Repeated hints:\n{iteration_hints}\n",
+        encoding="utf-8",
+    )
+
+    report = validate_prompt_runtime_bindings(prompt)
+
+    assert not report["ok"]
+    assert report["evidence"]["duplicated_slots"] == {"iteration_hints": 2}
+
+
+def test_onepass_fragment_rejects_layered_control_plane(tmp_path: Path) -> None:
+    prompt = tmp_path / "KG_BUILDING_ITER_3_ONEPASS.md"
+    prompt.write_text(
+        "Document: {doi}\nEntity: {entity_label} ({entity_uri})\n"
+        "Hints: {iteration_hints}\n"
+        "Call init_memory first, ignore ordered-member hints, and call "
+        "export_memory as the final response.",
+        encoding="utf-8",
+    )
+
+    report = validate_prompt_runtime_bindings(prompt)
+
+    assert not report["ok"]
+    assert report["evidence"]["onepass_control_plane_hits"]
+
+
+def test_onepass_fragment_rejects_union_tool_surface_restriction(
+    tmp_path: Path,
+) -> None:
+    prompt = tmp_path / "KG_BUILDING_ITER_4_ONEPASS.md"
+    prompt.write_text(
+        "Document: {doi}\nEntity: {entity_label} ({entity_uri})\n"
+        "Hints: {iteration_hints}\nUse only the tools listed above.",
+        encoding="utf-8",
+    )
+
+    report = validate_prompt_runtime_bindings(prompt)
+
+    assert not report["ok"]
+    assert report["evidence"]["onepass_control_plane_hits"]
 
 
 def test_kg_prompt_rejects_legacy_paper_content_hint_channel(
@@ -169,6 +221,37 @@ def test_kg_iter2_generation_contract_matches_pipeline_slots(tmp_path: Path) -> 
         "{entity_label}",
         "{entity_uri}",
     ]
+
+
+def test_onepass_fragment_has_parallel_contract_without_lifecycle(
+    tmp_path: Path,
+) -> None:
+    context = build_agentic_generation_context(
+        ontology_name="ontosynthesis",
+        output_root=tmp_path,
+        write_files=True,
+    )
+    generate_deterministic_prompt_slice(context)
+    target = (
+        Path(context.prompts_dir) / "KG_BUILDING_ITER_2_ONEPASS.md"
+    )
+
+    assert target.is_file()
+    contract = _prompt_artifact_generation_contract(context, target)
+
+    assert contract["iteration_spec"]["iteration_number"] == 2
+    assert contract["onepass_fragment_contract"]["enabled"] is True
+    assert contract["agent_tool_contract"]["lifecycle_tools"] == []
+    layered_contract = _prompt_artifact_generation_contract(
+        context,
+        Path(context.prompts_dir) / "KG_BUILDING_ITER_2.md",
+    )
+    assert layered_contract["onepass_fragment_contract"] == {}
+    assert layered_contract["agent_tool_contract"]["lifecycle_tools"]
+    generated_plan = (
+        tmp_path / "iterations" / "ontosynthesis" / "iterations.json"
+    ).read_text(encoding="utf-8")
+    assert "KG_BUILDING_ITER_2_ONEPASS.md" in generated_plan
 
 
 def test_top_entity_is_semantically_selected_without_rdf_role_annotation(

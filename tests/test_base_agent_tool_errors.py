@@ -9,9 +9,28 @@ from models.BaseAgent import (
     _call_required_mcp_tool,
     exception_details,
     _flatten_exception_group,
+    _merge_mcp_server_environment,
     _mcp_result_content,
+    _required_final_call_satisfied,
     _tool_error_text,
 )
+
+
+def test_pipeline_runtime_env_overrides_stale_mcp_config() -> None:
+    merged = _merge_mcp_server_environment(
+        {
+            "TWA_AGENTIC_DATA_DIR": "stale/runtime",
+            "PYTHONIOENCODING": "utf-8",
+        },
+        {
+            "TWA_AGENTIC_DATA_DIR": "active/runtime",
+            "PATH": "inherited-path",
+        },
+    )
+
+    assert merged["TWA_AGENTIC_DATA_DIR"] == "active/runtime"
+    assert merged["PYTHONIOENCODING"] == "utf-8"
+    assert merged["PATH"] == "inherited-path"
 
 
 def test_exception_group_is_flattened_for_actionable_logging() -> None:
@@ -120,6 +139,62 @@ def test_required_lifecycle_calls_reuse_fake_session_and_preserve_arguments() ->
     assert final["structured_content"]["ttl"].startswith("@prefix")
 
 
+def test_required_final_call_requires_exact_canonical_arguments() -> None:
+    canonical = {
+        "doi": "abc123",
+        "top_level_entity_name": "Structural transformation from A to B",
+    }
+    activity = {
+        "planned_tool_calls": [
+            {
+                "id": "call-1",
+                "name": "export_memory",
+                "args": {
+                    "doi": "abc123",
+                    "top_level_entity_name": "B",
+                },
+            }
+        ],
+        "tool_outputs": [
+            {
+                "tool_call_id": "call-1",
+                "name": "export_memory",
+            }
+        ],
+    }
+
+    assert not _required_final_call_satisfied(
+        activity,
+        tool_name="export_memory",
+        required_arguments=canonical,
+    )
+
+    activity["planned_tool_calls"][0]["args"] = dict(canonical)
+    assert _required_final_call_satisfied(
+        activity,
+        tool_name="export_memory",
+        required_arguments=canonical,
+    )
+
+
+def test_required_final_call_without_arguments_keeps_name_only_contract() -> None:
+    activity = {
+        "planned_tool_calls": [],
+        "tool_outputs": [
+            {
+                "tool_call_id": "call-1",
+                "name": "export_memory",
+            }
+        ],
+    }
+
+    assert _required_final_call_satisfied(
+        activity,
+        tool_name="export_memory",
+        required_arguments=None,
+    )
+
+
 def test_required_initial_tool_rejects_structured_failure() -> None:
     session = _FakeSession(
         [_structured_result({"status": "rejected", "code": "invalid_scope"})]
@@ -140,6 +215,32 @@ def test_required_initial_tool_rejects_structured_failure() -> None:
         assert "invalid_scope" in str(exc)
     else:
         raise AssertionError("structured init_memory rejection was accepted")
+
+
+def test_required_tool_unwraps_taskgroup_failure() -> None:
+    class _ExplodingSession:
+        async def call_tool(self, name: str, arguments: dict) -> object:
+            raise BaseExceptionGroup(
+                "unhandled errors in a TaskGroup (1 sub-exception)",
+                [RuntimeError("BOUND_ROOT_NOT_MATERIALIZED")],
+            )
+
+    async def exercise() -> None:
+        await _call_required_mcp_tool(
+            _ExplodingSession(),
+            tool_name="export_memory",
+            arguments={"doi": "abc123", "top_level_entity_name": "top"},
+            phase="final",
+        )
+
+    try:
+        asyncio.run(exercise())
+    except RuntimeError as exc:
+        assert "Required final MCP tool `export_memory` failed" in str(exc)
+        assert "BOUND_ROOT_NOT_MATERIALIZED" in str(exc)
+        assert "TaskGroup" not in str(exc)
+    else:
+        raise AssertionError("TaskGroup export_memory failure was not unwrapped")
 
 
 def test_required_tool_rejects_ok_false_even_without_transport_error() -> None:

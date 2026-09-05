@@ -119,5 +119,15 @@ def test_deterministic_main_preserves_annotations_and_docstrings():
         assert ast.get_docstring(wrapper) == (
             'Relates; object_iri must be absolute IRI from create_Target.'
         )
+        lifecycle_signatures = {
+            node.name: [argument.arg for argument in node.args.args]
+            for node in tree.body
+            if isinstance(node, ast.FunctionDef)
+            and node.name in {"init_memory", "export_memory"}
+        }
+        assert lifecycle_signatures == {
+            "init_memory": ["doi", "top_level_entity_name"],
+            "export_memory": ["doi", "top_level_entity_name"],
+        }
         # No varargs fallback wrappers
         assert '*args' not in main_code and '**kwargs' not in main_code

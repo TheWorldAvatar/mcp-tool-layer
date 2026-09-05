@@ -57,6 +57,7 @@ def _write_main(scripts: Path, *, omit: str = "", extra: bool = False) -> None:
                 "mcp.tool(name='convenience')(convenience)\n",
             ]
         )
+    lines.append("if __name__ == '__main__':\n    mcp.run()\n")
     (scripts / "main.py").write_text("\n".join(lines), encoding="utf-8")
 
 
@@ -175,6 +176,23 @@ def test_runtime_surface_rejects_missing_and_extra_tools(
     failures, _, _ = _expected_tool_surface_report(_context(tmp_path))
 
     assert any(needle in failure for failure in failures)
+
+
+def test_runtime_surface_rejects_missing_stdio_entry_point(tmp_path: Path) -> None:
+    _write_siblings(tmp_path)
+    _write_main(tmp_path)
+    main = tmp_path / "main.py"
+    main.write_text(
+        main.read_text(encoding="utf-8").replace(
+            "if __name__ == '__main__':\n    mcp.run()\n",
+            "",
+        ),
+        encoding="utf-8",
+    )
+
+    failures, _, _ = _expected_tool_surface_report(_context(tmp_path))
+
+    assert any("must keep stdio service alive" in failure for failure in failures)
 
 
 def test_safe_tool_name_cannot_hide_generic_runtime_handler(tmp_path: Path) -> None:
