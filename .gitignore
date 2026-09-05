@@ -177,6 +177,9 @@ guard_state.json
 **/*_stitched.md
 **/data/extractions/**
 
+# Scoring / judge caches (hundreds of thousands of hashed JSON files)
+/evaluation/cache/
+
 # Per-run MCP launch configs: machine paths and campaign-specific, not source of truth
 /configs/test_mcp_config_*.json
 
