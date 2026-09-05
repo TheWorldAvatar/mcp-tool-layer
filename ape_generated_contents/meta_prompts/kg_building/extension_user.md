@@ -37,16 +37,21 @@ Special note:
 
 [Any domain-specific notes based on T-Box comments]
 
-Here is the DOI for this run (normalized and pipeline forms):
+Runtime bindings that the pipeline supplies:
 
-- DOI: {{doi_slash}}
-- Pipeline DOI: {{doi_underscore}}
+- Document identifier: {{doi}}
+- Upstream entity label: {{entity_label}}
+- Upstream entity IRI: {{entity_uri}}
+- Deterministically resolved extension enrichment targets: {{enrichment_targets}}
 
-Here is the [MainOntology] A-Box:
+The enrichment target binding is authoritative. Enrich each exact target IRI for
+its declared class; do not create or select a replacement identity for that class.
+
+Here is the canonical main-ontology TTL for this upstream entity:
 
 {{main_ontology_a_box}}
 
-Here is the paper content:
+Here is the extracted extension source content:
 
 {{paper_content}}
 ```
@@ -54,6 +59,8 @@ Here is the paper content:
 **CRITICAL**: 
 - Extract domain-specific requirements from the T-Box rdfs:comment fields. Do NOT invent requirements. ALL requirements must be justified by the T-Box or MCP tool constraints.
 - Output EXACTLY the structure shown above. Do NOT add any additional sections after {{paper_content}}. This is the END of the prompt.
+- Do NOT use `{{iteration_hints}}`, `{{top_entities}}`, `{{hints}}`, or
+  `{{ontosynthesis_a_box}}`; they are not canonical extension runtime bindings.
 
 Generate the prompt now:
 

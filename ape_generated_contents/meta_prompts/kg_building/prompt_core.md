@@ -12,7 +12,10 @@ Global rules:
   the entities you created are correctly connected, you should use the export_memory tool to export the memory and terminate the job.
 
 - Never invoke the same tool twice with identical arguments in one run.
-- Prefer check_existing_* tools to avoid duplicates; only create when missing.
+- Use `check_existing_*` only for classes authorized as reusable by the supplied operational reuse policy; those are the only classes for which such tools may be exposed.
+- Each `check_existing_*` reads an independent ontology-wide central identity memory spanning top entities and documents, not the current scoped graph.
+- For an authorized reusable class, call its exact `check_existing_*` before `create_*`, inspect all returned identity details and central provenance, and reuse a returned IRI only when the complete scope and match basis are satisfied. Cross-document visibility does not override a document/top-entity scope. Otherwise create a new individual.
+- A class without an authorized `check_existing_*` is non-reusable for generic matching; never merge or deduplicate its individuals by label.
 - Placeholder policy:
   * Placeholder values denote unknown. Reuse canonical existing placeholder instances once; do not reattach in loops.
 - Terminate the iteration by emitting exactly: <"run_status":"done"> when all current items are DONE or SKIPPED (non-retryable error).
@@ -21,7 +24,7 @@ Global rules:
 
 **Critical**: You can never assume that an IRI exists unless you used the according check_existing_* tool to check it and in the result, the IRI is explicitly returned. 
 
-**Critical**: Before you call any function with an IRI as an input, you must use the according check_existing_* tool to check the IRIs you can use. This is compulsory. If no valid IRI can be reused, or the details of the existing IRI don't match the required parameters (e.g., a temperature exists, but with a different value), you must create a new IRI with the necessary details.
+**Critical**: Before creating an entity of a reusable class, call its policy-authorized `check_existing_*` tool and compare the returned labels, datatype values, types, and relations against the complete scope and match basis. If no candidate fully matches, create a new IRI. For non-reusable classes no `check_existing_*` should exist; create a fresh occurrence and do not search or merge by label.
 
 **Critical**: Don't repeat one step if you encounter errors; fix inputs per error and adjust actions. Do not repeat the same tool with identical inputs more than once.
 

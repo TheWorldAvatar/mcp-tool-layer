@@ -497,6 +497,7 @@ If the T-Box ontology includes `rdfs:comment` annotations with validation rules:
 - Extract and implement these rules
 - Add runtime validation in appropriate functions
 - Use Literal types for enumerated values
+- Treat explicitly stated defaults as binding generated-code behavior. Use correctly typed unconditional defaults in creator signatures, preserve caller-supplied overrides, and implement conditional or inherited defaults without flattening them into unconditional values. Never invent defaults that are absent from the T-Box comments.
 
 Example (if T-Box defines allowed values):
 ```python
