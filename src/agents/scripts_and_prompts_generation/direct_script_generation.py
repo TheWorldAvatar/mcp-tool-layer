@@ -28,6 +28,7 @@ try:
     from openai import OpenAI  # type: ignore
 except Exception:  # pragma: no cover
     OpenAI = None  # type: ignore[assignment]
+from models.llm_call_telemetry import instrument_openai_client
 from dotenv import load_dotenv
 from rdflib import Graph, Namespace, URIRef, RDF, RDFS, OWL
 from src.agents.scripts_and_prompts_generation.ttl_parser import (
@@ -1850,19 +1851,30 @@ def _token_limit_kwargs(model_name: str, max_tokens: int) -> dict:
     """
     mn = (model_name or "").lower()
     if mn.startswith("gpt-5") or mn.startswith("gpt-4.1"):
-        return {"max_completion_tokens": max_tokens}
-    return {"max_tokens": max_tokens}
+        return {
+            "max_completion_tokens": max_tokens,
+            "seed": _get_deterministic_seed(),
+        }
+    return {"max_tokens": max_tokens, "seed": _get_deterministic_seed()}
 
 def _get_temperature_for_model(model_name: str) -> float:
     """
     OpenAI API compatibility shim:
     GPT-5 and GPT-5.x models only support temperature=1 (default).
-    Other models can use temperature=0.2 for more deterministic output.
+    Other models use temperature=0 for the lowest supported sampling variance.
     """
     mn = (model_name or "").lower()
     if mn.startswith("gpt-5"):
         return 1.0
-    return 0.2
+    return 0.0
+
+
+def _get_deterministic_seed() -> int:
+    """Return the repository-wide best-effort LLM sampling seed."""
+    try:
+        return int(os.environ.get("TWA_LLM_SEED", "42").strip())
+    except ValueError:
+        return 42
 
 def _patch_fastmcp_instruction_compat(code: str) -> str:
     """
@@ -2280,7 +2292,7 @@ def _rewrite_main_wrapper_self_calls(code: str) -> str:
     lines = code.splitlines()
 
     # Discover which underscored aliases exist (we only rewrite when the alias exists).
-    # Example line: "    create_Add as _create_Add,"
+    # Example line: "    create_Entity as _create_Entity,"
     underscore_aliases: set[str] = set()
     for line in lines:
         m = re.match(r"^\s*([A-Za-z_]\w*)\s+as\s+(_[A-Za-z_]\w*)\s*,\s*$", line)
@@ -3235,12 +3247,13 @@ def _build_main_py_deterministic(
     # Memory tools (normalize wrapper names)
     if "init_memory_wrapper" in tool_names:
         lines.append("@mcp.tool()")
-        lines.append("def init_memory(doi: Optional[str] = None, top_level_entity_name: Optional[str] = None) -> str:")
+        lines.append("def init_memory(doi: str, top_level_entity_name: str) -> str:")
         lines.append("    return _init_memory_wrapper(doi=doi, top_level_entity_name=top_level_entity_name)")
         lines.append("")
     if "export_memory_wrapper" in tool_names:
         lines.append("@mcp.tool()")
-        lines.append("def export_memory() -> str:")
+        lines.append("def export_memory(doi: str, top_level_entity_name: str) -> str:")
+        lines.append("    _ = (doi, top_level_entity_name)")
         lines.append("    return _export_memory_wrapper()")
         lines.append("")
 
@@ -3918,9 +3931,9 @@ def create_openai_client():
         )
 
     if base_url:
-        return OpenAI(api_key=api_key, base_url=base_url)  # type: ignore[misc]
+        return instrument_openai_client(OpenAI(api_key=api_key, base_url=base_url))  # type: ignore[misc]
     else:
-        return OpenAI(api_key=api_key)  # type: ignore[misc]
+        return instrument_openai_client(OpenAI(api_key=api_key))  # type: ignore[misc]
 
 
 def load_meta_prompt(prompt_name: str) -> str:
@@ -4282,7 +4295,7 @@ def extract_concise_ontology_structure(ontology_path: str, *, include_om2_mock: 
     # IMPORTANT: OM-2 must NOT influence main ontology namespace selection (computed from g_main only).
     om2_units = None
     if include_om2_mock:
-        om2_mock_path = Path("data/ontologies/om2_mock.ttl")
+        om2_mock_path = Path("tests/fixtures/tbox/om2_mock.ttl")
         if om2_mock_path.exists():
             try:
                 g.parse(str(om2_mock_path), format="turtle")
@@ -4397,6 +4410,7 @@ def extract_concise_ontology_structure(ontology_path: str, *, include_om2_mock: 
         # Find datatype properties where this class is the DOMAIN (what data/inputs this class has)
         datatype_inputs = []
         datatype_comments: Dict[str, str] = {}
+        datatype_ranges: Dict[str, List[str]] = {}
         for prop in g.subjects(RDF.type, OWL.DatatypeProperty):
             if str(prop).startswith(str(ontology_ns)):
                 for domain in g.objects(prop, RDFS.domain):
@@ -4405,6 +4419,9 @@ def extract_concise_ontology_structure(ontology_path: str, *, include_om2_mock: 
                     if class_name in domain_classes:
                         prop_name = str(prop).replace(str(ontology_ns), '')
                         datatype_inputs.append(prop_name)
+                        datatype_ranges[prop_name] = sorted(
+                            {str(value) for value in g.objects(prop, RDFS.range)}
+                        )
                         cmt_vals = list(g.objects(prop, RDFS.comment))
                         if cmt_vals:
                             datatype_comments[prop_name] = str(cmt_vals[0]).strip()
@@ -4421,32 +4438,15 @@ def extract_concise_ontology_structure(ontology_path: str, *, include_om2_mock: 
             'connected_from': connected_from,
             'datatype_inputs': datatype_inputs,
             'datatype_comments': datatype_comments,
+            'datatype_ranges': datatype_ranges,
             'parent_classes': parents
         }
 
     integrity_profile: Dict[str, Any] = {}
     try:
         integrity_profile = extract_ontology_integrity_profile(ontology_path)
-        class_constraints = integrity_profile.get("class_constraints", {}) or {}
-        for class_name, structure in class_structures.items():
-            structure["integrity_annotations"] = class_constraints.get(
-                class_name,
-                {
-                    "instance_integrity_rules": [],
-                    "edge_integrity_rules": [],
-                    "ordering_semantics": [],
-                    "typing_integrity_rules": [],
-                },
-            )
     except Exception:
         integrity_profile = {}
-        for structure in class_structures.values():
-            structure["integrity_annotations"] = {
-                "instance_integrity_rules": [],
-                "edge_integrity_rules": [],
-                "ordering_semantics": [],
-                "typing_integrity_rules": [],
-            }
 
     # Build class_hierarchy dict for parent-class grouping
     class_hierarchy = {}
@@ -5810,6 +5810,36 @@ def _integrity_contract_block_from_concise(
     return "\n\n".join(line for line in lines if line)
 
 
+def _optional_python_type_for_datatype_ranges(ranges: List[str]) -> str:
+    """Map declared RDF datatype ranges to a conservative Python annotation."""
+    locals_ = {
+        str(value).rstrip("/#").rsplit("#", 1)[-1].rsplit("/", 1)[-1].lower()
+        for value in ranges
+        if str(value).strip()
+    }
+    if locals_ and locals_ <= {
+        "byte",
+        "short",
+        "int",
+        "integer",
+        "long",
+        "nonnegativeinteger",
+        "nonpositiveinteger",
+        "negativeinteger",
+        "positiveinteger",
+        "unsignedbyte",
+        "unsignedshort",
+        "unsignedint",
+        "unsignedlong",
+    }:
+        return "Optional[int]"
+    if locals_ and locals_ <= {"decimal", "double", "float"}:
+        return "Optional[float]"
+    if locals_ and locals_ <= {"boolean"}:
+        return "Optional[bool]"
+    return "Optional[str]"
+
+
 def format_concise_structure_as_markdown(concise_structure: Dict, ontology_name: str) -> str:
     """
     Format the concise ontology structure as a markdown document.
@@ -5920,20 +5950,14 @@ def format_concise_structure_as_markdown(concise_structure: Dict, ontology_name:
         # Datatype properties with type inference and schema comments
         datatype_props = structure.get('datatype_inputs', [])
         dt_comments = structure.get('datatype_comments', {})
+        dt_ranges = structure.get('datatype_ranges', {})
         for prop in sorted(datatype_props):
             prop_name = prop.split('/')[-1] if '/' in prop else prop
+            param_type = _optional_python_type_for_datatype_ranges(
+                list(dt_ranges.get(prop) or dt_ranges.get(prop_name) or [])
+            )
 
-            # Infer type from property name
-            if 'Order' in prop_name or 'Count' in prop_name:
-                param_type = "Optional[int]"
-            elif prop_name.startswith('is') or prop_name.startswith('has') and ('Vacuum' in prop_name or 'Sealed' in prop_name or 'Stirred' in prop_name or 'Repeated' in prop_name or 'Layered' in prop_name or 'Wait' in prop_name or 'Filtration' in prop_name or 'Evaporator' in prop_name):
-                param_type = "Optional[bool]"
-            elif 'Ph' in prop_name or 'Purity' in prop_name or 'Amount' in prop_name or 'Names' in prop_name or 'Formula' in prop_name or 'Description' in prop_name or 'Parameter' in prop_name or 'Number' in prop_name:
-                param_type = "Optional[str]"
-            else:
-                param_type = "Optional[str]"
-
-            cmt = dt_comments.get(prop_name, "")
+            cmt = dt_comments.get(prop, "") or dt_comments.get(prop_name, "")
             if cmt:
                 # Collapse to single line and truncate for readability in signatures
                 cmt_single = cmt.replace("\n", " ").replace("\r", " ")
@@ -7588,8 +7612,8 @@ async def generate_main_script_direct(
         "## CRITICAL NON-NEGOTIABLE RULES (fix these exact past failures)\n"
         "1) ALWAYS import underlying functions using an underscored alias: `foo as _foo`.\n"
         "2) EVERY wrapper MUST delegate to the underscored alias (never call the wrapper itself).\n"
-        "   BAD: `def create_Add(...): return create_Add(...)`\n"
-        "   GOOD: `def create_Add(...): return _create_Add(...)`\n"
+        "   BAD: `def create_Entity(...): return create_Entity(...)`\n"
+        "   GOOD: `def create_Entity(...): return _create_Entity(...)`\n"
         "3) If you import `export_memory_wrapper as _export_memory_wrapper`, then wrapper `export_memory()` MUST call `_export_memory_wrapper()`.\n"
         "   Do NOT call `export_memory_wrapper()`.\n"
         "4) Import grouping for this repo (multi-script):\n"
@@ -7727,13 +7751,13 @@ async def generate_main_script_direct(
                         "Wrapper functions must never call themselves.\n"
                         "Example:\n"
                         "BAD:\n"
-                        "  from .x import create_Add as _create_Add\n"
-                        "  def create_Add(...):\n"
-                        "      return create_Add(...)\n"
+                        "  from .x import create_Entity as _create_Entity\n"
+                        "  def create_Entity(...):\n"
+                        "      return create_Entity(...)\n"
                         "GOOD:\n"
-                        "  from .x import create_Add as _create_Add\n"
-                        "  def create_Add(...):\n"
-                        "      return _create_Add(...)\n"
+                        "  from .x import create_Entity as _create_Entity\n"
+                        "  def create_Entity(...):\n"
+                        "      return _create_Entity(...)\n"
                         "\n"
                         f"Detected issues:\n{alias_err}\n"
                         "Return the FULL corrected main.py as plain Python code.\n"

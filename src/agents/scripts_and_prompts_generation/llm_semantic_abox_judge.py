@@ -138,6 +138,13 @@ def build_semantic_judge_prompt(
         "- Do not mark an ontology-authorized default or derivation unsupported merely because "
         "the resulting value is not stated verbatim in the document. Cite the relevant "
         "ontology-contract rule as evidence in the assessment/reason.\n"
+        "- A grounded reference, inheritance, delegation, or provenance relation can itself "
+        "represent referenced content. Do not require the A-Box to duplicate or eagerly expand "
+        "all facts reachable through that relation unless the supplied ontology contract "
+        "explicitly requires closure materialization on the referring entity.\n"
+        "- Report only the semantic defect visible in the final A-Box. Do not speculate whether "
+        "its upstream cause was a prompt, agent, script, or runtime defect; causal attribution is "
+        "performed separately using extraction hints and tool traces.\n"
         "- Free-text literal content is outside this semantic score. Do not lower any dimension, "
         "create a critical error, or add an unsupported finding because of wording, factual "
         "content, speculation, completeness, or provenance inside descriptive/free-text string "
@@ -146,6 +153,56 @@ def build_semantic_judge_prompt(
         "non-free-text values. A string-valued field is free text when the ontology contract "
         "describes it as a description, note, narrative, comment, summary, or other open-ended "
         "text; infer this only from the supplied contract, never from domain-specific names.\n\n"
+        "Iteration-scoped audit (when ontology_contract.iteration_audit_scope is present):\n"
+        "- The SOURCE DOCUMENT for this call is the current-iteration semantic ledger/hints, not "
+        "necessarily the full original paper. Restrict coverage and missing_findings to facts "
+        "stated in that ledger that fall under iteration_audit_scope.owned_classes / "
+        "owned_object_properties, plus any other obligation the supplied contract explicitly "
+        "requires for this iteration.\n"
+        "- The candidate A-Box is cumulative. Assertions produced by successful prior iterations "
+        "are trusted out-of-scope context. Do not lower groundedness or hallucination_control "
+        "merely because those prior assertions are absent from the current ledger, and do not "
+        "require the current ledger to restate them.\n"
+        "- For hallucination_control in an iteration-scoped audit, only treat as unsupported "
+        "substantive NEW claims that purport to satisfy the current owned surface (or newly "
+        "assert facts about the current entity that the current ledger does not support). "
+        "Prior-iteration structure that remains in the graph is not a hallucination relative "
+        "to the current ledger.\n"
+        "- Follow iteration_audit_scope.policy when present; it overrides generic full-document "
+        "coverage assumptions for this audit.\n\n"
+        "Framework integrity audit (when ontology_contract.framework_integrity_audit is present):\n"
+        "- Treat this as the highest-priority blocking part of semantic_correctness and coverage.\n"
+        "- Evaluate whether every entity materialized for the audited scope is integrated through "
+        "the object-property structure supported by the source and T-Box. Merely creating and "
+        "typing a node does not satisfy an obligation when its intended ownership, membership, "
+        "parent, collection, or peer relation is absent.\n"
+        "- Detect detached shells, parallel replacement identities, missing parent/member links, "
+        "and relationships attached to the wrong scoped root. Use the supplied evidence to infer "
+        "the intended graph structure; do not use domain-specific names, fixed edge counts, or "
+        "hard-coded formulas.\n"
+        "- Apply an exhaustive obligation-ledger procedure before scoring: enumerate every "
+        "source-supported entity and relationship obligation in the audited scope, then compare "
+        "each obligation with the candidate graph. Do not inspect or report only representative "
+        "examples.\n"
+        "- When many missing entities or facts share one structural cause, return one concise "
+        "consolidated finding, but list every affected source identifier, label, or order marker "
+        "in that finding and identify the missing ownership/membership predicate or semantic "
+        "relation. A sample or partial list is not complete feedback.\n"
+        "- Derive intended structural integration from the supplied T-Box domains, ranges, "
+        "restrictions, ordering semantics, and edge-integrity annotations. Do not require the "
+        "source hints to spell out an ownership edge when the supplied ontology contract makes "
+        "that integration obligation explicit.\n"
+        "- A framework-integrity defect must produce a critical error and a critical deduction "
+        "unless the source or T-Box explicitly permits the entity to remain independent.\n\n"
+        "Negative evidence:\n"
+        "- Explicit statements that a fact is absent, unnamed, not reported, not performed, "
+        "avoided, ruled out, or otherwise negatively evidenced are authoritative.\n"
+        "- Do not deduct coverage or groundedness for omitting an owned property/class when the "
+        "ledger provides only negative evidence for it. Correct omission is successful coverage.\n"
+        "- Do deduct hallucination_control (and related semantic_correctness when applicable) "
+        "if the A-Box asserts that property/value despite such negative evidence.\n"
+        "- Do not invent a positive obligation from the mere presence of an owned property in "
+        "the contract when the ledger supplies only negative evidence for that property.\n\n"
         "Auditable deduction policy:\n"
         "- Begin every dimension at 1.0 and subtract only evidence-backed deductions.\n"
         "- Return one deduction-ledger item for every subtraction. Each item must contain exactly "
@@ -308,6 +365,40 @@ def _validated_deductions(raw: Any) -> list[dict[str, Any]]:
     return validated
 
 
+def invoke_validated_judgement(
+    *,
+    invoke: Callable[..., LLMJsonResult],
+    model: str,
+    prompt: str,
+    max_validation_attempts: int = 3,
+) -> tuple[dict[str, Any], list[LLMJsonResult]]:
+    """Repair structurally invalid judge JSON with explicit validator feedback."""
+    attempts: list[LLMJsonResult] = []
+    current_prompt = prompt
+    errors: list[str] = []
+    for _ in range(max_validation_attempts):
+        result = invoke(model, current_prompt, max_attempts=3)
+        attempts.append(result)
+        try:
+            return _validated_judgement(result.data), attempts
+        except (TypeError, ValueError) as exc:
+            errors.append(str(exc))
+            current_prompt = (
+                prompt
+                + "\n\nYOUR PREVIOUS JSON WAS REJECTED BY THE DETERMINISTIC SCORE AUDITOR:\n"
+                + str(exc)
+                + "\nPREVIOUS JSON:\n"
+                + json.dumps(result.data, ensure_ascii=False)
+                + "\nReturn a corrected complete JSON object in the exact requested schema. "
+                "Include `deductions` even when it is an empty list, and recompute every score "
+                "and overall_score exactly from that ledger."
+            )
+    raise ValueError(
+        "semantic judge failed deterministic validation after "
+        f"{max_validation_attempts} attempts: {errors}"
+    )
+
+
 def judge_semantic_abox(
     *,
     document_text: str,
@@ -336,13 +427,17 @@ def judge_semantic_abox(
     total_usage: dict[str, int] = {}
     total_elapsed = 0.0
     for model in judge_models:
-        result = invoke(model, prompt, max_attempts=3)
-        judgement = _validated_judgement(result.data)
+        judgement, results = invoke_validated_judgement(
+            invoke=invoke,
+            model=model,
+            prompt=prompt,
+        )
         judgements.append({"model": model, **judgement})
-        total_elapsed += result.elapsed_seconds
-        for key, value in (result.token_usage or {}).items():
-            if isinstance(value, int):
-                total_usage[key] = total_usage.get(key, 0) + value
+        for result in results:
+            total_elapsed += result.elapsed_seconds
+            for key, value in (result.token_usage or {}).items():
+                if isinstance(value, int):
+                    total_usage[key] = total_usage.get(key, 0) + value
 
     overall_scores = [item["overall_score"] for item in judgements]
     disagreement = max(overall_scores) - min(overall_scores)
@@ -370,15 +465,20 @@ def judge_semantic_abox(
             + "\nAct as an adjudicator. Re-evaluate the original evidence, resolve the "
             "disagreement, and return the same JSON schema. Do not average scores mechanically."
         )
-        result = invoke(adjudicator_model, adjudication_prompt, max_attempts=3)
+        adjudicated, results = invoke_validated_judgement(
+            invoke=invoke,
+            model=adjudicator_model,
+            prompt=adjudication_prompt,
+        )
         adjudication = {
             "model": adjudicator_model,
-            **_validated_judgement(result.data),
+            **adjudicated,
         }
-        total_elapsed += result.elapsed_seconds
-        for key, value in (result.token_usage or {}).items():
-            if isinstance(value, int):
-                total_usage[key] = total_usage.get(key, 0) + value
+        for result in results:
+            total_elapsed += result.elapsed_seconds
+            for key, value in (result.token_usage or {}).items():
+                if isinstance(value, int):
+                    total_usage[key] = total_usage.get(key, 0) + value
 
     consensus_source = [adjudication] if adjudication else judgements
     consensus_scores = {

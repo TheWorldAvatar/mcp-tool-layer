@@ -19,6 +19,7 @@ import re
 from pathlib import Path
 from typing import Optional, Dict, List, Set, Tuple
 from openai import OpenAI
+from models.llm_call_telemetry import instrument_openai_client
 from dotenv import load_dotenv
 from rdflib import Graph, Namespace, URIRef, RDF, RDFS, OWL
 
@@ -33,10 +34,14 @@ def _token_limit_kwargs(model_name: str, max_tokens: int) -> dict:
     Some model endpoints (notably gpt-5.* / gpt-4.1.* on certain providers)
     reject `max_tokens` and require `max_completion_tokens` instead.
     """
+    try:
+        seed = int(os.environ.get("TWA_LLM_SEED", "42").strip())
+    except ValueError:
+        seed = 42
     mn = (model_name or "").lower()
     if mn.startswith("gpt-5") or mn.startswith("gpt-4.1"):
-        return {"max_completion_tokens": max_tokens}
-    return {"max_tokens": max_tokens}
+        return {"max_completion_tokens": max_tokens, "seed": seed}
+    return {"max_tokens": max_tokens, "seed": seed}
 
 
 def create_openai_client() -> OpenAI:
@@ -63,9 +68,9 @@ def create_openai_client() -> OpenAI:
         )
     
     if base_url:
-        return OpenAI(api_key=api_key, base_url=base_url)
+        return instrument_openai_client(OpenAI(api_key=api_key, base_url=base_url))
     else:
-        return OpenAI(api_key=api_key)
+        return instrument_openai_client(OpenAI(api_key=api_key))
 
 
 def load_meta_prompt(prompt_name: str) -> str:

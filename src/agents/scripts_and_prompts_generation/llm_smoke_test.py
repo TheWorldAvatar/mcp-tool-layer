@@ -21,6 +21,7 @@ import argparse
 import asyncio
 from pathlib import Path
 
+from models.llm_call_telemetry import instrument_openai_client
 from src.agents.scripts_and_prompts_generation.direct_script_generation import (
     create_openai_client,
     validate_python_syntax,
@@ -39,7 +40,8 @@ def build_prompt() -> str:
 
 
 async def run(model: str, out_path: Path) -> None:
-    client = create_openai_client()
+    # Idempotent even though the shared factory is already instrumented.
+    client = instrument_openai_client(create_openai_client())
     prompt = build_prompt()
 
     resp = client.chat.completions.create(

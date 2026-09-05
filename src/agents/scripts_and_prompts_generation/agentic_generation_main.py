@@ -71,6 +71,15 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--operation-mode",
+        choices=["legacy", "inferred_atomic", "occurrence_surface"],
+        default="legacy",
+        help=(
+            "Keep the pre-existing split creator/relationship surface, infer "
+            "required atomic creators, or compile an occurrence MCP surface."
+        ),
+    )
+    parser.add_argument(
         "--output-root",
         default=str(DEFAULT_AGENTIC_OUTPUT_ROOT),
         help="Isolated output root for agentic generation artifacts.",
@@ -143,6 +152,21 @@ def build_parser() -> argparse.ArgumentParser:
         help="Generate artifacts in LLM-planned dependency order and validate each stage.",
     )
     parser.add_argument(
+        "--parallel-generation",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help=(
+            "Generate independent artifacts concurrently within fixed dependency waves "
+            "(enabled by default)."
+        ),
+    )
+    parser.add_argument(
+        "--max-generation-workers",
+        type=int,
+        default=5,
+        help="Maximum concurrent LLM artifact generation calls.",
+    )
+    parser.add_argument(
         "--max-focus-targets",
         type=int,
         default=3,
@@ -199,6 +223,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="Limit creation-foundation synthesis to one exact generated module filename.",
     )
     parser.add_argument(
+        "--target-artifact",
+        action="append",
+        default=[],
+        help=(
+            "Limit pure-LLM generation to an exact generated artifact filename or "
+            "output-root-relative path. Repeat for multiple artifacts."
+        ),
+    )
+    parser.add_argument(
         "--checkpoint-summary",
         help="Replay audited initial-generation diffs from this summary before repair-only.",
     )
@@ -206,6 +239,37 @@ def build_parser() -> argparse.ArgumentParser:
         "--main-only",
         action="store_true",
         help="Regenerate only MCP main.py (requires existing deterministic *_creation_*.py peers).",
+    )
+    parser.add_argument(
+        "--prompt-enhancement",
+        action="store_true",
+        help=(
+            "After successful script/prompt generation, run the formal prompt-only "
+            "ReAct diagnosis, exact-edit repair, and reevaluation loop."
+        ),
+    )
+    parser.add_argument(
+        "--fixture",
+        help="Mock A-Box fixture used by the formal prompt-enhancement loop.",
+    )
+    parser.add_argument(
+        "--max-prompt-enhancement-rounds",
+        type=int,
+        default=2,
+        help="Maximum accepted/rejected prompt-only semantic repair rounds.",
+    )
+    parser.add_argument(
+        "--prompt-enhancement-evaluation-repeats",
+        type=int,
+        default=1,
+        help="Independent ReAct evaluations per prompt candidate.",
+    )
+    parser.add_argument(
+        "--resume-prompt-enhancement-case",
+        help=(
+            "Resume a failed retained runtime case from main KG building before "
+            "prompt enhancement; upstream extraction artifacts are not regenerated."
+        ),
     )
     return parser
 
@@ -217,8 +281,39 @@ def main(argv: list[str] | None = None) -> int:
         raise SystemExit("--domain-config and --meta-task-config are mutually exclusive")
     if args.domain_config and len(ontology_names) != 1:
         raise SystemExit("--domain-config requires exactly one --ontology")
-    if args.domain_config and args.generation_model != "gpt-5":
-        raise SystemExit("--domain-config requires --generation-model gpt-5")
+    if args.domain_config and not str(args.generation_model or "").strip():
+        raise SystemExit("--domain-config requires a non-empty --generation-model")
+    if args.max_generation_workers < 1:
+        raise SystemExit("--max-generation-workers must be at least 1")
+    if args.prompt_enhancement:
+        if args.stage not in {"all", "validate"}:
+            raise SystemExit(
+                "--prompt-enhancement requires --stage all or --stage validate"
+            )
+        if len(ontology_names) != 1:
+            raise SystemExit("--prompt-enhancement requires exactly one ontology")
+        if not args.fixture:
+            raise SystemExit("--prompt-enhancement requires --fixture")
+        if args.generation_only:
+            raise SystemExit(
+                "--prompt-enhancement cannot be combined with --generation-only"
+            )
+        if args.max_prompt_enhancement_rounds < 1:
+            raise SystemExit("--max-prompt-enhancement-rounds must be at least 1")
+        if args.prompt_enhancement_evaluation_repeats < 1:
+            raise SystemExit(
+                "--prompt-enhancement-evaluation-repeats must be at least 1"
+            )
+        if args.resume_prompt_enhancement_case:
+            resume_case = Path(args.resume_prompt_enhancement_case)
+            if not resume_case.is_dir():
+                raise SystemExit(
+                    "--resume-prompt-enhancement-case must be an existing case directory"
+                )
+            if args.prompt_enhancement_evaluation_repeats != 1:
+                raise SystemExit(
+                    "A retained prompt-enhancement case can be resumed exactly once"
+                )
     focused_integration = bool(
         args.focused_package_integration or args.package_synthesis
     )
@@ -308,6 +403,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.meta_task_config and len(ontology_names) > 1 and not args.extensions:
         raise SystemExit("--meta-task-config can only be used with one --ontology unless --extensions is used")
 
+    if args.operation_mode == "occurrence_surface":
+        args.llm_generation = False
     generate_scripts = args.stage in {"scripts", "all"} and not args.dry_run
     generate_prompts = args.stage in {"prompts", "all"} and not args.dry_run
     if args.stage == "context" or args.dry_run:
@@ -372,7 +469,18 @@ def main(argv: list[str] | None = None) -> int:
             incremental_generation_repair=args.incremental_generation_repair,
             max_focus_targets=args.max_focus_targets,
             focused_package_integration=focused_integration,
+            parallel_generation=args.parallel_generation,
+            max_generation_workers=args.max_generation_workers,
             write_context_files=args.stage != "validate",
+            target_artifacts=args.target_artifact or None,
+            prompt_enhancement=args.prompt_enhancement,
+            prompt_enhancement_fixture=args.fixture,
+            max_prompt_enhancement_rounds=args.max_prompt_enhancement_rounds,
+            prompt_enhancement_evaluation_repeats=(
+                args.prompt_enhancement_evaluation_repeats
+            ),
+            prompt_enhancement_resume_case=args.resume_prompt_enhancement_case,
+            operation_mode=args.operation_mode,
         )
 
     if args.json:
@@ -384,10 +492,17 @@ def main(argv: list[str] | None = None) -> int:
                 status = "ok" if report.get("ok") else "needs_revision"
                 repairs = len(report.get("repair_history") or [])
                 print(f"- {report.get('ontology')}: {status} ({len(report.get('failures') or [])} failures, {repairs} validation pass(es))")
+                enhancement = report.get("prompt_enhancement")
+                if isinstance(enhancement, dict):
+                    print(
+                        "  prompt-enhancement: "
+                        f"{enhancement.get('status')} "
+                        f"(final={enhancement.get('final_artifact_root')})"
+                    )
         else:
             for item in summary.get("contexts", []):
                 print(f"- {item['ontology']}: {item['class_count']} classes, {item['property_count']} properties")
-    return 0
+    return 0 if summary.get("ok") is True else 2
 
 
 if __name__ == "__main__":

@@ -362,27 +362,6 @@ def build_ontology_publish_contract_from_tbox(
                 },
             }
         )
-        for predicate, value in graph.predicate_objects(prop):
-            if _local_name(predicate) not in {
-                "instanceIntegrityRule",
-                "edgeIntegrityRule",
-                "orderingSemantics",
-                "typingIntegrityRule",
-            }:
-                continue
-            structured_constraints.append(
-                {
-                    "subject_iri": str(prop),
-                    "constraint_predicate_iri": str(predicate),
-                    "value": str(value),
-                    "source": "structured_integrity_annotation",
-                    "evidence": {
-                        "ttl_file": evidence_file,
-                        "triple": [str(prop), str(predicate), str(value)],
-                    },
-                }
-            )
-
     for prop in sorted(
         {
             node
@@ -433,6 +412,24 @@ def build_ontology_publish_contract_from_tbox(
                 target = graph.value(restriction, OWL.onClass)
                 if not isinstance(target, URIRef):
                     target = graph.value(prop, RDFS.range)
+                restriction_fingerprint = hashlib.sha256(
+                    json.dumps(
+                        {
+                            "subject_class_iri": class_iri,
+                            "predicate_iri": str(prop),
+                            "target_class_iri": (
+                                str(target) if isinstance(target, URIRef) else ""
+                            ),
+                            "cardinality_predicate_iri": str(
+                                cardinality_predicate
+                            ),
+                            "count": count,
+                            "constraint_kind": kind,
+                        },
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    ).encode("utf-8")
+                ).hexdigest()[:16]
                 item = {
                     "subject_class_iri": class_iri,
                     "predicate_iri": str(prop),
@@ -442,7 +439,9 @@ def build_ontology_publish_contract_from_tbox(
                     "source": "owl_restriction",
                     "evidence": {
                         "ttl_file": evidence_file,
-                        "restriction_node": str(restriction),
+                        "restriction_node": (
+                            f"_:deterministic-restriction-{restriction_fingerprint}"
+                        ),
                         "cardinality_predicate_iri": str(cardinality_predicate),
                     },
                 }
@@ -515,6 +514,62 @@ def build_generation_contract_bundle(
         if resolved_ttl_file
         else {}
     )
+    runtime_policies = main.get("runtime_policies") or {}
+    main_entity_policy = runtime_policies.get("main_entity_kg") or {}
+    publish_policy = main_entity_policy.get("publish") or {}
+    reconciliation_policy = publish_policy.get("hint_reconciliation") or {}
+    shell_policy = main_entity_policy.get("shell_validation") or {}
+
+    configured_order_properties = {
+        _local_name(str(item.get("order_predicate_iri") or ""))
+        for item in reconciliation_policy.get("ordered_member_hint_contracts") or []
+        if isinstance(item, dict)
+        and str(item.get("order_predicate_iri") or "").strip()
+    }
+    configured_member_classes: set[str] = set()
+    configured_collection_properties: set[str] = set()
+    for item in runtime_policies.get("ordered_member_contracts") or []:
+        if not isinstance(item, dict):
+            continue
+        target_iri = str(item.get("member_class_iri") or "").strip()
+        collection_iri = str(item.get("collection_property_iri") or "").strip()
+        order_iri = str(item.get("order_property_iri") or "").strip()
+        if collection_iri:
+            configured_collection_properties.add(_local_name(collection_iri))
+        if order_iri:
+            configured_order_properties.add(_local_name(order_iri))
+        if target_iri:
+            configured_member_classes.update(
+                _local_name(class_iri)
+                for class_iri, superclass_iris in closure.items()
+                if target_iri in superclass_iris
+            )
+    for item in shell_policy.get("required_links") or []:
+        if not isinstance(item, dict) or item.get("ordered_member") is not True:
+            continue
+        target_iri = str(item.get("target_class_iri") or "").strip()
+        predicate_iri = str(item.get("predicate_iri") or "").strip()
+        if predicate_iri:
+            configured_collection_properties.add(_local_name(predicate_iri))
+        if target_iri:
+            configured_member_classes.update(
+                _local_name(class_iri)
+                for class_iri, superclass_iris in closure.items()
+                if target_iri in superclass_iris
+            )
+
+    ordered_profile["ordered_member_classes"] = sorted(
+        set(ordered_profile.get("ordered_member_classes") or [])
+        | configured_member_classes
+    )
+    ordered_profile["individually_linked_object_properties"] = sorted(
+        set(ordered_profile.get("individually_linked_object_properties") or [])
+        | configured_collection_properties
+    )
+    ordered_profile["single_valued_ordering_properties"] = sorted(
+        set(ordered_profile.get("single_valued_ordering_properties") or [])
+        | configured_order_properties
+    )
     ordered_member_locals = {
         str(x).strip()
         for x in (ordered_profile.get("ordered_member_classes") or [])
@@ -567,6 +622,19 @@ def build_generation_contract_bundle(
         internal_range_iris = sorted(set(ranges) & declared_class_iris)
         external_range_iris = sorted(set(ranges) - declared_class_iris)
         internal_targets = sorted({_local_name(iri) for iri in internal_range_iris})
+        most_specific_targets = ordered_profile.get(
+            "most_specific_subclass_targets"
+        ) or {}
+        materialization_target_locals = sorted(
+            {
+                concrete
+                for target in internal_targets
+                for concrete in (
+                    most_specific_targets.get(target) or [target]
+                )
+                if str(concrete).strip()
+            }
+        )
         external_targets = sorted({_local_name(iri) for iri in external_range_iris})
         om2_range_iris = sorted(
             iri
@@ -581,7 +649,9 @@ def build_generation_contract_bundle(
             set(creatable_external_range_iris),
             internal_class_locals=internal_class_locals,
         )
-        creator_tools = [f"create_{local}" for local in internal_targets]
+        creator_tools = [
+            f"create_{local}" for local in materialization_target_locals
+        ]
         if om2_range_iris:
             creator_tools.append("create_om2_quantity")
         creator_tools.extend(
@@ -606,6 +676,7 @@ def build_generation_contract_bundle(
             "internal_range_iris": internal_range_iris,
             "external_range_iris": external_range_iris,
             "internal_targets": internal_targets,
+            "materialization_target_locals": materialization_target_locals,
             "external_targets": external_targets,
             "external_creator_specs": external_creator_specs,
             "fixed_runtime_range_iris": om2_range_iris,
@@ -745,6 +816,10 @@ def build_relationship_tool_contracts_from_tbox(
     """Compile per-property tool metadata solely from a machine-readable T-Box."""
     graph = Graph()
     graph.parse(str(tbox_path), format="turtle")
+    integrity_profile = extract_ontology_integrity_profile(str(tbox_path))
+    most_specific_targets = (
+        integrity_profile.get("most_specific_subclass_targets") or {}
+    )
     declared_class_iris = {
         str(node)
         for class_type in (OWL.Class, RDFS.Class)
@@ -782,6 +857,14 @@ def build_relationship_tool_contracts_from_tbox(
         internal_range_iris = sorted(set(ranges) & declared_class_iris)
         external_range_iris = sorted(set(ranges) - declared_class_iris)
         internal_targets = sorted({_local_name(iri) for iri in internal_range_iris})
+        materialization_target_locals = sorted(
+            {
+                concrete
+                for target in internal_targets
+                for concrete in (most_specific_targets.get(target) or [target])
+                if str(concrete).strip()
+            }
+        )
         external_targets = sorted({_local_name(iri) for iri in external_range_iris})
         om2_range_iris = sorted(
             iri
@@ -795,7 +878,9 @@ def build_relationship_tool_contracts_from_tbox(
             set(creatable_external_range_iris),
             internal_class_locals=internal_class_locals,
         )
-        creator_tools = [f"create_{local}" for local in internal_targets]
+        creator_tools = [
+            f"create_{local}" for local in materialization_target_locals
+        ]
         if om2_range_iris:
             creator_tools.append("create_om2_quantity")
         creator_tools.extend(spec["tool_name"] for spec in external_creator_specs)
@@ -818,6 +903,7 @@ def build_relationship_tool_contracts_from_tbox(
             "internal_range_iris": internal_range_iris,
             "external_range_iris": external_range_iris,
             "internal_targets": internal_targets,
+            "materialization_target_locals": materialization_target_locals,
             "external_targets": external_targets,
             "external_creator_specs": external_creator_specs,
             "fixed_runtime_range_iris": om2_range_iris,

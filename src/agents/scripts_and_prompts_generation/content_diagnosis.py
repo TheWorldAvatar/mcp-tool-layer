@@ -13,11 +13,28 @@ DIAGNOSIS_STATUS = {
     "actionable",
     "mixed",
     "script_actionable",
+    "model_instability",
     "insufficient_evidence",
     "non_prompt_root_cause",
     "ambiguous_targets",
 }
-REPAIR_KINDS = {"prompt", "script", "mixed", "none", "adjudicate"}
+REPAIR_KINDS = {
+    "prompt",
+    "script",
+    "mixed",
+    "model_instability",
+    "none",
+    "adjudicate",
+}
+STATUS_REPAIR_KIND_MATRIX = {
+    "actionable": {"prompt"},
+    "script_actionable": {"script"},
+    "mixed": {"mixed"},
+    "model_instability": {"model_instability", "adjudicate"},
+    "insufficient_evidence": {"none", "adjudicate"},
+    "non_prompt_root_cause": {"none", "adjudicate"},
+    "ambiguous_targets": {"none", "adjudicate"},
+}
 _STATUS_ALIASES = {
     "needs_revision": "actionable",
     "prompt_revision_required": "actionable",
@@ -153,6 +170,8 @@ def validate_diagnosis(
 def validate_repair_diagnosis(
     diagnosis: dict[str, Any],
     inventory: list[dict[str, Any]],
+    *,
+    evidence_ids: set[str] | None = None,
 ) -> dict[str, Any]:
     """Validate LLM-selected prompt/script/mixed repair targets."""
     raw_status = str(diagnosis.get("status") or "").strip().casefold()
@@ -161,6 +180,13 @@ def validate_repair_diagnosis(
     repair_kind = str(diagnosis.get("repair_kind") or "none").strip().casefold()
     if repair_kind not in REPAIR_KINDS:
         raise ValueError(f"Unsupported repair kind: {repair_kind!r}")
+    allowed_repair_kinds = STATUS_REPAIR_KIND_MATRIX[raw_status]
+    if repair_kind not in allowed_repair_kinds:
+        raise ValueError(
+            "Diagnosis status/repair_kind mismatch: "
+            f"status={raw_status!r}, repair_kind={repair_kind!r}, "
+            f"allowed={sorted(allowed_repair_kinds)}"
+        )
     by_path = {str(item["path"]): item for item in inventory}
     by_name = {
         str(item["name"]): item
@@ -186,6 +212,10 @@ def validate_repair_diagnosis(
         targets.append(str(item["path"]))
     if repair_kind in {"prompt", "script", "mixed"} and not targets:
         raise ValueError(f"Repair kind {repair_kind!r} requires target artifacts")
+    if repair_kind not in {"prompt", "script", "mixed"} and targets:
+        raise ValueError(
+            f"Repair kind {repair_kind!r} must not select editable artifacts"
+        )
     kinds = {str(by_path[target].get("kind")) for target in targets}
     if repair_kind == "prompt" and kinds - {"prompt"}:
         raise ValueError("Prompt diagnosis selected non-prompt targets")
@@ -196,9 +226,69 @@ def validate_repair_diagnosis(
     findings = diagnosis.get("causal_findings")
     if repair_kind in {"prompt", "script", "mixed"} and not isinstance(findings, list):
         raise ValueError("Actionable repair diagnosis requires causal findings")
+    normalized_findings: list[dict[str, Any]] = []
+    for index, finding in enumerate(findings or []):
+        if not isinstance(finding, dict):
+            raise ValueError(f"Causal finding {index} must be an object")
+        missing_fields = [
+            field
+            for field in (
+                "observation_ids",
+                "source_path",
+                "symbols_or_sections",
+                "cause",
+                "evidence",
+                "downstream_impact",
+            )
+            if not finding.get(field)
+        ]
+        if missing_fields:
+            raise ValueError(
+                f"Causal finding {index} missing required fields: {missing_fields}"
+            )
+        observation_ids = [
+            str(value).strip()
+            for value in finding.get("observation_ids") or []
+            if str(value).strip()
+        ]
+        if not observation_ids:
+            raise ValueError(f"Causal finding {index} requires observation_ids")
+        unknown_evidence = (
+            sorted(set(observation_ids) - evidence_ids)
+            if evidence_ids is not None
+            else []
+        )
+        if unknown_evidence:
+            raise ValueError(
+                f"Causal finding {index} references unknown evidence IDs: "
+                f"{unknown_evidence}"
+            )
+        normalized_findings.append({**finding, "observation_ids": observation_ids})
+    if repair_kind in {"prompt", "script", "mixed"} and not normalized_findings:
+        raise ValueError("Actionable repair diagnosis requires causal findings")
+    confidence = diagnosis.get("diagnostic_confidence")
+    if confidence is None:
+        raise ValueError("Diagnosis requires diagnostic_confidence")
+    try:
+        confidence_value = float(confidence)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("diagnostic_confidence must be numeric") from exc
+    if not 0.0 <= confidence_value <= 1.0:
+        raise ValueError("diagnostic_confidence must be between 0 and 1")
+    for field in (
+        "schema_version",
+        "summary",
+        "dependency_order",
+        "must_preserve",
+        "acceptance_evidence",
+    ):
+        if field not in diagnosis:
+            raise ValueError(f"Diagnosis is missing required field: {field}")
     diagnosis["status"] = raw_status
     diagnosis["repair_kind"] = repair_kind
     diagnosis["target_artifacts"] = list(dict.fromkeys(targets))
+    diagnosis["causal_findings"] = normalized_findings
+    diagnosis["diagnostic_confidence"] = confidence_value
     return diagnosis
 
 

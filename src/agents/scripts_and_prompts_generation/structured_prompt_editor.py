@@ -24,13 +24,31 @@ def _editor_prompt(
         "diagnosis": diagnosis,
         "contract": contract,
     }
+    allow_conflict_replacement = bool(
+        diagnosis.get("allow_conflict_replacement")
+    )
+    edit_policy = (
+        "Use minimal conflict-replacement editing for this repair. Runtime evidence "
+        "and semantic review have proven that an existing instruction directly "
+        "contradicts the T-Box/tool contract. Replace only that conflicting instruction "
+        "with the required behavior; preserve every unrelated instruction byte-for-byte. "
+        "Do not reorganize sections or broaden scope. "
+        if allow_conflict_replacement
+        else "Use monotonic additive editing: preserve all existing text byte-for-byte "
+        "and insert only the smallest rule needed for the diagnosed defect. Do not "
+        "delete, paraphrase, reorder, summarize, or rewrite existing instructions. "
+        "Do not reorganize sections. If the repair would contradict an existing "
+        "instruction, report the conflict rather than removing or weakening that "
+        "instruction. "
+    )
     return (
         "You are a prompt editor. Decide and implement the prompt changes required by "
         "the redacted diagnosis using only general ontology/T-Box rules. "
-        "Edit only files that genuinely need a change; it is not necessary to edit every "
+        "Edit only files that genuinely need a change; it is not necessary to edit every target. "
         "Do not include fixture entities, gold values, DOI values, scripts, or new files. "
         "Preserve rules identified by the diagnosis as already correct. "
-        "At least one real prompt change is required.\n\n"
+        + edit_policy
+        + "At least one real prompt change is required.\n\n"
         + json.dumps(payload, ensure_ascii=False)
     )
 
@@ -125,6 +143,9 @@ def run_structured_prompt_editor(
     edit_backend: str = "exact_edits",
 ) -> dict[str, Any]:
     """Generate and apply prompt changes through a plain LLM edit call."""
+    allow_conflict_replacement = bool(
+        diagnosis.get("allow_conflict_replacement")
+    )
     report = run_llm_artifact_editor(
         model_name=model_name,
         output_root=output_root,
@@ -132,6 +153,9 @@ def run_structured_prompt_editor(
         task_prompt=_editor_prompt(diagnosis, targets, contract),
         max_attempts=max_attempts,
         edit_backend=edit_backend,
+        additive_only=not allow_conflict_replacement,
+        max_added_lines=15,
+        max_operations=2,
     )
     return {
         **report,

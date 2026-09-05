@@ -16,168 +16,112 @@ from typing import Dict, List, Any
 import json
 
 
-_GENERIC_INTEGRITY_ANNOTATION_FIELDS = {
-    "instanceIntegrityRule": "instance_integrity_rules",
-    "edgeIntegrityRule": "edge_integrity_rules",
-    "orderingSemantics": "ordering_semantics",
-    "typingIntegrityRule": "typing_integrity_rules",
-}
-
-
-def _empty_integrity_annotations() -> Dict[str, List[str]]:
-    """Return the normalized integrity-annotation buckets used across generators."""
-    return {
-        "instance_integrity_rules": [],
-        "edge_integrity_rules": [],
-        "ordering_semantics": [],
-        "typing_integrity_rules": [],
-    }
-
-
-def _merge_unique_rules(target: Dict[str, List[str]], source: Dict[str, List[str]]) -> Dict[str, List[str]]:
-    """Merge integrity buckets while preserving order and removing duplicates."""
-    for key, values in (source or {}).items():
-        bucket = target.setdefault(key, [])
-        for value in values or []:
-            text = str(value).strip()
-            if text and text not in bucket:
-                bucket.append(text)
-    return target
-
-
-def _extract_integrity_annotations(g: Graph, subject) -> Dict[str, List[str]]:
-    """Extract generic machine-readable integrity annotations from a subject."""
-    out = _empty_integrity_annotations()
-    for predicate, obj in g.predicate_objects(subject):
-        bucket = _GENERIC_INTEGRITY_ANNOTATION_FIELDS.get(_get_local_name(predicate))
-        if not bucket:
-            continue
-        text = str(obj).strip()
-        if text and text not in out[bucket]:
-            out[bucket].append(text)
-    return out
-
-
-def _has_any_integrity_annotations(annotations: Dict[str, List[str]]) -> bool:
-    """Return True when any integrity bucket carries at least one value."""
-    return any(bool(values) for values in (annotations or {}).values())
-
-
-def _inherit_integrity_annotations(classes: Dict[str, Any]) -> Dict[str, Dict[str, List[str]]]:
-    """Compute inherited integrity annotations for each class."""
-    resolved: Dict[str, Dict[str, List[str]]] = {}
-    visiting: set[str] = set()
-
-    def resolve(class_name: str) -> Dict[str, List[str]]:
-        if class_name in resolved:
-            return resolved[class_name]
-        if class_name in visiting:
-            return _empty_integrity_annotations()
-
-        visiting.add(class_name)
-        merged = _empty_integrity_annotations()
-        class_data = classes.get(class_name, {}) or {}
-        for parent in class_data.get("parent_classes", []) or []:
-            if parent in classes:
-                _merge_unique_rules(merged, resolve(parent))
-        _merge_unique_rules(merged, class_data.get("integrity_annotations", {}) or {})
-        visiting.remove(class_name)
-        resolved[class_name] = merged
-        return merged
-
-    for name in classes.keys():
-        resolve(name)
-    return resolved
-
-
-def _contains_any_token(values: List[str], tokens: List[str]) -> bool:
-    """Case-insensitive substring check across a rule bucket."""
-    lowered = [str(v).strip().lower() for v in values or []]
-    return any(token in value for value in lowered for token in tokens)
+def _normalize_literal_text(value: Any) -> str:
+    """Normalize RDF literal newlines for deterministic cross-platform output."""
+    return str(value).replace("\r\n", "\n").replace("\r", "\n")
 
 
 def extract_ontology_integrity_profile(ttl_path: str) -> Dict[str, Any]:
     """
-    Parse ontology integrity annotations into a generic machine-readable profile.
+    Build a generic structural profile from standard OWL/RDFS declarations.
 
-    The resulting keys stay domain-agnostic so prompt/script generation can consume
-    ontology-derived structure without hard-coding ontology names or class lists.
+    The stable profile keys are retained for downstream consumers, but private
+    pipeline annotation predicates and ontology-local rule tokens are deliberately
+    not parsed. Operational policies belong in comments, meta-prompts, or generic
+    runtime configuration rather than the T-Box.
     """
     parsed = parse_ontology_ttl(ttl_path)
     classes = parsed.get("classes", {}) or {}
     properties = parsed.get("properties", {}) or {}
-    inherited = _inherit_integrity_annotations(classes)
+    class_constraints = {
+        class_name: {
+            "parent_classes": classes.get(class_name, {}).get(
+                "parent_classes", []
+            )
+            or [],
+        }
+        for class_name in sorted(classes)
+    }
+    property_constraints = {
+        prop_name: {
+            "kind": prop_data.get("kind", ""),
+            "domains": prop_data.get("domains", []) or [],
+            "range": prop_data.get("range", ""),
+        }
+        for prop_name in sorted(properties)
+        for prop_data in [properties.get(prop_name, {}) or {}]
+    }
 
-    ordered_member_classes: List[str] = []
-    non_reusable_classes: List[str] = []
-    parent_type_preserving_classes: List[str] = []
-    most_specific_subclass_targets: Dict[str, List[str]] = {}
-
-    for class_name in sorted(classes.keys()):
-        annotations = inherited.get(class_name, _empty_integrity_annotations())
-        ordering_semantics = annotations.get("ordering_semantics", []) or []
-        instance_rules = annotations.get("instance_integrity_rules", []) or []
-        typing_rules = annotations.get("typing_integrity_rules", []) or []
-
-        if _contains_any_token(ordering_semantics, ["ordered_member", "ordered member", "ordered sequence", "ordered_procedure_member"]):
-            ordered_member_classes.append(class_name)
-        if _contains_any_token(instance_rules, ["fresh_individual", "do_not_reuse", "non_reusable", "never_reuse", "unique_member"]):
-            non_reusable_classes.append(class_name)
-        if typing_rules:
-            parent_type_preserving_classes.append(class_name)
-        if _contains_any_token(typing_rules, ["prefer_most_specific_subclass", "most specific subclass", "specific subclass"]):
-            children = sorted(
+    most_specific_subclass_targets = {
+        class_name: children
+        for class_name in sorted(classes)
+        for children in [
+            sorted(
                 child_name
                 for child_name, child_data in classes.items()
                 if class_name in (child_data.get("parent_classes", []) or [])
             )
-            if children:
-                most_specific_subclass_targets[class_name] = children
+        ]
+        if children
+    }
 
-    individually_linked_object_properties: List[str] = []
-    single_valued_ordering_properties: List[str] = []
-    property_constraints: Dict[str, Dict[str, Any]] = {}
-    for prop_name in sorted(properties.keys()):
-        prop_data = properties.get(prop_name, {}) or {}
-        annotations = prop_data.get("integrity_annotations", {}) or _empty_integrity_annotations()
-        prop_entry = {
-            "kind": prop_data.get("kind", ""),
-            "domains": prop_data.get("domains", []) or [],
-            "range": prop_data.get("range", ""),
-            "instance_integrity_rules": annotations.get("instance_integrity_rules", []) or [],
-            "edge_integrity_rules": annotations.get("edge_integrity_rules", []) or [],
-            "ordering_semantics": annotations.get("ordering_semantics", []) or [],
-            "typing_integrity_rules": annotations.get("typing_integrity_rules", []) or [],
-        }
-        property_constraints[prop_name] = prop_entry
-        if _contains_any_token(prop_entry["edge_integrity_rules"], ["link_each_member_individually", "individual_member_links", "one_edge_per_member", "aggregate"]):
-            individually_linked_object_properties.append(prop_name)
-        if _contains_any_token(prop_entry["ordering_semantics"], ["single_scalar", "single_slot", "single_order", "one order"]) or _contains_any_token(
-            prop_entry["instance_integrity_rules"],
-            ["single_order", "one_order", "multiple_order_values", "single_slot"],
-        ):
-            single_valued_ordering_properties.append(prop_name)
-
-    class_constraints = {}
-    for class_name in sorted(classes.keys()):
-        ann = inherited.get(class_name, _empty_integrity_annotations())
-        class_constraints[class_name] = {
-            "instance_integrity_rules": ann.get("instance_integrity_rules", []) or [],
-            "edge_integrity_rules": ann.get("edge_integrity_rules", []) or [],
-            "ordering_semantics": ann.get("ordering_semantics", []) or [],
-            "typing_integrity_rules": ann.get("typing_integrity_rules", []) or [],
-            "parent_classes": classes.get(class_name, {}).get("parent_classes", []) or [],
-        }
+    integer_ranges = {"integer", "int", "long", "nonNegativeInteger", "positiveInteger"}
+    ordering_properties = {
+        prop_name
+        for prop_name, prop_data in properties.items()
+        if prop_data.get("kind") == "datatype"
+        and str(prop_data.get("range") or "") in integer_ranges
+        and "order" in str(prop_data.get("comment") or "").lower()
+        and any(
+            token in str(prop_data.get("comment") or "").lower()
+            for token in ("index", "sequence", "position", "contiguous", "no gap")
+        )
+    }
+    ordered_member_classes = {
+        str(domain)
+        for prop_name in ordering_properties
+        for domain in (properties.get(prop_name, {}).get("domains") or [])
+        if str(domain) in classes
+    }
+    changed = True
+    while changed:
+        changed = False
+        for class_name, class_data in classes.items():
+            if class_name in ordered_member_classes:
+                continue
+            if set(class_data.get("parent_classes") or []) & ordered_member_classes:
+                ordered_member_classes.add(class_name)
+                changed = True
+    collection_properties = {
+        prop_name
+        for prop_name, prop_data in properties.items()
+        if prop_data.get("kind") == "object"
+        and str(prop_data.get("range") or "") in ordered_member_classes
+        and (
+            "order" in str(prop_data.get("comment") or "").lower()
+            or any(
+                order_prop.lower()
+                in str(prop_data.get("comment") or "").lower()
+                for order_prop in ordering_properties
+            )
+        )
+    }
+    parent_type_preserving = {
+        class_name
+        for class_name in ordered_member_classes
+        if set(classes.get(class_name, {}).get("parent_classes") or [])
+        & ordered_member_classes
+    }
 
     return {
         "class_constraints": class_constraints,
         "property_constraints": property_constraints,
-        "ordered_member_classes": ordered_member_classes,
-        "non_reusable_classes": non_reusable_classes,
-        "parent_type_preserving_classes": parent_type_preserving_classes,
+        "ordered_member_classes": sorted(ordered_member_classes),
+        "non_reusable_classes": [],
+        "parent_type_preserving_classes": sorted(parent_type_preserving),
         "most_specific_subclass_targets": most_specific_subclass_targets,
-        "individually_linked_object_properties": individually_linked_object_properties,
-        "single_valued_ordering_properties": single_valued_ordering_properties,
+        "individually_linked_object_properties": sorted(collection_properties),
+        "single_valued_ordering_properties": sorted(ordering_properties),
     }
 
 
@@ -281,6 +225,8 @@ def parse_ontology_ttl(ttl_path: str) -> Dict[str, Any]:
     # Extract all classes
     classes = {}
     for cls in g.subjects(RDF.type, OWL.Class):
+        if isinstance(cls, BNode):
+            continue
         cls_local = _get_local_name(cls)
         if not cls_local:
             continue
@@ -291,19 +237,20 @@ def parse_ontology_ttl(ttl_path: str) -> Dict[str, Any]:
             continue
         
         # Get parent classes
-        parents = [_get_local_name(p) for p in g.objects(cls, RDFS.subClassOf) 
-                   if _get_local_name(p)]
+        parents = [
+            _get_local_name(p)
+            for p in g.objects(cls, RDFS.subClassOf)
+            if not isinstance(p, BNode) and _get_local_name(p)
+        ]
         
         # Get rdfs:comment for reusability and other annotations
         comments = list(g.objects(cls, RDFS.comment))
-        comment_text = str(comments[0]) if comments else ""
+        comment_text = _normalize_literal_text(comments[0]) if comments else ""
         
-        integrity_annotations = _extract_integrity_annotations(g, cls)
         classes[cls_local] = {
             "iri": str(cls),
             "parent_classes": parents,
             "comment": comment_text,
-            "integrity_annotations": integrity_annotations,
             "datatype_properties": {},
             "object_properties": {}
         }
@@ -335,9 +282,10 @@ def parse_ontology_ttl(ttl_path: str) -> Dict[str, Any]:
         ranges = list(g.objects(prop, RDFS.range))
         range_type = _get_local_name(ranges[0]) if ranges else "xsd:string"
         
-        integrity_annotations = _extract_integrity_annotations(g, prop)
         comment_vals = list(g.objects(prop, RDFS.comment))
-        comment_text = str(comment_vals[0]) if comment_vals else ""
+        comment_text = (
+            _normalize_literal_text(comment_vals[0]) if comment_vals else ""
+        )
         value_kinds = []
         for pred, obj in g.predicate_objects(prop):
             if _get_local_name(pred) == "valueKind":
@@ -350,7 +298,6 @@ def parse_ontology_ttl(ttl_path: str) -> Dict[str, Any]:
             "domains": domains,
             "range": range_type,
             "comment": comment_text,
-            "integrity_annotations": integrity_annotations,
             "value_kind": value_kinds[0] if value_kinds else "",
             "value_kinds": value_kinds,
         }
@@ -373,16 +320,16 @@ def parse_ontology_ttl(ttl_path: str) -> Dict[str, Any]:
         ranges = list(g.objects(prop, RDFS.range))
         range_class = _get_local_name(ranges[0]) if ranges else "owl:Thing"
         
-        integrity_annotations = _extract_integrity_annotations(g, prop)
         comment_vals = list(g.objects(prop, RDFS.comment))
-        comment_text = str(comment_vals[0]) if comment_vals else ""
+        comment_text = (
+            _normalize_literal_text(comment_vals[0]) if comment_vals else ""
+        )
         properties[prop_local] = {
             "iri": str(prop),
             "kind": "object",
             "domains": domains,
             "range": range_class,
             "comment": comment_text,
-            "integrity_annotations": integrity_annotations,
         }
 
         # Add to each domain class
@@ -399,13 +346,6 @@ def parse_ontology_ttl(ttl_path: str) -> Dict[str, Any]:
         "metadata": {
             "total_classes": len(classes),
             "source_file": ttl_path,
-            "has_integrity_annotations": any(
-                _has_any_integrity_annotations((cls_data or {}).get("integrity_annotations", {}) or {})
-                for cls_data in classes.values()
-            ) or any(
-                _has_any_integrity_annotations((prop_data or {}).get("integrity_annotations", {}) or {})
-                for prop_data in properties.values()
-            ),
         }
     }
 

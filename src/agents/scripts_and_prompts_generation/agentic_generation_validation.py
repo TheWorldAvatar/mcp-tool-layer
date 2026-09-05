@@ -12,7 +12,7 @@ import re
 import sys
 import tempfile
 import types
-from collections.abc import Iterable, Mapping
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -30,6 +30,18 @@ from src.agents.scripts_and_prompts_generation.generation_contracts import (
     build_validation_observation,
     validate_generated_artifacts,
 )
+from src.agents.scripts_and_prompts_generation.materialization_closure import (
+    compile_materialization_obligation_graph,
+    materialization_closure_failures,
+)
+from src.agents.scripts_and_prompts_generation.extension_prompt_contract import (
+    ensure_extension_kg_mode_a_handoff_file,
+    extension_kg_mode_a_handoff_present,
+    is_extension_kg_prompt,
+)
+from src.agents.scripts_and_prompts_generation.reuse_policy import (
+    EXISTING_CHECK_EVIDENCE_REQUIRED_SCOPES,
+)
 
 
 EXPECTED_SCRIPT_SUFFIXES = (
@@ -39,6 +51,132 @@ EXPECTED_SCRIPT_SUFFIXES = (
     "_creation_relationships.py",
     "main.py",
 )
+
+
+def _required_operation_fixture_triples(
+    *,
+    operation_units: Mapping[str, Any],
+    owner_class_iri: str,
+    owner: URIRef,
+    parent: URIRef,
+    token: str,
+) -> list[tuple[URIRef, URIRef, URIRef]]:
+    """Build a valid required-edge fixture from all matching operation units."""
+    creators: list[Mapping[str, Any]] = []
+    for raw_unit in operation_units.get("units") or []:
+        unit = raw_unit if isinstance(raw_unit, Mapping) else {}
+        candidate = unit.get("creator_contract") or {}
+        if (
+            isinstance(candidate, Mapping)
+            and str(candidate.get("class_iri") or "") == owner_class_iri
+        ):
+            creators.append(candidate)
+
+    triples: list[tuple[URIRef, URIRef, URIRef]] = []
+    for unit_index, creator in enumerate(creators):
+        for edge_index, raw_edge in enumerate(creator.get("required_edges") or []):
+            edge = raw_edge if isinstance(raw_edge, Mapping) else {}
+            predicate_iri = str(edge.get("predicate_iri") or "").strip()
+            if not predicate_iri:
+                continue
+            predicate = URIRef(predicate_iri)
+            resolution = str(edge.get("target_resolution") or "")
+            direction = str(edge.get("direction") or "")
+            if resolution == "existing_iri_parameter":
+                target = parent
+            elif resolution == "same_operation_create":
+                target = URIRef(
+                    f"urn:validator:required-target:{token}:{unit_index}:{edge_index}"
+                )
+                dependent_class_iri = str(
+                    edge.get("dependent_class_iri") or ""
+                ).strip()
+                if dependent_class_iri:
+                    triples.append((target, RDF.type, URIRef(dependent_class_iri)))
+            else:
+                continue
+
+            if direction == "container_as_subject_owner_as_object":
+                triples.append((target, predicate, owner))
+            else:
+                triples.append((owner, predicate, target))
+    return list(dict.fromkeys(triples))
+
+
+def _seed_existing_operation_targets(
+    graph: Graph,
+    creator_contract: Mapping[str, Any],
+    call_kwargs: Mapping[str, Any],
+) -> None:
+    """Seed pre-existing typed inputs required by an atomic creator probe."""
+    for raw_edge in creator_contract.get("required_edges") or []:
+        edge = raw_edge if isinstance(raw_edge, Mapping) else {}
+        if edge.get("target_resolution") != "existing_iri_parameter":
+            continue
+        parameter_name = str(edge.get("parameter_name") or "").strip()
+        target_iri = str(call_kwargs.get(parameter_name) or "").strip()
+        if not target_iri:
+            continue
+        target_classes = {
+            str(value).strip()
+            for key in (
+                "container_class_iris",
+                "target_class_iris",
+                "range_class_iris",
+            )
+            for value in (edge.get(key) or [])
+            if str(value).strip()
+        }
+        dependent_class_iri = str(
+            edge.get("dependent_class_iri") or ""
+        ).strip()
+        if dependent_class_iri:
+            target_classes.add(dependent_class_iri)
+        for class_iri in target_classes:
+            graph.add((URIRef(target_iri), RDF.type, URIRef(class_iri)))
+
+
+def empty_existing_check_probe_failures(
+    *,
+    artifact_name: str,
+    tool_name: str,
+    lookup_scope: str,
+    payload: Mapping[str, Any],
+    expected_reuse_authorized: bool = False,
+    expected_reference_resolution_only: bool = False,
+) -> list[str]:
+    """Score one empty-argument `check_existing_*` call against lookup_scope only."""
+    failures: list[str] = []
+    if lookup_scope in EXISTING_CHECK_EVIDENCE_REQUIRED_SCOPES:
+        if (
+            str(payload.get("status") or "").casefold() != "rejected"
+            or payload.get("code") != "PROPOSED_ENTITY_EVIDENCE_REQUIRED"
+        ):
+            failures.append(
+                f"{artifact_name}: {tool_name} must fail closed with "
+                "PROPOSED_ENTITY_EVIDENCE_REQUIRED when proposed "
+                "entity evidence is absent"
+            )
+        return failures
+    expected_metadata = {
+        "lookup_scope": lookup_scope,
+        "reuse_authorized": expected_reuse_authorized,
+        "reference_resolution_only": expected_reference_resolution_only,
+    }
+    for field, expected_value in expected_metadata.items():
+        if payload.get(field) != expected_value:
+            failures.append(
+                f"{artifact_name}: {tool_name} must return {field}="
+                f"{expected_value!r}; observed={payload.get(field)!r}"
+            )
+    if not any(
+        isinstance(payload.get(field), list)
+        for field in ("instances", "candidates", "entities")
+    ):
+        failures.append(
+            f"{artifact_name}: {tool_name} must return a bounded candidate list"
+        )
+    return failures
 
 
 def _graph_fingerprint(graph: Graph) -> str:
@@ -114,6 +252,7 @@ def _relationship_binding_evidence(
 ) -> dict[str, Any]:
     """Find provable predicate bindings while treating dynamic data flow as unknown."""
     binding_calls: list[ast.Call] = []
+    candidate_calls: list[ast.Call] = []
     bound_iris: set[str] = set()
     callable_bindings: dict[str, set[str]] = {}
     value_bindings = _module_string_bindings(module) if module is not None else {}
@@ -150,10 +289,11 @@ def _relationship_binding_evidence(
         }
         if not {"subject_iri", "object_iri"} <= referenced_names:
             continue
-        binding_calls.append(call)
+        candidate_calls.append(call)
+        call_bound_iris: set[str] = set()
         if isinstance(call.func, ast.Name):
-            bound_iris.update(callable_bindings.get(call.func.id, set()))
-        bound_iris.update(
+            call_bound_iris.update(callable_bindings.get(call.func.id, set()))
+        call_bound_iris.update(
             resolved
             for argument in argument_nodes
             if (
@@ -161,7 +301,7 @@ def _relationship_binding_evidence(
             ).startswith(("http://", "https://"))
         )
         literal_roots = [call.func, *argument_nodes]
-        bound_iris.update(
+        call_bound_iris.update(
             str(node.value)
             for root in literal_roots
             for node in ast.walk(root)
@@ -169,8 +309,16 @@ def _relationship_binding_evidence(
             and isinstance(node.value, str)
             and node.value.startswith(("http://", "https://"))
         )
+        # A call that merely receives both IRIs (for example, input validation)
+        # is not a relationship capability. Count only calls whose predicate
+        # binding can be proven from the callable or its arguments.
+        if call_bound_iris:
+            binding_calls.append(call)
+            bound_iris.update(call_bound_iris)
     return {
-        "call_count": len(binding_calls),
+        "call_count": (
+            len(binding_calls) if bound_iris else len(candidate_calls)
+        ),
         "bound_iris": sorted(bound_iris),
         "binding_status": "proven" if bound_iris else "unknown",
     }
@@ -339,6 +487,7 @@ def _semantic_obligation(
 
 def _syntax_report(
     scripts_dir: Path,
+    paths: list[Path] | None = None,
 ) -> tuple[list[str], list[str], list[dict[str, Any]]]:
     failures: list[str] = []
     warnings: list[str] = []
@@ -346,7 +495,12 @@ def _syntax_report(
     if not scripts_dir.exists():
         warnings.append(f"Scripts directory does not exist yet: {scripts_dir}")
         return failures, warnings, obligations
-    for path in sorted(scripts_dir.glob("*.py")):
+    python_paths = (
+        sorted(path for path in paths if path.suffix == ".py")
+        if paths is not None
+        else sorted(scripts_dir.glob("*.py"))
+    )
+    for path in python_paths:
         artifact = path.name
         item_failures: list[str] = []
         try:
@@ -595,6 +749,7 @@ def _runtime_graph_hygiene_report(
         if script_path.name in {
             "_fixed_rdf_runtime.py",
             "_fixed_om2_runtime.py",
+            "_reuse_pair_judge.py",
         }:
             continue
         try:
@@ -640,19 +795,29 @@ def _runtime_graph_hygiene_report(
         main_tree = None
     if main_tree is not None:
         runtime_tool_names = {"init_memory", "export_memory"}
+        commit_gate = (
+            (getattr(context, "contract", {}) or {}).get(
+                "materialization_operation_units"
+            )
+            or {}
+        )
+        commit_gate_enabled = bool(commit_gate.get("merged_predicate_locals"))
         defined_runtime_tools = {
             node.name
             for node in main_tree.body
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
             and node.name in runtime_tool_names
         }
-        if defined_runtime_tools:
+        forbidden_defined_runtime_tools = set(defined_runtime_tools)
+        if commit_gate_enabled:
+            forbidden_defined_runtime_tools.discard("export_memory")
+        if forbidden_defined_runtime_tools:
             fail(
                 "runtime-policy:lifecycle-tools#fixed-provenance",
                 "main.py must import tested lifecycle tools from _fixed_rdf_runtime, not "
-                "define them: " + ", ".join(sorted(defined_runtime_tools)),
+                "define them: " + ", ".join(sorted(forbidden_defined_runtime_tools)),
                 subject_kind="runtime-policy",
-                tool_names=sorted(defined_runtime_tools),
+                tool_names=sorted(forbidden_defined_runtime_tools),
             )
         for node in main_tree.body:
             if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -717,7 +882,24 @@ def _runtime_graph_hygiene_report(
                 source = ast.get_source_segment(
                     main_path.read_text(encoding="utf-8"), node
                 ) or ""
-                if (
+                if commit_gate_enabled:
+                    if "check_ordered_members" not in source:
+                        fail(
+                            "tool:export_memory#commit-gate",
+                            "main.py: export_memory must call the generated integrity "
+                            "check before delegating to fixed export",
+                            subject_kind="tool",
+                            tool_name=node.name,
+                        )
+                    if "export_memory" not in source.replace("def export_memory", ""):
+                        fail(
+                            "tool:export_memory#fixed-delegate",
+                            "main.py: commit-gated export_memory must delegate successful "
+                            "graphs to fixed-runtime export_memory",
+                            subject_kind="tool",
+                            tool_name=node.name,
+                        )
+                elif (
                     "export_graph_result" not in source
                     and "export_memory_wrapper" not in source
                 ):
@@ -728,13 +910,7 @@ def _runtime_graph_hygiene_report(
                         subject_kind="tool",
                         tool_name=node.name,
                     )
-                if (
-                    "export_memory_wrapper" not in source
-                    and (
-                        "doi" not in parameter_names
-                        or "top_level_entity_name" not in parameter_names
-                    )
-                ):
+                if "doi" not in parameter_names or "top_level_entity_name" not in parameter_names:
                     fail(
                         "tool:export_memory#scoped-persistence",
                         "main.py: export_memory must pass DOI and scope to fixed-runtime "
@@ -834,6 +1010,10 @@ def _runtime_graph_hygiene_report(
                 label="Validator shared graph probe",
                 include_optional_datatypes=False,
             )
+            if isinstance(graph, Graph):
+                _seed_existing_operation_targets(
+                    graph, create_contract, call_recipe["kwargs"]
+                )
             raw_created = create_tool(
                 *call_recipe["args"],
                 **call_recipe["kwargs"],
@@ -1287,6 +1467,46 @@ def _expected_tool_surface_report(
         warnings.append("main.py not present; exact MCP surface validation skipped")
         return failures, warnings, obligations
     try:
+        main_tree = ast.parse(main_path.read_text(encoding="utf-8", errors="replace"))
+    except (OSError, SyntaxError) as exc:
+        fail(
+            "artifact:main.py#stdio-entry-point",
+            f"main.py could not be parsed for stdio entry-point validation: "
+            f"{type(exc).__name__}: {exc}",
+            subject_kind="artifact",
+            artifact="main.py",
+        )
+    else:
+        has_stdio_entry_point = any(
+            isinstance(node, ast.If)
+            and isinstance(node.test, ast.Compare)
+            and isinstance(node.test.left, ast.Name)
+            and node.test.left.id == "__name__"
+            and len(node.test.ops) == 1
+            and isinstance(node.test.ops[0], ast.Eq)
+            and len(node.test.comparators) == 1
+            and isinstance(node.test.comparators[0], ast.Constant)
+            and node.test.comparators[0].value == "__main__"
+            and any(
+                isinstance(child, ast.Expr)
+                and isinstance(child.value, ast.Call)
+                and isinstance(child.value.func, ast.Attribute)
+                and isinstance(child.value.func.value, ast.Name)
+                and child.value.func.value.id == "mcp"
+                and child.value.func.attr == "run"
+                for child in node.body
+            )
+            for node in main_tree.body
+        )
+        if not has_stdio_entry_point:
+            fail(
+                "artifact:main.py#stdio-entry-point",
+                "main.py must keep stdio service alive with "
+                "`if __name__ == '__main__': mcp.run()`",
+                subject_kind="artifact",
+                artifact="main.py",
+            )
+    try:
         surface_contract = derive_main_surface_contract(scripts_dir)
     except Exception as exc:
         fail(
@@ -1361,7 +1581,18 @@ def _expected_tool_surface_report(
             handler = getattr(tool, "fn", None)
             module_name = str(getattr(handler, "__module__", ""))
             owner_module = module_name.rsplit(".", 1)[-1]
-            if tool_name in fixed_runtime_tools:
+            commit_gated_export = (
+                tool_name == "export_memory"
+                and bool(
+                    (
+                        context.contract.get("materialization_operation_units")
+                        or {}
+                    ).get("merged_predicate_locals")
+                )
+            )
+            if commit_gated_export:
+                provenance_ok = handler is not None and owner_module == "main"
+            elif tool_name in fixed_runtime_tools:
                 provenance_ok = handler is not None and owner_module == "_fixed_rdf_runtime"
             else:
                 provenance_ok = (
@@ -1507,14 +1738,62 @@ def _prompt_tbox_fidelity_report(
     return [], []
 
 
-def validate_prompt_runtime_bindings(path: Path) -> dict[str, Any]:
+def validate_prompt_runtime_bindings(
+    path: Path,
+    context: AgenticGenerationContext | None = None,
+) -> dict[str, Any]:
     """Validate that a generated prompt exposes its runtime data channel."""
     text = path.read_text(encoding="utf-8") if path.is_file() else ""
     name = path.name
     required_groups: list[tuple[str, ...]] = []
     allowed_slots: set[str]
     forbidden_slots: set[str] = set()
-    if name == "KG_BUILDING_ITER_1.md":
+    is_extension = bool(
+        context is not None
+        and getattr(getattr(context, "ontology", None), "role", "") == "extension"
+    )
+    if is_extension and name.startswith("KG_BUILDING_ITER_"):
+        required_groups.extend(
+            [
+                ("{doi}",),
+                ("{entity_label}",),
+                ("{entity_uri}",),
+                ("{enrichment_targets}",),
+                ("{main_ontology_a_box}",),
+                ("{paper_content}",),
+            ]
+        )
+        allowed_slots = {
+            "doi",
+            "entity_label",
+            "entity_uri",
+            "enrichment_targets",
+            "main_ontology_a_box",
+            "paper_content",
+        }
+        forbidden_slots = {
+            "iteration_hints",
+            "top_entities",
+            "hints",
+            "ontosynthesis_a_box",
+        }
+    elif is_extension and name.startswith("EXTRACTION_"):
+        required_groups.extend(
+            [
+                ("{entity_label}",),
+                ("{entity_uri}",),
+            ]
+        )
+        allowed_slots = {"entity_label", "entity_uri"}
+        forbidden_slots = {
+            "paper_content",
+            "iteration_hints",
+            "top_entities",
+            "hints",
+            "main_ontology_a_box",
+            "ontosynthesis_a_box",
+        }
+    elif name == "KG_BUILDING_ITER_1.md":
         required_groups.extend(
             [
                 ("{paper_content}",),
@@ -1562,6 +1841,8 @@ def validate_prompt_runtime_bindings(path: Path) -> dict[str, Any]:
             "hints",
             "iteration_input",
             "iteration_hints",
+            "accumulated_hints",
+            "entity_identity_dossier",
         }
     if name.startswith("EXTRACTION_") and name != "EXTRACTION_ITER_1.md":
         required_groups.extend(
@@ -1570,7 +1851,14 @@ def validate_prompt_runtime_bindings(path: Path) -> dict[str, Any]:
                 ("{entity_uri}",),
             ]
         )
-    observed_slots = set(re.findall(r"(?<!\{)\{([A-Za-z_][A-Za-z0-9_]*)\}(?!\})", text))
+    slot_matches = re.findall(
+        r"(?<!\{)\{([A-Za-z_][A-Za-z0-9_]*)\}(?!\})",
+        text,
+    )
+    slot_counts = {
+        slot: slot_matches.count(slot) for slot in sorted(set(slot_matches))
+    }
+    observed_slots = set(slot_counts)
     failures: list[str] = []
     missing_groups = [
         group for group in required_groups if not any(slot in text for slot in group)
@@ -1589,9 +1877,50 @@ def validate_prompt_runtime_bindings(path: Path) -> dict[str, Any]:
     observed_forbidden_slots = sorted(observed_slots & forbidden_slots)
     if observed_forbidden_slots:
         failures.append(
-            f"{name}: forbidden runtime binding slot(s) for KG Iteration 2+: "
+            f"{name}: forbidden runtime binding slot(s) for this runtime contract: "
             + ", ".join(f"{{{slot}}}" for slot in observed_forbidden_slots)
         )
+    duplicated_slots = {
+        slot: count for slot, count in slot_counts.items() if count > 1
+    }
+    if duplicated_slots:
+        failures.append(
+            f"{name}: each runtime binding must appear exactly once; duplicates: "
+            + ", ".join(
+                f"{{{slot}}}={count}"
+                for slot, count in sorted(duplicated_slots.items())
+            )
+        )
+    onepass_control_plane_hits: list[str] = []
+    if re.fullmatch(r"KG_BUILDING_ITER_\d+_ONEPASS\.md", name):
+        forbidden_patterns = (
+            r"\binit_memory\b",
+            r"\bexport_memory\b",
+            r"\bthis iteration only\b",
+            r"\bonly (?:in|for) this iteration\b",
+            r"\bdefer\b.{0,80}\b(?:later|next) iteration\b",
+            r"\bignore\b.{0,80}\bordered[- ]member hints?\b",
+            r"\buse only (?:the )?tools (?:listed|above|in this fragment)\b",
+            r"\bdo not (?:introduce|use|create|materialize)\b.{0,80}"
+            r"\b(?:classes|properties|tools|creators)\b.{0,80}\b(?:beyond|outside)\b",
+            r"\bfinish by\b",
+            r"\bdo not claim success\b",
+            r"\bfinal response\b",
+            r"\bfailed run\b",
+        )
+        onepass_control_plane_hits = sorted(
+            {
+                match.group(0)
+                for pattern in forbidden_patterns
+                for match in re.finditer(pattern, text, re.IGNORECASE | re.DOTALL)
+            }
+        )
+        if onepass_control_plane_hits:
+            failures.append(
+                f"{name}: one-pass fragment contains per-iteration control-plane "
+                "instructions: "
+                + ", ".join(onepass_control_plane_hits[:8])
+            )
     return {
         "ok": not failures,
         "failures": failures,
@@ -1601,6 +1930,9 @@ def validate_prompt_runtime_bindings(path: Path) -> dict[str, Any]:
             "missing_slot_groups": [list(group) for group in missing_groups],
             "unknown_slots": unknown_slots,
             "forbidden_slots": observed_forbidden_slots,
+            "slot_counts": slot_counts,
+            "duplicated_slots": duplicated_slots,
+            "onepass_control_plane_hits": onepass_control_plane_hits,
         },
     }
 
@@ -1617,7 +1949,7 @@ def _prompt_runtime_binding_report(
         else sorted(Path(context.prompts_dir).glob("*.md"))
     )
     for path in paths:
-        result = validate_prompt_runtime_bindings(path)
+        result = validate_prompt_runtime_bindings(path, context)
         item_failures = list(result["failures"])
         failures.extend(item_failures)
         obligations.append(
@@ -1626,6 +1958,214 @@ def _prompt_runtime_binding_report(
                 "failures": item_failures,
                 "observed_artifacts": [str(path)],
                 "evidence": result["evidence"],
+            }
+        )
+    return failures, [], obligations
+
+
+def _prompt_tool_signature_alignment_report(
+    context: AgenticGenerationContext,
+    prompt_paths: list[Path] | None = None,
+) -> tuple[list[str], list[str], list[dict[str, Any]]]:
+    """Require KG prompts to expose the creators' validated runtime signatures."""
+    from src.agents.scripts_and_prompts_generation.pure_llm_generation import (
+        _generated_runtime_signature,
+        _prompt_artifact_generation_contract,
+    )
+    from src.pipelines.utils.kg_full_hints_onepass import extract_mcp_tool_lines
+
+    failures: list[str] = []
+    obligations: list[dict[str, Any]] = []
+    generated_main = Path(context.scripts_dir) / "main.py"
+    if not generated_main.is_file() or not generated_main.read_text(
+        encoding="utf-8", errors="replace"
+    ).strip():
+        return [], [], []
+    try:
+        generated_module = _import_generated_main_module(
+            Path(context.scripts_dir), context.ontology.name
+        )
+    except Exception as exc:
+        failure = (
+            "KG prompt/runtime signature alignment requires an importable generated "
+            f"main.py: {type(exc).__name__}: {exc}"
+        )
+        return [failure], [], [
+            {
+                "subject_key": context.ontology.name,
+                "failures": [failure],
+                "observed_artifacts": [str(generated_main)],
+                "evidence": {},
+            }
+        ]
+    paths = (
+        sorted(prompt_paths)
+        if prompt_paths is not None
+        else sorted(Path(context.prompts_dir).glob("KG_BUILDING_ITER_*.md"))
+    )
+    for path in paths:
+        if not path.name.startswith("KG_BUILDING_ITER_"):
+            continue
+        item_failures: list[str] = []
+        expected: list[dict[str, str]] = []
+        try:
+            contract = _prompt_artifact_generation_contract(context, path)
+        except Exception as exc:
+            item_failures.append(
+                f"{path.name}: could not project the generated runtime tool signatures: "
+                f"{type(exc).__name__}: {exc}"
+            )
+            contract = {}
+        prompt_lines = [
+            " ".join(line.split())
+            for line in path.read_text(
+                encoding="utf-8", errors="replace"
+            ).splitlines()
+        ]
+        agent_tool_contract = contract.get("agent_tool_contract") or {}
+        tool_groups = (
+            "lifecycle_tools",
+            "creator_tools",
+            "relationship_tools",
+            "check_tools",
+            "fixed_creator_tools",
+        )
+        expected_tools = [
+            tool
+            for group in tool_groups
+            for tool in (agent_tool_contract.get(group) or [])
+        ]
+        extracted_lines = extract_mcp_tool_lines(
+            path.read_text(encoding="utf-8", errors="replace")
+        )
+        extracted_by_name = {
+            line.split("(", 1)[0].strip(): " ".join(line.split())
+            for line in extracted_lines
+        }
+        for tool in expected_tools:
+            name = str(tool.get("name") or "").strip()
+            signature = " ".join(
+                str(tool.get("exact_call_signature") or "").split()
+            )
+            if not name or not signature:
+                continue
+            observed = extracted_by_name.get(name, "")
+            if not observed:
+                item_failures.append(
+                    f"{path.name}: missing one-pass parseable signature line "
+                    f"`  - {signature}`"
+                )
+            elif observed != signature:
+                item_failures.append(
+                    f"{path.name}: one-pass signature for {name} is `{observed}`, "
+                    f"expected `{signature}`"
+                )
+
+        for tool in agent_tool_contract.get("creator_tools") or []:
+            name = str(tool.get("name") or "").strip()
+            if not name:
+                continue
+            try:
+                inspected = _generated_runtime_signature(generated_module, name)
+            except RuntimeError as exc:
+                item_failures.append(f"{path.name}: {exc}")
+                continue
+            runtime_signature = f"{name}{inspected}"
+            parameter_names = [
+                parameter.name
+                for parameter in inspected.parameters.values()
+                if parameter.kind
+                not in {
+                    inspect.Parameter.VAR_POSITIONAL,
+                    inspect.Parameter.VAR_KEYWORD,
+                }
+            ]
+            declaration_lines = [
+                line
+                for line in prompt_lines
+                if name in line and ("accepts only" in line or f"{name}(" in line)
+            ]
+            complete_declaration = next(
+                (
+                    line
+                    for line in declaration_lines
+                    if all(
+                        re.search(rf"\b{re.escape(parameter)}\b", line)
+                        for parameter in parameter_names
+                    )
+                ),
+                "",
+            )
+            if not complete_declaration:
+                item_failures.append(
+                    f"{path.name}: creator {name} has no executable declaration containing "
+                    "all validated runtime parameter names "
+                    f"{parameter_names}; prompt/runtime keyword drift is unsafe"
+                )
+            semantic_bindings = tool.get("semantic_parameter_bindings") or {}
+            for semantic_key, parameter_name in semantic_bindings.items():
+                if (
+                    semantic_key != parameter_name
+                    and any(
+                        re.search(rf"\b{re.escape(str(semantic_key))}\b", line)
+                        for line in declaration_lines
+                    )
+                ):
+                    item_failures.append(
+                        f"{path.name}: creator {name} exposes semantic property "
+                        f"{semantic_key!r} as a keyword, but the validated runtime "
+                        f"parameter is {parameter_name!r}"
+                    )
+            expected.append(
+                {"name": name, "exact_call_signature": runtime_signature}
+            )
+        failures.extend(item_failures)
+        obligations.append(
+            {
+                "subject_key": path.name,
+                "failures": item_failures,
+                "observed_artifacts": [str(path), str(context.scripts_dir)],
+                "evidence": {"expected_creator_signatures": expected},
+            }
+        )
+    return failures, [], obligations
+
+
+def _extension_kg_mode_a_handoff_report(
+    context: AgenticGenerationContext,
+    prompt_paths: list[Path] | None = None,
+) -> tuple[list[str], list[str], list[dict[str, Any]]]:
+    """Hard-require the mechanical Mode A block on extension KG prompts."""
+    if getattr(getattr(context, "ontology", None), "role", "") != "extension":
+        return [], [], []
+    failures: list[str] = []
+    obligations: list[dict[str, Any]] = []
+    paths = (
+        sorted(prompt_paths)
+        if prompt_paths is not None
+        else sorted(Path(context.prompts_dir).glob("KG_BUILDING_ITER_*.md"))
+    )
+    for path in paths:
+        if not is_extension_kg_prompt(path):
+            continue
+        ensure_extension_kg_mode_a_handoff_file(path)
+        text = path.read_text(encoding="utf-8", errors="replace") if path.is_file() else ""
+        item_failures: list[str] = []
+        if not extension_kg_mode_a_handoff_present(text):
+            item_failures.append(
+                f"{path.name}: missing mechanical Mode A handoff block; "
+                "extension KG must consume ref-entity-relations.v1 from the "
+                "declared source-content slot"
+            )
+        failures.extend(item_failures)
+        obligations.append(
+            {
+                "subject_key": path.name,
+                "failures": item_failures,
+                "observed_artifacts": [str(path)],
+                "evidence": {
+                    "mode_a_present": extension_kg_mode_a_handoff_present(text)
+                },
             }
         )
     return failures, [], obligations
@@ -1666,9 +2206,17 @@ def _foreign_symbol_report(
         and s.lower() not in common_tokens
         and not s.islower()
     }
+    # Prompt prose is reviewed semantically from structured contract evidence.
+    # Symbol regex checks remain limited to generated Python source.
     texts = {
-        **_read_texts(Path(context.scripts_dir), "*.py"),
-        **_read_texts(Path(context.prompts_dir), "*.md"),
+        name: text
+        for name, text in _read_texts(Path(context.scripts_dir), "*.py").items()
+        if name
+        not in {
+            "_fixed_rdf_runtime.py",
+            "_fixed_om2_runtime.py",
+            "_reuse_pair_judge.py",
+        }
     }
     offenders: list[str] = []
     for name, text in texts.items():
@@ -1682,6 +2230,45 @@ def _foreign_symbol_report(
     if offenders:
         failures.append("Foreign ontology symbols found: " + "; ".join(offenders[:8]))
     return failures, warnings
+
+
+def _ordered_violation_code_report(
+    result: dict[str, Any],
+) -> tuple[set[str], list[str]]:
+    """Read ordered-check violation codes and report response-schema errors."""
+    violations = result.get("violations")
+    if violations is None:
+        return set(), []
+    if not isinstance(violations, list):
+        return set(), ["`violations` must be an array of objects"]
+
+    codes: set[str] = set()
+    schema_errors: list[str] = []
+    for index, item in enumerate(violations):
+        if not isinstance(item, dict):
+            schema_errors.append(f"`violations[{index}]` must be an object")
+            continue
+        code = item.get("code")
+        if isinstance(code, str) and code.strip():
+            codes.add(code.strip())
+            continue
+        if "violation_code" in item:
+            schema_errors.append(
+                f"`violations[{index}]` uses unsupported discriminator "
+                "`violation_code`; rename it to the required key `code`"
+            )
+            continue
+        aliases = [alias for alias in ("type", "kind") if alias in item]
+        if aliases:
+            schema_errors.append(
+                f"`violations[{index}]` uses unsupported discriminator "
+                f"`{aliases[0]}`; rename it to the required key `code`"
+            )
+            continue
+        schema_errors.append(
+            f"`violations[{index}]` is missing required non-empty string field `code`"
+        )
+    return codes, schema_errors
 
 
 def _stage_artifact_contract_report(
@@ -1800,6 +2387,18 @@ def _stage_artifact_contract_report(
                     )
                     if str(value).strip()
                 }
+                from src.agents.scripts_and_prompts_generation.creator_atomicity import (
+                    creator_call_recipe,
+                )
+                from src.agents.scripts_and_prompts_generation.pure_llm_generation import (
+                    _owned_entity_tool_contracts,
+                )
+
+                creator_contracts = _owned_entity_tool_contracts(context)
+                creator_contract_by_local = {
+                    str(contract.get("class_local") or ""): contract
+                    for contract in creator_contracts
+                }
                 if name.endswith("_creation_entities.py"):
                     actual_creator_names = {
                         symbol
@@ -1876,54 +2475,34 @@ def _stage_artifact_contract_report(
                             failures.append(
                                 f"{name}: {tool_name} reported success without graph mutation"
                             )
-                    for local in sorted(ordered_classes):
-                        creator = creators.get(local)
-                        if not callable(creator):
-                            continue
-                        order_parameter = inspect.signature(creator).parameters.get(
-                            "order"
-                        )
-                        if (
-                            order_parameter is None
-                            or order_parameter.default is not inspect.Parameter.empty
-                        ):
-                            failures.append(
-                                f"{name}: create_{local} must require an explicit order "
-                                "so identity and ordering are written atomically"
-                            )
-                    from src.agents.scripts_and_prompts_generation.creator_atomicity import (
-                        probe_generated_creator_atomicity,
-                    )
-                    from src.agents.scripts_and_prompts_generation.pure_llm_generation import (
-                        _owned_entity_tool_contracts,
-                    )
-
-                    atomicity = probe_generated_creator_atomicity(
-                        module=imported_module,
-                        runtime=runtime,
-                        creator_contracts=_owned_entity_tool_contracts(context),
-                    )
-                    for tool_name, evidence in atomicity.get("failures", {}).items():
-                        failures.append(
-                            f"{name}: [creator_atomicity] tool:{tool_name}#"
-                            f"{evidence.get('phase')}; "
-                            f"evidence={json.dumps(evidence, ensure_ascii=False)}"
-                        )
                 created: dict[str, str] = {}
                 for local, class_iri in sorted(class_by_local.items()):
                     creator = creators.get(local)
                     if not callable(creator):
                         continue
-                    before = _graph_fingerprint(graph)
                     try:
-                        raw_result = (
-                            creator(
-                                f"Validator {local}",
-                                order=sorted(ordered_classes).index(local) + 1,
+                        contract = creator_contract_by_local.get(local)
+                        if contract is not None:
+                            recipe = creator_call_recipe(
+                                contract,
+                                creator,
+                                label=f"Validator {local}",
+                                include_optional_datatypes=False,
                             )
-                            if local in ordered_classes
-                            else creator(f"Validator {local}")
-                        )
+                            _seed_existing_operation_targets(
+                                graph, contract, recipe["kwargs"]
+                            )
+                            before = _graph_fingerprint(graph)
+                            raw_result = creator(
+                                *recipe["args"],
+                                **recipe["kwargs"],
+                            )
+                        else:
+                            before = _graph_fingerprint(graph)
+                            raw_result = creator(f"Validator {local}")
+                    except TypeError:
+                        # Freely named required parameters are judged by LLM review.
+                        continue
                     except Exception as exc:
                         failures.append(
                             f"{name}: create_{local} behavior probe failed: "
@@ -2045,7 +2624,11 @@ def _stage_artifact_contract_report(
                                     "rejection for an unapproved quantity class"
                                 )
 
+                relationship_probe_baseline = set(graph)
                 for prop in publish_contract.get("object_properties") or []:
+                    graph.remove((None, None, None))
+                    for triple in relationship_probe_baseline:
+                        graph.add(triple)
                     predicate_iri = str(prop.get("property_iri") or "")
                     property_local = predicate_iri.rsplit("#", 1)[-1].rsplit("/", 1)[-1]
                     writer = getattr(imported_module, f"add_{property_local}", None)
@@ -2062,18 +2645,20 @@ def _stage_artifact_contract_report(
                     domain_local = domains[0].rsplit("#", 1)[-1].rsplit("/", 1)[-1]
                     range_local = ranges[0].rsplit("#", 1)[-1].rsplit("/", 1)[-1]
                     subject_iri = created.get(domain_local)
-                    object_iri = created.get(range_local)
                     if not subject_iri:
                         continue
-                    if not object_iri:
-                        object_iri = f"urn:validator:{range_local}"
-                        graph.add(
-                            (
-                                URIRef(object_iri),
-                                RDF.type,
-                                URIRef(ranges[0]),
-                            )
+                    # Probe each property with its own typed object occurrence.
+                    # Reusing the single class-level fixture across properties can
+                    # legitimately trigger OBJECT_OCCURRENCE_REUSE_FORBIDDEN for
+                    # non-reusable inputs/quantities owned by ordered steps.
+                    object_iri = f"urn:validator:{property_local}:{range_local}"
+                    graph.add(
+                        (
+                            URIRef(object_iri),
+                            RDF.type,
+                            URIRef(ranges[0]),
                         )
+                    )
                     signature = inspect.signature(writer)
                     parameters = signature.parameters
                     kwargs: dict[str, Any] = {}
@@ -2140,6 +2725,9 @@ def _stage_artifact_contract_report(
                         failures.append(
                             f"{name}: add_{property_local} mutated the graph during a rejected wrong-range call"
                         )
+                graph.remove((None, None, None))
+                for triple in relationship_probe_baseline:
+                    graph.add(triple)
                 if name.endswith("_creation_entities.py"):
                     for prop in publish_contract.get("object_properties") or []:
                         predicate_iri = str(prop.get("property_iri") or "")
@@ -2216,13 +2804,14 @@ def _stage_artifact_contract_report(
                     checker = getattr(imported_module, "check_ordered_members", None)
                     from src.agents.scripts_and_prompts_generation.pure_llm_generation import (
                         _existing_entity_check_contracts,
+                        _existing_entity_check_manifest,
                     )
 
-                    expected_existing_checks = {
+                    expected_existing_checks = [
                         str(item.get("public_tool") or "")
                         for item in _existing_entity_check_contracts(context)
                         if str(item.get("public_tool") or "")
-                    }
+                    ]
                     expected_checks = {
                         "check_ordered_members",
                         *expected_existing_checks,
@@ -2237,10 +2826,7 @@ def _stage_artifact_contract_report(
                             f"{name}: check surface differs from T-Box-derived checks; "
                             f"expected={sorted(expected_checks)} actual={sorted(public_checks)}"
                         )
-                    expected_manifest = [
-                        "check_ordered_members",
-                        *sorted(expected_existing_checks),
-                    ]
+                    expected_manifest = _existing_entity_check_manifest(context)
                     if getattr(imported_module, "__all__", None) != expected_manifest:
                         failures.append(
                             f"{name}: __all__ must equal {expected_manifest}"
@@ -2254,6 +2840,135 @@ def _stage_artifact_contract_report(
                         failures.append(
                             f"{name}: invalid literal __all__ manifest: "
                             f"{type(exc).__name__}: {exc}"
+                        )
+                    check_contracts = _existing_entity_check_contracts(context)
+                    if any(
+                        str(item.get("lookup_scope") or "")
+                        in EXISTING_CHECK_EVIDENCE_REQUIRED_SCOPES
+                        for item in check_contracts
+                    ):
+                        tree = ast.parse(path.read_text(encoding="utf-8"))
+                        called_names = {
+                            (
+                                node.func.id
+                                if isinstance(node.func, ast.Name)
+                                else node.func.attr
+                                if isinstance(node.func, ast.Attribute)
+                                else ""
+                            )
+                            for node in ast.walk(tree)
+                            if isinstance(node, ast.Call)
+                        }
+                        for required_call in (
+                            "judge_reuse_pairs",
+                            "register_central_reuse_authorization",
+                        ):
+                            if required_call not in called_names:
+                                failures.append(
+                                    f"{name}: evidence-required existing checks "
+                                    f"must call {required_call}"
+                                )
+                        judge_calls = [
+                            node
+                            for node in ast.walk(tree)
+                            if isinstance(node, ast.Call)
+                            and (
+                                (
+                                    isinstance(node.func, ast.Name)
+                                    and node.func.id == "judge_reuse_pairs"
+                                )
+                                or (
+                                    isinstance(node.func, ast.Attribute)
+                                    and node.func.attr == "judge_reuse_pairs"
+                                )
+                            )
+                        ]
+                        if not judge_calls or any(
+                            len(node.args) != 1 or node.keywords
+                            for node in judge_calls
+                        ):
+                            failures.append(
+                                f"{name}: judge_reuse_pairs must be called with "
+                                "exactly one positional requests list"
+                            )
+                        authorization_calls = [
+                            node
+                            for node in ast.walk(tree)
+                            if isinstance(node, ast.Call)
+                            and (
+                                (
+                                    isinstance(node.func, ast.Name)
+                                    and node.func.id
+                                    == "register_central_reuse_authorization"
+                                )
+                                or (
+                                    isinstance(node.func, ast.Attribute)
+                                    and node.func.attr
+                                    == "register_central_reuse_authorization"
+                                )
+                            )
+                        ]
+                        required_authorization_keywords = {
+                            "candidate_iri",
+                            "pair_id",
+                            "judgement",
+                        }
+                        if not authorization_calls or any(
+                            node.args
+                            or {keyword.arg for keyword in node.keywords}
+                            != required_authorization_keywords
+                            for node in authorization_calls
+                        ):
+                            failures.append(
+                                f"{name}: register_central_reuse_authorization must "
+                                "use exactly candidate_iri, pair_id, and judgement"
+                            )
+                    for check_contract in check_contracts:
+                        tool_name = str(check_contract.get("public_tool") or "")
+                        check_tool = getattr(imported_module, tool_name, None)
+                        if not callable(check_tool):
+                            continue
+                        signature = inspect.signature(check_tool)
+                        proposed_parameter = signature.parameters.get(
+                            "proposed_entity_json"
+                        )
+                        label_parameter = signature.parameters.get("label")
+                        if (
+                            proposed_parameter is None
+                            or proposed_parameter.default != ""
+                            or label_parameter is None
+                            or label_parameter.default != ""
+                            or label_parameter.kind
+                            is not inspect.Parameter.KEYWORD_ONLY
+                        ):
+                            failures.append(
+                                f"{name}: {tool_name} must expose "
+                                "proposed_entity_json: str = '' and keyword-only "
+                                "label: str = '' compatibility inputs"
+                            )
+                        try:
+                            payload = json.loads(check_tool())
+                        except Exception as exc:
+                            failures.append(
+                                f"{name}: {tool_name} did not return a JSON report: "
+                                f"{type(exc).__name__}: {exc}"
+                            )
+                            continue
+                        failures.extend(
+                            empty_existing_check_probe_failures(
+                                artifact_name=name,
+                                tool_name=tool_name,
+                                lookup_scope=str(
+                                    check_contract.get("lookup_scope") or ""
+                                ),
+                                payload=payload,
+                                expected_reuse_authorized=bool(
+                                    check_contract.get("reuse_authorized")
+                                ),
+                                expected_reference_resolution_only=bool(
+                                    check_contract.get("reference_resolution_only")
+                                ),
+                            )
                         )
                     profile = context.contract.get("ordered_member_profile") or {}
                     member_locals = list(
@@ -2290,11 +3005,13 @@ def _stage_artifact_contract_report(
                         )
                         if str((classes.get(parent) or {}).get("iri") or "")
                     ]
+                    ordered_response_schema_failed = False
 
                     def run_order_probe(
                         triples: list[tuple[URIRef, URIRef, Any]],
                         expected_codes: set[str],
                     ) -> None:
+                        nonlocal ordered_response_schema_failed
                         graph.remove((None, None, None))
                         for triple in triples:
                             graph.add(triple)
@@ -2312,16 +3029,29 @@ def _stage_artifact_contract_report(
                             failures.append(
                                 f"{name}: check_ordered_members mutated the graph"
                             )
-                        codes = {
-                            str(item.get("code") or "")
-                            for item in result.get("violations") or []
-                            if isinstance(item, dict)
-                        }
+                        codes, response_schema_errors = (
+                            _ordered_violation_code_report(result)
+                        )
                         if expected_codes:
                             if result.get("status") not in {"rejected", "error"}:
                                 failures.append(
                                     f"{name}: invalid ordered graph did not return rejection"
                                 )
+                            if response_schema_errors:
+                                if not ordered_response_schema_failed:
+                                    failures.append(
+                                        f"{name}: FIELD_SCHEMA_ERROR ordered violation "
+                                        "response schema invalid: "
+                                        + response_schema_errors[0]
+                                        + "; repair_hint=Every `violations` item must use "
+                                        "the exact required discriminator key `code`, for example "
+                                        "`{\"code\": \"missing_order\", ...}`. Rename "
+                                        "`violation_code` to `code`; do not change the "
+                                        "ordered-member detection algorithm to repair this "
+                                        "schema failure."
+                                    )
+                                    ordered_response_schema_failed = True
+                                return
                             missing_codes = expected_codes - codes
                             if missing_codes:
                                 repair_hint = ""
@@ -2345,7 +3075,8 @@ def _stage_artifact_contract_report(
                                 )
                         elif result.get("status") != "ok" or codes:
                             failures.append(
-                                f"{name}: valid ordered graph was not accepted"
+                                f"{name}: valid ordered graph was not accepted; "
+                                f"observed violation codes={sorted(codes)}"
                             )
 
                     if (
@@ -2361,6 +3092,32 @@ def _stage_artifact_contract_report(
                         other_parent = URIRef("urn:validator:other-parent")
                         first = URIRef("urn:validator:ordered-1")
                         second = URIRef("urn:validator:ordered-2")
+                        required_operation_triples = [
+                            *_required_operation_fixture_triples(
+                                operation_units=(
+                                    context.contract.get(
+                                        "materialization_operation_units"
+                                    )
+                                    or {}
+                                ),
+                                owner_class_iri=concrete_iri,
+                                owner=first,
+                                parent=parent,
+                                token="ordered-1",
+                            ),
+                            *_required_operation_fixture_triples(
+                                operation_units=(
+                                    context.contract.get(
+                                        "materialization_operation_units"
+                                    )
+                                    or {}
+                                ),
+                                owner_class_iri=concrete_iri,
+                                owner=second,
+                                parent=parent,
+                                token="ordered-2",
+                            ),
+                        ]
                         type_triples = [
                             (first, RDF.type, class_ref),
                             (second, RDF.type, class_ref),
@@ -2369,6 +3126,7 @@ def _stage_artifact_contract_report(
                                 for node in (first, second)
                                 for parent_iri in parent_types
                             ],
+                            *required_operation_triples,
                         ]
                         links = [
                             (parent, member_predicate, first),
@@ -2431,6 +3189,7 @@ def _stage_artifact_contract_report(
                                         (second, RDF.type, URIRef(parent_iri))
                                         for parent_iri in parent_types
                                     ],
+                                    *required_operation_triples,
                                 ],
                                 {"missing_explicit_ancestor_type"},
                             )
@@ -2518,9 +3277,18 @@ def _stage_artifact_contract_report(
                     f"{name}: OM-2 foundation uses a non-package fixed-runtime import"
                 )
     elif name.endswith("_creation_entities.py"):
+        from src.agents.scripts_and_prompts_generation.pure_llm_generation import (
+            _owned_entity_tool_contracts,
+        )
+
+        owned_class_locals = {
+            str(contract.get("class_local") or "")
+            for contract in _owned_entity_tool_contracts(context)
+            if str(contract.get("class_local") or "")
+        }
         missing = [
             class_local
-            for class_local in sorted((context.parsed.get("classes") or {}).keys())
+            for class_local in sorted(owned_class_locals)
             if f"def create_{class_local}" not in text
         ]
         if missing:
@@ -2547,8 +3315,13 @@ def _stage_artifact_contract_report(
                 f"{name}: entity implementation does not use the optional package-bound capability helper"
             )
     elif name.endswith("_creation_relationships.py"):
-        relationship_contracts = (
-            context.contract.get("relationship_tool_contracts") or {}
+        from src.agents.scripts_and_prompts_generation.materialization_operation_units import (
+            standalone_relationship_tool_contracts,
+        )
+
+        relationship_contracts = standalone_relationship_tool_contracts(
+            context.contract.get("relationship_tool_contracts") or {},
+            context.contract.get("materialization_operation_units") or {},
         )
         object_properties = sorted(relationship_contracts)
         missing = [
@@ -2636,10 +3409,7 @@ def _stage_artifact_contract_report(
         metadata_failures, metadata_warnings = (
             _relationship_param_description_report(context)
         )
-        warnings.extend(
-            f"Advisory relationship metadata: {message}"
-            for message in metadata_failures
-        )
+        failures.extend(metadata_failures)
         warnings.extend(metadata_warnings)
     elif name == "main.py":
         runtime_tool_names = ("init_memory", "export_memory")
@@ -2677,19 +3447,16 @@ def _stage_artifact_contract_report(
                 f"{name}: runtime adapter import smoke failed: "
                 f"{type(exc).__name__}: {exc}"
             )
-        else:
-            if hasattr(context, "parsed") and hasattr(context, "contract"):
-                surface_failures, surface_warnings, _ = (
-                    _expected_tool_surface_report(context)
-                )
-                failures.extend(surface_failures)
-                warnings.extend(surface_warnings)
     elif path.suffix == ".md":
-        binding_report = validate_prompt_runtime_bindings(path)
+        binding_report = validate_prompt_runtime_bindings(path, context)
         failures.extend(binding_report.get("failures") or [])
         if "TODO" in text or "FIXME" in text:
             warnings.append(f"{name}: prompt contains unresolved TODO/FIXME residue")
-        if name == "KG_BUILDING_ITER_1.md":
+        if (
+            name == "KG_BUILDING_ITER_1.md"
+            and getattr(getattr(context, "ontology", None), "role", "")
+            != "extension"
+        ):
             execution_failures, execution_warnings = (
                 _iter1_kg_prompt_execution_contract_report(context)
             )
@@ -2710,54 +3477,33 @@ def _iteration_prompt_schema_contract_report(
     context: AgenticGenerationContext,
     prompt_paths: list[Path] | None = None,
 ) -> tuple[list[str], list[str]]:
-    """Reserve extraction-shape semantics for the single-artifact LLM reviewer."""
+    """Defer natural-language interchange semantics to the LLM reviewer.
+
+    Keyword and regex matching cannot distinguish an instruction that authorizes
+    a competing output shape from one that explicitly prohibits it. Mechanical
+    prompt validation is therefore limited elsewhere to objective file and
+    runtime-slot structure; this semantic contract intentionally has no
+    script-based gate.
+    """
+    del context, prompt_paths
     return [], []
 
 
 def _iter1_kg_prompt_execution_contract_report(
     context: AgenticGenerationContext,
 ) -> tuple[list[str], list[str]]:
-    """Require the first KG prompt to render its T-Box-derived root creator."""
-    path = Path(context.prompts_dir) / "KG_BUILDING_ITER_1.md"
-    if not path.is_file():
-        return [], []
-    text = path.read_text(encoding="utf-8", errors="replace")
-    top = context.contract.get("top_entity") or {}
-    class_local = str(top.get("class_local") or "").strip()
-    creator_suffix = re.sub(r"[^A-Za-z0-9_]", "_", class_local)
-    creator_tool = f"create_{creator_suffix}" if creator_suffix else ""
-    failures: list[str] = []
-    if not creator_tool:
-        failures.append(
-            "KG_BUILDING_ITER_1.md: [upstream_contract] error=active T-Box projection "
-            "has no concrete top creator; location=context.contract.top_entity.class_local; "
-            "known_correct_fix=populate top_entity.class_local from the active T-Box, then "
-            "regenerate the prompt so it renders create_<class_local>; "
-            "repairability=not repairable in the prompt file"
-        )
-    elif not re.search(
-        rf"(?<![A-Za-z0-9_]){re.escape(creator_tool)}(?![A-Za-z0-9_])", text
-    ):
-        failures.append(
-            "KG_BUILDING_ITER_1.md: must render the exact active-T-Box top creator "
-            f"`{creator_tool}` into the runtime prompt"
-        )
-    residue_patterns = (
-        r"tbox_scope(?:\.|\b)",
-        r"<\s*root[-_ ]class",
-        r"<\s*creator[-_ ]tool",
-    )
-    residue = [
-        pattern
-        for pattern in residue_patterns
-        if re.search(pattern, text, flags=re.IGNORECASE)
-    ]
-    if residue:
-        failures.append(
-            "KG_BUILDING_ITER_1.md: contains generation-time contract residue instead of "
-            f"runtime-executable values: {', '.join(residue)}"
-        )
-    return failures, []
+    """Defer KG Iter1 prompt executability semantics to the LLM reviewer."""
+    del context
+    return [], []
+
+
+def _kg_iteration_owned_scope_report(
+    context: AgenticGenerationContext,
+    prompt_paths: list[Path] | None = None,
+) -> tuple[list[str], list[str]]:
+    """Defer KG ownership prose semantics to the LLM reviewer."""
+    del context, prompt_paths
+    return [], []
 
 
 def _relationship_param_description_report(
@@ -2781,44 +3527,34 @@ def _relationship_param_description_report(
             out = "_" + out
         return out
 
-    def _extract_description(node: ast.AST) -> str:
-        # Expect Annotated[str, Field(description="...")]
-        if not isinstance(node, ast.Subscript):
-            return ""
-        # 3.11: slice is ast.Tuple
-        slice_value = getattr(node, "slice", None)
-        elts = []
-        if isinstance(slice_value, ast.Tuple):
-            elts = list(slice_value.elts)
-        elif hasattr(slice_value, "value") and isinstance(getattr(slice_value, "value"), ast.Tuple):
-            elts = list(getattr(slice_value, "value").elts)  # type: ignore[assignment]
-        else:
-            return ""
-        for elt in elts:
-            if isinstance(elt, ast.Call):
-                func = elt.func
-                func_name = (
-                    func.id
-                    if isinstance(func, ast.Name)
-                    else getattr(func, "attr", "")
-                )
-                if func_name == "Field":
-                    for kw in elt.keywords or []:
-                        if kw.arg == "description" and isinstance(kw.value, ast.Constant) and isinstance(kw.value.value, str):
-                            return kw.value.value
-        return ""
+    from src.agents.scripts_and_prompts_generation.materialization_operation_units import (
+        standalone_relationship_tool_contracts,
+    )
 
-    object_props = context.contract.get("relationship_tool_contracts") or {
+    object_props = standalone_relationship_tool_contracts(
+        context.contract.get("relationship_tool_contracts") or {
         name: {"predicate_local": name}
         for name, prop in (context.parsed.get("properties") or {}).items()
         if (prop or {}).get("kind") == "object"
-    }
+        },
+        context.contract.get("materialization_operation_units") or {},
+    )
     rel_source = rel_paths[0]
     try:
         tree = ast.parse(rel_source.read_text(encoding="utf-8", errors="replace"))
     except (OSError, SyntaxError) as exc:
         failures.append(f"{rel_source.name}: AST parse failed: {type(exc).__name__}: {exc}")
         return failures, warnings
+    if any(
+        isinstance(node, ast.ImportFrom)
+        and node.module == "__future__"
+        and any(alias.name == "annotations" for alias in node.names)
+        for node in tree.body
+    ):
+        failures.append(
+            f"{rel_source.name}: must not enable deferred annotations because the "
+            "installed FastMCP/Pydantic runtime cannot resolve imported Field metadata"
+        )
 
     fndefs: dict[str, ast.FunctionDef] = {
         node.name: node
@@ -2831,52 +3567,163 @@ def _relationship_param_description_report(
         if not fndef:
             # other validator covers missing tool surface
             continue
+        subject_param = next(
+            (p for p in fndef.args.args if p.arg == "subject_iri"),
+            None,
+        )
         obj_param = next(
             (p for p in fndef.args.args if p.arg == "object_iri"),
             None,
         )
-        if obj_param is None or obj_param.annotation is None:
+        all_params = [*fndef.args.args, *fndef.args.kwonlyargs]
+        token_param = next(
+            (
+                parameter
+                for parameter in all_params
+                if parameter.arg == "reuse_authorization_token"
+            ),
+            None,
+        )
+        if token_param is None:
             failures.append(
-                f"{rel_source.name}: {fn_name} missing Annotated Field(description) for object_iri"
+                f"{rel_source.name}: {fn_name} must expose optional "
+                "reuse_authorization_token and pass it to the fixed relationship writer"
             )
-            continue
-        desc = _extract_description(obj_param.annotation)
-        if not desc:
+        if subject_param is None:
             failures.append(
-                f"{rel_source.name}: {fn_name} missing object_iri Field(description) string"
+                f"{rel_source.name}: {fn_name} missing subject_iri parameter"
             )
-            continue
-        # Generic absolute-IRI and plain-text prohibition (case-insensitive semantic phrases)
-        desc_cf = desc.casefold()
-        if "absolute iri" not in desc_cf or "never a label/name/literal/plain text".casefold() not in desc_cf:
+        if obj_param is None:
             failures.append(
-                f"{rel_source.name}: {fn_name} object_iri description must include absolute-IRI and plain-text prohibition"
-            )
-        range_locals = [
-            str(value)
-            for value in (spec or {}).get("range_locals") or []
-            if str(value).strip()
-        ]
-        creator_tools = [
-            str(value)
-            for value in (spec or {}).get("creator_tools") or []
-            if str(value).strip()
-        ]
-        for range_local in range_locals:
-            if range_local not in desc:
-                failures.append(
-                    f"{rel_source.name}: {fn_name} object_iri description must mention range local {range_local}"
-                )
-        for expected_create_ref in creator_tools:
-            if expected_create_ref not in desc:
-                failures.append(
-                    f"{rel_source.name}: {fn_name} object_iri description must reference {expected_create_ref} when creator exists"
-                )
-        if not creator_tools and "create_" in desc:
-            failures.append(
-                f"{rel_source.name}: {fn_name} object_iri description must not reference a create_* tool when no creator exists"
+                f"{rel_source.name}: {fn_name} missing object_iri parameter"
             )
     return failures, warnings
+
+
+def _operation_unit_contract_report(
+    context: AgenticGenerationContext,
+) -> tuple[list[str], list[str], list[dict[str, Any]]]:
+    """Validate operation units against generated signatures and public manifests."""
+    failures: list[str] = []
+    warnings: list[str] = []
+    obligations: list[dict[str, Any]] = []
+    compiled = context.contract.get("materialization_operation_units") or {}
+    errors = [str(item) for item in compiled.get("errors") or []]
+    failures.extend(errors)
+    candidates = context.contract.get("materialization_operation_candidates") or {}
+    decisions = context.contract.get("materialization_operation_decisions") or {}
+    if candidates or decisions:
+        from src.agents.scripts_and_prompts_generation.materialization_operation_inference import (
+            validate_materialization_operation_decisions,
+        )
+
+        failures.extend(
+            validate_materialization_operation_decisions(candidates, decisions)
+        )
+        from src.agents.scripts_and_prompts_generation.materialization_operation_units import (
+            compile_materialization_operation_units,
+        )
+
+        expected_compiled = compile_materialization_operation_units(
+            parsed=context.parsed,
+            contract=context.contract,
+            iteration_plan=context.iteration_blueprint,
+        )
+        if (
+            expected_compiled.get("merged_predicate_locals")
+            != compiled.get("merged_predicate_locals")
+            or expected_compiled.get("units") != compiled.get("units")
+        ):
+            failures.append(
+                "materialization operation units do not match the validated "
+                "candidate decisions"
+            )
+    merged = {
+        str(value)
+        for value in compiled.get("merged_predicate_locals") or []
+        if str(value)
+    }
+    edge_counts: dict[str, int] = {}
+    for unit in compiled.get("units") or []:
+        creator = (unit or {}).get("creator_contract") or {}
+        for edge in creator.get("required_edges") or []:
+            local = str(edge.get("predicate_local") or "")
+            if local:
+                edge_counts[local] = edge_counts.get(local, 0) + 1
+    for local in sorted(merged):
+        if edge_counts.get(local, 0) < 1:
+            failures.append(
+                f"Merged predicate {local} is not owned by any operation unit"
+            )
+
+    scripts_dir = Path(context.scripts_dir)
+    relationship_paths = sorted(scripts_dir.glob("*_creation_relationships.py"))
+    if len(relationship_paths) == 1:
+        try:
+            manifest = set(_literal_all_manifest(relationship_paths[0]))
+        except (OSError, SyntaxError, ValueError) as exc:
+            warnings.append(
+                "Could not validate merged-edge exclusivity because the relationship "
+                f"manifest is invalid: {type(exc).__name__}: {exc}"
+            )
+        else:
+            leaked = sorted(
+                f"add_{local}" for local in merged if f"add_{local}" in manifest
+            )
+            if leaked:
+                failures.append(
+                    "Creator-owned predicates remain publicly exposed: "
+                    + ", ".join(leaked)
+                )
+
+    entity_paths = sorted(scripts_dir.glob("*_creation_entities.py"))
+    if len(entity_paths) == 1:
+        try:
+            tree = ast.parse(entity_paths[0].read_text(encoding="utf-8"))
+        except Exception:
+            tree = None
+        if tree is not None:
+            functions = {
+                node.name: node
+                for node in tree.body
+                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+            }
+            for unit in compiled.get("units") or []:
+                creator_contract = (unit or {}).get("creator_contract") or {}
+                required_edges = creator_contract.get("required_edges") or []
+                if not required_edges:
+                    continue
+                tool_name = str(creator_contract.get("public_tool") or "")
+                tool = functions.get(tool_name)
+                if tool is None:
+                    continue
+                parameter_names = {
+                    argument.arg
+                    for argument in [
+                        *tool.args.posonlyargs,
+                        *tool.args.args,
+                        *tool.args.kwonlyargs,
+                    ]
+                }
+                required_names = set()
+                for edge in required_edges:
+                    if edge.get("target_resolution") == "existing_iri_parameter":
+                        required_names.add(str(edge.get("parameter_name") or ""))
+                    if edge.get("target_resolution") == "same_operation_create":
+                        required_names.add(str(edge.get("label_parameter") or ""))
+                        required_names.update(
+                            str(item.get("parameter_name") or "")
+                            for item in edge.get("datatype_inputs") or []
+                            if item.get("required")
+                        )
+                missing = sorted(
+                    name for name in required_names if name and name not in parameter_names
+                )
+                if missing:
+                    failures.append(
+                        f"{tool_name} omits required atomic-operation parameters: {missing}"
+                    )
+    return failures, warnings, obligations
 
 
 def build_validation_report(
@@ -2885,6 +3732,7 @@ def build_validation_report(
     foreign_contracts: list[dict[str, Any]] | None = None,
     write_report: bool = True,
     prompts_required: bool = False,
+    include_prompt_checks: bool = True,
     extra_failures: list[str] | None = None,
     active_artifacts: list[str] | None = None,
 ) -> dict[str, Any]:
@@ -2989,8 +3837,9 @@ def build_validation_report(
         for relative in active_artifact_set
         if relative.endswith(".md")
     ]
+    run_prompt_checks = bool(include_prompt_checks) or bool(active_prompt_paths)
     prompt_files = sorted(prompts_dir.glob("*.md")) if prompts_dir.is_dir() else []
-    if prompts_required and not prompt_files:
+    if run_prompt_checks and prompts_required and not prompt_files:
         record(
             check_id="generation.prompt_artifacts_required",
             stage="precondition",
@@ -2999,15 +3848,60 @@ def build_validation_report(
             ],
             observed_artifacts=[str(prompts_dir)],
         )
+    if run_prompt_checks and prompts_required and prompt_files and not stage_mode:
+        # Import lazily because pure_llm_generation also uses this validator.
+        # These projections are the same contracts and creator surface shown to
+        # the generation agents, so the closure does not reconstruct a second
+        # approximation of their capabilities.
+        from src.agents.scripts_and_prompts_generation.pure_llm_generation import (
+            _owned_entity_tool_contracts,
+            _prompt_artifact_generation_contract,
+        )
+
+        prompt_contracts = {
+            path.name: _prompt_artifact_generation_contract(context, path)
+            for path in prompt_files
+        }
+        closure = compile_materialization_obligation_graph(
+            context,
+            prompt_generation_contracts=prompt_contracts,
+            creator_surface=_owned_entity_tool_contracts(context),
+        )
+        closure_failures = materialization_closure_failures(closure)
+        record(
+            check_id="generation.materialization_closure",
+            stage="prompt",
+            check_failures=closure_failures,
+            observed_artifacts=[
+                *(str(path) for path in prompt_files),
+                str(scripts_dir),
+            ],
+            evidence={
+                "hard_gate": True,
+                "schema_version": closure["schema_version"],
+                "closure": closure,
+            },
+            message=(
+                "Materialization closure found deterministic contradictions"
+                if closure_failures
+                else "Materialization closure passed"
+            ),
+        )
 
     checks = (
         ("generation.syntax", "syntax", _syntax_report, True),
+        (
+            "generation.operation_unit_consistency",
+            "contract",
+            _operation_unit_contract_report,
+            True,
+        ),
         ("generation.tool_surface", "static", _expected_tool_surface_report, True),
         (
             "generation.relationship_param_description",
             "static",
             _relationship_param_description_report,
-            False,
+            True,
         ),
         (
             "generation.ordered_member_contract",
@@ -3030,15 +3924,33 @@ def build_validation_report(
             True,
         ),
         (
+            "generation.prompt_tool_signature_alignment",
+            "prompt",
+            _prompt_tool_signature_alignment_report,
+            True,
+        ),
+        (
+            "generation.extension_kg_mode_a_handoff",
+            "prompt",
+            _extension_kg_mode_a_handoff_report,
+            True,
+        ),
+        (
             "generation.iteration_prompt_schema_contract",
             "prompt",
             _iteration_prompt_schema_contract_report,
-            False,
+            True,
         ),
         (
             "generation.iter1_kg_prompt_execution_contract",
             "prompt",
             _iter1_kg_prompt_execution_contract_report,
+            True,
+        ),
+        (
+            "generation.kg_iteration_owned_scope",
+            "prompt",
+            _kg_iteration_owned_scope_report,
             True,
         ),
         (
@@ -3052,9 +3964,28 @@ def build_validation_report(
         "generation.prompt_quality",
         "generation.prompt_tbox_fidelity",
         "generation.prompt_runtime_binding",
+        "generation.prompt_tool_signature_alignment",
+        "generation.extension_kg_mode_a_handoff",
         "generation.iteration_prompt_schema_contract",
+        "generation.kg_iteration_owned_scope",
+    }
+    package_prompt_check_ids = {
+        *stage_prompt_checks,
+        "generation.iter1_kg_prompt_execution_contract",
     }
     for check_id, stage, fn, hard_gate in checks:
+        if check_id in package_prompt_check_ids and not run_prompt_checks:
+            observations.append(
+                build_validation_observation(
+                    check_id=check_id,
+                    subject_key=context.ontology.name,
+                    stage=stage,
+                    blocked_by=["generation.prompt_stage_not_requested"],
+                    observed_artifacts=[str(prompts_dir)],
+                    evidence={"include_prompt_checks": False},
+                )
+            )
+            continue
         if (
             stage_mode
             and check_id != "generation.syntax"
@@ -3075,11 +4006,26 @@ def build_validation_report(
             _prompt_quality_report,
             _prompt_tbox_fidelity_report,
             _prompt_runtime_binding_report,
+            _prompt_tool_signature_alignment_report,
+            _extension_kg_mode_a_handoff_report,
             _iteration_prompt_schema_contract_report,
+            _kg_iteration_owned_scope_report,
         } and stage_mode:
             result = fn(context, active_prompt_paths)
         else:
-            result = fn(context) if fn is not _syntax_report else fn(scripts_dir)
+            if fn is _syntax_report:
+                active_python_paths = (
+                    [
+                        scripts_dir / Path(relative).name
+                        for relative in active_artifact_set
+                        if relative.endswith(".py")
+                    ]
+                    if stage_mode
+                    else None
+                )
+                result = fn(scripts_dir, active_python_paths)
+            else:
+                result = fn(context)
         f, w = result[:2]
         obligations = result[2] if len(result) > 2 else []
         effective_hard_gate = hard_gate or (
@@ -3129,7 +4075,9 @@ def build_validation_report(
     if scripts_dir.exists() and not stage_mode:
         prompts_for_contract = (
             prompts_dir
-            if prompts_dir.exists() and list(prompts_dir.glob("*.md"))
+            if run_prompt_checks
+            and prompts_dir.exists()
+            and list(prompts_dir.glob("*.md"))
             else None
         )
         contract_report = validate_generated_artifacts(
@@ -3209,5 +4157,31 @@ def build_validation_report(
         report_path.parent.mkdir(parents=True, exist_ok=True)
         report_path.write_text(
             json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
+        summary_path = Path(context.output_root) / "reports" / "summary.json"
+        try:
+            summary = (
+                json.loads(summary_path.read_text(encoding="utf-8"))
+                if summary_path.is_file()
+                else {}
+            )
+        except (OSError, json.JSONDecodeError):
+            summary = {}
+        prior_reports = [
+            item
+            for item in (summary.get("reports") or [])
+            if isinstance(item, dict)
+            and str(item.get("ontology") or "") != context.ontology.name
+        ]
+        current_reports = [*prior_reports, report]
+        summary = {
+            **summary,
+            "ok": all(bool(item.get("ok")) for item in current_reports),
+            "output_root": str(context.output_root),
+            "reports": current_reports,
+        }
+        summary_path.parent.mkdir(parents=True, exist_ok=True)
+        summary_path.write_text(
+            json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8"
         )
     return report

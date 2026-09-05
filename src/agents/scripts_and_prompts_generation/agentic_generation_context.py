@@ -17,12 +17,14 @@ from src.agents.scripts_and_prompts_generation.fixed_rdf_runtime import (
     __file__ as fixed_rdf_runtime_path,
 )
 from src.agents.scripts_and_prompts_generation.ttl_parser import (
-    extract_ontology_integrity_profile,
     format_class_properties_markdown,
     parse_ontology_ttl,
 )
 from src.agents.scripts_and_prompts_generation.iteration_plan_compiler import (
     compile_iteration_plan,
+)
+from src.agents.scripts_and_prompts_generation.materialization_operation_units import (
+    compile_materialization_operation_units,
 )
 
 
@@ -39,6 +41,7 @@ def runtime_publish_contract(contract: dict[str, Any]) -> dict[str, Any]:
     """Augment the T-Box publish contract with derived atomic creator metadata."""
     publish = dict(contract.get("ontology_publish_contract") or {})
     profile = contract.get("ordered_member_profile") or {}
+    operation_units = contract.get("materialization_operation_units") or {}
     classes = {
         str(item.get("class_iri") or "").rsplit("#", 1)[-1].rsplit("/", 1)[-1]: str(
             item.get("class_iri") or ""
@@ -69,6 +72,24 @@ def runtime_publish_contract(contract: dict[str, Any]) -> dict[str, Any]:
             for class_local in profile.get("ordered_member_classes") or []
             if str(class_local) in classes
         ]
+    creator_owned_relationships: dict[str, list[dict[str, str]]] = {}
+    for unit in operation_units.get("units") or []:
+        creator = (unit or {}).get("creator_contract") or {}
+        public_tool = str((unit or {}).get("public_tool") or "").strip()
+        owner_class_iri = str((unit or {}).get("owner_class_iri") or "").strip()
+        for edge in creator.get("required_edges") or []:
+            predicate_iri = str((edge or {}).get("predicate_iri") or "").strip()
+            if not predicate_iri or not public_tool:
+                continue
+            creator_owned_relationships.setdefault(predicate_iri, []).append(
+                {
+                    "public_tool": public_tool,
+                    "owner_class_iri": owner_class_iri,
+                    "role": str((edge or {}).get("role") or "").strip(),
+                }
+            )
+    if creator_owned_relationships:
+        publish["creator_owned_relationships"] = creator_owned_relationships
     return publish
 
 
@@ -234,11 +255,11 @@ def build_agentic_generation_context(
         raise FileNotFoundError(f"Missing ontology TTL: {ttl_path}")
 
     parsed = parse_ontology_ttl(str(ttl_path))
-    integrity_profile = extract_ontology_integrity_profile(str(ttl_path))
     contract = build_generation_contract_bundle(
         meta_task_config_path=cfg_path,
         ontology_name=ontology_name,
     )
+    integrity_profile = dict(contract.get("ordered_member_profile") or {})
     compiled_iteration_plan = (
         compile_iteration_plan(
             blueprint=iteration_blueprint,
@@ -250,6 +271,21 @@ def build_agentic_generation_context(
         if iteration_blueprint
         else {}
     )
+    contract["materialization_operation_units"] = (
+        compile_materialization_operation_units(
+            parsed=parsed,
+            contract=contract,
+            iteration_plan=compiled_iteration_plan,
+        )
+    )
+    operation_errors = (
+        contract["materialization_operation_units"].get("errors") or []
+    )
+    if operation_errors:
+        raise ValueError(
+            "Invalid materialization operation policy: "
+            + "; ".join(str(item) for item in operation_errors)
+        )
 
     root = Path(output_root)
     structure_dir = root / "ontology_structures" / ontology_name
@@ -311,13 +347,18 @@ def build_agentic_generation_context(
             json.dumps(context.config_provenance, indent=2, ensure_ascii=False),
             encoding="utf-8",
         )
-        if contract.get("om2_quantity_properties"):
-            (scripts_dir / "_fixed_om2_runtime.py").write_text(
-                Path(fixed_om2_runtime_path).read_text(encoding="utf-8"),
-                encoding="utf-8",
-            )
+        (scripts_dir / "_fixed_om2_runtime.py").write_text(
+            Path(fixed_om2_runtime_path).read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
         (scripts_dir / "_fixed_rdf_runtime.py").write_text(
             Path(fixed_rdf_runtime_path).read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+        (scripts_dir / "_reuse_pair_judge.py").write_text(
+            Path(__file__).with_name("reuse_pair_judge.py").read_text(
+                encoding="utf-8"
+            ),
             encoding="utf-8",
         )
         (scripts_dir / "_relationship_contract.json").write_text(

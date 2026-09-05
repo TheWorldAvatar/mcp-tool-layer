@@ -32,13 +32,20 @@ from __future__ import annotations
 
 import argparse
 import os
+import time
 from pathlib import Path
 from typing import List
+from uuid import uuid4
 
 import httpx
 from dotenv import load_dotenv
 
 from src.utils.global_logger import get_logger
+from models.llm_call_telemetry import (
+    apply_openrouter_usage_include,
+    record_error,
+    record_httpx_response,
+)
 
 
 LOGGER = get_logger("agent", "TopEntitySPARQLAgent")
@@ -137,6 +144,10 @@ def _generate_sparql_with_llm(ttl_text: str, ontology_name: str, model: str = "g
     else:
         url = bu + "/v1/chat/completions"
 
+    try:
+        deterministic_seed = int(os.environ.get("TWA_LLM_SEED", "42").strip())
+    except ValueError:
+        deterministic_seed = 42
     payload = {
         "model": model,
         "messages": [
@@ -144,19 +155,41 @@ def _generate_sparql_with_llm(ttl_text: str, ontology_name: str, model: str = "g
             {"role": "user", "content": prompt},
         ],
         "temperature": 0,
+        "seed": deterministic_seed,
         "max_tokens": 2000,
     }
+    payload = apply_openrouter_usage_include(payload, base_url=base_url)
 
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
     }
 
-    with httpx.Client(timeout=120) as client:
-        r = client.post(url, json=payload, headers=headers)
+    call_id = uuid4().hex
+    started = time.perf_counter()
+    try:
+        with httpx.Client(timeout=120) as client:
+            r = client.post(url, json=payload, headers=headers)
         if r.status_code >= 400:
             raise RuntimeError(f"LLM HTTP {r.status_code}: {r.text[:500]}")
-        data = r.json()
+    except BaseException as exc:
+        record_error(
+            exc,
+            call_id=call_id,
+            transport="httpx_chat_completions",
+            model=model,
+            base_url=base_url,
+            elapsed=time.perf_counter() - started,
+        )
+        raise
+    record_httpx_response(
+        r,
+        call_id=call_id,
+        model=model,
+        base_url=base_url,
+        elapsed=time.perf_counter() - started,
+    )
+    data = r.json()
 
     try:
         text = (data["choices"][0]["message"]["content"] or "").strip()

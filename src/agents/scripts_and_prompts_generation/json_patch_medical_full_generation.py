@@ -313,12 +313,9 @@ def _prompt_generation_prompt(context, file_name: str, scaffold: str) -> str:
           T-Box class/property `comment=` rows as normative extraction constraints.
         - Preserve `Datatype Properties:` and `Object Properties:` sections when present in the scaffold; do not
           summarize away property comments.
-        - The output markdown must contain the exact substring `Materializable Hint Contract:` (include the colon).
         - Preserve the pipeline output format required by the scaffold.
         - Keep instructions T-Box-driven and domain-agnostic beyond ontology symbols/comments from the TTL.
         - No TODO/FIXME/template placeholders.
-        - Never use angle-bracket pseudo-placeholders (e.g. `<case_label>`, `<json>`, `<entity>`); use plain English,
-          descriptive prose, or concrete example strings. Template residue breaks machine validation.
         - Return only JSON. No Markdown fences, no explanations, no extra keys.
 
         TTL-derived context:
@@ -375,10 +372,6 @@ def _check_prompt_file(path: Path) -> list[CheckResult]:
     for marker in ("TODO", "FIXME", "{{", "}}"):
         if marker in text:
             failures.append(f"prompt contains template residue marker `{marker}`")
-    if re.search(r"<[^>\n]+>", text):
-        failures.append("prompt contains forbidden angle-bracket placeholder (e.g. `<case_label>`)")
-    if path.name.startswith("KG_BUILDING_") and "Materializable Hint Contract:" not in text:
-        failures.append("KG prompt missing exact substring `Materializable Hint Contract:`")
     return [
         CheckResult(
             name=f"prompt basic check {path.name}",

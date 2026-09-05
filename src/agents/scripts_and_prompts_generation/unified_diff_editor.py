@@ -16,7 +16,14 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from src.agents.scripts_and_prompts_generation.editor_retry_policy import (
+    has_field_schema_error,
+    semantic_candidate_fingerprint,
+)
 from src.agents.scripts_and_prompts_generation.level1_code_repair import invoke_json
+from src.agents.scripts_and_prompts_generation.llm_invocation_runtime import (
+    configure_llm_invocation_journal,
+)
 
 ValidationCallback = Callable[[], dict[str, Any]]
 
@@ -514,6 +521,7 @@ def run_llm_unified_diff_editor(
 ) -> dict[str, Any]:
     """Request, apply, and validate LLM patches; fail closed after retries."""
     root = output_root.resolve()
+    configure_llm_invocation_journal(root, recover=False)
     resolved_targets = [path.resolve() for path in targets]
     if max_targets is not None and len(set(resolved_targets)) > max_targets:
         return {
@@ -582,8 +590,11 @@ def run_llm_unified_diff_editor(
     feedback: dict[str, Any] = {}
     attempts: list[dict[str, Any]] = []
     emit = progress or (lambda _message: None)
-
-    for attempt in range(1, max(1, max_attempts) + 1):
+    normal_attempt_limit = max(1, max_attempts)
+    field_schema_candidate_fingerprints: set[str] = set()
+    attempt = 0
+    while True:
+        attempt += 1
         restore_targets(snapshots)
         prompt = base_prompt
         if feedback:
@@ -594,19 +605,31 @@ def run_llm_unified_diff_editor(
             )
         if attempt > 1:
             delay_seconds = min(
-                _env_int("TWA_PATCH_RETRY_BASE_DELAY", 5) * (2 ** (attempt - 2)),
+                _env_int("TWA_PATCH_RETRY_BASE_DELAY", 5)
+                * (2 ** min(attempt - 2, 10)),
                 _env_int("TWA_PATCH_RETRY_MAX_DELAY", 30),
+            )
+            attempt_limit_label = (
+                "schema-feedback"
+                if attempt > normal_attempt_limit
+                else str(normal_attempt_limit)
             )
             emit(
                 f"waiting {delay_seconds}s before plain LLM retry "
-                f"{attempt}/{max(1, max_attempts)}"
+                f"{attempt}/{attempt_limit_label}"
             )
             time.sleep(delay_seconds)
+        attempt_limit_label = (
+            "schema-feedback"
+            if attempt > normal_attempt_limit
+            else str(normal_attempt_limit)
+        )
         started = time.monotonic()
         emit(
-            f"plain LLM unified-diff attempt {attempt}/{max(1, max_attempts)} "
+            f"plain LLM unified-diff attempt {attempt}/{attempt_limit_label} "
             f"for {len(resolved_targets)} target(s)"
         )
+        candidate_payload: Any = None
         try:
             timeout_seconds = _env_int("TWA_PATCH_CALL_TIMEOUT", 300)
             response = invoke_json(
@@ -616,6 +639,7 @@ def run_llm_unified_diff_editor(
                 max_attempts=1,
                 provider_max_retries=0,
             )
+            candidate_payload = response.data
             patch = response.data.get("patch_unified_diff")
             if not isinstance(patch, str):
                 report: dict[str, Any] = {
@@ -688,6 +712,31 @@ def run_llm_unified_diff_editor(
                 "`---` and `+++` section for each changed file."
             ),
         }
+        field_schema_error = has_field_schema_error(
+            attempt_record.get("validation") or {}
+        )
+        if field_schema_error:
+            fingerprint = semantic_candidate_fingerprint(candidate_payload)
+            if fingerprint in field_schema_candidate_fingerprints:
+                feedback["failures"] = [
+                    "field_schema_retry_no_progress:"
+                    "same semantic candidate rejected twice for FIELD_SCHEMA_ERROR",
+                    *(feedback.get("failures") or []),
+                ]
+                emit(
+                    "plain LLM field-schema retry stopped: "
+                    "repeated semantic candidate"
+                )
+                break
+            field_schema_candidate_fingerprints.add(fingerprint)
+            feedback["field_schema_retry_rule"] = (
+                "FIELD_SCHEMA_ERROR retries are not limited by the normal attempt "
+                "budget. Apply the exact validator-requested field rename before "
+                "changing behavior."
+            )
+            continue
+        if attempt >= normal_attempt_limit:
+            break
 
     restore_targets(snapshots)
     return {

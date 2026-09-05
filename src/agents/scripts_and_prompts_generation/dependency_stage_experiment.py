@@ -581,6 +581,7 @@ def run_next_dependency_stage(
         "__init__.py",
         "_fixed_rdf_runtime.py",
         "_fixed_om2_runtime.py",
+        "_reuse_pair_judge.py",
         "_relationship_contract.json",
     ):
         infrastructure_source = baseline_package_dir / infrastructure_name

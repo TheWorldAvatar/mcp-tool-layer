@@ -46,6 +46,9 @@ def run_llm_artifact_editor(
     max_targets: int | None = None,
     progress: Callable[[str], None] | None = None,
     edit_backend: EditBackend = DEFAULT_EDIT_BACKEND,
+    additive_only: bool = False,
+    max_added_lines: int | None = None,
+    max_operations: int | None = None,
 ) -> dict[str, Any]:
     """Dispatch to the selected deterministic editing protocol."""
     common = {
@@ -60,7 +63,12 @@ def run_llm_artifact_editor(
         "progress": progress,
     }
     if edit_backend == "exact_edits":
-        report = run_llm_exact_edit_editor(**common)
+        report = run_llm_exact_edit_editor(
+            **common,
+            additive_only=additive_only,
+            max_added_lines=max_added_lines,
+            max_operations=max_operations,
+        )
     elif edit_backend == "unified_diff":
         report = run_llm_unified_diff_editor(**common)
         report.setdefault("report_schema_version", 2)

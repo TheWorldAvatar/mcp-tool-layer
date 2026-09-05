@@ -51,6 +51,9 @@ from src.agents.scripts_and_prompts_generation.agentic_generation_runner import 
     generate_runtime_support_slice,
     run_agentic_generation_experiment,
 )
+from src.agents.scripts_and_prompts_generation.domain_generation_resume import (
+    load_domain_generation_checkpoint,
+)
 from src.agents.scripts_and_prompts_generation.agentic_generation_llm_agents import (
     run_content_diagnosis_agent_sync,
 )
@@ -67,7 +70,6 @@ from src.agents.scripts_and_prompts_generation.content_diagnosis import (
     artifact_manifest,
     fixture_literals,
     json_digest,
-    prompt_inventory,
     redact_fixture_evidence,
     repair_artifact_inventory,
     redact_diagnosis,
@@ -97,6 +99,9 @@ from src.agents.scripts_and_prompts_generation.level1_code_repair import (
 )
 from src.agents.scripts_and_prompts_generation.llm_artifact_editor import (
     run_llm_artifact_editor,
+)
+from src.agents.scripts_and_prompts_generation.exact_edit_editor import (
+    run_llm_exact_edit_editor,
 )
 from src.agents.scripts_and_prompts_generation.semantic_loop_core import (
     load_semantic_loop_config,
@@ -157,9 +162,6 @@ def _semantic_ontology_contract(
                     "range": raw.get("range"),
                     "parent_classes": list(raw.get("parent_classes") or []),
                     "comment": str(raw.get("comment") or ""),
-                    "integrity_annotations": dict(
-                        raw.get("integrity_annotations") or {}
-                    ),
                 }
             )
         return projected
@@ -324,8 +326,20 @@ def _tbox_fixture_inventory(context: AgenticGenerationContext) -> dict[str, Any]
                 for p in (meta.get("parent_classes") or [])
             ],
             "is_also_parent": name in parent_locals,
+            "comment": str(meta.get("comment") or ""),
         }
 
+    relationship_contracts = context.contract.get("relationship_tool_contracts") or {}
+    relationship_specs = (
+        list(relationship_contracts.values())
+        if isinstance(relationship_contracts, dict)
+        else list(relationship_contracts)
+    )
+    relationship_by_local = {
+        str(spec.get("predicate_local") or ""): spec
+        for spec in relationship_specs
+        if isinstance(spec, dict)
+    }
     properties: dict[str, Any] = {}
     for name, meta in sorted(properties_raw.items()):
         if not isinstance(meta, dict):
@@ -335,6 +349,20 @@ def _tbox_fixture_inventory(context: AgenticGenerationContext) -> dict[str, Any]
             "kind": meta.get("kind"),
             "domains": meta.get("domains") or [],
             "range": meta.get("range"),
+            "comment": str(meta.get("comment") or ""),
+            "hint_value_mode": (
+                "scalar_quantity"
+                if (
+                    relationship_by_local.get(name, {}).get(
+                        "fixed_runtime_range_iris"
+                    )
+                    and "create_om2_quantity"
+                    in relationship_by_local.get(name, {}).get("creator_tools", [])
+                )
+                else "entity_reference"
+                if meta.get("kind") == "object"
+                else "scalar"
+            ),
         }
 
     ordered_member_classes = list(
@@ -345,6 +373,24 @@ def _tbox_fixture_inventory(context: AgenticGenerationContext) -> dict[str, Any]
     )
     top_level_hint_classes = _top_level_materializable_classes(context)
     nested_only_classes = sorted(set(classes_raw.keys()) - top_level_hint_classes)
+    internal_range_classes = {
+        _local_name((meta or {}).get("range"))
+        for meta in properties_raw.values()
+        if isinstance(meta, dict)
+        and _local_name((meta or {}).get("range")) in classes_raw
+    }
+    structurally_unreachable_classes = sorted(
+        set(nested_only_classes) - internal_range_classes
+    )
+    external_target_classes = sorted(
+        {
+            str(target)
+            for spec in relationship_specs
+            if isinstance(spec, dict)
+            for target in spec.get("external_targets") or []
+            if str(target).strip()
+        }
+    )
     ordering_props = _ordering_property_locals(context)
     top_local = _top_entity_local(context)
 
@@ -353,6 +399,8 @@ def _tbox_fixture_inventory(context: AgenticGenerationContext) -> dict[str, Any]
         "all_property_locals": sorted(properties_raw.keys()),
         "top_level_hint_classes": sorted(top_level_hint_classes),
         "nested_only_classes": nested_only_classes,
+        "structurally_unreachable_classes": structurally_unreachable_classes,
+        "external_target_classes": external_target_classes,
         "classes": classes,
         "properties": properties,
         "required_links": context.contract.get("required_links") or [],
@@ -361,6 +409,9 @@ def _tbox_fixture_inventory(context: AgenticGenerationContext) -> dict[str, Any]
         "primary_ordering_property": ordering_props[0] if ordering_props else None,
         "top_entity_local": top_local,
         "top_entity": context.contract.get("top_entity"),
+        "top_entity_allows_multiple": bool(
+            (context.contract.get("top_entity") or {}).get("iter1_allows_multiple")
+        ),
     }
 
 
@@ -386,21 +437,258 @@ def _hint_property_locals_used(hints: dict[str, Any]) -> set[str]:
     return used
 
 
+def _fixture_hint_shape_gaps(
+    *,
+    inventory: dict[str, Any],
+    hints: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Validate property shape and domain at every top-level or nested hint."""
+    properties = inventory.get("properties") or {}
+    classes = inventory.get("classes") or {}
+    parent_closure: dict[str, set[str]] = {}
+    label_classes: dict[str, set[str]] = {}
+    for class_local, records in hints.items():
+        records = [records] if isinstance(records, dict) else records
+        if not isinstance(records, list):
+            continue
+        for record in records:
+            if not isinstance(record, dict):
+                continue
+            label = str(record.get("label") or "").strip()
+            if label:
+                label_classes.setdefault(label, set()).add(str(class_local))
+
+    def parents(local: str) -> set[str]:
+        if local in parent_closure:
+            return parent_closure[local]
+        result = {local}
+        for parent in (classes.get(local) or {}).get("parent_classes") or []:
+            result.update(parents(_local_name(parent)))
+        parent_closure[local] = result
+        return result
+
+    gaps: list[dict[str, Any]] = []
+
+    def walk_record(record: Any, owner_class: str, path: str) -> None:
+        if isinstance(record, list):
+            for index, item in enumerate(record):
+                walk_record(item, owner_class, f"{path}[{index}]")
+            return
+        if not isinstance(record, dict):
+            return
+        for key, value in record.items():
+            if key == "label":
+                continue
+            prop = key[:-6] if key.endswith("_label") else key
+            spec = properties.get(prop)
+            if not isinstance(spec, dict):
+                continue
+            domains = {_local_name(domain) for domain in spec.get("domains") or []}
+            if domains and not (parents(owner_class) & domains):
+                gaps.append(
+                    {
+                        "code": "property_domain_mismatch",
+                        "path": f"{path}.{key}",
+                        "property": prop,
+                        "owner_class": owner_class,
+                        "allowed_domains": sorted(domains),
+                    }
+                )
+            kind = str(spec.get("kind") or "")
+            if kind == "object":
+                nested = isinstance(value, dict) or (
+                    isinstance(value, list)
+                    and any(isinstance(item, dict) for item in value)
+                )
+                scalar_quantity = spec.get("hint_value_mode") == "scalar_quantity"
+                if not key.endswith("_label") and not nested and not scalar_quantity:
+                    gaps.append(
+                        {
+                            "code": "object_property_requires_label_or_nested_object",
+                            "path": f"{path}.{key}",
+                            "property": prop,
+                            "range": _local_name(spec.get("range")),
+                        }
+                    )
+                if key.endswith("_label"):
+                    target_labels = value if isinstance(value, list) else [value]
+                    expected_range = _local_name(spec.get("range"))
+                    for target_label in target_labels:
+                        known_classes = label_classes.get(str(target_label), set())
+                        if (
+                            known_classes
+                            and expected_range in classes
+                            and not any(
+                                expected_range in parents(known_class)
+                                for known_class in known_classes
+                            )
+                        ):
+                            gaps.append(
+                                {
+                                    "code": "object_property_range_mismatch",
+                                    "path": f"{path}.{key}",
+                                    "property": prop,
+                                    "expected_range": expected_range,
+                                    "target_label": str(target_label),
+                                    "known_target_classes": sorted(known_classes),
+                                }
+                            )
+                if nested:
+                    walk_record(
+                        value,
+                        _local_name(spec.get("range")),
+                        f"{path}.{key}",
+                    )
+            elif kind == "datatype" and key.endswith("_label"):
+                gaps.append(
+                    {
+                        "code": "datatype_property_requires_scalar_key",
+                        "path": f"{path}.{key}",
+                        "property": prop,
+                    }
+                )
+
+    for class_local, records in hints.items():
+        walk_record(records, str(class_local), f"hints.{class_local}")
+    return gaps
+
+
+def _fixture_ordering_gaps(
+    *,
+    inventory: dict[str, Any],
+    hints: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Validate the T-Box-derived global ordered-member sequence."""
+    ordering_property = str(
+        inventory.get("primary_ordering_property") or ""
+    ).strip()
+    if not ordering_property:
+        return []
+    ordered_classes = set(inventory.get("ordered_member_classes") or [])
+    seen: dict[int, str] = {}
+    gaps: list[dict[str, Any]] = []
+    for class_local in sorted(ordered_classes):
+        records = hints.get(class_local)
+        records = [records] if isinstance(records, dict) else records
+        if not isinstance(records, list):
+            continue
+        for index, record in enumerate(records):
+            if not isinstance(record, dict):
+                continue
+            label = str(record.get("label") or f"{class_local}[{index}]")
+            value = record.get(ordering_property)
+            if not isinstance(value, int) or isinstance(value, bool) or value < 1:
+                gaps.append(
+                    {
+                        "code": "invalid_or_missing_order",
+                        "class": class_local,
+                        "label": label,
+                        "property": ordering_property,
+                        "value": value,
+                    }
+                )
+                continue
+            if value in seen:
+                gaps.append(
+                    {
+                        "code": "duplicate_order",
+                        "property": ordering_property,
+                        "value": value,
+                        "labels": [seen[value], label],
+                    }
+                )
+            else:
+                seen[value] = label
+    return gaps
+
+
+def _fixture_ordered_parent_link_gaps(
+    *,
+    inventory: dict[str, Any],
+    hints: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Require every ordered member to be linked from a generated top instance."""
+    top_class = str(inventory.get("top_entity_local") or "").strip()
+    ordered_classes = set(inventory.get("ordered_member_classes") or [])
+    if not top_class or not ordered_classes:
+        return []
+    classes = inventory.get("classes") or {}
+
+    def ancestors(local: str) -> set[str]:
+        result = {local}
+        pending = [local]
+        while pending:
+            current = pending.pop()
+            for parent in (classes.get(current) or {}).get("parent_classes") or []:
+                parent_local = _local_name(parent)
+                if parent_local and parent_local not in result:
+                    result.add(parent_local)
+                    pending.append(parent_local)
+        return result
+
+    parent_link_properties = [
+        name
+        for name, spec in (inventory.get("properties") or {}).items()
+        if top_class
+        in {_local_name(domain) for domain in (spec or {}).get("domains") or []}
+        and any(
+            _local_name((spec or {}).get("range")) in ancestors(ordered_class)
+            for ordered_class in ordered_classes
+        )
+    ]
+    if not parent_link_properties:
+        return []
+
+    ordered_labels = {
+        str(record.get("label") or "").strip()
+        for class_local in ordered_classes
+        for record in (
+            [hints.get(class_local)]
+            if isinstance(hints.get(class_local), dict)
+            else hints.get(class_local) or []
+        )
+        if isinstance(record, dict) and str(record.get("label") or "").strip()
+    }
+    linked_labels: set[str] = set()
+    top_records = hints.get(top_class)
+    top_records = [top_records] if isinstance(top_records, dict) else top_records
+    if isinstance(top_records, list):
+        for record in top_records:
+            if not isinstance(record, dict):
+                continue
+            for prop in parent_link_properties:
+                raw = record.get(f"{prop}_label")
+                values = raw if isinstance(raw, list) else [raw]
+                linked_labels.update(
+                    str(value).strip()
+                    for value in values
+                    if str(value or "").strip()
+                )
+    missing = sorted(ordered_labels - linked_labels)
+    return (
+        [
+            {
+                "code": "ordered_members_missing_parent_link",
+                "top_class": top_class,
+                "candidate_properties": sorted(parent_link_properties),
+                "missing_labels": missing,
+            }
+        ]
+        if missing
+        else []
+    )
+
+
 def _fixture_coverage_gaps(
     context: AgenticGenerationContext, data: dict[str, Any]
 ) -> dict[str, Any]:
     inventory = _tbox_fixture_inventory(context)
     required_classes = set(inventory["all_class_locals"])
     required_props = set(inventory["all_property_locals"])
-    top_level_required = set(inventory["top_level_hint_classes"])
     nested_only = set(inventory["nested_only_classes"])
     hints = data.get("hints") if isinstance(data.get("hints"), dict) else {}
     hint_classes = set(hints.keys())
     top_local = str(inventory.get("top_entity_local") or "").strip()
-    # Top entity is materialized even if omitted from hints.
-    present_top = set(hint_classes)
-    if top_local:
-        present_top.add(top_local)
     coverage_list = {
         str(x) for x in (data.get("coverage") or []) if str(x).strip()
     }
@@ -410,12 +698,55 @@ def _fixture_coverage_gaps(
         for x in (data.get("property_coverage") or [])
         if str(x).strip()
     }
-    # Nested-only classes must appear as *_label targets somewhere in hints.
+    exclusions = data.get("coverage_exclusions")
+    deterministic_excluded_classes = set(
+        inventory.get("structurally_unreachable_classes") or []
+    )
+    excluded_classes: set[str] = set(deterministic_excluded_classes)
+    excluded_props: set[str] = set()
+    malformed_exclusions: list[Any] = []
+    if isinstance(exclusions, list):
+        for raw in exclusions:
+            if not isinstance(raw, dict):
+                malformed_exclusions.append(raw)
+                continue
+            kind = str(raw.get("kind") or "").strip()
+            local = str(raw.get("local") or "").strip()
+            reason = str(raw.get("reason") or "").strip()
+            evidence = str(raw.get("tbox_evidence") or "").strip()
+            if kind not in {"class", "property"} or not local or not reason or not evidence:
+                malformed_exclusions.append(raw)
+                continue
+            if kind == "class":
+                excluded_classes.add(local)
+            else:
+                excluded_props.add(local)
+
     label_targets: set[str] = set()
+    actual_classes: set[str] = set(hint_classes & required_classes)
+    nested_direct_classes: set[str] = set()
 
     def walk_labels(node: Any) -> None:
         if isinstance(node, dict):
             for key, value in node.items():
+                if key.endswith("_label"):
+                    prop = str(key[:-6])
+                    target_class = _local_name(
+                        (inventory.get("properties") or {}).get(prop, {}).get("range")
+                    )
+                    if target_class in required_classes:
+                        actual_classes.add(target_class)
+                else:
+                    target_class = _local_name(
+                        (inventory.get("properties") or {}).get(key, {}).get("range")
+                    )
+                    nested = isinstance(value, dict) or (
+                        isinstance(value, list)
+                        and any(isinstance(item, dict) for item in value)
+                    )
+                    if nested and target_class in required_classes:
+                        actual_classes.add(target_class)
+                        nested_direct_classes.add(target_class)
                 if key.endswith("_label") or key == "label":
                     if isinstance(value, list):
                         label_targets.update(str(v) for v in value if v is not None)
@@ -427,22 +758,417 @@ def _fixture_coverage_gaps(
                 walk_labels(item)
 
     walk_labels(hints)
+    if top_local and top_local in required_classes and top_local in hint_classes:
+        actual_classes.add(top_local)
+
+    # A concrete subclass instance also covers its declared parent classes.
+    directly_used_classes = (hint_classes & required_classes) | nested_direct_classes
+    changed = True
+    while changed:
+        changed = False
+        for class_local in tuple(actual_classes):
+            class_spec = (inventory.get("classes") or {}).get(class_local) or {}
+            for parent in class_spec.get("parent_classes") or []:
+                parent_local = _local_name(parent)
+                if parent_local in required_classes and parent_local not in actual_classes:
+                    actual_classes.add(parent_local)
+                    changed = True
+
+    top_records_raw = hints.get(top_local) if top_local else None
+    if isinstance(top_records_raw, dict):
+        top_records = [top_records_raw]
+    elif isinstance(top_records_raw, list):
+        top_records = [item for item in top_records_raw if isinstance(item, dict)]
+    else:
+        top_records = []
+    top_labels = [str(item.get("label") or "").strip() for item in top_records]
+    top_labels = [label for label in top_labels if label]
+    top_evidence_gaps = _fixture_top_entity_evidence_gaps(
+        document_md=str(data.get("document_md") or ""),
+        top_labels=top_labels,
+        evidence=data.get("top_entity_evidence"),
+    )
+    required_link_gaps = _fixture_required_link_gaps(
+        inventory=inventory,
+        document_md=str(data.get("document_md") or ""),
+        hints=hints,
+        assertions=data.get("required_link_assertions"),
+    )
+    hint_shape_gaps = _fixture_hint_shape_gaps(
+        inventory=inventory,
+        hints=hints,
+    )
+    ordering_gaps = _fixture_ordering_gaps(
+        inventory=inventory,
+        hints=hints,
+    )
+    ordered_parent_link_gaps = _fixture_ordered_parent_link_gaps(
+        inventory=inventory,
+        hints=hints,
+    )
     return {
-        "missing_top_level_hint_classes": sorted(top_level_required - present_top),
+        "missing_top_level_hint_classes": [top_local] if top_local and not top_records else [],
         "forbidden_top_level_hint_classes": sorted(hint_classes & nested_only),
-        "missing_coverage_list_classes": sorted(required_classes - coverage_list),
-        "missing_properties_in_hints": sorted(required_props - used_props),
+        "missing_coverage_list_classes": sorted(
+            required_classes - coverage_list - excluded_classes
+        ),
+        "missing_classes_in_hints": sorted(
+            required_classes - actual_classes - excluded_classes
+        ),
+        "missing_properties_in_hints": sorted(declared_props - used_props),
         "missing_properties_in_property_coverage": sorted(
-            required_props - declared_props
+            required_props - declared_props - excluded_props
         ),
         "extra_hint_classes": sorted(hint_classes - required_classes),
+        "coverage_classes_without_grounded_hints": sorted(
+            coverage_list - actual_classes
+        ),
+        "covered_and_excluded_classes": sorted(coverage_list & excluded_classes),
+        "covered_and_excluded_properties": sorted(declared_props & excluded_props),
+        "excluded_but_used_classes": sorted(
+            excluded_classes & directly_used_classes
+        ),
+        "excluded_but_used_properties": sorted(excluded_props & used_props),
+        "unknown_excluded_classes": sorted(excluded_classes - required_classes),
+        "unknown_excluded_properties": sorted(excluded_props - required_props),
+        "malformed_coverage_exclusions": malformed_exclusions,
+        "duplicate_top_entity_labels": sorted(
+            label for label in set(top_labels) if top_labels.count(label) > 1
+        ),
+        "top_entity_count": len(top_labels),
+        "top_entity_multiple_encouraged": bool(
+            inventory.get("top_entity_allows_multiple")
+        ),
+        "top_entity_evidence_gaps": top_evidence_gaps,
         "nested_only_classes": sorted(nested_only),
         "label_target_count": len(label_targets),
         "required_class_count": len(required_classes),
         "required_property_count": len(required_props),
-        "top_level_hint_count": len(present_top & top_level_required),
+        "top_level_hint_count": len(hint_classes - nested_only),
         "used_property_count": len(used_props & required_props),
+        "grounded_classes": sorted(actual_classes),
+        "used_properties": sorted(used_props & required_props),
+        "required_link_assertion_gaps": required_link_gaps,
+        "hint_shape_gaps": hint_shape_gaps,
+        "ordering_gaps": ordering_gaps,
+        "ordered_parent_link_gaps": ordered_parent_link_gaps,
     }
+
+
+def _local_name(value: Any) -> str:
+    """Return a local name from an IRI or a local identifier."""
+    return str(value or "").rsplit("#", 1)[-1].rsplit("/", 1)[-1]
+
+
+def _fixture_top_entity_evidence_gaps(
+    *,
+    document_md: str,
+    top_labels: list[str],
+    evidence: Any,
+) -> list[dict[str, Any]]:
+    """Require distinct, verbatim source evidence for every generated top instance."""
+    normalized: dict[str, list[str]] = {}
+    malformed: list[Any] = []
+    if isinstance(evidence, list):
+        for raw in evidence:
+            if not isinstance(raw, dict):
+                malformed.append(raw)
+                continue
+            label = str(raw.get("label") or "").strip()
+            excerpts_raw = raw.get("evidence")
+            excerpts = (
+                [str(item).strip() for item in excerpts_raw if str(item).strip()]
+                if isinstance(excerpts_raw, list)
+                else []
+            )
+            if not label or not excerpts:
+                malformed.append(raw)
+                continue
+            normalized[label] = excerpts
+
+    gaps: list[dict[str, Any]] = [
+        {"code": "malformed_top_entity_evidence", "detail": raw}
+        for raw in malformed
+    ]
+    for label in top_labels:
+        excerpts = normalized.get(label) or []
+        if not excerpts:
+            gaps.append({"code": "missing_top_entity_evidence", "label": label})
+            continue
+        missing = [excerpt for excerpt in excerpts if excerpt not in document_md]
+        if missing:
+            gaps.append(
+                {
+                    "code": "non_verbatim_top_entity_evidence",
+                    "label": label,
+                    "missing_excerpts": missing,
+                }
+            )
+    extra = sorted(set(normalized) - set(top_labels))
+    if extra:
+        gaps.append({"code": "evidence_for_unknown_top_entity", "labels": extra})
+    if len(top_labels) > 1:
+        signatures: dict[tuple[str, ...], list[str]] = {}
+        for label in top_labels:
+            signature = tuple(normalized.get(label) or [])
+            signatures.setdefault(signature, []).append(label)
+        for signature, labels in signatures.items():
+            if signature and len(labels) > 1:
+                gaps.append(
+                    {
+                        "code": "shared_top_entity_evidence",
+                        "labels": labels,
+                        "evidence": list(signature),
+                    }
+                )
+    return gaps
+
+
+def _canonicalize_top_entity_evidence(
+    *,
+    document_md: str,
+    top_labels: list[str],
+    evidence: Any,
+) -> list[dict[str, Any]]:
+    """Replace non-verbatim evidence pointers with exact label-bearing lines.
+
+    This only repairs audit metadata; it never changes the mock document or
+    semantic hints.
+    """
+    existing: dict[str, list[str]] = {}
+    if isinstance(evidence, list):
+        for raw in evidence:
+            if not isinstance(raw, dict):
+                continue
+            label = str(raw.get("label") or "").strip()
+            excerpts = raw.get("evidence")
+            if label and isinstance(excerpts, list):
+                existing[label] = [
+                    str(item).strip() for item in excerpts if str(item).strip()
+                ]
+
+    lines = [line.strip() for line in document_md.splitlines() if line.strip()]
+    normalized: list[dict[str, Any]] = []
+    for label in top_labels:
+        excerpts = [
+            excerpt
+            for excerpt in existing.get(label, [])
+            if excerpt in document_md
+        ]
+        if not excerpts:
+            excerpts = [line for line in lines if label in line]
+        normalized.append({"label": label, "evidence": excerpts[:3]})
+    return normalized
+
+
+def _canonicalize_fixture_exclusions(
+    *,
+    inventory: dict[str, Any],
+    exclusions: Any,
+) -> list[dict[str, Any]]:
+    """Inject T-Box-derived exclusions for classes with no materialization path."""
+    normalized = [
+        dict(item) for item in exclusions or [] if isinstance(item, dict)
+    ]
+    by_class = {
+        str(item.get("local") or "").strip(): item
+        for item in normalized
+        if item.get("kind") == "class"
+    }
+    for local in inventory.get("structurally_unreachable_classes") or []:
+        evidence = (
+            f"T-Box structural inventory: class={local}; "
+            "top_level_materializable=false; incoming_object_properties=[]"
+        )
+        item = by_class.get(str(local))
+        if item is None:
+            normalized.append(
+                {
+                    "kind": "class",
+                    "local": str(local),
+                    "reason": (
+                        "The active T-Box and generation contract expose no "
+                        "materialization path for this class."
+                    ),
+                    "tbox_evidence": evidence,
+                }
+            )
+            continue
+        item.setdefault(
+            "reason",
+            "The active T-Box and generation contract expose no materialization path.",
+        )
+        if not str(item.get("tbox_evidence") or "").strip():
+            item["tbox_evidence"] = evidence
+    return normalized
+
+
+def _canonicalize_required_link_hints(
+    *,
+    inventory: dict[str, Any],
+    document_md: str,
+    hints: dict[str, Any],
+    assertions: Any,
+) -> None:
+    """Synchronize explicit required-link assertions into matching hint records."""
+    required_pairs = {
+        (
+            _local_name((item or {}).get("subject_class_iri")),
+            _local_name((item or {}).get("predicate_iri")),
+        )
+        for item in inventory.get("required_links") or []
+        if isinstance(item, dict)
+    }
+    if not isinstance(assertions, list):
+        return
+    for assertion in assertions:
+        if not isinstance(assertion, dict):
+            continue
+        subject_class = str(assertion.get("subject_class") or "").strip()
+        predicate = str(assertion.get("predicate") or "").strip()
+        subject_label = str(assertion.get("subject_label") or "").strip()
+        object_label = str(assertion.get("object_label") or "").strip()
+        if (
+            (subject_class, predicate) not in required_pairs
+            or not subject_label
+            or not object_label
+        ):
+            continue
+        if not re.search(
+            rf"{re.escape(subject_label)}.*?{re.escape(predicate)}.*?"
+            rf"{re.escape(object_label)}",
+            document_md,
+            flags=re.IGNORECASE | re.DOTALL,
+        ):
+            continue
+        records = hints.get(subject_class)
+        records = [records] if isinstance(records, dict) else records
+        if not isinstance(records, list):
+            continue
+        for record in records:
+            if (
+                isinstance(record, dict)
+                and str(record.get("label") or "").strip() == subject_label
+            ):
+                record.setdefault(f"{predicate}_label", object_label)
+
+
+def _fixture_required_link_gaps(
+    *,
+    inventory: dict[str, Any],
+    document_md: str,
+    hints: dict[str, Any],
+    assertions: Any,
+) -> list[dict[str, Any]]:
+    """Verify T-Box-required links for every labelled fixture individual.
+
+    The fixture may introduce a nested individual solely as an
+    ``<predicate>_label`` target. Those individuals remain subject to the same
+    cardinality restrictions as top-level ones, so a coverage-only fixture is
+    insufficient.
+    """
+    properties = inventory.get("properties") or {}
+    individuals: dict[str, set[str]] = {}
+
+    def add_individual(label: Any, class_local: Any) -> None:
+        label_text = str(label or "").strip()
+        class_text = _local_name(class_local)
+        if label_text and class_text:
+            individuals.setdefault(label_text, set()).add(class_text)
+
+    def walk(node: Any, class_local: str | None = None) -> None:
+        if isinstance(node, dict):
+            if class_local:
+                add_individual(node.get("label"), class_local)
+            for key, value in node.items():
+                if key.endswith("_label"):
+                    predicate = key[:-6]
+                    prop = properties.get(predicate) or {}
+                    target_class = _local_name(prop.get("range"))
+                    values = value if isinstance(value, list) else [value]
+                    for target_label in values:
+                        add_individual(target_label, target_class)
+                    continue
+                prop = properties.get(key) or {}
+                if prop.get("kind") == "object" and (
+                    isinstance(value, dict)
+                    or (
+                        isinstance(value, list)
+                        and any(isinstance(item, dict) for item in value)
+                    )
+                ):
+                    walk(value, _local_name(prop.get("range")))
+        elif isinstance(node, list):
+            for item in node:
+                walk(item, class_local)
+
+    for class_local, node in hints.items():
+        walk(node, str(class_local))
+
+    normalized_assertions: dict[tuple[str, str], set[str]] = {}
+    if isinstance(assertions, list):
+        for raw in assertions:
+            if not isinstance(raw, dict):
+                continue
+            subject = str(raw.get("subject_label") or "").strip()
+            predicate = str(raw.get("predicate") or "").strip()
+            target = str(raw.get("object_label") or "").strip()
+            if subject and predicate and target:
+                normalized_assertions.setdefault((subject, predicate), set()).add(target)
+
+    gaps: list[dict[str, Any]] = []
+    for required in inventory.get("required_links") or []:
+        subject_class = _local_name(required.get("subject_class_iri"))
+        predicate = _local_name(required.get("predicate_iri"))
+        target_class = _local_name(required.get("target_class_iri"))
+        min_count = int(required.get("min_count") or 0)
+        if not subject_class or not predicate or min_count <= 0:
+            continue
+        for subject_label, classes in sorted(individuals.items()):
+            if subject_class not in classes:
+                continue
+            targets = normalized_assertions.get((subject_label, predicate), set())
+            valid_targets = {
+                target
+                for target in targets
+                if target in individuals
+                and (
+                    not target_class
+                    or target_class in individuals[target]
+                )
+            }
+            if len(valid_targets) < min_count:
+                gaps.append(
+                    {
+                        "subject_label": subject_label,
+                        "subject_class": subject_class,
+                        "predicate": predicate,
+                        "target_class": target_class,
+                        "min_count": min_count,
+                        "declared_target_count": len(valid_targets),
+                    }
+                )
+                continue
+            for target_label in valid_targets:
+                relation = re.compile(
+                    rf"{re.escape(subject_label)}.*?"
+                    rf"{re.escape(predicate)}.*?"
+                    rf"{re.escape(target_label)}",
+                    flags=re.IGNORECASE | re.DOTALL,
+                )
+                if not relation.search(document_md):
+                    gaps.append(
+                        {
+                            "subject_label": subject_label,
+                            "subject_class": subject_class,
+                            "predicate": predicate,
+                            "target_class": target_class,
+                            "min_count": min_count,
+                            "detail": "missing_explicit_document_assertion",
+                            "object_label": target_label,
+                        }
+                    )
+    return gaps
 
 
 def _fixture_prompt(
@@ -482,33 +1208,105 @@ def _fixture_prompt(
 
         Return only a valid JSON object with this exact shape:
         {{
-          "document_md": "<English procedure markdown that mentions every class/property usage>",
+          "document_md": "<English source-document markdown grounding every class/property usage>",
           "hints": {{
             "<TopLevelClassLocal>": {{"label": "...", "<datatypeOrObjectHint>": "..."}},
-            "<OrderedMemberClass>": {ordered_hint_shape}
+            "<OrderedMemberClass>": {ordered_hint_shape},
+            "<OwnerClass>": {{
+              "label": "...",
+              "<objectPredicate>_label": "<target label>",
+              "<objectPredicate>": {{
+                "label": "<same target label>",
+                "<target-owned datatype property>": "<grounded scalar>"
+              }}
+            }}
           }},
-          "coverage": ["<every class local from the T-Box>"],
-          "property_coverage": ["<every property local from the T-Box>"]
+          "required_link_assertions": [
+            {{
+              "subject_label": "<individual label>",
+              "subject_class": "<class local>",
+              "predicate": "<required object-property local>",
+              "object_label": "<target individual label>"
+            }}
+          ],
+          "top_entity_evidence": [
+            {{
+              "label": "<top entity label>",
+              "evidence": ["<verbatim excerpt uniquely grounding this instance>"]
+            }}
+          ],
+          "coverage": ["<every class local actually grounded by hints>"],
+          "property_coverage": ["<every property local actually used in hints>"],
+          "coverage_exclusions": [
+            {{
+              "kind": "<class or property>",
+              "local": "<known T-Box local not safely usable>",
+              "reason": "<why using it would violate or exceed the T-Box>",
+              "tbox_evidence": "<authoritative T-Box comment or structural inventory evidence>"
+            }}
+          ]
         }}
 
         Hard requirements:
-        - `coverage` MUST contain every class local exactly from: {json.dumps(classes)}.
-        - `property_coverage` MUST contain every property local exactly from: {json.dumps(props)}.
+        - The upstream semantic planner has already identified the top class:
+          `{top_local}`. Do not choose or assume another top class.
+        - Account for every known class local from {json.dumps(classes)}:
+          ground it directly, cover it through a grounded subclass, or list it in
+          `coverage_exclusions` with authoritative T-Box evidence. Abstract parent
+          classes covered by concrete subclasses need no generic individual.
+          Maximize valid coverage, but NEVER use a class merely to satisfy coverage
+          when its T-Box comment prohibits it or no T-Box-valid path can ground it.
+        - Account for every known property local from {json.dumps(props)} exactly once:
+          either use it in `hints` and list it in `property_coverage`, or justify its
+          exclusion with authoritative T-Box evidence.
         - Top-level `hints` keys MUST be ONLY from: {json.dumps(top_level)}.
           (These are classes materialize_hints can link under top entity `{top_local}`.)
         - Nested-only classes MUST NOT be top-level hint keys: {json.dumps(nested_only)}.
-          Create them only via object-property `<predicate>_label` fields on already
-          top-linked entities (labels must match created individuals).
+          Create them only as targets of object properties on already top-linked
+          entities. Use `<predicate>_label` when the target needs only a label. When
+          the target owns properties of its own, use `<predicate>: {{"label": "...",
+          "<targetProperty>": ...}}`; never move target-owned properties onto the
+          source class.
+        - External range classes authorized by the T-Box/contract are
+          {json.dumps(inventory["external_target_classes"])}. They are valid nested
+          object-property targets but are not top-level hint keys and are not required
+          in class `coverage`.
         - For every property local in the T-Box, use it at least once in `hints`
-          (datatype as scalar field; object property as `<predicate>_label`).
+          only when its domain, range, and comments authorize a grounded use
+          (datatype as scalar field; entity-reference object property as
+          `<predicate>_label` or nested object). Object properties whose inventory
+          `hint_value_mode` is `scalar_quantity` use the verbatim quantity text as
+          a scalar; the runtime materializes the declared quantity range.
         - Every scalar / label in `hints` must be grounded in `document_md`.
+        - T-Box comments are authoritative semantic constraints, not optional prose.
+          Follow prohibitions, conditional creation rules, defaults, range semantics,
+          and scope rules exactly.
+        - Prefer multiple `{top_local}` instances when
+          `top_entity_allows_multiple={inventory["top_entity_allows_multiple"]}` and
+          the T-Box permits a coherent mock document. Do not force multiplicity when
+          it would require facts unsupported by the T-Box.
+        - For every generated top instance, provide one or more distinct verbatim
+          excerpts in `top_entity_evidence`. The excerpts must be sufficient to
+          distinguish that instance from every other top instance. Do not reuse the
+          same evidence block for multiple top instances.
+        - Do not assume domain-specific notions such as procedures, products, steps,
+          measurements, or documents unless they are present in the supplied T-Box.
+          Derive instance content only from the top class and T-Box inventory.
         {ordering_rule}
         - Ordered member classes: {json.dumps(inventory["ordered_member_classes"])}.
         - Ordering properties from contract: {json.dumps(inventory["ordering_property_locals"])}.
         - Required top links: {json.dumps(inventory["required_links"], ensure_ascii=False)}.
+        - Required-link closure: for EVERY labelled individual in `hints`, including
+          nested `<predicate>_label` targets, satisfy every applicable required link
+          from the T-Box. Declare each such edge in `required_link_assertions` and
+          state it explicitly in `document_md` as
+          `<subject_label> <predicate> <object_label>`. A required relation on the
+          top entity does not satisfy the same relation on another instance of its
+          class.
         - Top entity: {json.dumps(inventory["top_entity"], ensure_ascii=False)}.
         - Do not invent class or property locals outside the T-Box inventory.
-        - Keep values domain-plausible for one fictional but coherent procedure grounded in the T-Box.
+        - Produce a large, information-rich fictional document while keeping every
+          fact coherent, independently grounded, and authorized by the T-Box.
         - Return only JSON. No markdown fences.
 
         T-Box inventory (authoritative):
@@ -518,50 +1316,586 @@ def _fixture_prompt(
     ).strip()
 
 
+def _fixture_semantic_review_prompt(
+    *,
+    context: AgenticGenerationContext,
+    fixture: dict[str, Any],
+) -> str:
+    """Build a T-Box-only semantic compliance review prompt."""
+    inventory = _tbox_fixture_inventory(context)
+    return textwrap.dedent(
+        f"""
+        Review a generated mock fixture strictly against the supplied T-Box inventory.
+        Use no outside domain knowledge and make no assumptions beyond the T-Box.
+
+        Return only JSON:
+        {{
+          "ok": true,
+          "violations": [
+            {{
+              "code": "<stable_code>",
+              "subject": "<fixture label/local>",
+              "detail": "<specific conflict>",
+              "tbox_evidence": "<verbatim inventory evidence>"
+            }}
+          ]
+        }}
+
+        Mark `ok=false` when any of these occur:
+        - a class/property use conflicts with its T-Box comment, domain, or range;
+        - an exclusion is not justified by the supplied T-Box;
+        - a generated top instance is not independently grounded by its cited
+          verbatim evidence;
+        - facts belonging to one top instance are assigned to another without
+          explicit source support;
+        - a required link/cardinality is missing for any generated instance;
+        - a scalar or relation is asserted without support in `document_md`,
+          unless that property's T-Box comment explicitly authorizes lookup,
+          enrichment, inference, or another non-document source. Such an explicit
+          authorization is sufficient; do not report missing document support;
+        - coverage is achieved by inventing semantics absent from the T-Box.
+
+        Multiple top instances are welcome when the T-Box allows them, but do not
+        require multiple instances and do not assume what a top instance represents.
+
+        T-Box inventory:
+        {json.dumps(inventory, ensure_ascii=False)}
+
+        Fixture:
+        {json.dumps(fixture, ensure_ascii=False)}
+        """
+    ).strip()
+
+
+def _review_fixture_semantics(
+    *,
+    context: AgenticGenerationContext,
+    model: str,
+    fixture: dict[str, Any],
+) -> dict[str, Any]:
+    """Run an independent T-Box-only semantic compliance review."""
+    result = invoke_json(
+        model,
+        _fixture_semantic_review_prompt(context=context, fixture=fixture),
+    )
+    review = result.data
+    violations = review.get("violations")
+    if not isinstance(violations, list):
+        return {
+            "ok": False,
+            "violations": [
+                {
+                    "code": "invalid_semantic_review",
+                    "detail": "semantic review did not return a violations list",
+                }
+            ],
+        }
+    return {
+        "ok": bool(review.get("ok")) and not violations,
+        "violations": violations,
+    }
+
+
+FIXTURE_BLOCKING_GAP_KEYS = (
+    "missing_top_level_hint_classes",
+    "forbidden_top_level_hint_classes",
+    "missing_classes_in_hints",
+    "missing_properties_in_hints",
+    "missing_properties_in_property_coverage",
+    "extra_hint_classes",
+    "coverage_classes_without_grounded_hints",
+    "covered_and_excluded_classes",
+    "covered_and_excluded_properties",
+    "excluded_but_used_classes",
+    "excluded_but_used_properties",
+    "unknown_excluded_classes",
+    "unknown_excluded_properties",
+    "malformed_coverage_exclusions",
+    "duplicate_top_entity_labels",
+    "top_entity_evidence_gaps",
+    "required_link_assertion_gaps",
+    "hint_shape_gaps",
+    "ordering_gaps",
+    "ordered_parent_link_gaps",
+)
+
+
+def _fixture_blocking_gaps(gaps: dict[str, Any]) -> dict[str, Any]:
+    """Return only actionable deterministic and semantic failures."""
+    blocking = {
+        key: gaps.get(key)
+        for key in FIXTURE_BLOCKING_GAP_KEYS
+        if gaps.get(key)
+    }
+    if not blocking and gaps.get("semantic_violations"):
+        blocking["semantic_violations"] = gaps["semantic_violations"]
+    return blocking
+
+
+def _fixture_structural_complete(gaps: dict[str, Any]) -> bool:
+    """Return whether every deterministic fixture compliance gate passed."""
+    return not any(gaps.get(key) for key in FIXTURE_BLOCKING_GAP_KEYS)
+
+
+def _fixture_failure_score(gaps: dict[str, Any]) -> tuple[int, int]:
+    """Rank candidates so staged repairs can preserve strict improvements."""
+    structural_count = 0
+    for key in FIXTURE_BLOCKING_GAP_KEYS:
+        value = gaps.get(key)
+        if isinstance(value, list):
+            structural_count += len(value)
+        elif value:
+            structural_count += 1
+    if structural_count:
+        return (1, structural_count)
+    semantic = gaps.get("semantic_violations") or []
+    return (0, len(semantic) if isinstance(semantic, list) else 1)
+
+
+def _evaluate_fixture_candidate(
+    *,
+    context: AgenticGenerationContext,
+    model: str,
+    data: dict[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any], bool]:
+    """Run deterministic and independent semantic fixture gates."""
+    gaps = _fixture_coverage_gaps(context, data)
+    structural_complete = _fixture_structural_complete(gaps)
+    semantic_review = (
+        _review_fixture_semantics(context=context, model=model, fixture=data)
+        if structural_complete
+        else {
+            "ok": False,
+            "violations": [
+                {
+                    "code": "structural_review_blocked",
+                    "detail": "deterministic fixture checks must pass first",
+                }
+            ],
+        }
+    )
+    gaps["semantic_violations"] = semantic_review["violations"]
+    return gaps, semantic_review, structural_complete and semantic_review["ok"]
+
+
+def _fixture_repair_actions(
+    *,
+    context: AgenticGenerationContext,
+    gaps: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Derive actionable repair locations from T-Box domain/range metadata."""
+    inventory = _tbox_fixture_inventory(context)
+    properties = inventory.get("properties") or {}
+    actions: list[dict[str, Any]] = []
+    for prop in gaps.get("missing_properties_in_hints") or []:
+        spec = properties.get(prop) or {}
+        domains = [_local_name(value) for value in spec.get("domains") or []]
+        incoming = {
+            domain: sorted(
+                name
+                for name, candidate in properties.items()
+                if _local_name((candidate or {}).get("range")) == domain
+            )
+            for domain in domains
+        }
+        actions.append(
+            {
+                "gap": f"missing_property:{prop}",
+                "property_kind": spec.get("kind"),
+                "hint_value_mode": spec.get("hint_value_mode"),
+                "allowed_domain_classes": domains,
+                "allowed_range_class": _local_name(spec.get("range")),
+                "domain_incoming_object_properties": incoming,
+                "repair": (
+                    "Attach this property to an existing instance of an allowed "
+                    "domain. Use a grounded scalar when hint_value_mode is "
+                    "scalar_quantity. If the domain is nested-only, enrich the "
+                    "existing incoming relation target with a nested object using "
+                    "the same label; do not create a forbidden top-level hint."
+                ),
+            }
+        )
+    for gap in gaps.get("required_link_assertion_gaps") or []:
+        actions.append(
+            {
+                "gap": "required_link",
+                "subject_label": gap.get("subject_label"),
+                "subject_class": gap.get("subject_class"),
+                "predicate": gap.get("predicate"),
+                "target_class": gap.get("target_class"),
+                "repair": (
+                    "Add the predicate_label edge to the matching existing subject "
+                    "hint and ensure required_link_assertions plus document_md use "
+                    "the identical subject and object labels."
+                ),
+            }
+        )
+    for local in gaps.get("forbidden_top_level_hint_classes") or []:
+        incoming = sorted(
+            name
+            for name, spec in properties.items()
+            if _local_name((spec or {}).get("range")) == local
+        )
+        actions.append(
+            {
+                "gap": f"forbidden_top_level_class:{local}",
+                "incoming_object_properties": incoming,
+                "repair": (
+                    "Remove the top-level class key and represent the same individual "
+                    "only as a nested target of one listed incoming object property."
+                ),
+            }
+        )
+    for local in gaps.get("missing_classes_in_hints") or []:
+        actions.append(
+            {
+                "gap": f"missing_class:{local}",
+                "top_level_allowed": local
+                in set(inventory.get("top_level_hint_classes") or []),
+                "incoming_object_properties": sorted(
+                    name
+                    for name, spec in properties.items()
+                    if _local_name((spec or {}).get("range")) == local
+                ),
+                "repair": (
+                    "Ground one instance through an allowed top-level hint or an "
+                    "incoming object-property target, unless a T-Box-supported "
+                    "coverage exclusion is required."
+                ),
+            }
+        )
+    for gap in gaps.get("hint_shape_gaps") or []:
+        actions.append(
+            {
+                "gap": gap,
+                "repair": (
+                    "For object properties use `<predicate>_label` with an existing "
+                    "target label, or `<predicate>` with a nested object containing "
+                    "`label` and any target-owned properties. For datatype properties "
+                    "use the exact predicate key with a scalar. Object properties with "
+                    "hint_value_mode=scalar_quantity also use a grounded scalar. Move "
+                    "properties to an instance whose class is in allowed_domains."
+                ),
+            }
+        )
+    for gap in gaps.get("ordering_gaps") or []:
+        actions.append(
+            {
+                "gap": gap,
+                "repair": (
+                    "Assign each ordered member a unique positive integer using the "
+                    "declared ordering property. Preserve operation identity and "
+                    "document sequence; change only missing, invalid, or duplicate "
+                    "order values."
+                ),
+            }
+        )
+    for gap in gaps.get("ordered_parent_link_gaps") or []:
+        actions.append(
+            {
+                "gap": gap,
+                "repair": (
+                    "Add every missing ordered-member label to one generated top "
+                    "instance using one candidate parent-link property. Preserve "
+                    "existing top instances and ordered-member records."
+                ),
+            }
+        )
+    for violation in gaps.get("semantic_violations") or []:
+        if violation.get("code") == "structural_review_blocked":
+            continue
+        actions.append(
+            {
+                "gap": {
+                    "code": violation.get("code"),
+                    "subject": violation.get("subject"),
+                    "detail": violation.get("detail"),
+                    "tbox_evidence": violation.get("tbox_evidence"),
+                },
+                "repair": (
+                    "Apply the smallest correction authorized by the supplied "
+                    "T-Box evidence. For range/type conflicts, use a distinct "
+                    "target label and a nested object of the declared range class. "
+                    "For unsupported facts, either add explicit document evidence "
+                    "without changing meaning or remove only the unsupported hint. "
+                    "For an explicitly described but omitted entity/operation, add "
+                    "the most specific T-Box class and all required parent links."
+                ),
+            }
+        )
+    return actions
+
+
+def _fixture_repair_prompt(
+    *,
+    context: AgenticGenerationContext,
+    gaps: dict[str, Any],
+) -> str:
+    """Build a minimal-edit task for a persisted fixture candidate."""
+    inventory = _tbox_fixture_inventory(context)
+    actions = _fixture_repair_actions(context=context, gaps=gaps)
+    return textwrap.dedent(
+        f"""
+        Repair the persisted mock fixture using the exact-edit protocol.
+        Preserve every valid document fact, hint, label, coverage declaration, and
+        evidence pointer. Make only the smallest edits needed to resolve the supplied
+        machine-validation gaps. Never replace the whole fixture and never weaken,
+        remove, or bypass a validation rule.
+
+        Every hint must remain grounded in document_md unless its property's T-Box
+        comment explicitly permits external enrichment. If adding a hint, add the
+        minimum coherent document evidence needed for it. If removing an unsupported
+        hint, keep property_coverage consistent. Required links apply to every
+        applicable individual. Use only the supplied T-Box vocabulary.
+
+        Current blocking validation gaps:
+        {json.dumps(_fixture_blocking_gaps(gaps), ensure_ascii=False)}
+
+        T-Box-derived repair actions:
+        {json.dumps(actions, ensure_ascii=False)}
+
+        Authoritative T-Box inventory:
+        {json.dumps(inventory, ensure_ascii=False)}
+        """
+    ).strip()
+
+
 def generate_mock_fixture(
     *,
     context: AgenticGenerationContext,
     model: str,
     dest: Path,
-    max_attempts: int = 2,
+    max_attempts: int = 3,
 ) -> dict[str, Any]:
-    """LLM-generate a full T-Box coverage mock fixture (document + materialize hints)."""
-    gaps: dict[str, Any] | None = None
-    data: dict[str, Any] = {}
-    for attempt in range(1, max(1, max_attempts) + 1):
-        _log(f"[fixture] LLM full T-Box mock attempt {attempt}/{max_attempts}")
-        result = invoke_json(model, _fixture_prompt(context, retry_gaps=gaps))
-        data = result.data
-        if not isinstance(data.get("hints"), dict):
-            raise ValueError("Fixture LLM response missing object `hints`")
-        if not isinstance(data.get("document_md"), str) or not data["document_md"].strip():
-            raise ValueError("Fixture LLM response missing `document_md`")
-        inventory = _tbox_fixture_inventory(context)
-        data["coverage"] = list(
-            data.get("coverage") or inventory["all_class_locals"]
-        )
-        data["property_coverage"] = list(
-            data.get("property_coverage") or inventory["all_property_locals"]
-        )
-        gaps = _fixture_coverage_gaps(context, data)
-        data["tbox_coverage_audit"] = gaps
-        complete = (
-            not gaps["missing_top_level_hint_classes"]
-            and not gaps["forbidden_top_level_hint_classes"]
-            and not gaps["missing_coverage_list_classes"]
-            and not gaps["missing_properties_in_hints"]
-            and not gaps["extra_hint_classes"]
-        )
-        data["tbox_coverage_complete"] = complete
-        if complete:
-            break
-        _log(
-            "[fixture] incomplete T-Box coverage: "
-            f"missing_top={gaps['missing_top_level_hint_classes'][:8]} "
-            f"forbidden_top={gaps['forbidden_top_level_hint_classes'][:8]} "
-            f"missing_props={gaps['missing_properties_in_hints'][:8]}"
-        )
+    """Generate once, then exact-edit the persisted fixture until gates pass."""
+    attempt_budget = max(1, max_attempts)
+    _log("[fixture] LLM full T-Box mock baseline generation")
+    result = invoke_json(model, _fixture_prompt(context))
+    data = result.data
+    if not isinstance(data.get("hints"), dict):
+        raise ValueError("Fixture LLM response missing object `hints`")
+    if not isinstance(data.get("document_md"), str) or not data["document_md"].strip():
+        raise ValueError("Fixture LLM response missing `document_md`")
+
+    data["coverage"] = list(data.get("coverage") or [])
+    data["property_coverage"] = list(data.get("property_coverage") or [])
+    inventory = _tbox_fixture_inventory(context)
+    top_local = str(inventory.get("top_entity_local") or "").strip()
+    top_raw = (data.get("hints") or {}).get(top_local)
+    top_records = (
+        [top_raw]
+        if isinstance(top_raw, dict)
+        else [item for item in top_raw if isinstance(item, dict)]
+        if isinstance(top_raw, list)
+        else []
+    )
+    top_labels = [
+        str(item.get("label") or "").strip()
+        for item in top_records
+        if str(item.get("label") or "").strip()
+    ]
+    data["top_entity_evidence"] = _canonicalize_top_entity_evidence(
+        document_md=str(data.get("document_md") or ""),
+        top_labels=top_labels,
+        evidence=data.get("top_entity_evidence"),
+    )
+    data["coverage_exclusions"] = _canonicalize_fixture_exclusions(
+        inventory=inventory,
+        exclusions=data.get("coverage_exclusions"),
+    )
+    _canonicalize_required_link_hints(
+        inventory=inventory,
+        document_md=str(data.get("document_md") or ""),
+        hints=data["hints"],
+        assertions=data.get("required_link_assertions"),
+    )
+
+    attempts_dir = dest.parent / "fixture_attempts"
+    attempts_dir.mkdir(parents=True, exist_ok=True)
+    _write_json(attempts_dir / "baseline_candidate.json", data)
+    _write_json(
+        attempts_dir / "baseline_response.json",
+        {
+            "elapsed_seconds": result.elapsed_seconds,
+            "token_usage": result.token_usage,
+            "raw_response": result.raw_response,
+        },
+    )
+
+    gaps, semantic_review, complete = _evaluate_fixture_candidate(
+        context=context,
+        model=model,
+        data=data,
+    )
+    data["tbox_coverage_audit"] = gaps
+    data["tbox_coverage_complete"] = complete
     _write_json(dest, data)
+
+    if not complete and attempt_budget > 1:
+        _log(
+            "[fixture] baseline rejected; starting staged exact-edit repair: "
+            f"missing_props={gaps['missing_properties_in_hints'][:8]} "
+            f"required_link_gaps={gaps['required_link_assertion_gaps'][:3]} "
+            f"semantic={gaps['semantic_violations'][:3]}"
+        )
+        repair_validation_index = 0
+        remaining_attempts = attempt_budget - 1
+        repair_stages: list[dict[str, Any]] = []
+        while not complete and remaining_attempts > 0:
+            stage = len(repair_stages) + 1
+            baseline_score = _fixture_failure_score(gaps)
+            latest: dict[str, Any] = {
+                "gaps": gaps,
+                "semantic_review": semantic_review,
+                "complete": complete,
+            }
+
+            def validate_repaired_fixture() -> dict[str, Any]:
+                nonlocal repair_validation_index
+                repair_validation_index += 1
+                try:
+                    candidate = _load_fixture(dest)
+                    _write_json(
+                        attempts_dir
+                        / f"repair_candidate_{repair_validation_index:02d}.json",
+                        candidate,
+                    )
+                    candidate_gaps, candidate_review, candidate_complete = (
+                        _evaluate_fixture_candidate(
+                            context=context,
+                            model=model,
+                            data=candidate,
+                        )
+                    )
+                    candidate_score = _fixture_failure_score(candidate_gaps)
+                    improved = candidate_complete or candidate_score < baseline_score
+                    _write_json(
+                        attempts_dir
+                        / f"repair_validation_{repair_validation_index:02d}.json",
+                        {
+                            "complete": candidate_complete,
+                            "improved": improved,
+                            "baseline_score": list(baseline_score),
+                            "candidate_score": list(candidate_score),
+                            "blocking_gaps": _fixture_blocking_gaps(candidate_gaps),
+                            "semantic_review": candidate_review,
+                        },
+                    )
+                except Exception as exc:
+                    return {
+                        "ok": False,
+                        "failures": [
+                            {
+                                "code": "invalid_fixture_candidate",
+                                "detail": f"{type(exc).__name__}: {exc}",
+                            }
+                        ],
+                    }
+                latest.update(
+                    gaps=candidate_gaps,
+                    semantic_review=candidate_review,
+                    complete=candidate_complete,
+                )
+                failures = (
+                    []
+                    if improved
+                    else [
+                        {
+                            "code": "fixture_repair_not_improved",
+                            "baseline_score": list(baseline_score),
+                            "candidate_score": list(candidate_score),
+                            "blocking_gaps": _fixture_blocking_gaps(candidate_gaps),
+                            "semantic_violations": (
+                                candidate_review["violations"]
+                                if _fixture_structural_complete(candidate_gaps)
+                                else []
+                            ),
+                            "repair_actions": _fixture_repair_actions(
+                                context=context,
+                                gaps=candidate_gaps,
+                            ),
+                        }
+                    ]
+                )
+                return {
+                    "ok": improved,
+                    "failures": failures,
+                    "retry_hint": (
+                        "Generate a complete minimal edit set against the original "
+                        "fixture that strictly reduces the reported score. Follow "
+                        "repair_actions exactly; do not add nested-only classes as "
+                        "top-level hints or weaken any validation rule."
+                    ),
+                }
+
+            _log(
+                f"[fixture] staged repair {stage} score={baseline_score} "
+                f"budget={remaining_attempts}"
+            )
+            stage_report = run_llm_exact_edit_editor(
+                model_name=model,
+                output_root=dest.parent,
+                targets=[dest],
+                task_prompt=_fixture_repair_prompt(context=context, gaps=gaps),
+                max_attempts=remaining_attempts,
+                validate=validate_repaired_fixture,
+                max_targets=1,
+                require_all_targets_changed=True,
+                progress=lambda message: _log(f"[fixture] {message}"),
+            )
+            used_attempts = max(1, len(stage_report.get("attempts") or []))
+            remaining_attempts = max(0, remaining_attempts - used_attempts)
+            repair_stages.append(
+                {
+                    "stage": stage,
+                    "baseline_score": list(baseline_score),
+                    **stage_report,
+                }
+            )
+            if not stage_report.get("ok"):
+                break
+            data = _load_fixture(dest)
+            gaps = dict(latest["gaps"])
+            semantic_review = dict(latest["semantic_review"])
+            complete = bool(latest["complete"])
+            gaps["semantic_violations"] = semantic_review["violations"]
+            data["tbox_coverage_audit"] = gaps
+            data["tbox_coverage_complete"] = complete
+            _write_json(dest, data)
+
+        _write_json(
+            attempts_dir / "repair_report.json",
+            {
+                "ok": complete,
+                "staged": True,
+                "attempt_budget": attempt_budget - 1,
+                "attempts_used": (attempt_budget - 1) - remaining_attempts,
+                "stages": repair_stages,
+            },
+        )
+        if not complete:
+            data = _load_fixture(dest)
+            gaps, semantic_review, complete = _evaluate_fixture_candidate(
+                context=context,
+                model=model,
+                data=data,
+            )
+        gaps["semantic_violations"] = semantic_review["violations"]
+        data["tbox_coverage_audit"] = gaps
+        data["tbox_coverage_complete"] = complete
+        _write_json(dest, data)
+
+    if data.get("tbox_coverage_complete"):
+        audit = data.get("tbox_coverage_audit") or {}
+        data["coverage"] = list(audit.get("grounded_classes") or [])
+        data["property_coverage"] = list(audit.get("used_properties") or [])
+        _write_json(dest, data)
+    else:
+        raise ValueError(
+            "Fixture generation failed T-Box compliance after "
+            f"one baseline and {max(0, attempt_budget - 1)} exact-edit attempts; "
+            f"audit written to {dest}"
+        )
     return data
 
 
@@ -1075,6 +2409,11 @@ def _write_ontosynthesis_mcp_launcher(artifact_root: Path) -> Path:
             ROOT = Path(__file__).resolve().parent
             if str(ROOT) not in sys.path:
                 sys.path.insert(0, str(ROOT))
+            # Generated helpers (e.g. _reuse_pair_judge) import repository `src.*`.
+            # MCP stdio is launched as a script, so cwd alone is not on sys.path.
+            repo_root = Path.cwd().resolve()
+            if (repo_root / "src").is_dir() and str(repo_root) not in sys.path:
+                sys.path.insert(0, str(repo_root))
 
             module = importlib.import_module("scripts.ontosynthesis.main")
             exported = getattr(module, "mcp", None)
@@ -1125,7 +2464,16 @@ def _write_ontosynthesis_react_mcp_config(
         if key.startswith("TWA_")
     }
     env["TWA_AGENTIC_DATA_DIR"] = str(data_dir.resolve())
+    env["TWA_CENTRAL_MEMORY_DIR"] = str((data_dir.resolve() / "central_memory"))
     env["TWA_GENERATED_ARTIFACT_ROOT"] = str(artifact_root.resolve())
+    # Ensure generated package helpers can `import src...` in the MCP child.
+    existing_pythonpath = str(env.get("PYTHONPATH") or os.environ.get("PYTHONPATH") or "").strip()
+    pythonpath_parts = [str(ROOT)]
+    if existing_pythonpath:
+        pythonpath_parts.extend(
+            part for part in existing_pythonpath.split(os.pathsep) if part and part != str(ROOT)
+        )
+    env["PYTHONPATH"] = os.pathsep.join(pythonpath_parts)
     payload = {
         "llm_created_mcp": {
             "command": sys.executable,
@@ -1144,7 +2492,12 @@ def _react_mcp_config_path(*, artifact_root: Path, data_dir: Path) -> Path:
     """Return a run-isolated MCP config path safe for concurrent evaluations."""
     identity = f"{artifact_root.resolve()}\0{data_dir.resolve()}"
     digest = hashlib.sha256(identity.encode("utf-8")).hexdigest()[:16]
-    return ROOT / "configs" / f"test_mcp_ontosynthesis_semantic_{digest}.json"
+    invocation = uuid.uuid4().hex[:12]
+    return (
+        ROOT
+        / "configs"
+        / f"test_mcp_ontosynthesis_semantic_{digest}_{invocation}.json"
+    )
 
 
 def _merge_ttl_files(ttl_paths: list[Path], dest: Path) -> dict[str, Any]:
@@ -1182,8 +2535,11 @@ def run_react_pipeline_against_mock(
     abox_path: Path,
     runtime_root: Path,
     doi: str = "semantic-mock-ontosynthesis-case",
+    resume_from_step: str | None = None,
 ) -> dict[str, Any]:
-    """Run generated extraction and KG prompts against the fixture document."""
+    """Run or resume the OntoSynthesis pipeline, including attached extensions."""
+    from src.pipelines.extensions_extractions.extract import run_step as extension_extract
+    from src.pipelines.extensions_kg_building.build import run_step as extension_kg
     from src.pipelines.main_kg_building.build import run_step as main_kg
     from src.pipelines.main_ontology_extractions.extract import run_step as main_extract
     from src.pipelines.top_entity_extraction.extract import run_step as top_extract
@@ -1197,9 +2553,38 @@ def run_react_pipeline_against_mock(
     doi_hash = generate_hash(doi)
     data_dir = runtime_root.resolve()
     case_dir = data_dir / doi_hash
-    if case_dir.exists():
-        shutil.rmtree(case_dir)
+    central_memory_dir = data_dir / "central_memory"
+    if not resume_from_step:
+        # Fresh mock/react runs must not inherit prior case memory, central
+        # memory, or global_state from a colliding short runtime path.
+        if data_dir.exists():
+            shutil.rmtree(data_dir)
+        data_dir.mkdir(parents=True, exist_ok=True)
+        # top_entity_kg_building still hardcodes shared repo data/global_state.json;
+        # clear shared identity surfaces so old MCP/reuse state cannot leak in.
+        shared_central = ROOT / "data" / "central_memory"
+        if shared_central.exists():
+            shutil.rmtree(shared_central)
+            _log(f"[react] cleared shared central memory → {shared_central}")
+        for shared_name in (
+            "global_state.json",
+            "global_state.lock",
+            "ontosynthesis_global_state.json",
+        ):
+            shared_path = ROOT / "data" / shared_name
+            if shared_path.exists():
+                shared_path.unlink()
+                _log(f"[react] cleared shared state → {shared_path}")
+    elif not case_dir.is_dir():
+        return {
+            "ok": False,
+            "mode": "react_resume",
+            "doi_hash": doi_hash,
+            "case_dir": str(case_dir),
+            "error": f"resume case does not exist: {case_dir}",
+        }
     case_dir.mkdir(parents=True, exist_ok=True)
+    central_memory_dir.mkdir(parents=True, exist_ok=True)
     for relative in (
         "mcp_run",
         "prompts",
@@ -1209,7 +2594,8 @@ def run_react_pipeline_against_mock(
     ):
         (case_dir / relative).mkdir(parents=True, exist_ok=True)
     stitched = case_dir / f"{doi_hash}_stitched.md"
-    stitched.write_text(document_md + "\n", encoding="utf-8")
+    if not resume_from_step or not stitched.is_file():
+        stitched.write_text(document_md + "\n", encoding="utf-8")
 
     react_config_path = _react_mcp_config_path(
         artifact_root=artifact_root,
@@ -1227,6 +2613,9 @@ def run_react_pipeline_against_mock(
         "test_mcp_config": config_name,
         "force_react_kg": True,
         "skip_materialize_hints": True,
+        "resume_main_kg_from_published_state": (
+            resume_from_step == "main_kg_building"
+        ),
     }
     previous_twa_env = {
         key: value for key, value in os.environ.items() if key.startswith("TWA_")
@@ -1235,13 +2624,27 @@ def run_react_pipeline_against_mock(
     try:
         os.environ["TWA_GENERATED_ARTIFACT_ROOT"] = str(artifact_root.resolve())
         os.environ["TWA_AGENTIC_DATA_DIR"] = str(data_dir)
+        os.environ["TWA_CENTRAL_MEMORY_DIR"] = str(central_memory_dir)
         os.environ["TWA_REQUIRE_GENERATED_ARTIFACT_ROOT"] = "1"
-        for name, fn in (
+        steps = (
             ("top_entity_extraction", top_extract),
             ("top_entity_kg_building", top_kg),
             ("main_ontology_extractions", main_extract),
             ("main_kg_building", main_kg),
-        ):
+            ("extensions_extractions", extension_extract),
+            ("extensions_kg_building", extension_kg),
+        )
+        step_names = [name for name, _ in steps]
+        if resume_from_step and resume_from_step not in step_names:
+            raise ValueError(
+                f"Unsupported resume step {resume_from_step!r}; expected one of {step_names}"
+            )
+        start_index = (
+            step_names.index(resume_from_step) if resume_from_step else 0
+        )
+        for prior_name in step_names[:start_index]:
+            step_results[prior_name] = True
+        for name, fn in steps[start_index:]:
             if name == "main_ontology_extractions":
                 for relative in ("mcp_run", "prompts", "responses", "pre_extraction"):
                     (case_dir / relative).mkdir(parents=True, exist_ok=True)
@@ -1272,6 +2675,7 @@ def run_react_pipeline_against_mock(
             "case_dir": str(case_dir),
             "step_results": step_results,
             "predicted_hints": load_predicted_hints(case_dir),
+            "resumed_from_step": resume_from_step,
             "elapsed_seconds": round(time.perf_counter() - started, 3),
         }
     except Exception as exc:
@@ -1310,7 +2714,12 @@ def apply_semantic_feedback_repairs(
         for path in sorted(scripts_dir.glob("*.py"))
         if not path.name.startswith("main_part_") and "_attempt_" not in path.name
         and path.name
-        not in {"__init__.py", "_fixed_om2_runtime.py", "_fixed_rdf_runtime.py"}
+        not in {
+            "__init__.py",
+            "_fixed_om2_runtime.py",
+            "_fixed_rdf_runtime.py",
+            "_reuse_pair_judge.py",
+        }
     ]
     _log("[semantic] plain LLM transactional repair from reasoner feedback")
     report = run_llm_artifact_editor(
@@ -1475,28 +2884,52 @@ def _context_from_scripts(
             ignore=shutil.ignore_patterns("__pycache__", "*.pyc", "*.pyo"),
         )
     artifact_source_root = scripts_dir.resolve().parents[1]
-    for name in ("prompts", "sparqls", "iterations", "ontology_structures"):
+    for name in (
+        "prompts",
+        "sparqls",
+        "iterations",
+        "ontology_structures",
+        "derived_inputs",
+        "semantic_planning",
+    ):
         source = artifact_source_root / name / ONTOLOGY_NAME
         destination = output_root / name / ONTOLOGY_NAME
         if source.is_dir():
             shutil.copytree(source, destination, dirs_exist_ok=True)
     create_init_files(output_root)
-    context = build_agentic_generation_context(
-        ontology_name=ONTOLOGY_NAME,
-        meta_task_config_path=meta_task_config,
-        output_root=output_root,
-        write_files=False,
+    semantic_plan_path = (
+        output_root
+        / "semantic_planning"
+        / ONTOLOGY_NAME
+        / "accepted_semantic_plan.json"
     )
-    generate_runtime_support_slice(context)
+    if semantic_plan_path.is_file():
+        context = load_domain_generation_checkpoint(
+            output_root=output_root,
+            ontology_name=ONTOLOGY_NAME,
+        )
+    else:
+        context = build_agentic_generation_context(
+            ontology_name=ONTOLOGY_NAME,
+            meta_task_config_path=meta_task_config,
+            output_root=output_root,
+            write_files=False,
+        )
+        generate_runtime_support_slice(context)
     shutil.copy2(fixed_rdf_runtime_path, dest_scripts / "_fixed_rdf_runtime.py")
-    (dest_scripts / "_relationship_contract.json").write_text(
-        json.dumps(
-            runtime_publish_contract(context.contract),
-            indent=2,
-            ensure_ascii=False,
-        ),
-        encoding="utf-8",
+    shutil.copy2(
+        Path(fixed_rdf_runtime_path).with_name("reuse_pair_judge.py"),
+        dest_scripts / "_reuse_pair_judge.py",
     )
+    if not semantic_plan_path.is_file():
+        (dest_scripts / "_relationship_contract.json").write_text(
+            json.dumps(
+                runtime_publish_contract(context.contract),
+                indent=2,
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
     required_runtime_artifacts = [
         output_root
         / "sparqls"
@@ -1723,6 +3156,8 @@ def _prompt_only_regeneration(
         "sparqls",
         "iterations",
         "ontology_structures",
+        "derived_inputs",
+        "semantic_planning",
         "reports",
     ):
         source = previous_root / name
@@ -1733,11 +3168,24 @@ def _prompt_only_regeneration(
     (output_root / "content_feedback.md").write_text(
         content_feedback_path.read_text(encoding="utf-8"), encoding="utf-8"
     )
-    context = build_agentic_generation_context(
-        ontology_name=ONTOLOGY_NAME,
-        meta_task_config_path=meta_task_config,
-        output_root=output_root,
-        write_files=True,
+    semantic_plan_path = (
+        output_root
+        / "semantic_planning"
+        / ONTOLOGY_NAME
+        / "accepted_semantic_plan.json"
+    )
+    context = (
+        load_domain_generation_checkpoint(
+            output_root=output_root,
+            ontology_name=ONTOLOGY_NAME,
+        )
+        if semantic_plan_path.is_file()
+        else build_agentic_generation_context(
+            ontology_name=ONTOLOGY_NAME,
+            meta_task_config_path=meta_task_config,
+            output_root=output_root,
+            write_files=True,
+        )
     )
     editor_diagnosis = json.loads(diagnosis_editor_path.read_text(encoding="utf-8"))
 
@@ -2016,7 +3464,7 @@ def run_outer_loop(
                         document_text=str(repair_fixture.get("document_md") or ""),
                         ontology_contract=_semantic_ontology_contract(context),
                         abox_path=candidate_abox,
-                        models=semantic_judge_models or [model, generation_model],
+                        models=semantic_judge_models or [model],
                         adjudicator_model=semantic_adjudicator_model,
                         acceptance_threshold=semantic_score_threshold,
                     )
@@ -2187,7 +3635,7 @@ def run_outer_loop(
                     ROOT
                     / "tmp"
                     / "semantic_react"
-                    / f"{run_id[:12]}_{outer}_{repeat_index + 1}"
+                    / f"{run_id}_{outer}_{repeat_index + 1}"
                 )
                 repeat_build = run_react_pipeline_against_mock(
                     artifact_root=iter_dir,
@@ -2219,7 +3667,7 @@ def run_outer_loop(
                         document_text=str(fixture.get("document_md") or ""),
                         ontology_contract=_semantic_ontology_contract(context),
                         extracted_content=repeat_build.get("predicted_hints") or {},
-                        models=semantic_judge_models or [model, generation_model],
+                        models=semantic_judge_models or [model],
                         adjudicator_model=semantic_adjudicator_model,
                         acceptance_threshold=semantic_score_threshold,
                     )
@@ -2247,7 +3695,7 @@ def run_outer_loop(
                         document_text=str(fixture.get("document_md") or ""),
                         ontology_contract=_semantic_ontology_contract(context),
                         abox_path=repeat_abox,
-                        models=semantic_judge_models or [model, generation_model],
+                        models=semantic_judge_models or [model],
                         adjudicator_model=semantic_adjudicator_model,
                         acceptance_threshold=semantic_score_threshold,
                     )
@@ -2559,9 +4007,27 @@ def run_outer_loop(
                     diagnosis_editor_path = iter_dir / "content_diagnosis_editor.json"
                     _write_json(diagnosis_editor_path, editor_diagnosis)
                     semantic_repair_diagnosis = None
-                elif repair_kind in {"script", "mixed"}:
-                    diagnosis["source_iteration_root"] = str(iter_dir.resolve())
-                    semantic_repair_diagnosis = diagnosis
+                elif repair_kind in {
+                    "script",
+                    "mixed",
+                    "model_instability",
+                }:
+                    handoff = {
+                        "schema_version": "prompt-enhancement-handoff.v1",
+                        "repair_kind": repair_kind,
+                        "diagnosis": diagnosis,
+                        "scripts_modified": False,
+                        "detail": (
+                            "The prompt-enhancement loop is prompt-only; route this "
+                            "diagnosis to the dedicated script/stability workflow."
+                        ),
+                    }
+                    _write_json(iter_dir / "prompt_enhancement_handoff.json", handoff)
+                    _log(
+                        f"[outer {outer}] prompt-only diagnosis handoff "
+                        f"repair_kind={repair_kind}"
+                    )
+                    semantic_repair_diagnosis = None
                     diagnosis_editor_path = None
                 elif repair_kind in {"none", "adjudicate"}:
                     semantic_repair_diagnosis = None
@@ -2783,7 +4249,7 @@ def run_outer_loop(
         "graph_f1_threshold": graph_f1_threshold,
         "deterministic_f1_policy": "diagnostic_only",
         "semantic_score_threshold": semantic_score_threshold,
-        "semantic_judge_models": semantic_judge_models or [model, generation_model],
+        "semantic_judge_models": semantic_judge_models or [model],
         "semantic_adjudicator_model": semantic_adjudicator_model,
         "evaluation_repeats": evaluation_repeats,
         "champion_iteration": champion_iteration,

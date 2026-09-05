@@ -5,17 +5,43 @@ from __future__ import annotations
 import difflib
 import hashlib
 import json
+import os
 import time
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from src.agents.scripts_and_prompts_generation.editor_retry_policy import (
+    has_field_schema_error,
+    semantic_candidate_fingerprint,
+)
 from src.agents.scripts_and_prompts_generation.level1_code_repair import invoke_json
+from src.agents.scripts_and_prompts_generation.llm_invocation_runtime import (
+    configure_llm_invocation_journal,
+)
 
 ValidationCallback = Callable[[], dict[str, Any]]
 SCHEMA_VERSION = "exact-edits.v1"
 
+
+def _env_int(name: str, default: int) -> int:
+    raw = os.environ.get(name, "").strip()
+    if not raw:
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        return default
+    return value if value > 0 else default
+
 EDIT_FAILURE_SPECS: dict[str, dict[str, str]] = {
+    "field_schema_retry_no_progress": {
+        "failure_class": "validation",
+        "retry_hint": (
+            "The same semantic candidate repeated after FIELD_SCHEMA_ERROR feedback; "
+            "stop rather than loop indefinitely."
+        ),
+    },
     "invalid_target": {"failure_class": "edit_protocol", "retry_hint": "Use only regular, existing editable target files."},
     "target_outside_output_root": {"failure_class": "edit_protocol", "retry_hint": "Use targets located under output_root."},
     "invalid_exact_edit_schema": {"failure_class": "edit_protocol", "retry_hint": f"Set schema_version to {SCHEMA_VERSION}."},
@@ -40,6 +66,9 @@ EDIT_FAILURE_SPECS: dict[str, dict[str, str]] = {
     "unsupported_exact_edit_kind": {"failure_class": "edit_protocol", "retry_hint": "Use replace_exact, or replace_entire_file only for an empty file."},
     "exact_edit_overlap": {"failure_class": "edit_protocol", "retry_hint": "Merge or separate overlapping operations."},
     "exact_edit_target_limit_exceeded": {"failure_class": "edit_protocol", "retry_hint": "Edit no more than the authorized target limit."},
+    "exact_edit_operation_limit_exceeded": {"failure_class": "edit_protocol", "retry_hint": "Use fewer, smaller operations focused only on the diagnosed defect."},
+    "non_additive_exact_edit": {"failure_class": "edit_protocol", "retry_hint": "Preserve old_text verbatim inside new_text and only insert the minimum new rule."},
+    "exact_edit_addition_budget_exceeded": {"failure_class": "edit_protocol", "retry_hint": "Reduce the additive patch to the configured line budget."},
     "no_exact_edit_change": {"failure_class": "edit_protocol", "retry_hint": "Return at least one operation that changes source text."},
     "exact_edit_invalid_newlines": {"failure_class": "edit_protocol", "retry_hint": "Do not place bare carriage returns in new_text."},
     "exact_edit_concurrent_modification": {"failure_class": "edit_protocol", "retry_hint": "Regenerate against the latest supplied snapshot."},
@@ -260,6 +289,9 @@ def apply_exact_edit_payload(
     edit_payload: dict[str, Any],
     validate: ValidationCallback | None = None,
     max_changed_files: int | None = None,
+    additive_only: bool = False,
+    max_added_lines: int | None = None,
+    max_operations: int | None = None,
 ) -> dict[str, Any]:
     """Apply one exact-edits.v1 transaction or leave every target byte-identical."""
     root = output_root.resolve()
@@ -298,6 +330,8 @@ def apply_exact_edit_payload(
     plans: dict[str, list[dict[str, Any]]] = {}
     seen_paths: set[str] = set()
     seen_ids: set[str] = set()
+    operation_count = 0
+    added_line_count = 0
 
     for file_item in files:
         if not isinstance(file_item, dict):
@@ -372,6 +406,20 @@ def apply_exact_edit_payload(
                 if old_text == new_text:
                     failures.append({"code": "exact_edit_no_op", "edit_id": edit_id})
                     continue
+                if additive_only and old_text not in new_text:
+                    failures.append(
+                        {
+                            "code": "non_additive_exact_edit",
+                            "edit_id": edit_id,
+                            "path": relative,
+                        }
+                    )
+                    continue
+                added_lines = max(
+                    0,
+                    len(new_text.splitlines()) - len(old_text.splitlines()),
+                )
+                added_line_count += added_lines
                 matches = _locations(canonical, old_text)
                 if len(matches) != 1:
                     failures.append(
@@ -405,6 +453,7 @@ def apply_exact_edit_payload(
                     "location": _line_column(canonical, span[0]),
                 }
             )
+            operation_count += 1
         ordered = sorted(file_plans, key=lambda item: (item["start"], item["end"]))
         for left, right in zip(ordered, ordered[1:]):
             if right["start"] < left["end"]:
@@ -427,6 +476,30 @@ def apply_exact_edit_payload(
         return {
             "ok": False,
             "failures": [{"code": "exact_edit_target_limit_exceeded"}],
+            "rejected_edit_payload": edit_payload,
+        }
+    if max_operations is not None and operation_count > max_operations:
+        return {
+            "ok": False,
+            "failures": [
+                {
+                    "code": "exact_edit_operation_limit_exceeded",
+                    "actual": operation_count,
+                    "maximum": max_operations,
+                }
+            ],
+            "rejected_edit_payload": edit_payload,
+        }
+    if max_added_lines is not None and added_line_count > max_added_lines:
+        return {
+            "ok": False,
+            "failures": [
+                {
+                    "code": "exact_edit_addition_budget_exceeded",
+                    "actual": added_line_count,
+                    "maximum": max_added_lines,
+                }
+            ],
             "rejected_edit_payload": edit_payload,
         }
 
@@ -556,9 +629,13 @@ def run_llm_exact_edit_editor(
     max_targets: int | None = None,
     require_all_targets_changed: bool = False,
     progress: Callable[[str], None] | None = None,
+    additive_only: bool = False,
+    max_added_lines: int | None = None,
+    max_operations: int | None = None,
 ) -> dict[str, Any]:
     """Run the isolated exact-edit LLM protocol against a stable snapshot."""
     root = output_root.resolve()
+    configure_llm_invocation_journal(root, recover=False)
     snapshots = {path.resolve(): path.resolve().read_bytes() for path in targets}
     editable_files = [
         {
@@ -580,12 +657,28 @@ def run_llm_exact_edit_editor(
         + "content and match exactly once. Add enough unchanged surrounding text to make it "
         + "unique. Operations must not overlap. Do not output a diff, hunk coordinates, "
         + "Markdown fences, or edits outside editable_files.\n\n"
+        + (
+            "ADDITIVE-ONLY POLICY: Every operation must preserve old_text verbatim as "
+            "one contiguous substring inside new_text. Insert only the minimum new "
+            "instructions needed for the diagnosed defect. Do not delete, paraphrase, "
+            "reorder, summarize, or rewrite existing text. "
+            f"Use at most {max_operations} operations. "
+            f"Add at most {max_added_lines} lines in total. "
+            "If the repair conflicts with an existing instruction, do not remove that "
+            "instruction; return no speculative rewrite.\n\n"
+            if additive_only
+            else ""
+        )
         + json.dumps({"output_root": root.as_posix(), "editable_files": editable_files}, ensure_ascii=False)
     )
     attempts: list[dict[str, Any]] = []
     feedback: dict[str, Any] = {}
     emit = progress or (lambda _message: None)
-    for attempt in range(1, max(1, max_attempts) + 1):
+    normal_attempt_limit = max(1, max_attempts)
+    field_schema_candidate_fingerprints: set[str] = set()
+    attempt = 0
+    while True:
+        attempt += 1
         for path, data in snapshots.items():
             path.write_bytes(data)
         attempt_prompt = prompt
@@ -597,23 +690,31 @@ def run_llm_exact_edit_editor(
             )
         target_names = ",".join(path.name for path in targets[:3])
         target_suffix = ",…" if len(targets) > 3 else ""
+        attempt_limit_label = (
+            "schema-feedback"
+            if attempt > normal_attempt_limit
+            else str(normal_attempt_limit)
+        )
         emit(
-            f"exact-edit attempt={attempt}/{max_attempts} phase=generate "
+            f"exact-edit attempt={attempt}/{attempt_limit_label} phase=generate "
             f"targets={target_names}{target_suffix}"
         )
         started = time.monotonic()
+        candidate_payload: Any = None
         try:
             response = invoke_json(
                 model_name,
                 attempt_prompt,
-                timeout_seconds=300,
+                timeout_seconds=_env_int("TWA_PATCH_CALL_TIMEOUT", 300),
                 max_attempts=1,
                 provider_max_retries=0,
             )
+            candidate_payload = response.data
+
             def validate_with_progress() -> dict[str, Any]:
                 """Expose the otherwise opaque candidate-review interval."""
                 emit(
-                    f"exact-edit attempt={attempt}/{max_attempts} "
+                    f"exact-edit attempt={attempt}/{attempt_limit_label} "
                     "phase=review action=run-candidate-validation"
                 )
                 if validate is None:
@@ -626,6 +727,9 @@ def run_llm_exact_edit_editor(
                 edit_payload=response.data,
                 validate=validate_with_progress,
                 max_changed_files=max_targets,
+                additive_only=additive_only,
+                max_added_lines=max_added_lines,
+                max_operations=max_operations,
             )
             if report.get("ok") and require_all_targets_changed:
                 expected = {
@@ -666,7 +770,7 @@ def run_llm_exact_edit_editor(
             }
         attempts.append(record)
         for message in _attempt_progress(record):
-            emit(f"exact-edit attempt={attempt}/{max_attempts} {message}")
+            emit(f"exact-edit attempt={attempt}/{attempt_limit_label} {message}")
         if record.get("ok"):
             return {**record, "attempts": attempts}
         failure_spec = _failure_spec(record.get("failures"))
@@ -705,6 +809,33 @@ def run_llm_exact_edit_editor(
         retry_hint = (record.get("validation") or {}).get("retry_hint")
         if retry_hint:
             feedback["retry_rules"].insert(0, str(retry_hint))
+        field_schema_error = has_field_schema_error(record.get("validation") or {})
+        if field_schema_error:
+            fingerprint = semantic_candidate_fingerprint(candidate_payload)
+            if fingerprint in field_schema_candidate_fingerprints:
+                feedback["failures"] = [
+                    _edit_failure(
+                        "field_schema_retry_no_progress",
+                        detail=(
+                            "The same semantic candidate was rejected twice for "
+                            "FIELD_SCHEMA_ERROR"
+                        ),
+                    ),
+                    *(feedback.get("failures") or []),
+                ]
+                emit(
+                    "exact-edit field-schema retry stopped: repeated semantic candidate"
+                )
+                break
+            field_schema_candidate_fingerprints.add(fingerprint)
+            feedback["retry_rules"].insert(
+                0,
+                "FIELD_SCHEMA_ERROR retries are not limited by the normal attempt budget. "
+                "Apply the exact validator-requested field rename before changing behavior.",
+            )
+            continue
+        if attempt >= normal_attempt_limit:
+            break
     for path, data in snapshots.items():
         path.write_bytes(data)
     return {

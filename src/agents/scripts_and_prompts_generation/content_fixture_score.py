@@ -240,7 +240,7 @@ def score_graph_content(gold_abox: Path, predicted_abox: Path) -> dict[str, Any]
 
 
 def load_predicted_hints(case_dir: Path) -> dict[str, Any]:
-    """Merge the final per-iteration hint files emitted by the runtime pipeline."""
+    """Load all hint representations while merging canonical JSON when available."""
     run_dir = case_dir / "mcp_run"
     candidates: dict[int, list[Path]] = {}
     for path in run_dir.glob("iter*_hints_*.txt"):
@@ -252,12 +252,33 @@ def load_predicted_hints(case_dir: Path) -> dict[str, Any]:
         candidates.setdefault(iteration, []).append(path)
 
     merged: dict[str, Any] = {}
+    artifacts: list[dict[str, Any]] = []
     for iteration in sorted(candidates):
         for path in sorted(candidates[iteration]):
             try:
-                payload = json.loads(path.read_text(encoding="utf-8"))
-            except (OSError, json.JSONDecodeError):
+                text = path.read_text(encoding="utf-8")
+            except OSError:
                 continue
+            try:
+                payload = json.loads(text)
+            except json.JSONDecodeError:
+                artifacts.append(
+                    {
+                        "iteration": iteration,
+                        "path": path.name,
+                        "representation": "text",
+                        "content": text,
+                    }
+                )
+                continue
+            artifacts.append(
+                {
+                    "iteration": iteration,
+                    "path": path.name,
+                    "representation": "json",
+                    "content": payload,
+                }
+            )
             if not isinstance(payload, dict):
                 continue
             for class_local, value in payload.items():
@@ -274,4 +295,6 @@ def load_predicted_hints(case_dir: Path) -> dict[str, Any]:
                     key = _normalise_scalar(item.get("label"))
                     by_label[key] = {**by_label.get(key, {}), **item}
                 merged[class_local] = list(by_label.values()) or new_items
+    if artifacts:
+        merged["runtime_hint_artifacts"] = artifacts
     return merged

@@ -256,18 +256,61 @@ async def run_content_diagnosis_agent(
 ) -> dict[str, Any]:
     """Ask GPT to diagnose content differences through one plain LLM call."""
     started = time.monotonic()
-    response = await asyncio.to_thread(
-        invoke_json,
-        model_name,
-        build_prompt_diagnosis_task_prompt(payload=payload),
-    )
-    diagnosis = validate_repair_diagnosis(response.data, inventory)
+    evidence_ids = {
+        str(item.get("evidence_id") or "").strip()
+        for item in payload.get("evidence_index") or []
+        if isinstance(item, dict) and str(item.get("evidence_id") or "").strip()
+    }
+    base_prompt = build_prompt_diagnosis_task_prompt(payload=payload)
+    validation_attempts: list[dict[str, Any]] = []
+    response = None
+    diagnosis = None
+    repair_feedback = ""
+    for attempt in range(1, 4):
+        response = await asyncio.to_thread(
+            invoke_json,
+            model_name,
+            base_prompt + repair_feedback,
+        )
+        try:
+            diagnosis = validate_repair_diagnosis(
+                response.data,
+                inventory,
+                evidence_ids=evidence_ids or None,
+            )
+            validation_attempts.append({"attempt": attempt, "status": "accepted"})
+            break
+        except ValueError as exc:
+            validation_attempts.append(
+                {
+                    "attempt": attempt,
+                    "status": "rejected",
+                    "error": str(exc),
+                    "response": response.data,
+                }
+            )
+            repair_feedback = (
+                "\n\nYour previous JSON failed deterministic schema validation.\n"
+                f"Validation error: {exc}\n"
+                "Return a complete replacement JSON object. Preserve evidence-based "
+                "reasoning, but correct the schema. Actionable prompt/script/mixed "
+                "routes require valid existing targets; non-actionable routes must "
+                "use repair_kind none/adjudicate and no targets.\n"
+                "Previous JSON:\n"
+                + json.dumps(response.data, ensure_ascii=False)
+            )
+    if response is None or diagnosis is None:
+        raise ValueError(
+            "Content diagnosis failed deterministic validation after 3 attempts: "
+            + json.dumps(validation_attempts, ensure_ascii=False)
+        )
     return {
         "diagnosis": diagnosis,
         "llm_call": {
             "backend": "pure_llm_json",
             "elapsed_seconds": round(time.monotonic() - started, 3),
             "token_usage": response.token_usage,
+            "validation_attempts": validation_attempts,
         },
     }
 
