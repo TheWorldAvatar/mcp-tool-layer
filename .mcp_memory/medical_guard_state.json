@@ -1,8 +1,0 @@
-{
-  "schema": 1,
-  "check_calls": 0,
-  "noncheck_calls": 35,
-  "last_check_ts": null,
-  "last_noncheck_ts": 1774442353,
-  "last_noncheck_kind": "create_PathologyOutcome"
-}

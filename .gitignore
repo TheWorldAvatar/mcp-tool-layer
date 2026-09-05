@@ -1,3 +1,6 @@
+# Machine-local short runtime root (may point outside the repo)
+/twa.local.json
+
 # Local Python environments (pipeline / dev)
 .venv-pipeline/
 .venv/
@@ -155,3 +158,30 @@ guard_state.json
 /**/competency_eval_results.md
 /**/materialized_catalog.json
 /**/warm_option_catalog.discovered.json
+
+# OntoLogX baseline run artifacts
+/baselines/ontologx_ontosyn/runs/
+/baselines/ontologx_ontosyn/resources/ontosyn_system.generated.md
+
+# Local extra venv (in addition to .venv / .venv-pipeline)
+.venv-py312/
+
+# Campaign run trees, generated prompt packages, eval corpora
+/experiments/
+/extraction_corpora/
+/ai_generated_contents*/
+/third_party/
+/mini_marie/
+
+# Pipeline stitch / per-hash runtime dumps (keep out even if they appear outside experiments/)
+**/*_stitched.md
+**/data/extractions/**
+
+# Per-run MCP launch configs: machine paths and campaign-specific, not source of truth
+/configs/test_mcp_config_*.json
+
+# Local Streamlit / MCP scratch that was previously committed
+/.streamlit/
+/.cache/
+/.mcp_memory/
+/.mcp_guard_fallback/

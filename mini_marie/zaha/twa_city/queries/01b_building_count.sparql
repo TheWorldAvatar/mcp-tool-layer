@@ -1,3 +1,0 @@
-PREFIX bldg: <http://www.opengis.net/citygml/building/2.0/>
-SELECT (COUNT(?b) AS ?building_count)
-WHERE { ?b a bldg:Building . }
