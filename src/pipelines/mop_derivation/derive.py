@@ -33,11 +33,19 @@ from src.agents.mops.cbu_derivation.utils.metal_cbu import (
     safe_name as metal_safe_name,
 )
 from src.agents.mops.cbu_derivation.integration import integrate_hash
+from src.pipelines.utils.process_watchdog import STALL_EXIT_CODE, run_subprocess_timeout
 from src.agents.mops.ontomop_derivation.agent_mop_formula import run_for_hash as run_mop_formula
 from models.locations import DATA_DIR, DATA_CCDC_DIR
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(message)s')
+
+
+def entity_integration_usable(data: dict) -> bool:
+    """True when at least one CBU side has an IRI. One empty side is not fatal."""
+    metal_iri = str(((data or {}).get("metal_cbu") or {}).get("iri") or "").strip()
+    organic_iri = str(((data or {}).get("organic_cbu") or {}).get("iri") or "").strip()
+    return bool(metal_iri or organic_iri)
 logger = logging.getLogger(__name__)
 
 
@@ -62,6 +70,81 @@ def _clear_dir_if_exists(path: str) -> None:
     if not os.path.exists(path):
         return
     shutil.rmtree(path, ignore_errors=True)
+
+
+def _derivation_subprocess_env(
+    *,
+    data_dir: str,
+    project_root_path: str,
+) -> Dict[str, str]:
+    """Build the explicit run-data and shared-resource contract for legacy workers."""
+    runtime_root = os.path.abspath(data_dir)
+    repository_root = os.path.abspath(project_root_path)
+    cbu_database_path = os.path.join(
+        repository_root,
+        "data",
+        "ontologies",
+        "full_cbus_with_canonical_smiles_updated.csv",
+    )
+    ccdc_data_dir = os.path.join(repository_root, "data", "ontologies", "ccdc")
+    log_dir = os.path.join(runtime_root, "log")
+
+    if not os.path.isdir(runtime_root):
+        raise FileNotFoundError(f"Configured derivation data_dir does not exist: {runtime_root}")
+    if not os.path.isfile(cbu_database_path):
+        raise FileNotFoundError(f"Configured CBU database does not exist: {cbu_database_path}")
+    if not os.path.isdir(ccdc_data_dir):
+        raise FileNotFoundError(f"Configured CCDC data directory does not exist: {ccdc_data_dir}")
+    os.makedirs(log_dir, exist_ok=True)
+
+    child_env = os.environ.copy()
+    child_env.update(
+        {
+            "DATA_DIR": runtime_root,
+            "DATA_LOG_DIR": log_dir,
+            "DATA_CCDC_DIR": ccdc_data_dir,
+            "CBU_DATABASE_PATH": cbu_database_path,
+            "TWA_AGENTIC_DATA_DIR": runtime_root,
+        }
+    )
+    return child_env
+
+
+def _env_timeout(name: str, default: float) -> float:
+    raw = (os.environ.get(name) or "").strip()
+    if not raw:
+        return default
+    try:
+        value = float(raw)
+    except ValueError:
+        return default
+    return value
+
+
+def _run_derivation_command(
+    cmd: List[str],
+    *,
+    cwd: str,
+    env: Dict[str, str],
+    timeout_seconds: float,
+    logger: logging.Logger,
+    label: str,
+) -> None:
+    logger.info("  ⏱️  %s timeout=%.0fs", label, timeout_seconds)
+    code = run_subprocess_timeout(
+        cmd,
+        cwd=cwd,
+        env=env,
+        timeout_seconds=timeout_seconds,
+    )
+    if code == STALL_EXIT_CODE:
+        raise subprocess.CalledProcessError(
+            code,
+            cmd,
+            f"{label} timed out after {timeout_seconds:.0f}s",
+        )
+    if code != 0:
+        raise subprocess.CalledProcessError(code, cmd)
 
 
 async def run_metal_derivation(doi_hash: str) -> bool:
@@ -176,11 +259,11 @@ async def run_metal_derivation(doi_hash: str) -> bool:
                     logger.warning(f"    ⚠️  All {max_retries} attempts returned empty for {label}")
 
             # Write prompt record under prompts subfolder
+            from src.pipelines.utils.runtime_paths import write_runtime_text
             prompts_dir = os.path.join(out_dir, "prompts")
             os.makedirs(prompts_dir, exist_ok=True)
             prompt_file = os.path.join(prompts_dir, f"{metal_safe_name(label)}_prompt.md")
-            with open(prompt_file, 'w', encoding='utf-8') as pf:
-                pf.write(prompt_text)
+            write_runtime_text(prompt_file, prompt_text)
 
             # Enforce bracketed-only formula (strip any commentary after the bracket)
             try:
@@ -205,8 +288,7 @@ async def run_metal_derivation(doi_hash: str) -> bool:
             final_txt = os.path.join(structured_dir, f"{metal_safe_name(label)}.txt")
 
             if _is_valid_formula_block(only_formula):
-                with open(final_txt, 'w', encoding='utf-8') as ff:
-                    ff.write(only_formula)
+                write_runtime_text(final_txt, only_formula)
                 logger.info(f"    [{i}/{len(entities)}] {label}: OK → structured outputs (+ prompt)")
             else:
                 error_msg = f"❌ CRITICAL: Failed to derive valid metal CBU formula for {label} after {max_retries} attempts. " \
@@ -217,12 +299,14 @@ async def run_metal_derivation(doi_hash: str) -> bool:
             # Persist per-entity JSON for selector
             try:
                 cbu_json_path = os.path.join(structured_dir, f"{metal_safe_name(label)}.json")
-                with open(cbu_json_path, 'w', encoding='utf-8') as jf:
-                    json.dump({
+                write_runtime_text(
+                    cbu_json_path,
+                    json.dumps({
                         "metal_cbu": only_formula,
                         "entity_label": label,
                         "ccdc": ccdc
-                    }, jf, indent=2, ensure_ascii=False)
+                    }, indent=2, ensure_ascii=False),
+                )
             except Exception as e:
                 logger.warning(f"    Failed to write JSON for {label}: {e}")
         except Exception as e:
@@ -231,18 +315,24 @@ async def run_metal_derivation(doi_hash: str) -> bool:
     return True
 
 
-def perform_final_integration(hash_value: str) -> Optional[List[Dict[str, Any]]]:
+def perform_final_integration(
+    hash_value: str,
+    *,
+    data_dir: str,
+) -> Optional[List[Dict[str, Any]]]:
     """Perform final integration by applying derived MOP formulas to create final TTL files."""
     from src.agents.mops.cbu_derivation.integration import _write_integrated_ttl
 
+    from src.pipelines.utils.top_entity_identity import entity_artifact_name
+
     def _safe_name(name: str) -> str:
-        return "".join(c if (c.isalnum() or c in ("_", "-", " ", "(", ")", ",", "'", "+", ".", "{", "}", "·")) else "_" for c in name).replace(" ", "_")
+        return entity_artifact_name(name)
 
     logger.info(f"[FINAL-INTEGRATION] Starting final integration for {hash_value}")
 
-    data_dir = os.path.join("data", hash_value)
-    full_dir = os.path.join(data_dir, "cbu_derivation", "full")
-    integrated_dir = os.path.join(data_dir, "cbu_derivation", "integrated")
+    case_dir = os.path.join(data_dir, hash_value)
+    full_dir = os.path.join(case_dir, "cbu_derivation", "full")
+    integrated_dir = os.path.join(case_dir, "cbu_derivation", "integrated")
 
     logger.info(f"[FINAL-INTEGRATION] Checking directories: full={os.path.exists(full_dir)}, integrated={os.path.exists(integrated_dir)}")
 
@@ -260,30 +350,11 @@ def perform_final_integration(hash_value: str) -> Optional[List[Dict[str, Any]]]
         logger.info(f"[FINAL-INTEGRATION] Processing entity: {entity_name}")
         full_path = os.path.join(full_dir, full_file)
 
-        # Find the corresponding integrated file
-        # Try multiple strategies since naming conventions may vary
-        integrated_path = None
-
-        # Strategy 1: Use safe name (matches integration.py naming convention)
+        # The integration stage and this stage share one canonical filename
+        # transform; do not discover files by partial-name matching.
         safe_entity_name = _safe_name(entity_name)
-        candidate_path = os.path.join(integrated_dir, f"{safe_entity_name}.json")
-        if os.path.exists(candidate_path):
-            integrated_path = candidate_path
-        else:
-            # Strategy 2: Look for any JSON file that contains the entity name
-            for json_file in os.listdir(integrated_dir):
-                if json_file.endswith('.json'):
-                    json_path = os.path.join(integrated_dir, json_file)
-                    try:
-                        with open(json_path, 'r', encoding='utf-8') as f:
-                            data = json.load(f)
-                            if data.get('entity') == entity_name:
-                                integrated_path = json_path
-                                break
-                    except Exception:
-                        continue
-
-        if not integrated_path or not os.path.exists(integrated_path):
+        integrated_path = os.path.join(integrated_dir, f"{safe_entity_name}.json")
+        if not os.path.isfile(integrated_path):
             logger.warning(f"Integrated file missing for {entity_name}, skipping")
             continue
 
@@ -309,36 +380,35 @@ def perform_final_integration(hash_value: str) -> Optional[List[Dict[str, Any]]]
 
             # Generate final TTL with derived formula
             # We need to get the TTL filename from the mapping
-            ttl_dir = os.path.join("data", hash_value, "ontomops_output")
+            ttl_dir = os.path.join(case_dir, "ontomops_output")
             mapping_file = os.path.join(ttl_dir, "ontomops_output_mapping.json")
 
-            ttl_filename = None
-            if os.path.exists(mapping_file):
-                try:
-                    with open(mapping_file, 'r', encoding='utf-8') as mf:
-                        mapping = json.load(mf)
-                        ttl_filename = mapping.get(entity_label)
-                except Exception:
-                    pass
-
-            if ttl_filename:
-                try:
-                    _write_integrated_ttl(
-                        hash_value=hash_value,
-                        entity_label=entity_label,
-                        ttl_filename=ttl_filename,
-                        metal_cbu=metal_cbu,
-                        organic_cbu=organic_cbu,
-                        out_dir=integrated_dir,
-                        mop_formula_override=derived_mop_formula
-                    )
-                    final_ttl_path = os.path.join(integrated_dir, f"{_safe_name(entity_label)}.ttl")
-                    logger.info(f"Successfully generated final TTL for {entity_name} at {final_ttl_path}")
-                except Exception as e:
-                    logger.error(f"Failed to generate TTL for {entity_name}: {e}")
-                    continue
-            else:
+            if not os.path.isfile(mapping_file):
+                logger.warning(f"OntoMOPs output mapping missing for {entity_label}, skipping TTL generation")
+                continue
+            with open(mapping_file, 'r', encoding='utf-8') as mf:
+                mapping = json.load(mf)
+            ttl_filename = mapping.get(entity_label)
+            if not ttl_filename:
                 logger.warning(f"No TTL filename mapping found for {entity_label}, skipping TTL generation")
+                continue
+
+            try:
+                _write_integrated_ttl(
+                    hash_value=hash_value,
+                    entity_label=entity_label,
+                    ttl_filename=ttl_filename,
+                    metal_cbu=metal_cbu,
+                    organic_cbu=organic_cbu,
+                    out_dir=integrated_dir,
+                    data_dir=data_dir,
+                    mop_formula_override=derived_mop_formula
+                )
+                final_ttl_path = os.path.join(integrated_dir, f"{_safe_name(entity_label)}.ttl")
+                logger.info(f"Successfully generated final TTL for {entity_name} at {final_ttl_path}")
+            except Exception as e:
+                logger.error(f"Failed to generate TTL for {entity_name}: {e}")
+                continue
 
             results.append({
                 'entity': entity_label,
@@ -368,7 +438,7 @@ def run_step(doi_hash: str, config: dict) -> bool:
     """
     # Extract config parameters
     data_dir = config.get("data_dir", "data")
-    project_root_path = config.get("project_root", ".")
+    project_root_path = config.get("project_root") or project_root
     
     logger.info(f"🧪 Starting MOP derivation for DOI: {doi_hash}")
     
@@ -408,49 +478,98 @@ def run_step(doi_hash: str, config: dict) -> bool:
     metal_structured_dir = os.path.join(cbu_derivation_dir, "metal", "structured")
     organic_structured_dir = os.path.join(cbu_derivation_dir, "organic", "structured")
 
-    metal_results_exist = os.path.exists(metal_structured_dir) and os.listdir(metal_structured_dir)
-    organic_results_exist = os.path.exists(organic_structured_dir) and os.listdir(organic_structured_dir)
+    def _structured_stems(path: str) -> set[str]:
+        if not os.path.isdir(path):
+            return set()
+        return {name[:-5] for name in os.listdir(path) if name.endswith(".json")}
+
+    metal_stems = _structured_stems(metal_structured_dir)
+    organic_stems = _structured_stems(organic_structured_dir)
+    metal_results_exist = bool(metal_stems)
+    organic_results_exist = bool(organic_stems)
     metal_results_current = _latest_mtime_in_dir(metal_structured_dir, suffixes=(".json", ".txt", ".md")) >= source_mtime
     organic_results_current = _latest_mtime_in_dir(organic_structured_dir, suffixes=(".json", ".txt", ".md")) >= source_mtime
+    if metal_results_exist and not metal_results_current:
+        logger.warning("  🔁 Metal CBU results are stale; clearing structured outputs before re-derivation")
+        _clear_dir_if_exists(metal_structured_dir)
+        metal_stems = set()
+        metal_results_exist = False
+        metal_results_current = False
+    if organic_results_exist and not organic_results_current:
+        logger.warning("  🔁 Organic CBU results are stale; clearing structured outputs before re-derivation")
+        _clear_dir_if_exists(organic_structured_dir)
+        organic_stems = set()
+        organic_results_exist = False
+        organic_results_current = False
 
-    if metal_results_exist and organic_results_exist and metal_results_current and organic_results_current:
+    skip_metal = metal_results_exist and metal_results_current
+    # Do not require metal stems first. An empty metal run used to force a
+    # full organic rerun even when OntoMOPs-aligned organic JSONs already exist.
+    skip_organic = organic_results_exist and organic_results_current
+    if metal_stems and not metal_stems.issubset(organic_stems):
+        skip_organic = False
+    if len(organic_stems) < len(ttl_files):
+        skip_organic = False
+    skip_derivation = skip_metal and skip_organic
+    if skip_derivation:
         logger.info(f"  ⏭️  CBU derivation results already exist, skipping derivation steps")
-        skip_derivation = True
+    elif skip_metal and not skip_organic:
+        logger.info(
+            f"  📝 Metal CBU already complete ({len(metal_stems)} entities); "
+            f"organic missing {sorted(metal_stems - organic_stems)}"
+        )
+    elif skip_organic and not skip_metal:
+        logger.info(
+            f"  📝 Organic CBU already complete ({len(organic_stems)} entities); "
+            "will derive metal only"
+        )
     else:
-        if metal_results_exist and not metal_results_current:
-            logger.warning("  🔁 Metal CBU results are stale; clearing structured outputs before re-derivation")
-            _clear_dir_if_exists(metal_structured_dir)
-        if organic_results_exist and not organic_results_current:
-            logger.warning("  🔁 Organic CBU results are stale; clearing structured outputs before re-derivation")
-            _clear_dir_if_exists(organic_structured_dir)
         logger.info(f"  📝 CBU derivation results not found, will run derivation")
-        skip_derivation = False
     
     logger.info(f"  Found {len(ttl_files)} ontomops extension files")
 
     try:
-        if not skip_derivation:
-            # Step 1: Metal CBU Derivation (use previous standalone module)
+        subprocess_env = _derivation_subprocess_env(
+            data_dir=data_dir,
+            project_root_path=project_root_path,
+        )
+        if skip_metal:
+            logger.info(f"  ⏭️  Skipping metal CBU derivation (structured outputs already exist)")
+        else:
             logger.info(f"\n  📍 Step 1: Metal CBU Derivation (legacy orchestrator)")
             try:
                 cmd = [sys.executable, "-m", "src.agents.mops.cbu_derivation.metal_cbu_derivation_agent", "--file", doi_hash]
-                subprocess.run(cmd, cwd=os.getcwd(), capture_output=False, check=True)
+                _run_derivation_command(
+                    cmd,
+                    cwd=project_root_path,
+                    env=subprocess_env,
+                    timeout_seconds=_env_timeout("CBU_METAL_TIMEOUT_SECONDS", 1500),
+                    logger=logger,
+                    label="metal CBU derivation",
+                )
                 logger.info(f"  ✅ Metal CBU derivation completed")
             except subprocess.CalledProcessError as e:
                 logger.error(f"  ❌ Metal CBU derivation failed: {e}")
                 return False
 
-            # Step 2: Organic CBU Derivation (use previous standalone module)
+        if skip_organic:
+            logger.info(f"  ⏭️  Skipping organic CBU derivation (structured outputs already exist)")
+        else:
             logger.info(f"\n  📍 Step 2: Organic CBU Derivation (legacy orchestrator)")
             try:
                 cmd = [sys.executable, "-m", "src.agents.mops.cbu_derivation.organic_cbu_derivation_agent", "--file", doi_hash]
-                subprocess.run(cmd, cwd=os.getcwd(), capture_output=False, check=True)
+                _run_derivation_command(
+                    cmd,
+                    cwd=project_root_path,
+                    env=subprocess_env,
+                    timeout_seconds=_env_timeout("CBU_ORGANIC_TIMEOUT_SECONDS", 1500),
+                    logger=logger,
+                    label="organic CBU derivation",
+                )
                 logger.info(f"  ✅ Organic CBU derivation completed")
             except subprocess.CalledProcessError as e:
                 logger.error(f"  ❌ Organic CBU derivation failed: {e}")
                 return False
-        else:
-            logger.info(f"  ⏭️  Skipping CBU derivation steps (results already exist)")
 
         # Step 3: Initial Integration (use previous integration module)
         integrated_dir = os.path.join(data_dir, doi_hash, "cbu_derivation", "integrated")
@@ -471,24 +590,44 @@ def run_step(doi_hash: str, config: dict) -> bool:
             logger.info(f"\n  📍 Step 3: Integration (legacy orchestrator)")
             try:
                 cmd = [sys.executable, "-m", "src.agents.mops.cbu_derivation.integration", "--file", doi_hash]
-                subprocess.run(cmd, cwd=os.getcwd(), capture_output=False, check=True)
+                _run_derivation_command(
+                    cmd,
+                    cwd=project_root_path,
+                    env=subprocess_env,
+                    timeout_seconds=_env_timeout("CBU_INTEGRATION_TIMEOUT_SECONDS", 900),
+                    logger=logger,
+                    label="CBU integration",
+                )
 
-                # Validate that integration produced valid results
+                # Validate that at least one entity produced a usable IRI.
+                # One empty metal/organic IRI must not fail the whole paper.
                 integrated_dir = os.path.join(data_dir, doi_hash, "cbu_derivation", "integrated")
+                usable = 0
                 if os.path.exists(integrated_dir):
                     for json_file in os.listdir(integrated_dir):
-                        if json_file.endswith('.json'):
-                            json_path = os.path.join(integrated_dir, json_file)
-                            with open(json_path, 'r', encoding='utf-8') as f:
-                                data = json.load(f)
-                                metal_iri = data.get('metal_cbu', {}).get('iri', '')
-                                organic_iri = data.get('organic_cbu', {}).get('iri', '')
-                                if not metal_iri or not organic_iri:
-                                    raise RuntimeError(f"❌ Integration validation failed: Empty IRIs in {json_file}. "
-                                                     f"Metal IRI: '{metal_iri}', Organic IRI: '{organic_iri}'. "
-                                                     f"This indicates IRI selection failed.")
+                        if not json_file.endswith('.json'):
+                            continue
+                        json_path = os.path.join(integrated_dir, json_file)
+                        with open(json_path, 'r', encoding='utf-8') as f:
+                            data = json.load(f)
+                        if entity_integration_usable(data):
+                            usable += 1
+                            continue
+                        metal_iri = (data.get('metal_cbu') or {}).get('iri', '')
+                        organic_iri = (data.get('organic_cbu') or {}).get('iri', '')
+                        logger.warning(
+                            "  ⚠️  Integration left empty IRIs in %s "
+                            "(metal='%s', organic='%s'); keeping other entities",
+                            json_file,
+                            metal_iri,
+                            organic_iri,
+                        )
+                if usable == 0:
+                    raise RuntimeError(
+                        "❌ Integration validation failed: no entity produced a usable metal or organic IRI."
+                    )
 
-                logger.info(f"  ✅ Integration completed and validated")
+                logger.info(f"  ✅ Integration completed and validated ({usable} usable entit{'y' if usable == 1 else 'ies'})")
             except subprocess.CalledProcessError as e:
                 logger.error(f"  ❌ Integration failed: {e}")
                 return False
@@ -514,7 +653,14 @@ def run_step(doi_hash: str, config: dict) -> bool:
             logger.info(f"\n  📍 Step 4: MOP Formula Derivation (legacy orchestrator)")
             try:
                 cmd = [sys.executable, "-m", "src.agents.mops.ontomop_derivation.agent_mop_formula", "--file", doi_hash]
-                subprocess.run(cmd, cwd=os.getcwd(), capture_output=False, check=True)
+                _run_derivation_command(
+                    cmd,
+                    cwd=project_root_path,
+                    env=subprocess_env,
+                    timeout_seconds=_env_timeout("CBU_FORMULA_TIMEOUT_SECONDS", 900),
+                    logger=logger,
+                    label="MOP formula derivation",
+                )
                 logger.info(f"  ✅ MOP formula derivation completed")
             except subprocess.CalledProcessError as e:
                 logger.error(f"  ❌ MOP formula derivation failed: {e}")
@@ -522,7 +668,10 @@ def run_step(doi_hash: str, config: dict) -> bool:
 
         # Step 5: Final Integration (apply derived MOP formula) using in-process helper for speed
         logger.info(f"\n  📍 Step 5: Final Integration (apply derived MOP formula)")
-        final_integration_result = perform_final_integration(doi_hash)
+        final_integration_result = perform_final_integration(
+            doi_hash,
+            data_dir=data_dir,
+        )
         if final_integration_result is None:
             logger.error(f"  ❌ Final integration failed")
             return False

@@ -11,8 +11,8 @@ import unicodedata
 from pathlib import Path
 from typing import Any
 
-from rdflib import Graph, URIRef
-from rdflib.namespace import RDF
+from rdflib import BNode, Graph, Literal, URIRef
+from rdflib.namespace import RDF, RDFS
 
 
 def load_selected_top_class(doi_folder: str) -> tuple[str, str]:
@@ -33,14 +33,137 @@ def entity_scope_name(label: str, uri: str) -> str:
     normalized = unicodedata.normalize("NFKC", str(label or "entity"))
     safe_label = re.sub(r"[^A-Za-z0-9._-]+", "_", normalized)
     safe_label = re.sub(r"_+", "_", safe_label).strip("._") or "entity"
+    # Keep sidecars safely below Windows MAX_PATH even inside deep scenario
+    # runtimes. URI hash retention preserves collision resistance.
+    safe_label = safe_label[:32].rstrip("._") or "entity"
     uri_hash = hashlib.sha256(str(uri or "").encode("utf-8")).hexdigest()[:12]
     return f"{safe_label}--{uri_hash}"
 
 
+def entity_artifact_name(label: str) -> str:
+    """Return the stable label-derived name used by extraction artifacts."""
+    normalized = unicodedata.normalize("NFKC", str(label or "entity"))
+    for character in [":", "：", "﹕", "∶", "꞉", "︰", "\uf03a"]:
+        normalized = normalized.replace(character, ":")
+    normalized = (
+        normalized.replace("Ä", "Ae")
+        .replace("Ö", "Oe")
+        .replace("Ü", "Ue")
+        .replace("ä", "ae")
+        .replace("ö", "oe")
+        .replace("ü", "ue")
+        .replace("ß", "ss")
+        .replace("α", "alpha")
+        .replace("β", "beta")
+        .replace("γ", "gamma")
+        .replace("δ", "delta")
+        .replace("Α", "Alpha")
+        .replace("Β", "Beta")
+        .replace("Γ", "Gamma")
+        .replace("Δ", "Delta")
+    )
+    safe_label = re.sub(r"[^A-Za-z0-9._-]+", "_", normalized)
+    safe_label = re.sub(r"_+", "_", safe_label).strip("_") or "entity"
+    if len(safe_label) > 64:
+        digest = hashlib.sha256(str(label or "").encode("utf-8")).hexdigest()[:12]
+        safe_label = f"{safe_label[:48].rstrip('._-')}--{digest}"
+    return safe_label
+
+
+def attach_entity_identity_dossiers(
+    *,
+    entities: list[dict[str, Any]],
+    iteration_1_ttl: str,
+) -> list[dict[str, Any]]:
+    """Attach an explicit, domain-independent identity dossier to each entity.
+
+    The dossier contains only pipeline-owned identity fields and the entity's
+    one-hop A-Box facts from Iteration 1. It does not infer or filter facts by
+    ontology-specific predicate names.
+    """
+    graph = Graph()
+    graph.parse(iteration_1_ttl, format="turtle")
+    enriched: list[dict[str, Any]] = []
+    for raw_entity in entities:
+        entity = dict(raw_entity)
+        uri = str(entity.get("uri") or "").strip()
+        label = str(entity.get("label") or "").strip()
+        if not uri or not label:
+            raise ValueError("Top-entity identity dossier requires URI and label")
+        node = URIRef(uri)
+        outgoing_facts: list[dict[str, Any]] = []
+        for predicate, value in sorted(
+            graph.predicate_objects(node),
+            key=lambda pair: (str(pair[0]), str(pair[1])),
+        ):
+            if predicate in {RDF.type, RDFS.label}:
+                continue
+            fact: dict[str, Any] = {"predicate_iri": str(predicate)}
+            if isinstance(value, URIRef):
+                fact.update(
+                    {
+                        "value_kind": "iri",
+                        "object_iri": str(value),
+                        "object_labels": sorted(
+                            {
+                                str(item).strip()
+                                for item in graph.objects(value, RDFS.label)
+                                if str(item).strip()
+                            }
+                        ),
+                        "object_types": sorted(
+                            {
+                                str(item)
+                                for item in graph.objects(value, RDF.type)
+                                if isinstance(item, URIRef)
+                            }
+                        ),
+                    }
+                )
+            elif isinstance(value, Literal):
+                fact.update(
+                    {
+                        "value_kind": "literal",
+                        "value": str(value),
+                        "datatype_iri": str(value.datatype or ""),
+                        "language": str(value.language or ""),
+                    }
+                )
+            elif isinstance(value, BNode):
+                fact.update({"value_kind": "blank_node", "value": str(value)})
+            else:
+                fact.update({"value_kind": "value", "value": str(value)})
+            outgoing_facts.append(fact)
+        entity["identity_dossier"] = {
+            "schema_version": 1,
+            "uri": uri,
+            "label": label,
+            "types": list(entity.get("types") or []),
+            "scope_index": entity.get("scope_index"),
+            "source_anchor": str(entity.get("source_anchor") or ""),
+            "explicit_iteration_1_facts": outgoing_facts,
+        }
+        enriched.append(entity)
+    return enriched
+
+
 def _write_json_atomic(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+    # MCP runtimes monitor the memory directory for graph persistence. Keep
+    # non-TTL atomic-write staging files outside that watched directory so a
+    # concurrent scanner/cleanup cannot consume or remove them before replace.
+    temporary_parent = (
+        path.parent.parent
+        if path.parent.name.casefold() == "memory"
+        else path.parent
+    )
     fd, temporary = tempfile.mkstemp(
-        dir=str(path.parent), prefix=f".{path.name}.", suffix=".tmp"
+        dir=str(temporary_parent),
+        # Do not repeat the potentially long entity scope in the temporary
+        # filename. On Windows that pushed otherwise valid identity paths past
+        # MAX_PATH before the atomic replace.
+        prefix=".identity.",
+        suffix=".tmp",
     )
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as stream:
@@ -92,6 +215,7 @@ def persist_entity_identity_sidecars(
                     "label": label,
                     "types": types,
                     "top_class_iri": top_class_iri,
+                    "dossier": dict(entity.get("identity_dossier") or {}),
                 },
                 "checkpoint": {
                     "last_completed_iteration": 1,

@@ -80,12 +80,16 @@ def discover_dois(input_dir: str, data_dir: str = "data") -> dict:
     # accidentally process each other's previously discovered hashes.
     mapping = dict(existing_mapping)
     current_mapping = {}
+    from .file_ops import write_paper_doi_files
+
     for pdf_file in pdf_files:
         doi = pdf_file[:-4]  # Remove .pdf extension
         doi_hash = generate_hash(doi)
         mapping[doi] = doi_hash
         current_mapping[doi] = doi_hash
         print(f"  {doi} -> {doi_hash}")
+        # Per-case bibliographic DOI for CCDC / prompt injection (hash remains folder key)
+        write_paper_doi_files(os.path.join(data_dir, doi_hash), doi)
     
     # Save mapping
     os.makedirs(data_dir, exist_ok=True)

@@ -182,8 +182,6 @@ def _normalize_entity_label_key(text: str) -> str:
     bracket_match = re.match(r"^[A-Za-z][A-Za-z0-9_]*-\d+\s+\[(.+)\]\s*$", normalized)
     if bracket_match:
         normalized = bracket_match.group(1).strip()
-    if normalized.endswith(" synthesis"):
-        normalized = normalized[: -len(" synthesis")]
     normalized = normalized.replace("·", "").replace("•", "").replace(".", "")
     return "".join(ch for ch in normalized if ch.isalnum())
 
@@ -308,6 +306,18 @@ def _dedupe_typed_nodes_by_label(
     return g
 
 
+def _reusable_class_iris(ontology_contract: Optional[dict]) -> set[str]:
+    """Project the reviewed class-reuse policy onto publish-time deduplication."""
+    policy = (ontology_contract or {}).get("reuse_policy") or {}
+    return {
+        str(item.get("class_iri") or "").strip()
+        for item in policy.get("classes") or []
+        if isinstance(item, dict)
+        and item.get("reusable") is True
+        and str(item.get("class_iri") or "").strip()
+    }
+
+
 def _typed_nodes(g: Graph) -> set[URIRef]:
     return {s for s in g.subjects(RDF.type, None) if isinstance(s, URIRef)}
 
@@ -386,9 +396,14 @@ def enforce_published_graph_hygiene(
     *,
     top_entity: URIRef | None,
     messages: list[str],
+    reusable_class_iris: Iterable[str] = (),
 ) -> Graph:
     class_iris = sorted(
-        {str(o) for _, o in g.subject_objects(RDF.type) if isinstance(o, URIRef)}
+        {
+            str(value).strip()
+            for value in reusable_class_iris
+            if str(value).strip()
+        }
     )
     if class_iris:
         g = _dedupe_typed_nodes_by_label(g, class_iris=class_iris, messages=messages)
@@ -401,6 +416,7 @@ def enforce_published_graph_hygiene_file(
     top_entity_uri: str = "",
     top_class_iri: str = "",
     entity_label: str = "",
+    reusable_class_iris: Iterable[str] = (),
 ) -> tuple[bool, list[str]]:
     messages: list[str] = []
     if not ttl_path or not os.path.exists(ttl_path):
@@ -415,7 +431,12 @@ def enforce_published_graph_hygiene_file(
             top_class_iri=top_class_iri,
             entity_label=entity_label,
         )
-        g = enforce_published_graph_hygiene(g, top_entity=top_entity, messages=messages)
+        g = enforce_published_graph_hygiene(
+            g,
+            top_entity=top_entity,
+            messages=messages,
+            reusable_class_iris=reusable_class_iris,
+        )
         g.serialize(destination=ttl_path, format="turtle")
     except Exception as exc:
         return False, messages + [f"Failed to enforce graph hygiene: {exc}"]
@@ -698,10 +719,12 @@ def _build_composite_entity_graph(
                 f"Pruned {len(drop_nodes)} unrelated top-level shell entities; kept {expected_top_entity}"
             )
 
+    reusable_classes = _reusable_class_iris(semantic_contract)
     singleton_target_classes = [
         str((spec or {}).get("target_class_iri") or "").strip()
         for spec in required_links
         if str((spec or {}).get("target_class_iri") or "").strip()
+        in reusable_classes
     ]
     if singleton_target_classes:
         g = _dedupe_typed_nodes_by_label(
@@ -764,7 +787,12 @@ def _build_composite_entity_graph(
             )
 
     _normalize_medical_composite_graph(g)
-    g = enforce_published_graph_hygiene(g, top_entity=top_entity, messages=messages)
+    g = enforce_published_graph_hygiene(
+        g,
+        top_entity=top_entity,
+        messages=messages,
+        reusable_class_iris=reusable_classes,
+    )
 
     return g, messages
 
@@ -789,6 +817,7 @@ def publish_ttl(
     data_dir: str = "data",
     meta_cfg: Optional[dict] = None,
     src_candidates: Optional[Iterable[str]] = None,
+    apply_semantic_processing: bool = True,
 ) -> Optional[str]:
     """
     Publish the best-available entity TTL to `data/<hash>/<output_dir>/<entity_filename>`.
@@ -836,7 +865,9 @@ def publish_ttl(
         effective_src_path = src_path
         temp_paths: list[str] = []
 
-        if bool(publish_policy.get("merge_top_ttl_into_entity_ttl")):
+        if apply_semantic_processing and bool(
+            publish_policy.get("merge_top_ttl_into_entity_ttl")
+        ):
             top_src_path = _resolve_top_source(doi_folder=doi_folder, naming=naming)
             composite_sources: list[str] | str = src_path
             if (

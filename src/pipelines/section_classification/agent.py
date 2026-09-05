@@ -12,6 +12,7 @@ if project_root not in sys.path:
 
 from models.BaseAgent import BaseAgent
 from models.ModelConfig import ModelConfig
+from src.pipelines.utils.llm_transport_retry import retry_async_on_transport
 
 
 async def classify_sections_with_agent(sections_dict: dict, doi_hash: str, sections_json_path: str) -> dict:
@@ -65,7 +66,7 @@ Section Content:
 {content[:2000]}{"..." if len(content) > 2000 else ""}
 
 Decision Criteria:
-- KEEP: Sections related to synthesis, characterization, properties, experimental methods, results, discussion of MOPs
+- KEEP: Sections that describe methods, procedures, results, measurements, or discussion of those procedures
 - DISCARD: References, acknowledgements, author information, copyright notices, table of contents
 
 Use the keep_or_discard_section tool to mark this section as either "keep" or "discard".
@@ -90,7 +91,10 @@ Make your decision and call the tool immediately.
                     print(f"    🔄 Retry attempt {attempt + 1}/{max_retries} for {section_key}")
                 
                 # Run the agent to classify this section
-                response, metadata = await agent.run(section_prompt, recursion_limit=50)
+                response, metadata = await retry_async_on_transport(
+                    lambda: agent.run(section_prompt, recursion_limit=50),
+                    what=f"section classification {section_key}",
+                )
                 print(f"    ✓ {section_key} classified on attempt {attempt + 1}")
                 break  # Success, exit retry loop
                 

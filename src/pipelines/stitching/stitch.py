@@ -3,12 +3,13 @@
 import os
 import sys
 import json
-import shutil
 
 # Add project root to path
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
+
+from src.utils.source_text_sanitize import sanitize_source_markdown
 
 
 def _is_medical_pipeline(config: dict) -> bool:
@@ -75,13 +76,13 @@ def stitch_sections_to_markdown(sections_dict: dict, output_path: str) -> str:
             markdown_content.append("")
             kept_count += 1
     
-    # Save stitched markdown
+    # Save stitched markdown (sanitize again so legacy unsanitized section JSON is cleaned)
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    with open(output_path, 'w', encoding='utf-8') as f:
-        f.write('\n'.join(markdown_content))
-    
+    with open(output_path, "w", encoding="utf-8") as f:
+        f.write(sanitize_source_markdown("\n".join(markdown_content)))
+
     print(f"    [OK] Kept {kept_count} sections, discarded {discarded_count}")
-    
+
     return output_path
 
 
@@ -150,7 +151,10 @@ def stitch_markdown(doi_hash: str, data_dir: str, config: dict) -> bool:
 
         print(f"  [MEDICAL] Section selection disabled; copying {label} to _stitched.md")
         try:
-            shutil.copy2(chosen, stitched_path)
+            with open(chosen, "r", encoding="utf-8") as src:
+                body = src.read()
+            with open(stitched_path, "w", encoding="utf-8") as dst:
+                dst.write(sanitize_source_markdown(body))
             print(f"  [OK] Created {doi_hash}_stitched.md (source: {label})")
             return True
         except Exception as e:

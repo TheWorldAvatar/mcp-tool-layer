@@ -12,6 +12,18 @@ import logging
 from typing import Dict
 
 from src.agents.mops.dynamic_mcp.modules.extraction import extract_content
+from src.pipelines.main_ontology_extractions.extract import _kg_revision_relation_errors
+from src.pipelines.structured_extraction import validate_hint_payload
+from src.pipelines.utils.extension_revision import hint_revision_prompt_block
+from src.pipelines.utils.runtime_paths import (
+    first_existing_runtime_path,
+    read_runtime_text,
+    resolve_extension_artifact,
+    write_runtime_text,
+)
+from src.pipelines.utils.published_synthesis_queue import load_extension_synthesis_queue
+from src.pipelines.utils.top_entity_identity import entity_artifact_name
+from src.pipelines.utils.ttl_publisher import get_main_ontology_name
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(message)s')
@@ -19,21 +31,8 @@ logger = logging.getLogger(__name__)
 
 
 def _safe_name(label: str) -> str:
-    """Convert entity label to safe filename."""
-    return (
-        (label or "entity")
-        .replace(" ", "_")
-        .replace("/", "_")
-        .replace("\\", "_")
-        .replace(":", "_")
-        .replace("?", "_")
-        .replace("*", "_")
-        .replace("<", "_")
-        .replace(">", "_")
-        .replace("|", "_")
-        .replace('"', "_")
-        .replace("'", "_")
-    )
+    """Stable, length-capped artifact stem shared with main extraction."""
+    return entity_artifact_name(label)
 
 
 def load_tbox(tbox_path: str) -> str:
@@ -92,17 +91,26 @@ async def run_extraction(
     model_name: str,
     output_file: str,
     prompt_file: str,
-    data_dir: str = "data"
+    data_dir: str = "data",
+    output_lookup: list[str] | None = None,
+    revision_feedback: str = "",
+    force: bool = False,
 ) -> str:
     """Run extraction for a single entity."""
     doi_folder = os.path.join(data_dir, doi_hash)
     
-    # Check if extraction already exists
-    extraction_path = os.path.join(doi_folder, output_file)
-    if os.path.exists(extraction_path):
-        logger.info(f"    ⏭️  Extraction exists: {os.path.basename(extraction_path)}")
-        with open(extraction_path, 'r', encoding='utf-8') as f:
-            return f.read()
+    # Check if extraction already exists (canonical or legacy long name)
+    extraction_path = (
+        output_file if os.path.isabs(output_file) else os.path.join(doi_folder, output_file)
+    )
+    lookup = list(output_lookup or [])
+    if extraction_path not in lookup:
+        lookup.insert(0, extraction_path)
+    existing = first_existing_runtime_path(lookup)
+    previous_extraction = read_runtime_text(existing) if existing else ""
+    if existing and not force and not str(revision_feedback or "").strip():
+        logger.info(f"    ⏭️  Extraction exists: {os.path.basename(existing)}")
+        return previous_extraction
     
     # Format extraction prompt (goal) - replace placeholders if they exist
     # Some prompts (like ontospecies EXTRACTION.md) don't have placeholders
@@ -117,23 +125,63 @@ async def run_extraction(
     except (KeyError, IndexError):
         # Template doesn't have placeholders or has different placeholders - use as-is
         pass
+    correction_block = hint_revision_prompt_block(revision_feedback)
+    if correction_block:
+        goal = correction_block + goal
     
     # Run LLM extraction using extract_content
-    logger.info(f"    🔍 Extracting content...")
-    response = await extract_content(
-        paper_content=paper_content,
-        goal=goal,
-        t_box=tbox_content,
-        entity_label=entity_label,
-        entity_uri=entity_uri,
-        model_name=model_name,
-        save_prompt_path=os.path.join(doi_folder, prompt_file)
+    logger.info(
+        "    🔍 Extracting content%s...",
+        " (hint revision)" if correction_block else "",
     )
+    max_attempts = 3 if correction_block else 1
+    response = ""
+    validation_feedback = ""
+    for attempt in range(max_attempts):
+        effective_goal = goal
+        if validation_feedback:
+            effective_goal = (
+                goal
+                + "\n\nYour previous output was rejected by the structural "
+                "materializability validator. Correct every issue below and "
+                "return only the complete corrected JSON payload:\n"
+                f"{validation_feedback}"
+            )
+        response = await extract_content(
+            paper_content=paper_content,
+            goal=effective_goal,
+            t_box=tbox_content,
+            entity_label=entity_label,
+            entity_uri=entity_uri,
+            previous_extraction=previous_extraction,
+            model_name=model_name,
+            save_prompt_path=(
+                prompt_file if os.path.isabs(prompt_file) else os.path.join(doi_folder, prompt_file)
+            )
+        )
+        if not correction_block:
+            break
+        try:
+            valid_payload, payload_errors = validate_hint_payload(
+                response,
+                expected_schema="ref-entity-relations.v1",
+                allowed_entity_iris={str(entity_uri or "")},
+            )
+        except ValueError as exc:
+            valid_payload, payload_errors = False, [str(exc)]
+        revision_errors = _kg_revision_relation_errors(response, revision_feedback)
+        if valid_payload and not revision_errors:
+            break
+        validation_feedback = "\n".join(
+            f"- {error}" for error in list(payload_errors) + revision_errors
+        )
+        if attempt == max_attempts - 1:
+            logger.warning(
+                "    ⚠️  Hint revision still has validation issues after %d attempt(s)",
+                max_attempts,
+            )
     
-    # Save extraction
-    os.makedirs(os.path.dirname(extraction_path), exist_ok=True)
-    with open(extraction_path, 'w', encoding='utf-8') as f:
-        f.write(response)
+    write_runtime_text(extraction_path, response)
     
     logger.info(f"    ✅ Saved extraction: {os.path.basename(extraction_path)}")
     return response
@@ -146,12 +194,13 @@ async def process_extension(
     paper_content: str,
     config: Dict,
     data_dir: str = "data",
-    project_root: str = "."
+    project_root: str = ".",
+    revision_feedback: str = "",
+    force: bool = False,
 ):
     """Process extraction for a single extension entity (extraction only, no KG building)."""
     entity_label = entity.get("label", "")
     entity_uri = entity.get("uri", "")
-    safe = _safe_name(entity_label)
     
     logger.info(f"  🔄 {ontology_name.upper()}: {entity_label}")
     
@@ -179,11 +228,21 @@ async def process_extension(
     from src.utils.extraction_models import get_extraction_model
     model_name = get_extraction_model(iteration["model_config_key"])
     
-    # Extraction step
-    extraction_file = iteration["outputs"]["extraction_file"].replace("{entity_safe}", safe)
-    # Note: extraction_prompt_file may not exist in outputs - use a default if missing
-    extraction_prompt_file = iteration["outputs"].get("extraction_prompt_file", f"prompts/extraction_{safe}.md")
-    extraction_prompt_file = extraction_prompt_file.replace("{entity_safe}", safe)
+    # Extraction step — resolve a Windows-safe write path, but still see
+    # any already-written legacy long filename from earlier runtimes.
+    doi_folder = os.path.join(data_dir, doi_hash)
+    extraction_template = iteration["outputs"].get(
+        "extraction_file", f"mcp_run_{ontology_name}/extraction_{{entity_safe}}.txt"
+    )
+    prompt_template = iteration["outputs"].get(
+        "extraction_prompt_file", "prompts/extraction_{entity_safe}.md"
+    )
+    extraction_file, extraction_lookup = resolve_extension_artifact(
+        doi_folder, extraction_template, entity_label, entity_uri=entity_uri
+    )
+    extraction_prompt_file, _prompt_lookup = resolve_extension_artifact(
+        doi_folder, prompt_template, entity_label, entity_uri=entity_uri
+    )
     
     # Load extraction prompt from markdown file
     extraction_prompt_path = iteration["extraction_prompt"]
@@ -202,7 +261,10 @@ async def process_extension(
         model_name=model_name,
         output_file=extraction_file,
         prompt_file=extraction_prompt_file,
-        data_dir=data_dir
+        data_dir=data_dir,
+        output_lookup=extraction_lookup,
+        revision_feedback=revision_feedback,
+        force=force or bool(str(revision_feedback or "").strip()),
     )
     
     logger.info(f"  ✅ Extraction completed for {entity_label}")
@@ -255,24 +317,20 @@ def run_step(doi_hash: str, config: dict) -> bool:
         logger.warning("No extension ontologies configured")
         return True
     
-    # Load top entities
-    entities_path = os.path.join(doi_folder, "mcp_run", "iter1_top_entities.json")
-    if not os.path.exists(entities_path):
-        logger.error(f"Top entities file not found: {entities_path}")
-        return False
-    
-    try:
-        with open(entities_path, 'r', encoding='utf-8') as f:
-            top_entities = json.load(f)
-    except Exception as e:
-        logger.error(f"Failed to load top entities: {e}")
-        return False
-    
+    top_entities = load_extension_synthesis_queue(
+        doi_folder,
+        ontology_name=get_main_ontology_name(meta_config),
+        project_root=project_root,
+        meta_cfg=meta_config,
+    )
     if not top_entities:
         logger.warning("No top entities found")
         return False
-    
-    logger.info(f"Found {len(top_entities)} top entities")
+
+    logger.info(
+        "Found %s top entities from published TTL / identity lock",
+        len(top_entities),
+    )
     
     # Load stitched paper content
     stitched_path = os.path.join(doi_folder, f"{doi_hash}_stitched.md")

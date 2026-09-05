@@ -36,6 +36,14 @@ try:
 except Exception:  # pragma: no cover
     pd = None  # type: ignore
 
+from src.utils.source_text_sanitize import sanitize_source_markdown
+
+
+def _write_source_markdown(path: str, content: str) -> None:
+    """Write UTF-8 markdown after global illegal-character sanitization."""
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(sanitize_source_markdown(content))
+
 
 def _is_medical_pipeline(config: dict) -> bool:
     """Check if this is the medical pipeline based on meta_task_config."""
@@ -171,8 +179,7 @@ def _extract_text_md(pdf_path: str, output_folder: str, config: dict) -> str:
             md_content = vm.convert_pdf_to_markdown(pdf_path, model=model, dpi=dpi)
 
             for dest in (vision_md, text_md, combined_md):
-                with open(dest, "w", encoding="utf-8") as f:
-                    f.write(md_content)
+                _write_source_markdown(dest, md_content)
 
             print(f"    [OK] Vision transcription written → {os.path.basename(vision_md)}")
             return text_md
@@ -194,8 +201,7 @@ def _extract_text_md(pdf_path: str, output_folder: str, config: dict) -> str:
             md_content = bs.convert_pdf_to_markdown(pdf_path)
 
             for dest in (text_md, combined_md):
-                with open(dest, "w", encoding="utf-8") as f:
-                    f.write(md_content)
+                _write_source_markdown(dest, md_content)
 
             return text_md
         except Exception as e:
@@ -215,8 +221,7 @@ def _extract_text_md(pdf_path: str, output_folder: str, config: dict) -> str:
             parts.append(md)
 
     text_content = "\n\n".join(p for p in parts if p is not None)
-    with open(text_md, "w", encoding="utf-8") as f:
-        f.write(text_content)
+    _write_source_markdown(text_md, text_content)
 
     return text_md
 
@@ -240,9 +245,8 @@ def _extract_tables_md(pdf_path: str, output_folder: str) -> Optional[str]:
         lines.append(df.to_markdown(index=False))
         lines.append("")
 
-    with open(tables_md, "w", encoding="utf-8") as f:
-        f.write("\n".join(lines))
-    
+    _write_source_markdown(tables_md, "\n".join(lines))
+
     return tables_md
 
 
@@ -264,9 +268,8 @@ def _combine_text_and_tables(text_md: str, tables_md: Optional[str], combined_md
     else:
         combined = text_content
 
-    with open(combined_md, "w", encoding="utf-8") as f:
-        f.write(combined)
-    
+    _write_source_markdown(combined_md, combined)
+
     return combined_md
 
 
