@@ -8,6 +8,28 @@
       "model_config_key": "extraction_balanced",
       "use_agent": false,
       "per_entity": true,
+      "responsibilities": {
+        "classes": [
+          "CaseTimeline",
+          "Complication",
+          "Diagnosis",
+          "PathologyOutcome",
+          "PatientInfo",
+          "Procedure",
+          "SurgicalApproach",
+          "SurgicalTeam"
+        ],
+        "object_properties": [
+          "hasComplication",
+          "hasDiagnosis",
+          "hasPathologyOutcome",
+          "hasPatientInfo",
+          "hasProcedure",
+          "hasSurgicalApproach",
+          "hasSurgicalTeam",
+          "hasTimeline"
+        ]
+      },
       "inputs": {
         "source": "stitched_paper"
       },

@@ -8,6 +8,18 @@
       "model_config_key": "extraction_balanced",
       "use_agent": false,
       "per_entity": true,
+      "responsibilities": {
+        "classes": [
+          "CaseTimeline",
+          "PatientInfo",
+          "SurgicalTeam"
+        ],
+        "object_properties": [
+          "hasPatientInfo",
+          "hasSurgicalTeam",
+          "hasTimeline"
+        ]
+      },
       "inputs": {
         "source": "stitched_paper"
       },
@@ -34,6 +46,16 @@
       "model_config_key": "extraction_balanced",
       "use_agent": false,
       "per_entity": true,
+      "responsibilities": {
+        "classes": [
+          "Procedure",
+          "SurgicalApproach"
+        ],
+        "object_properties": [
+          "hasProcedure",
+          "hasSurgicalApproach"
+        ]
+      },
       "pre_extraction": {
         "strategy": "targeted_span_collection",
         "deduplicate_by_text": true
@@ -66,6 +88,18 @@
       "model_config_key": "extraction_balanced",
       "use_agent": false,
       "per_entity": true,
+      "responsibilities": {
+        "classes": [
+          "Complication",
+          "Diagnosis",
+          "PathologyOutcome"
+        ],
+        "object_properties": [
+          "hasComplication",
+          "hasDiagnosis",
+          "hasPathologyOutcome"
+        ]
+      },
       "inputs": {
         "source": "stitched_paper"
       },

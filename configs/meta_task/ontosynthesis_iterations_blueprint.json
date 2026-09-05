@@ -65,14 +65,85 @@
       "iteration_number": 3,
       "name": "synthesis_steps",
       "description": "Extract SynthesisStep instances for each ChemicalSynthesis, including step order and type.",
+      "responsibilities": {
+        "classes": [
+          "Add",
+          "Stir",
+          "HeatChill",
+          "Evaporate",
+          "Sonicate",
+          "Transfer",
+          "Separate",
+          "Filter",
+          "Dry",
+          "Crystallize",
+          "Vessel",
+          "VesselType",
+          "VesselEnvironment",
+          "Equipment",
+          "HeatChillDevice",
+          "SeparationType"
+        ],
+        "object_properties": [
+          "hasSynthesisStep",
+          "hasAddedChemicalInput",
+          "hasVessel",
+          "hasVesselEnvironment",
+          "hasVesselType",
+          "usesEquipment",
+          "hasHeatChillDevice",
+          "hasStirringTemperature",
+          "hasTargetTemperature",
+          "hasTemperatureRate",
+          "hasEvaporationTemperature",
+          "hasEvaporationPressure",
+          "isEvaporatedToVolume",
+          "removesSpecies",
+          "hasDryingAgent",
+          "hasDryingTemperature",
+          "hasDryingPressure",
+          "hasSeparationSolvent",
+          "isSeparationType",
+          "hasTransferedAmount",
+          "isTransferedTo",
+          "hasWashingSolvent",
+          "hasStepDuration"
+        ]
+      },
       "has_pre_extraction": true,
       "pre_extraction_prompt": "ai_generated_contents/prompts/ontosynthesis/PRE_EXTRACTION_ITER_3.md",
       "pre_extraction_model_key": "advanced_model",
+      "pre_extraction_validation": {
+        "closed_ledger": {
+          "enabled": true
+        }
+      },
       "extraction_prompt": "ai_generated_contents/prompts/ontosynthesis/EXTRACTION_ITER_3.md",
       "model_config_key": "iter3_hints",
+      "hint_representation": "semantic-text.v1",
+      "linked_materialization_classes": [
+        "ChemicalInput"
+      ],
       "per_entity": true,
-      "use_agent": false,
+      "use_agent": true,
+      "extraction_mcp_set_name": "chemistry.json",
+      "extraction_mcp_tools": [
+        "pubchem",
+        "enhanced_websearch",
+        "ccdc"
+      ],
       "extraction_validation": {
+        "required_executed_tool_groups": [
+          {
+            "name": "chemical_identity_lookup",
+            "any_of": [
+              "search_pubchem_by_name",
+              "search_pubchem_by_smiles",
+              "search_pubchem_advanced",
+              "get_pubchem_compound_by_cid"
+            ]
+          }
+        ],
         "forbid_generic_ordered_member_types": {
           "enabled": true,
           "generic_labels": [
@@ -120,50 +191,6 @@
         "pre_extraction_prompt_file": "prompts/iter3_pre_extraction/{entity_safe}.md",
         "pre_extraction_response_file": "responses/iter3_pre_extraction/{entity_safe}.md"
       },
-      "sub_iterations": [
-        {
-          "iteration_number": 3.1,
-          "name": "step_enrichment",
-          "description": "Refine the types of SynthesisStep instances.",
-          "enriches": 3,
-          "extraction_prompt": "ai_generated_contents/prompts/ontosynthesis/EXTRACTION_ITER_3_1.md",
-          "model_config_key": "iter3_1_enrichment",
-          "per_entity": true,
-          "use_agent": false,
-          "inputs": {
-            "base_hints": "mcp_run/iter3_hints_{entity_safe}.txt",
-            "pre_extracted_text": "pre_extraction/entity_text_{entity_safe}.txt"
-          },
-          "outputs": {
-            "file_path": "extracted_data/{entity_safe}/synthesis_steps_refined.json",
-            "hints_file": "mcp_run/iter3_hints_{entity_safe}.txt",
-            "prompt_file": "prompts/iter3.1_enrichment/{entity_safe}.md",
-            "response_file": "responses/iter3.1_enrichment/{entity_safe}.md",
-            "done_marker": "mcp_run/iter3_3.1_done_{entity_safe}.marker"
-          }
-        },
-        {
-          "iteration_number": 3.2,
-          "name": "vessel_enrichment",
-          "description": "Enrich SynthesisStep instances with vessel and equipment details.",
-          "enriches": 3,
-          "extraction_prompt": "ai_generated_contents/prompts/ontosynthesis/EXTRACTION_ITER_3_2.md",
-          "model_config_key": "iter3_2_enrichment",
-          "per_entity": true,
-          "use_agent": false,
-          "inputs": {
-            "base_hints": "mcp_run/iter3_hints_{entity_safe}.txt",
-            "pre_extracted_text": "pre_extraction/entity_text_{entity_safe}.txt"
-          },
-          "outputs": {
-            "file_path": "extracted_data/{entity_safe}/synthesis_steps_enriched.json",
-            "hints_file": "mcp_run/iter3_hints_{entity_safe}.txt",
-            "prompt_file": "prompts/iter3.2_enrichment/{entity_safe}.md",
-            "response_file": "responses/iter3.2_enrichment/{entity_safe}.md",
-            "done_marker": "mcp_run/iter3_3.2_done_{entity_safe}.marker"
-          }
-        }
-      ],
       "mcp_set_name": "run_created_mcp.json",
       "mcp_tools": [
         "llm_created_mcp"
@@ -174,6 +201,15 @@
       "iteration_number": 4,
       "name": "yield_extraction",
       "description": "Extract yield information for each ChemicalSynthesis.",
+      "responsibilities": {
+        "classes": [
+          "ExecutionPoint"
+        ],
+        "object_properties": [
+          "hasYield",
+          "hasEquipment"
+        ]
+      },
       "extraction_prompt": "ai_generated_contents/prompts/ontosynthesis/EXTRACTION_ITER_4.md",
       "model_config_key": "iter4_hints",
       "per_entity": true,

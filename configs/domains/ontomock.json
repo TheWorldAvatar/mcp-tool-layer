@@ -1,0 +1,82 @@
+{
+  "schema_version": "domain-generation-config.v1",
+  "domain_id": "ontomock",
+  "ontology_name": "ontomock",
+  "execution_profile": "complex_main",
+  "workflow_profile": "complex",
+  "tbox": {
+    "primary": "tests/fixtures/tbox/ontomock.ttl",
+    "supporting": [
+      "tests/fixtures/tbox/om2_mock.ttl"
+    ]
+  },
+  "reuse_policy": {
+    "path": "configs/meta_task/ontomock_reuse_review.json"
+  },
+  "models": {
+    "top_entity_planning": "gpt-5",
+    "iteration_planning": "gpt-5",
+    "script_generation": "gpt-5",
+    "prompt_generation": "gpt-5",
+    "semantic_review": "gpt-5",
+    "repair": "gpt-5",
+    "runtime_extraction": "gpt-4.1",
+    "runtime_kg_building": "gpt-4o",
+    "semantic_scoring": "gpt-5"
+  },
+  "mcp_capabilities": {
+    "kg_building": {
+      "set_name": "run_created_mcp.json",
+      "tools": [
+        "llm_created_mcp"
+      ]
+    }
+  },
+  "runtime": {
+    "output": {
+      "dir": "ontomock_output",
+      "top_ttl_name": "top.ttl",
+      "entity_ttl_pattern": "{entity_safe}.ttl"
+    },
+    "workflow": {
+      "iterations": [
+        {
+          "model_config_key": "iter2_hints",
+          "use_agent": false,
+          "inputs": {
+            "source": "stitched_paper"
+          },
+          "enrichment": []
+        },
+        {
+          "model_config_key": "iter3_hints",
+          "pre_extraction_model_key": "advanced_model",
+          "hint_representation": "semantic-text.v1",
+          "pre_extraction_validation": {
+            "closed_ledger": {
+              "enabled": true
+            }
+          },
+          "use_agent": false,
+          "enrichment": []
+        },
+        {
+          "model_config_key": "iter4_hints",
+          "use_agent": false,
+          "inputs": {
+            "source": "stitched_paper"
+          },
+          "enrichment": []
+        }
+      ]
+    }
+  },
+  "agents": {
+    "top_entity_extraction": true,
+    "iteration_extraction": true,
+    "external_enrichment": false,
+    "kg_building": true,
+    "prompt_repair": true,
+    "semantic_adjudication": true
+  }
+}

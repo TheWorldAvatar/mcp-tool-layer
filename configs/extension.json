@@ -1,4 +1,9 @@
 {
+  "_mcp_set_policy": {
+    "tool_purposes": {
+      "ccdc": "Resolve source-supported crystallographic identities and explicit CCDC identifiers; never infer a crystal identity from a similar name or structure."
+    }
+  },
   "mops_extension": {
     "command": "C:\\\\Users\\\\xz378\\\\AppData\\\\Local\\\\anaconda3\\\\envs\\\\mcp_layer\\\\python.exe",
     "args": [

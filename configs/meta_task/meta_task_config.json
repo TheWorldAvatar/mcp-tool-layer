@@ -43,9 +43,6 @@
           },
           "shell_validation": {
             "top_entity_class_iri": "https://www.theworldavatar.com/kg/OntoSyn/ChemicalSynthesis",
-            "label_key_suffixes_to_strip": [
-              "synthesis"
-            ],
             "require_entity_uri_subject": true,
             "required_links": [
               {
@@ -59,8 +56,7 @@
                 "target_class_iri": "https://www.theworldavatar.com/kg/OntoSyn/ChemicalOutput",
                 "min_count": 1,
                 "placeholder_target_if_missing": {
-                  "derive_label_from_top_entity": true,
-                  "strip_suffix": " synthesis"
+                  "derive_label_from_top_entity": true
                 }
               }
             ]
@@ -69,6 +65,16 @@
             "require_top_entity_reuse": true,
             "forbid_new_top_entity_creation": true,
             "require_required_links_before_export": true
+          },
+          "max_attempts": 1,
+          "semantic_audit": {
+            "nonblocking_after_semantic_exhaustion": true
+          },
+          "presence_coverage_audit": {
+            "enabled": true,
+            "replace_llm_audits": true,
+            "model": "gpt-4o",
+            "mcp_groups": []
           },
           "post_publish_warnings": {
             "typed_nodes_missing_predicate": [
@@ -121,20 +127,6 @@
                   "pre_extraction_source": "stitched_paper",
                   "extraction_source": "pre_extracted_text"
                 }
-              },
-              "sub_iterations": {
-                "ordered_overrides": [
-                  {
-                    "name": "step_enrichment",
-                    "model_config_key": "iter3_1_enrichment",
-                    "use_agent": false
-                  },
-                  {
-                    "name": "vessel_enrichment",
-                    "model_config_key": "iter3_2_enrichment",
-                    "use_agent": false
-                  }
-                ]
               }
             },
             "4": {
@@ -161,6 +153,14 @@
         "description": "The ontology for describing of metal-organic polyhedra.",
         "ttl_file": "data/ontologies/ontomops-subgraph.ttl",
         "complex_pipeline": false,
+        "runtime_policies": {
+          "enrichment_target": {
+            "query_file": "configs/sparql/extensions/ontomops_enrichment_target.sparql",
+            "target_variable": "target",
+            "target_class_iri": "https://www.theworldavatar.com/kg/ontomops/MetalOrganicPolyhedron",
+            "cardinality": "exactly_one"
+          }
+        },
         "output": {
           "dir": "{ontology_name}_output",
           "entity_ttl_pattern": "{ontology_name}_extension_{entity_name}.ttl"
@@ -177,6 +177,14 @@
         "description": "The ontology for describing the species of chemical compounds.",
         "ttl_file": "data/ontologies/ontospecies-subgraph.ttl",
         "complex_pipeline": false,
+        "runtime_policies": {
+          "enrichment_target": {
+            "query_file": "configs/sparql/extensions/ontospecies_enrichment_target.sparql",
+            "target_variable": "target",
+            "target_class_iri": "http://www.theworldavatar.com/ontology/ontospecies/OntoSpecies.owl#Species",
+            "cardinality": "exactly_one"
+          }
+        },
         "output": {
           "dir": "{ontology_name}_output",
           "entity_ttl_pattern": "{entity_slugified}.ttl"

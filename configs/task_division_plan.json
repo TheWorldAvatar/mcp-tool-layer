@@ -533,12 +533,6 @@
           "description": "Link synthesis to its in-document anchor (section/paragraph identifiers)."
         },
         {
-          "property": "ontosyn:inheritsFromProcedure",
-          "domain": "ontosyn:ChemicalSynthesis",
-          "range": "ontosyn:ChemicalSynthesis",
-          "description": "Link to another ChemicalSynthesis in the same paper when text states 'same as/according to/similar to'; inputs and steps are inherited by default; exceptions parsed from text; yields are NOT inherited."
-        },
-        {
           "property": "ontosyn:isSuppliedBy",
           "domain": "ontosyn:ChemicalInput",
           "range": "ontosyn:Supplier",
@@ -598,7 +592,6 @@
       ],
       "constraints": [
         "Yield cardinality: at most one ontosyn:hasYield per synthesis; only if explicitly reported; do not compute from masses/moles.",
-        "Do NOT inherit yields via ontosyn:inheritsFromProcedure; only inherit inputs and steps with explicit exceptions applied.",
         "ontolab:LabEquipment linked via ontosyn:hasEquipment must be process equipment; exclude analytical instruments.",
         "Deduplicate Supplier and Equipment nodes across the paper by exact-match on normalized names; reuse existing instances when possible.",
         "Only create ontosyn:Supplier when explicitly stated; otherwise omit isSuppliedBy.",

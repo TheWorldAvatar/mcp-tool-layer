@@ -1,0 +1,82 @@
+{
+  "schema_version": "domain-generation-config.v1",
+  "domain_id": "ontomops",
+  "ontology_name": "ontomops",
+  "execution_profile": "simple_extension",
+  "workflow_profile": "simple",
+  "tbox": {
+    "primary": "data/ontologies/ontomops-subgraph.ttl",
+    "supporting": [
+      "data/ontologies/ontosynthesis.ttl"
+    ]
+  },
+  "models": {
+    "extension_focus_planning": "gpt-5",
+    "iteration_planning": "gpt-5",
+    "script_generation": "gpt-5",
+    "prompt_generation": "gpt-5",
+    "semantic_review": "gpt-5",
+    "repair": "gpt-5",
+    "runtime_extraction": "gpt-5",
+    "runtime_kg_building": "gpt-5",
+    "semantic_scoring": "gpt-5"
+  },
+  "mcp_capabilities": {
+    "kg_building": {
+      "set_name": "extension.json",
+      "tools": [
+        "mops_extension",
+        "ccdc"
+      ]
+    },
+    "external_enrichment": {
+      "set_name": "extension.json",
+      "tools": [
+        "ccdc"
+      ]
+    }
+  },
+  "runtime": {
+    "enrichment_target": {
+      "path": ["hasChemicalOutput", "isRepresentedBy"],
+      "root_variable": "synthesis",
+      "target_variable": "target",
+      "cardinality": "exactly_one"
+    },
+    "binding": {
+      "role": "extension",
+      "execution_channel": "ontosynthesis",
+      "upstream_ontology": "ontosynthesis",
+      "upstream_tbox": "data/ontologies/ontosynthesis.ttl",
+      "upstream_scope": {
+        "ontology": "ontosynthesis",
+        "class_local": "ChemicalSynthesis",
+        "entity_source": "mcp_run/iter1_top_entities.json"
+      }
+    },
+    "output": {
+      "dir": "ontomops_output",
+      "entity_ttl_pattern": "ontomops_extension_{entity_name}.ttl"
+    },
+    "workflow": {
+      "pipeline_iteration_number": 1,
+      "iterations": [
+        {
+          "use_agent": true,
+          "inputs": {
+            "source": "stitched_paper"
+          },
+          "enrichment": []
+        }
+      ]
+    }
+  },
+  "agents": {
+    "top_entity_extraction": false,
+    "iteration_extraction": true,
+    "external_enrichment": true,
+    "kg_building": true,
+    "prompt_repair": true,
+    "semantic_adjudication": true
+  }
+}

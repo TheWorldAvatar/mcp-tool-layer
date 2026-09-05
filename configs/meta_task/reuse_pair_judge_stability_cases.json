@@ -1,0 +1,429 @@
+{
+  "schema_version": "entity-reuse-pair-judge-fixture.v1",
+  "cases": [
+    {
+      "pair_id": "document_same_identifier",
+      "expected_reuse": true,
+      "request": {
+        "class_iri": "http://purl.org/ontology/bibo/Document",
+        "class_local": "Document",
+        "class_contract": {
+          "comment": "A document is identified by a stable bibliographic identifier and may be referenced by multiple records.",
+          "datatype_properties": {
+            "http://purl.org/dc/terms/identifier": "string"
+          },
+          "object_properties": {}
+        },
+        "reuse_policy": {
+          "reuse_scope": "global",
+          "match_basis": "canonical DOI or equivalent stable document identifier"
+        },
+        "current_context": {
+          "doi": "10.1000/example-a",
+          "top_level_entity_name": "record-two"
+        },
+        "proposed_entity": {
+          "label": "Example article",
+          "datatype_values": {
+            "http://purl.org/dc/terms/identifier": "10.1000/example-a"
+          }
+        },
+        "candidate_entity": {
+          "iri": "https://example.test/document/a",
+          "labels": ["Example article"],
+          "types": ["http://purl.org/ontology/bibo/Document"],
+          "datatype_values": {
+            "http://purl.org/dc/terms/identifier": [
+              {"value": "10.1000/example-a"}
+            ]
+          },
+          "outgoing_relations": {},
+          "incoming_relations": {},
+          "central_provenance": [
+            {"doi": "10.1000/example-a", "top_level_entity_name": "record-one"}
+          ]
+        }
+      }
+    },
+    {
+      "pair_id": "document_different_identifier",
+      "expected_reuse": false,
+      "critical_negative": true,
+      "request": {
+        "class_iri": "http://purl.org/ontology/bibo/Document",
+        "class_local": "Document",
+        "class_contract": {
+          "comment": "A document is identified by a stable bibliographic identifier and may be referenced by multiple records.",
+          "datatype_properties": {
+            "http://purl.org/dc/terms/identifier": "string"
+          },
+          "object_properties": {}
+        },
+        "reuse_policy": {
+          "reuse_scope": "global",
+          "match_basis": "canonical DOI or equivalent stable document identifier"
+        },
+        "current_context": {
+          "doi": "10.1000/example-b",
+          "top_level_entity_name": "same generic heading"
+        },
+        "proposed_entity": {
+          "label": "Supporting information",
+          "datatype_values": {
+            "http://purl.org/dc/terms/identifier": "10.1000/example-b"
+          }
+        },
+        "candidate_entity": {
+          "iri": "https://example.test/document/a",
+          "labels": ["Supporting information"],
+          "types": ["http://purl.org/ontology/bibo/Document"],
+          "datatype_values": {
+            "http://purl.org/dc/terms/identifier": [
+              {"value": "10.1000/example-a"}
+            ]
+          },
+          "outgoing_relations": {},
+          "incoming_relations": {},
+          "central_provenance": [
+            {"doi": "10.1000/example-a", "top_level_entity_name": "same generic heading"}
+          ]
+        }
+      }
+    },
+    {
+      "pair_id": "equipment_generic_cross_document",
+      "expected_reuse": false,
+      "critical_negative": true,
+      "request": {
+        "class_iri": "https://example.test/LabEquipment",
+        "class_local": "LabEquipment",
+        "class_contract": {
+          "comment": "A physical laboratory device. Generic descriptions do not establish that two mentions refer to the same physical device.",
+          "datatype_properties": {
+            "https://example.test/serialNumber": "string"
+          },
+          "object_properties": {}
+        },
+        "reuse_policy": {
+          "reuse_scope": "document",
+          "match_basis": "explicit device identity or sufficiently specific normalized descriptor"
+        },
+        "current_context": {
+          "doi": "document-b",
+          "top_level_entity_name": "procedure-b"
+        },
+        "proposed_entity": {
+          "label": "vacuum oven",
+          "datatype_values": {}
+        },
+        "candidate_entity": {
+          "iri": "https://example.test/equipment/a",
+          "labels": ["vacuum oven"],
+          "types": ["https://example.test/LabEquipment"],
+          "datatype_values": {},
+          "outgoing_relations": {},
+          "incoming_relations": {},
+          "central_provenance": [
+            {"doi": "document-a", "top_level_entity_name": "procedure-a"}
+          ]
+        }
+      }
+    },
+    {
+      "pair_id": "equipment_same_serial",
+      "expected_reuse": true,
+      "request": {
+        "class_iri": "https://example.test/LabEquipment",
+        "class_local": "LabEquipment",
+        "class_contract": {
+          "comment": "A physical laboratory device. A stable serial number identifies the same device across records.",
+          "datatype_properties": {
+            "https://example.test/serialNumber": "string"
+          },
+          "object_properties": {}
+        },
+        "reuse_policy": {
+          "reuse_scope": "document",
+          "match_basis": "explicit device identity or sufficiently specific normalized descriptor"
+        },
+        "current_context": {
+          "doi": "document-a",
+          "top_level_entity_name": "procedure-two"
+        },
+        "proposed_entity": {
+          "label": "reactor R-17",
+          "datatype_values": {
+            "https://example.test/serialNumber": "R-17"
+          }
+        },
+        "candidate_entity": {
+          "iri": "https://example.test/equipment/r17",
+          "labels": ["reactor R-17"],
+          "types": ["https://example.test/LabEquipment"],
+          "datatype_values": {
+            "https://example.test/serialNumber": [{"value": "R-17"}]
+          },
+          "outgoing_relations": {},
+          "incoming_relations": {},
+          "central_provenance": [
+            {"doi": "document-a", "top_level_entity_name": "procedure-one"}
+          ]
+        }
+      }
+    },
+    {
+      "pair_id": "mop_same_ccdc",
+      "expected_reuse": true,
+      "request": {
+        "class_iri": "https://example.test/MetalOrganicPolyhedron",
+        "class_local": "MetalOrganicPolyhedron",
+        "class_contract": {
+          "comment": "A polyhedron identity may be established by its exact crystallographic database identifier.",
+          "datatype_properties": {
+            "https://example.test/ccdcNumber": "string"
+          },
+          "object_properties": {}
+        },
+        "reuse_policy": {
+          "reuse_scope": "global",
+          "match_basis": "exact CCDC number; label-only matching is prohibited"
+        },
+        "current_context": {
+          "doi": "document-b",
+          "top_level_entity_name": "transformation"
+        },
+        "proposed_entity": {
+          "label": "alternate product label",
+          "datatype_values": {
+            "https://example.test/ccdcNumber": "1590349"
+          }
+        },
+        "candidate_entity": {
+          "iri": "https://example.test/mop/1590349",
+          "labels": ["canonical product label"],
+          "types": ["https://example.test/MetalOrganicPolyhedron"],
+          "datatype_values": {
+            "https://example.test/ccdcNumber": [{"value": "1590349"}]
+          },
+          "outgoing_relations": {},
+          "incoming_relations": {},
+          "central_provenance": [
+            {"doi": "document-a", "top_level_entity_name": "synthesis"}
+          ]
+        }
+      }
+    },
+    {
+      "pair_id": "mop_different_ccdc_same_label",
+      "expected_reuse": false,
+      "critical_negative": true,
+      "request": {
+        "class_iri": "https://example.test/MetalOrganicPolyhedron",
+        "class_local": "MetalOrganicPolyhedron",
+        "class_contract": {
+          "comment": "A polyhedron identity may be established by its exact crystallographic database identifier.",
+          "datatype_properties": {
+            "https://example.test/ccdcNumber": "string"
+          },
+          "object_properties": {}
+        },
+        "reuse_policy": {
+          "reuse_scope": "global",
+          "match_basis": "exact CCDC number; label-only matching is prohibited"
+        },
+        "current_context": {
+          "doi": "document-b",
+          "top_level_entity_name": "synthesis-b"
+        },
+        "proposed_entity": {
+          "label": "MOP-X",
+          "datatype_values": {
+            "https://example.test/ccdcNumber": "1590348"
+          }
+        },
+        "candidate_entity": {
+          "iri": "https://example.test/mop/1590349",
+          "labels": ["MOP-X"],
+          "types": ["https://example.test/MetalOrganicPolyhedron"],
+          "datatype_values": {
+            "https://example.test/ccdcNumber": [{"value": "1590349"}]
+          },
+          "outgoing_relations": {},
+          "incoming_relations": {},
+          "central_provenance": [
+            {"doi": "document-a", "top_level_entity_name": "synthesis-a"}
+          ]
+        }
+      }
+    },
+    {
+      "pair_id": "species_same_inchi",
+      "expected_reuse": true,
+      "request": {
+        "class_iri": "https://example.test/Species",
+        "class_local": "Species",
+        "class_contract": {
+          "comment": "A canonical chemical species has a context-independent molecular identity.",
+          "datatype_properties": {
+            "https://example.test/inchi": "string"
+          },
+          "object_properties": {}
+        },
+        "reuse_policy": {
+          "reuse_scope": "global",
+          "match_basis": "strong chemical identifier; otherwise multiple corroborating identity fields"
+        },
+        "current_context": {
+          "doi": "document-b",
+          "top_level_entity_name": "procedure-b"
+        },
+        "proposed_entity": {
+          "label": "systematic name",
+          "datatype_values": {
+            "https://example.test/inchi": "InChI=1S/CH4/h1H4"
+          }
+        },
+        "candidate_entity": {
+          "iri": "https://example.test/species/methane",
+          "labels": ["methane"],
+          "types": ["https://example.test/Species"],
+          "datatype_values": {
+            "https://example.test/inchi": [{"value": "InChI=1S/CH4/h1H4"}]
+          },
+          "outgoing_relations": {},
+          "incoming_relations": {},
+          "central_provenance": [
+            {"doi": "document-a", "top_level_entity_name": "procedure-a"}
+          ]
+        }
+      }
+    },
+    {
+      "pair_id": "species_name_only",
+      "expected_reuse": false,
+      "critical_negative": true,
+      "request": {
+        "class_iri": "https://example.test/Species",
+        "class_local": "Species",
+        "class_contract": {
+          "comment": "A canonical chemical species has a context-independent molecular identity; ambiguous names do not establish identity.",
+          "datatype_properties": {
+            "https://example.test/inchi": "string"
+          },
+          "object_properties": {}
+        },
+        "reuse_policy": {
+          "reuse_scope": "global",
+          "match_basis": "strong chemical identifier; otherwise multiple corroborating identity fields"
+        },
+        "current_context": {
+          "doi": "document-b",
+          "top_level_entity_name": "procedure-b"
+        },
+        "proposed_entity": {
+          "label": "compound 1",
+          "datatype_values": {}
+        },
+        "candidate_entity": {
+          "iri": "https://example.test/species/old-compound-1",
+          "labels": ["compound 1"],
+          "types": ["https://example.test/Species"],
+          "datatype_values": {},
+          "outgoing_relations": {},
+          "incoming_relations": {},
+          "central_provenance": [
+            {"doi": "document-a", "top_level_entity_name": "procedure-a"}
+          ]
+        }
+      }
+    },
+    {
+      "pair_id": "descriptor_same_canonical_value",
+      "expected_reuse": true,
+      "request": {
+        "class_iri": "https://example.test/VesselType",
+        "class_local": "VesselType",
+        "class_contract": {
+          "comment": "A canonical descriptor concept for a vessel category, independent of any particular vessel occurrence.",
+          "datatype_properties": {},
+          "object_properties": {}
+        },
+        "reuse_policy": {
+          "reuse_scope": "global_value",
+          "match_basis": "canonical vessel-type descriptor"
+        },
+        "current_context": {
+          "doi": "document-b",
+          "top_level_entity_name": "procedure-b"
+        },
+        "proposed_entity": {
+          "label": "sealed glass tube",
+          "datatype_values": {}
+        },
+        "candidate_entity": {
+          "iri": "https://example.test/vessel-type/sealed-glass-tube",
+          "labels": ["sealed glass tube"],
+          "types": ["https://example.test/VesselType"],
+          "datatype_values": {},
+          "outgoing_relations": {},
+          "incoming_relations": {},
+          "central_provenance": [
+            {"doi": "document-a", "top_level_entity_name": "procedure-a"}
+          ]
+        }
+      }
+    },
+    {
+      "pair_id": "contextual_measurement_same_value",
+      "expected_reuse": false,
+      "critical_negative": true,
+      "request": {
+        "class_iri": "https://example.test/Measurement",
+        "class_local": "Measurement",
+        "class_contract": {
+          "comment": "A measurement records a value observed for a particular subject in a particular experimental context.",
+          "datatype_properties": {
+            "https://example.test/numericalValue": "decimal"
+          },
+          "object_properties": {
+            "https://example.test/measuredFor": "Entity"
+          }
+        },
+        "reuse_policy": {
+          "reuse_scope": "candidate",
+          "match_basis": "LLM must determine whether identity is context-independent"
+        },
+        "current_context": {
+          "doi": "document-b",
+          "top_level_entity_name": "experiment-b"
+        },
+        "proposed_entity": {
+          "label": "temperature measurement",
+          "datatype_values": {
+            "https://example.test/numericalValue": "25"
+          },
+          "relations": {
+            "https://example.test/measuredFor": "sample-b"
+          }
+        },
+        "candidate_entity": {
+          "iri": "https://example.test/measurement/a",
+          "labels": ["temperature measurement"],
+          "types": ["https://example.test/Measurement"],
+          "datatype_values": {
+            "https://example.test/numericalValue": [{"value": "25"}]
+          },
+          "outgoing_relations": {
+            "https://example.test/measuredFor": [
+              {"iri": "https://example.test/sample/a", "labels": ["sample-a"]}
+            ]
+          },
+          "incoming_relations": {},
+          "central_provenance": [
+            {"doi": "document-a", "top_level_entity_name": "experiment-a"}
+          ]
+        }
+      }
+    }
+  ]
+}

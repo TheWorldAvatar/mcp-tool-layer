@@ -3,8 +3,6 @@
   "iter2_hints": "gpt-4.1",
   "iter3_pre_extraction": "gpt-4.1",
   "iter3_hints": "gpt-4.1",
-  "iter3_1_enrichment": "gpt-4.1",
-  "iter3_2_enrichment": "gpt-4.1",
   "iter4_hints": "gpt-4.1",
   "preextract_long_context": "gpt-4.1",
   "llm_preextract_long_context": "gpt-4.1",

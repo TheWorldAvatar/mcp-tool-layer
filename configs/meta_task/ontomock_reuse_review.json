@@ -1,0 +1,112 @@
+{
+  "schema_version": "binary-class-reuse-review.v0",
+  "status": "approved_for_smoke_testing",
+  "purpose": "Small identity-policy fixture for OntoMock pipeline smoke tests.",
+  "decision_semantics": {
+    "reusable_true": "Permit reuse only within reuse_scope when match_basis is fully satisfied.",
+    "reusable_false": "Mint a fresh occurrence; scoped identity continuity is not generic reuse.",
+    "important_limit": "Equal labels alone never authorize reuse."
+  },
+  "default_on_ambiguity": "Do not reuse.",
+  "classes": [
+    {
+      "ontology": "ontomock",
+      "class_iri": "https://example.test/ontomock/ProcessRun",
+      "class_local": "ProcessRun",
+      "reusable": false,
+      "reuse_scope": "never_by_generic_reuse",
+      "match_basis": "pipeline top-entity identity lock only",
+      "rationale": "Each smoke run has a distinct root occurrence.",
+      "confidence": "high",
+      "review": "approved"
+    },
+    {
+      "ontology": "ontomock",
+      "class_iri": "https://example.test/ontomock/Input",
+      "class_local": "Input",
+      "reusable": false,
+      "reuse_scope": "never_by_generic_reuse",
+      "match_basis": "exact scoped prior occurrence ref only",
+      "rationale": "Foundation and action-local inputs are occurrences.",
+      "confidence": "high",
+      "review": "approved"
+    },
+    {
+      "ontology": "ontomock",
+      "class_iri": "https://example.test/ontomock/Output",
+      "class_local": "Output",
+      "reusable": false,
+      "reuse_scope": "never_by_generic_reuse",
+      "match_basis": "exact scoped prior occurrence ref only",
+      "rationale": "Outputs are run-specific occurrences.",
+      "confidence": "high",
+      "review": "approved"
+    },
+    {
+      "ontology": "ontomock",
+      "class_iri": "https://example.test/ontomock/SourceDoc",
+      "class_local": "SourceDoc",
+      "reusable": true,
+      "reuse_scope": "global",
+      "match_basis": "stable document identifier",
+      "rationale": "Multiple runs may share one source document.",
+      "confidence": "high",
+      "review": "approved"
+    },
+    {
+      "ontology": "ontomock",
+      "class_iri": "https://example.test/ontomock/Vendor",
+      "class_local": "Vendor",
+      "reusable": true,
+      "reuse_scope": "global",
+      "match_basis": "canonical organization identity",
+      "rationale": "A vendor may supply multiple occurrences.",
+      "confidence": "high",
+      "review": "approved"
+    },
+    {
+      "ontology": "ontomock",
+      "class_iri": "https://example.test/ontomock/DoStep",
+      "class_local": "DoStep",
+      "reusable": false,
+      "reuse_scope": "never_by_generic_reuse",
+      "match_basis": "exact scoped prior occurrence ref only",
+      "rationale": "Ordered actions are contextual occurrences.",
+      "confidence": "high",
+      "review": "approved"
+    },
+    {
+      "ontology": "ontomock",
+      "class_iri": "https://example.test/ontomock/DoAlt",
+      "class_local": "DoAlt",
+      "reusable": false,
+      "reuse_scope": "never_by_generic_reuse",
+      "match_basis": "exact scoped prior occurrence ref only",
+      "rationale": "Ordered actions are contextual occurrences.",
+      "confidence": "high",
+      "review": "approved"
+    },
+    {
+      "ontology": "ontomock",
+      "class_iri": "https://example.test/ontomock/Tool",
+      "class_local": "Tool",
+      "reusable": true,
+      "reuse_scope": "document",
+      "match_basis": "specific normalized tool identity within one source document",
+      "rationale": "One explicit tool can be shared by actions in a document.",
+      "confidence": "high",
+      "review": "approved"
+    },
+    {
+      "ontology": "ontomock",
+      "class_iri": "https://example.test/external/ExternalMetric",
+      "class_local": "ExternalMetric",
+      "reusable": true,
+      "reuse_scope": "document",
+      "match_basis": "exact metric identity and scope within one source document",
+      "rationale": "The T-Box defines a process-wide external summary target; document-scoped reuse preserves one explicitly identified metric without asserting global identity.",
+      "confidence": "high",
+      "review": "approved"
+    }
+  ]
+}

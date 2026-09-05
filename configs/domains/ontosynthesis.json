@@ -2,6 +2,7 @@
   "schema_version": "domain-generation-config.v1",
   "domain_id": "ontosynthesis",
   "ontology_name": "ontosynthesis",
+  "execution_profile": "complex_main",
   "workflow_profile": "complex",
   "tbox": {
     "primary": "data/ontologies/ontosynthesis.ttl",
@@ -11,6 +12,9 @@
       "data/ontologies/om2.ttl"
     ]
   },
+  "reuse_policy": {
+    "path": "configs/meta_task/ontosynthesis_binary_reuse_review.json"
+  },
   "models": {
     "top_entity_planning": "gpt-5",
     "iteration_planning": "gpt-5",
@@ -18,8 +22,8 @@
     "prompt_generation": "gpt-5",
     "semantic_review": "gpt-5",
     "repair": "gpt-5",
-    "runtime_extraction": "gpt-5",
-    "runtime_kg_building": "gpt-5",
+    "runtime_extraction": "gpt-4.1",
+    "runtime_kg_building": "gpt-4o",
     "semantic_scoring": "gpt-5"
   },
   "mcp_capabilities": {
@@ -52,11 +56,55 @@
       "top_ttl_name": "top.ttl",
       "entity_ttl_pattern": "{entity_safe}.ttl"
     },
+    "external_identity_bindings": [
+      {
+        "identity_slot": "{doi}",
+        "target_class_locals": ["Document", "BibliographicResource"],
+        "materialization_iteration": 1
+      }
+    ],
+    "extensions": [
+      {
+        "name": "ontomops",
+        "description": "The ontology for describing metal-organic polyhedra.",
+        "bridge_class_iri": "https://www.theworldavatar.com/kg/ontomops/MetalOrganicPolyhedron",
+        "ttl_file": "data/ontologies/ontomops-subgraph.ttl",
+        "complex_pipeline": false,
+        "output": {
+          "dir": "{ontology_name}_output",
+          "entity_ttl_pattern": "{ontology_name}_extension_{entity_name}.ttl"
+        },
+        "mcp_set_name": "extension.json",
+        "mcp_list": [
+          "mops_extension",
+          "ccdc"
+        ],
+        "agent_model": "gpt-4o"
+      },
+      {
+        "name": "ontospecies",
+        "description": "The ontology for describing chemical species.",
+        "bridge_class_iri": "http://www.theworldavatar.com/ontology/ontospecies/OntoSpecies.owl#Species",
+        "ttl_file": "data/ontologies/ontospecies-subgraph.ttl",
+        "complex_pipeline": false,
+        "output": {
+          "dir": "{ontology_name}_output",
+          "entity_ttl_pattern": "{entity_slugified}.ttl"
+        },
+        "mcp_set_name": "extension.json",
+        "mcp_list": [
+          "ontospecies_extension",
+          "ccdc"
+        ],
+        "agent_model": "gpt-4o"
+      }
+    ],
     "workflow": {
       "iterations": [
         {
           "model_config_key": "iter2_hints",
           "use_agent": true,
+          "hint_representation": "semantic-text.v1",
           "inputs": {
             "source": "stitched_paper"
           },
@@ -65,29 +113,23 @@
         {
           "model_config_key": "iter3_hints",
           "pre_extraction_model_key": "advanced_model",
-          "use_agent": false,
-          "enrichment": [
-            {
-              "model_config_key": "iter3_1_enrichment",
-              "use_agent": false,
-              "outputs": {
-                "file_path": "extracted_data/{entity_safe}/synthesis_steps_refined.json"
-              }
-            },
-            {
-              "model_config_key": "iter3_2_enrichment",
-              "use_agent": false,
-              "outputs": {
-                "file_path": "extracted_data/{entity_safe}/synthesis_steps_enriched.json"
-              }
+          "hint_representation": "semantic-text.v1",
+          "pre_extraction_validation": {
+            "closed_ledger": {
+              "enabled": true,
+              "audit_format_retries": 3,
+              "fail_open_on_audit_format_error": true,
+              "nonblocking_after_semantic_exhaustion": true
             }
-          ]
+          },
+          "use_agent": true,
+          "enrichment": []
         },
         {
           "model_config_key": "iter4_hints",
           "use_agent": false,
+          "hint_representation": "semantic-text.v1",
           "inputs": {
-            "file_path": "extracted_data/{entity_safe}/synthesis_steps_enriched.json",
             "source": "stitched_paper"
           },
           "enrichment": []
