@@ -17,6 +17,7 @@ from src.agents.mops.cbu_derivation.utils.cbu_general import load_res_file as ut
 from src.utils.global_logger import get_logger
 from dotenv import load_dotenv
 from openai import OpenAI
+from models.llm_call_telemetry import instrument_openai_client
 
 # Assembly Model (AM) catalog: maps pairs of GBU types to stoichiometry and symmetry
 # GBU types follow the canonical strings: '2-linear', '2-bent', '3-planar', '3-pyramidal',
@@ -230,7 +231,7 @@ def _get_client():
     headers = {"HTTP-Referer": os.getenv("APP_URL", "http://localhost"),
                "X-Title": os.getenv("APP_NAME", "MOP Deriver")} if "openrouter.ai" in base_url else {}
 
-    return OpenAI(api_key=api_key, base_url=base_url, default_headers=headers), model
+    return instrument_openai_client(OpenAI(api_key=api_key, base_url=base_url, default_headers=headers)), model
 
 
 def _json_dumps(obj):
@@ -306,17 +307,17 @@ def derive_mop_formula_llm(metal_cbu: str, organic_cbu: str) -> Dict[str, object
 
 def _read_metal_cbu_formula(hash_value: str, entity_name: str) -> str:
     """Read metal CBU formula from structured outputs."""
+    from src.agents.mops.cbu_derivation.utils.metal_cbu import safe_name as metal_safe_name
+    from src.pipelines.utils.runtime_paths import read_runtime_text, runtime_path_exists
+
     root = os.path.join(DATA_DIR, hash_value, "cbu_derivation", "metal", "structured")
-    
-    # Convert entity name to safe file name (spaces to underscores)
-    safe_entity = entity_name.replace(' ', '_')
+    safe_entity = metal_safe_name(entity_name)
     
     # Try JSON first
     json_path = os.path.join(root, f"{safe_entity}.json")
-    if os.path.exists(json_path):
+    if runtime_path_exists(json_path):
         try:
-            with open(json_path, "r", encoding="utf-8") as f:
-                j = json.load(f)
+            j = json.loads(read_runtime_text(json_path))
             mc = j.get("metal_cbu")
             if isinstance(mc, str):
                 return mc.strip()
@@ -327,10 +328,9 @@ def _read_metal_cbu_formula(hash_value: str, entity_name: str) -> str:
     
     # Fallback to txt
     txt_path = os.path.join(root, f"{safe_entity}.txt")
-    if os.path.exists(txt_path):
+    if runtime_path_exists(txt_path):
         try:
-            with open(txt_path, "r", encoding="utf-8") as f:
-                return f.read().strip()
+            return read_runtime_text(txt_path).strip()
         except Exception:
             pass
     
@@ -339,17 +339,17 @@ def _read_metal_cbu_formula(hash_value: str, entity_name: str) -> str:
 
 def _read_organic_cbu_formula(hash_value: str, entity_name: str) -> str:
     """Read organic CBU formula from structured outputs."""
+    from src.agents.mops.cbu_derivation.utils.metal_cbu import safe_name as metal_safe_name
+    from src.pipelines.utils.runtime_paths import read_runtime_text, runtime_path_exists
+
     root = os.path.join(DATA_DIR, hash_value, "cbu_derivation", "organic", "structured")
-    
-    # Convert entity name to safe file name (spaces to underscores)
-    safe_entity = entity_name.replace(' ', '_')
+    safe_entity = metal_safe_name(entity_name)
     
     # Try JSON first
     json_path = os.path.join(root, f"{safe_entity}.json")
-    if os.path.exists(json_path):
+    if runtime_path_exists(json_path):
         try:
-            with open(json_path, "r", encoding="utf-8") as f:
-                j = json.load(f)
+            j = json.loads(read_runtime_text(json_path))
             oc = j.get("organic_cbu")
             if isinstance(oc, str):
                 return oc.strip()
@@ -360,10 +360,9 @@ def _read_organic_cbu_formula(hash_value: str, entity_name: str) -> str:
     
     # Fallback to txt
     txt_path = os.path.join(root, f"{safe_entity}.txt")
-    if os.path.exists(txt_path):
+    if runtime_path_exists(txt_path):
         try:
-            with open(txt_path, "r", encoding="utf-8") as f:
-                return f.read().strip()
+            return read_runtime_text(txt_path).strip()
         except Exception:
             pass
     
@@ -420,8 +419,11 @@ def _process_entity_sync(hash_value: str, entity: str, output_dir: str, test_mod
         return
 
     # Check if already processed
-    out_json = os.path.join(output_dir, f"{entity}.json")
-    if os.path.exists(out_json) and not test_mode:
+    from src.agents.mops.cbu_derivation.utils.metal_cbu import safe_name as metal_safe_name
+    from src.pipelines.utils.runtime_paths import runtime_path_exists, write_runtime_text
+
+    out_json = os.path.join(output_dir, f"{metal_safe_name(entity)}.json")
+    if runtime_path_exists(out_json) and not test_mode:
         logger.info(f"⏭️  Skipping {entity}: already processed")
         return
 
@@ -467,13 +469,11 @@ def _process_entity_sync(hash_value: str, entity: str, output_dir: str, test_mod
     }
 
     # Write JSON
-    with open(out_json, "w", encoding="utf-8") as f:
-        json.dump(output_data, f, ensure_ascii=False, indent=2)
+    write_runtime_text(out_json, json.dumps(output_data, ensure_ascii=False, indent=2))
 
     # Write TXT (just the formula)
-    out_txt = os.path.join(output_dir, f"{entity}.txt")
-    with open(out_txt, "w", encoding="utf-8") as f:
-        f.write(mop_formula)
+    out_txt = os.path.join(output_dir, f"{metal_safe_name(entity)}.txt")
+    write_runtime_text(out_txt, mop_formula)
 
     logger.info(f"✅ Derived: {mop_formula}")
 

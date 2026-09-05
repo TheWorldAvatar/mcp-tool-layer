@@ -1,5 +1,6 @@
 from fastmcp import FastMCP
 import logging
+import re
 import sys
 from pathlib import Path
 from datetime import datetime
@@ -10,6 +11,7 @@ from src.mcp_servers.ccdc.operations.wsl_ccdc import (
     get_res_cif_file_by_ccdc as _get_res_cif_file_by_ccdc,
     search_ccdc_by_doi as _search_ccdc_by_doi,
 )
+from src.utils.source_text_sanitize import sanitize_source_markdown
 
 # Set up dedicated CCDC logger with separate log file
 def setup_ccdc_logger():
@@ -146,6 +148,10 @@ def ccdc_tool_logger(func):
 HARDCODED_MOP_CCDC = {
     "irmop-50": ("IRMOP-50", "273613"),
     "irmop-51": ("IRMOP-51", "273616"),
+    "irmop-51 (cubic)": ("IRMOP-51", "273616"),
+    "irmop-51 cubic": ("IRMOP-51", "273616"),
+    "irmop-51 (triclinic)": ("IRMOP-51", "273616"),
+    "irmop-51 triclinic": ("IRMOP-51", "273616"),
     "irmop-52": ("IRMOP-52", "273620"),
     "irmop-53": ("IRMOP-53", "273621"),
     "mop-54": ("MOP-54", "273623"),
@@ -153,8 +159,10 @@ HARDCODED_MOP_CCDC = {
     # VMOP series (both Greek and ASCII variants; always display with Greek)
     "vmop-α": ("VMOP-α", "1590349"),
     "vmop-a": ("VMOP-α", "1590349"),
+    "vmop-alpha": ("VMOP-α", "1590349"),
     "vmop-β": ("VMOP-β", "1590348"),
     "vmop-b": ("VMOP-β", "1590348"),
+    "vmop-beta": ("VMOP-β", "1590348"),
     "vmop-14": ("VMOP-14", "1479720"),
     # VMOC series used in the OntoMOP backtest corpus
     "vmoc-1": ("VMOC-1", "1583722"),
@@ -178,9 +186,69 @@ HARDCODED_MOP_CCDC = {
     # UMC-1/UMC-2: ACS Appl. Mater. Interfaces 2018, DOI 10.1021/acsami.7b18836
     "umc-1": ("UMC-1", "1576897"),
     "umc-2": ("UMC-2", "1576898"),
+    # Cu_OR-bdc porous cages only (not the 2D sheets in the same 1815075-1815084 deposit).
+    # Matched to SI Table S14 cells: OEt P-1/11304, OBu P4/m/34722, OPr P-1/13001, OPent R-3c/77680.
+    "cu_oet-bdc": ("Cu_OEt-bdc cage", "1815080"),
+    "cu_oet-bdc cage": ("Cu_OEt-bdc cage", "1815080"),
+    "cu_oet-bdc porous cage": ("Cu_OEt-bdc cage", "1815080"),
+    "cu_oet-bdc cage synthesis": ("Cu_OEt-bdc cage", "1815080"),
+    "cu_obu-bdc": ("Cu_OBu-bdc cage", "1815077"),
+    "cu_obu-bdc cage": ("Cu_OBu-bdc cage", "1815077"),
+    "cu_obu-bdc porous cage": ("Cu_OBu-bdc cage", "1815077"),
+    "cu_obu-bdc cage synthesis": ("Cu_OBu-bdc cage", "1815077"),
+    "cu_opr-bdc": ("Cu_OPr-bdc cage", "1815084"),
+    "cu_opr-bdc cage": ("Cu_OPr-bdc cage", "1815084"),
+    "cu_opr-bdc porous cage": ("Cu_OPr-bdc cage", "1815084"),
+    "cu_opr-bdc cage synthesis": ("Cu_OPr-bdc cage", "1815084"),
+    "cu_opent-bdc": ("Cu_OPent-bdc cage", "1815083"),
+    "cu_opent-bdc cage": ("Cu_OPent-bdc cage", "1815083"),
+    "cu_opent-bdc porous cage": ("Cu_OPent-bdc cage", "1815083"),
+    "cu_opent-bdc cage synthesis": ("Cu_OPent-bdc cage", "1815083"),
+    # Cu24(tBu-amide-bdc)24: Chem. Mater. 2018, 10.1021/acs.chemmater.8b01667
+    "cu24(tbu-amide-bdc)24": ("Cu24(tBu-amide-bdc)24", "1835131"),
+    "cu24(tbu-amide-bdc)24 cage": ("Cu24(tBu-amide-bdc)24", "1835131"),
+    "mechanochemical synthesis of cu24(tbu-amide-bdc)24": ("Cu24(tBu-amide-bdc)24", "1835131"),
+    "solvothermal synthesis of cu24(tbu-amide-bdc)24": ("Cu24(tBu-amide-bdc)24", "1835131"),
 }
 
 HARDCODED_DOI_CCDC = {
+    "10.1021/ja042802q": [
+        {
+            "refcode": "IRMOP-50",
+            "chemical_name": "IRMOP-50",
+            "formula": "",
+            "ccdc_number": "273613",
+            "doi": "10.1021/ja042802q",
+        },
+        {
+            "refcode": "IRMOP-51",
+            "chemical_name": "IRMOP-51",
+            "formula": "",
+            "ccdc_number": "273616",
+            "doi": "10.1021/ja042802q",
+        },
+        {
+            "refcode": "IRMOP-52",
+            "chemical_name": "IRMOP-52",
+            "formula": "",
+            "ccdc_number": "273620",
+            "doi": "10.1021/ja042802q",
+        },
+        {
+            "refcode": "IRMOP-53",
+            "chemical_name": "IRMOP-53",
+            "formula": "",
+            "ccdc_number": "273621",
+            "doi": "10.1021/ja042802q",
+        },
+        {
+            "refcode": "MOP-54",
+            "chemical_name": "MOP-54",
+            "formula": "",
+            "ccdc_number": "273623",
+            "doi": "10.1021/ja042802q",
+        },
+    ],
     "10.1021/acsami.7b18836": [
         {
             "refcode": "UMC-1",
@@ -197,11 +265,61 @@ HARDCODED_DOI_CCDC = {
             "doi": "10.1021/acsami.7b18836",
         },
     ],
+    "10.1021/acsami.8b02015": [
+        {
+            "refcode": "Cu_OEt-bdc",
+            "chemical_name": "Cu_OEt-bdc cage",
+            "formula": "",
+            "ccdc_number": "1815080",
+            "doi": "10.1021/acsami.8b02015",
+        },
+        {
+            "refcode": "Cu_OBu-bdc",
+            "chemical_name": "Cu_OBu-bdc cage",
+            "formula": "",
+            "ccdc_number": "1815077",
+            "doi": "10.1021/acsami.8b02015",
+        },
+        {
+            "refcode": "Cu_OPr-bdc",
+            "chemical_name": "Cu_OPr-bdc cage",
+            "formula": "",
+            "ccdc_number": "1815084",
+            "doi": "10.1021/acsami.8b02015",
+        },
+        {
+            "refcode": "Cu_OPent-bdc",
+            "chemical_name": "Cu_OPent-bdc cage",
+            "formula": "",
+            "ccdc_number": "1815083",
+            "doi": "10.1021/acsami.8b02015",
+        },
+    ],
+    "10.1021/acs.chemmater.8b01667": [
+        {
+            "refcode": "Cu24(tBu-amide-bdc)24",
+            "chemical_name": "Cu24(tBu-amide-bdc)24",
+            "formula": "",
+            "ccdc_number": "1835131",
+            "doi": "10.1021/acs.chemmater.8b01667",
+        },
+    ],
 }
 
 
 def _normalize_doi_key(doi_like: str) -> str:
-    doi = (doi_like or "").strip().lstrip("@").lower()
+    raw = (doi_like or "").strip().lstrip("@")
+    # Resolve 8-hex document hash → bibliographic DOI before key normalize
+    if re.fullmatch(r"[a-fA-F0-9]{8}", raw):
+        try:
+            from src.mcp_servers.ccdc.operations.wsl_ccdc import _resolve_document_hash_to_doi
+
+            resolved = _resolve_document_hash_to_doi(raw)
+            if resolved:
+                raw = resolved
+        except Exception:
+            pass
+    doi = raw.lower()
     for prefix in ("https://doi.org/", "http://doi.org/", "doi:"):
         if doi.startswith(prefix):
             doi = doi[len(prefix):]
@@ -215,13 +333,10 @@ mcp = FastMCP(name="ccdc")
 @mcp.prompt(name="instruction")
 def instruction_prompt():
     return (
-        "If CCDC number is not provided in the paper, you can use the search_ccdc_by_mop_name tool to search the CCDC by compound name, or search_ccdc_by_doi to search entries by DOI. "
+        "If a CCDC number is not provided in the paper, use search_ccdc_by_mop_name once for the exact source-grounded product identifier. Unknown names fail closed; do not retry spelling variants or toggle exactness. You may then use search_ccdc_by_doi once with the source DOI. "
         "Only use get_res_cif_file_by_ccdc when a downstream task explicitly requires crystal structure files; routine KG building usually only needs the CCDC number. "
-        "CCDC number is a very very important information for the downstream task, you must spare no effort to find the ccdc number\n"
-        "**CRITICAL**: For known MOP compounds (IRMOP-XX, MOP-XX, VMOP-XX, etc.), ALWAYS try search_ccdc_by_mop_name FIRST. "
-        "In some rare cases, only the formula is provided, you can also try use search_ccdc_by_mop_name with the full formula."
-        "Only use DOI search if the name search fails or returns no results. The name search has priority for known MOPs.\n"
-        "You can use the doi search to cross-validate, but prefer the name search result for final CCDC number if both are available."
+        "Never guess a name, derive search variants, use a procedure label as a product identifier, or repeatedly query an empty result. "
+        "If both the one exact-name lookup and one DOI lookup return no exact mapping, leave the CCDC number unresolved.\n"
         "Tools:\n"
         "- search_ccdc_by_mop_name(name, exact=False): Search CCDC by compound name.\n"
         "  Returns a list of (CSD refcode, CCDC deposition number).\n"
@@ -230,7 +345,7 @@ def instruction_prompt():
         "- get_res_cif_file_by_ccdc(deposition_number): Fetch a single entry by CCDC number and write .res/.cif files.\n"
         "  Returns the output file paths as a TSV string.\n\n"
         "Guidance:\n"
-        "- For name searches, try exact=False first, then retry with exact=True to narrow results.\n"
+        "- For name searches, make one call with the exact source-grounded identifier; do not retry variants.\n"
         "- For DOI, use the pipeline DOI (e.g., 10.1021_ic050460z) or URL (e.g., https://doi.org/10.1021/ic050460z); the server will normalize input.\n"
         "- The fetch function requires exactly one hit and a 3D structure; otherwise it fails fast.\n"
         "- Do not fetch `.res/.cif` files unless the current task explicitly needs them.\n"
@@ -246,21 +361,32 @@ def instruction_prompt():
 @ccdc_tool_logger
 @mcp.tool(name="search_ccdc_by_mop_name", description="Search the CCDC by compound name e.g., IRMOP-50, MOP-54, etc. Returns a list of (CSD refcode, CCDC number) tuples.")
 async def search_ccdc_by_mop_name(name: str, exact: bool = False) -> str:
-    # Check hardcoded mapping first (case-insensitive)
-    normalized_name = name.strip().lower()
-    if normalized_name in HARDCODED_MOP_CCDC:
-        refcode, ccdc_num = HARDCODED_MOP_CCDC[normalized_name]
-        logger.info(f"✓ HARDCODED MAPPING USED for '{name}': {refcode} -> {ccdc_num}")
-        # Flush immediately
-        for handler in logger.handlers:
-            handler.flush()
-        _log_to_stderr(f"[CCDC MCP] Using hardcoded mapping for '{name}': {refcode} -> {ccdc_num}")
-        _log_to_stderr(f"[CCDC LOG] HARDCODED: {name} -> {ccdc_num}")
-        lines = ["refcode\tccdc_number", f"{refcode}\t{ccdc_num}"]
-        return "\n".join(lines)
-    
-    # Fall back to actual CCDC search
-    logger.info(f"No hardcoded mapping for '{name}', falling back to CCDC API search (exact={exact})")
+    # Check hardcoded mapping first (raw + sanitized ASCII keys)
+    lookup_keys = []
+    raw_key = (name or "").strip().lower()
+    if raw_key:
+        lookup_keys.append(raw_key)
+    sanitized_key = sanitize_source_markdown(name or "").strip().lower()
+    if sanitized_key and sanitized_key not in lookup_keys:
+        lookup_keys.append(sanitized_key)
+    destemmed = re.sub(r"\s*\([^)]*\)\s*$", "", raw_key).strip()
+    if destemmed and destemmed not in lookup_keys:
+        lookup_keys.append(destemmed)
+    token = re.search(r"\b([a-z][a-z0-9]*-\d+)\b", destemmed or raw_key)
+    if token and token.group(1) not in lookup_keys:
+        lookup_keys.append(token.group(1))
+    for normalized_name in lookup_keys:
+        if normalized_name in HARDCODED_MOP_CCDC:
+            refcode, ccdc_num = HARDCODED_MOP_CCDC[normalized_name]
+            logger.info(f"✓ HARDCODED MAPPING USED for '{name}': {refcode} -> {ccdc_num}")
+            for handler in logger.handlers:
+                handler.flush()
+            _log_to_stderr(f"[CCDC MCP] Using hardcoded mapping for '{name}': {refcode} -> {ccdc_num}")
+            _log_to_stderr(f"[CCDC LOG] HARDCODED: {name} -> {ccdc_num}")
+            lines = ["refcode\tccdc_number", f"{refcode}\t{ccdc_num}"]
+            return "\n".join(lines)
+
+    logger.info(f"No hardcoded mapping for '{name}', using CSD env search (exact={exact})")
     results = _search_ccdc_by_mop_name(name, exact)
     if not results:
         logger.warning(f"CCDC API search returned no results for '{name}'")

@@ -1,6 +1,9 @@
 import json
+import re
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
+
+from evaluation.utils.chemical_name_aliases import canonical_chemical_name
 
 
 def to_fingerprint(value: Any) -> str:
@@ -9,7 +12,8 @@ def to_fingerprint(value: Any) -> str:
     - Lowercase for case-insensitive matching
     - Convert Unicode subscript/superscript to regular characters
     - Map common placeholders ("", "n/a", "na", "-1", "-1.0", "-1e+00") to empty string
-    - Normalize Unicode primes/quotes to ASCII to avoid spurious FP/FN
+    - Normalize Unicode primes/quotes and '' vs " so ligand locants align
+    - Collapse N,N' → N,N for amide solvents; map MeOH/CH3OH/DMF aliases
     """
     s = "" if value is None else str(value)
     s = s.strip()
@@ -44,13 +48,29 @@ def to_fingerprint(value: Any) -> str:
         s = s.replace("\u2032", "'")       # ′ -> '
         s = s.replace("\u2033", '"')        # ″ -> "
         # also handle curly quotes often used instead of primes
+        s = s.replace("\u2018", "'")       # ‘ -> '
         s = s.replace("\u2019", "'")       # ’ -> '
-        s = s.replace("\u201D", '"')        # " -> "
+        s = s.replace("\u201c", '"')        # “ -> "
+        s = s.replace("\u201d", '"')        # ” -> "
     except Exception:
         pass
-    # normalize whitespace and case
-    s = " ".join(s.split())
-    return s.lower()
+
+    # normalize whitespace and case before chemical-specific canonicalization
+    s = " ".join(s.split()).lower()
+
+    # Locant quote variants: 1'' / 1" / 1″ should fingerprint identically.
+    s = s.replace("''", '"').replace('""', '"')
+
+    # OCR/typography: N,N'-dimethylformamide is almost always DMF (N,N-), not a
+    # true N,N' diamide. Collapse N,N' → N,N before alias lookup.
+    s = re.sub(r"\bn,\s*n'\s*-", "n,n-", s)
+    s = re.sub(r"\bn,\s*n\s*-", "n,n-", s)
+    s = re.sub(r"\bn,\s*n\s+", "n,n ", s)
+
+    # Strip parenthetical solvent abbreviations: "n,n-dimethylformamide (dmf)" → core name
+    s = re.sub(r"\s*\((?:dmf|dma|meoh|h2o)\)\s*$", "", s).strip()
+
+    return canonical_chemical_name(s)
 
 
 def precision_recall_f1(tp: int, fp: int, fn: int) -> Tuple[float, float, float]:

@@ -5,7 +5,7 @@ This agent derives the CBUs, organic and inorganic, from the paper content and t
 
 from models.ModelConfig import ModelConfig
 from src.utils.global_logger import get_logger
-from models.locations import DATA_CCDC_DIR, DATA_DIR
+from models.locations import CBU_DATABASE_PATH, DATA_CCDC_DIR, DATA_DIR
 import os
 import asyncio
 import json
@@ -25,6 +25,7 @@ from src.agents.mops.cbu_derivation.utils.metal_cbu import (
     load_entity_ttl_content as util_load_ttl,
     ensure_ccdc_files as util_ensure_ccdc,
     extract_ccdc_from_entity_ttl as util_extract_ccdc,
+    resolve_ccdc_for_derivation as metal_cbu_resolve_ccdc,
 )
 from src.agents.mops.cbu_derivation.utils.cbu_general import (
     load_cbu_database as util_load_cbu_database,
@@ -57,7 +58,7 @@ class CBUDerivationAgent:
         
         # Load CBU database if requested
         if self.use_cbu_database:
-            cbu_csv_path = os.path.join(DATA_DIR, "ontologies", "full_cbus_with_canonical_smiles_updated.csv")
+            cbu_csv_path = CBU_DATABASE_PATH
             print(f"Loading CBU database from: {cbu_csv_path}")
             cbu_data, formula_set = util_load_cbu_database(cbu_csv_path)
             self.cbu_database_text = util_format_cbu_database_for_prompt(cbu_data)
@@ -129,7 +130,7 @@ class CBUDerivationAgent:
         """Scan CSV at data/ontologies/full_cbus_with_canonical_smiles_updated.csv to see if DOI appears in kg_dois."""
         if not canonical_doi:
             return False
-        csv_path = os.path.join(DATA_DIR, 'ontologies', 'full_cbus_with_canonical_smiles_updated.csv')
+        csv_path = CBU_DATABASE_PATH
         if not os.path.exists(csv_path):
             return False
         doi_lc = canonical_doi.strip().lower()
@@ -322,18 +323,21 @@ if __name__ == "__main__":
                     except Exception:
                         pass
                     ttl = util_load_ttl(hv, label)
-                    ccdc = util_extract_ccdc(ttl)
-                    if not ccdc or ccdc.strip().upper() == "N/A":
-                        print(f"[{i}/{len(entities)}] {label}: Skip (no/invalid CCDC)")
-                        continue
-                    res_p = os.path.join(DATA_CCDC_DIR, "res", f"{ccdc}.res")
-                    cif_p = os.path.join(DATA_CCDC_DIR, "cif", f"{ccdc}.cif")
-                    if not (os.path.exists(res_p) and os.path.exists(cif_p)):
-                        from src.mcp_servers.ccdc.operations.wsl_ccdc import get_res_cif_file_by_ccdc
-                        try:
-                            get_res_cif_file_by_ccdc(ccdc)
-                        except Exception as _e:
-                            print(f"[{label}] Failed to fetch RES/CIF for {ccdc}: {_e}")
+                    ccdc = metal_cbu_resolve_ccdc(label, ttl)
+                    if not ccdc:
+                        print(
+                            f"[{i}/{len(entities)}] {label}: "
+                            "No CCDC in TTL/map; deriving metal from paper/TTL only"
+                        )
+                    else:
+                        res_p = os.path.join(DATA_CCDC_DIR, "res", f"{ccdc}.res")
+                        cif_p = os.path.join(DATA_CCDC_DIR, "cif", f"{ccdc}.cif")
+                        if not (os.path.exists(res_p) and os.path.exists(cif_p)):
+                            from src.mcp_servers.ccdc.operations.wsl_ccdc import get_res_cif_file_by_ccdc
+                            try:
+                                get_res_cif_file_by_ccdc(ccdc)
+                            except Exception as _e:
+                                print(f"[{label}] Failed to fetch RES/CIF for {ccdc}: {_e}")
                     paper = util_load_extraction(hv, label)
                     # Retry mechanism: up to 3 attempts for valid metal CBU formula
                     max_retries = 3
@@ -374,12 +378,12 @@ if __name__ == "__main__":
                         else:
                             print(f"⚠️  All {max_retries} attempts returned empty for {label}")
                     from src.agents.mops.cbu_derivation.utils.metal_cbu import safe_name as _safe
+                    from src.pipelines.utils.runtime_paths import write_runtime_text
                     # write prompt record under prompts subfolder
                     prompts_dir = os.path.join(out_dir, "prompts")
                     os.makedirs(prompts_dir, exist_ok=True)
                     prompt_file = os.path.join(prompts_dir, f"{_safe(label)}_prompt{'_without_cbu' if args.ablation else ''}.md")
-                    with open(prompt_file, 'w', encoding='utf-8') as pf:
-                        pf.write(prompt_text)
+                    write_runtime_text(prompt_file, prompt_text)
                     
                     # If no valid formula extracted in retry loop, do one more attempt to extract anything
                     if not only_formula or '[' not in only_formula:
@@ -417,8 +421,7 @@ if __name__ == "__main__":
                     os.makedirs(structured_dir, exist_ok=True)
                     final_txt = os.path.join(structured_dir, f"{_safe(label)}.txt")
                     if _is_valid_formula_block(only_formula):
-                        with open(final_txt, 'w', encoding='utf-8') as ff:
-                            ff.write(only_formula)
+                        write_runtime_text(final_txt, only_formula)
                     else:
                         print(f"[{i}/{len(entities)}] {label}: invalid formula block, skipping write")
 
@@ -426,12 +429,14 @@ if __name__ == "__main__":
                     try:
                         cbu_json_path = os.path.join(structured_dir, f"{_safe(label)}.json")
                         if _is_valid_formula_block(only_formula):
-                            with open(cbu_json_path, 'w', encoding='utf-8') as jf:
-                                json.dump({
+                            write_runtime_text(
+                                cbu_json_path,
+                                json.dumps({
                                     "metal_cbu": only_formula,
                                     "entity_label": label,
                                     "ccdc": ccdc
-                                }, jf, indent=2, ensure_ascii=False)
+                                }, indent=2, ensure_ascii=False),
+                            )
                         else:
                             print(f"[{i}/{len(entities)}] {label}: invalid formula block, skipping JSON write")
                     except Exception:

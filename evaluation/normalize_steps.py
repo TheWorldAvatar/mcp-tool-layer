@@ -10,6 +10,8 @@ import re
 from pathlib import Path
 from typing import Any, Dict
 
+from evaluation.utils.chemical_name_aliases import canonical_chemical_name
+
 
 # String mapping for normalization: key = predicted value, value = ground truth canonical form
 # When normalizing, we replace predicted values with their canonical GT equivalents
@@ -29,6 +31,7 @@ STRING_MAPPING = {
     
     # Temperature rate units
     "°c/min": "degree celsius per minute",
+    "°c/h": "degree celsius per hour",
     "°c/hour": "degree celsius per hour",
     "°c per hour": "degree celsius per hour",
 
@@ -38,6 +41,14 @@ STRING_MAPPING = {
     "milliliters": "ml",
     "millilitre": "ml",
     "millilitres": "ml",
+    "µl": "ul",
+    "μl": "ul",
+    "ul": "ul",
+    "mul": "ul",
+    "microliter": "ul",
+    "microliters": "ul",
+    "microlitre": "ul",
+    "microlitres": "ul",
     "liter": "l",
     "liters": "l",
     "litre": "l",
@@ -124,8 +135,9 @@ STRING_MAPPING = {
 }
 
 
-# Chemical synonymy mapping: define canonical species -> list of equivalent names.
-# Only include obvious and certain equivalences
+# Deprecated compatibility table. Runtime identity canonicalization below uses
+# the reviewed JSON registry; this literal remains temporarily for downstream
+# imports and will not be consulted by normalize_chemical_name().
 chemical_synomy_dict = {
     # Common solvents - very certain
     "dmf": ["n, n-dimethylformamide", "dimethylformamide", "n, n'-dimethylformamide"],
@@ -177,6 +189,10 @@ chemical_synomy_dict = {
     
     "cucl2·2h2o": ["copper(ii) chloride dihydrate"],
     "copper(ii) chloride dihydrate": ["cucl2·2h2o"],
+
+    "cocl2·6h2o": ["cocl2-6h2o", "cobalt(ii) chloride hexahydrate"],
+    "cocl2-6h2o": ["cocl2·6h2o", "cobalt(ii) chloride hexahydrate"],
+    "cobalt(ii) chloride hexahydrate": ["cocl2·6h2o", "cocl2-6h2o"],
     
     # Vanadium compounds - certain
     "voso4·xh2o": ["vanadyl sulfate hydrate"],
@@ -408,16 +424,9 @@ def normalize_chemical_name(name: str) -> str:
     
     Returns the canonical form if found in the dictionary, otherwise returns normalized string.
     """
-    normalized = normalize_string(name)
+    normalized = normalize_string(name).replace('"', "''")
     
-    # Check if this name has a canonical form in the dictionary
-    for canonical, synonyms in chemical_synomy_dict.items():
-        if normalized == canonical.lower():
-            return canonical.lower()
-        if normalized in [s.lower() for s in synonyms]:
-            return canonical.lower()
-    
-    return normalized
+    return canonical_chemical_name(normalized)
 
 
 def normalize_json_structure(obj: Any, parent_key: str = None, grandparent_key: str = None) -> Any:

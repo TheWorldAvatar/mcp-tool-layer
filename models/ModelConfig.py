@@ -7,19 +7,27 @@ class ModelConfig:
     def __init__(self, 
                  max_tokens=None,
                  timeout=600,
-                 temperature=0.2,
+                 temperature=0.0,
                  top_p=0.01,
                  max_retries=None,
+                 seed=None,
+                 extra_body=None,
                  ):
         self.max_tokens = max_tokens
         self.timeout = timeout
         self.temperature = temperature
         self.top_p = top_p
         self.max_retries = max_retries
+        self.seed = seed
+        self.extra_body = extra_body
 
     def _with_retries(self, config):
         if self.max_retries is not None:
             config["max_retries"] = self.max_retries
+        if self.seed is not None:
+            config["seed"] = int(self.seed)
+        if self.extra_body:
+            config["extra_body"] = dict(self.extra_body)
         return config
 
     def get_config(self, model_name: str):

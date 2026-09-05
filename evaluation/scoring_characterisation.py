@@ -20,9 +20,15 @@ Usage:
 
 import json
 import argparse
+import os
 from pathlib import Path
 from typing import Dict, List, Tuple, Any, Set
 from evaluation.utils.scoring_common import precision_recall_f1, hash_map_reverse
+from evaluation.utils.characterisation_field_judge import (
+    FieldJudgeConfig,
+    FieldJudgement,
+    judge_field_pairs,
+)
 
 
 def _is_na_string(raw: Any) -> bool:
@@ -80,12 +86,21 @@ def _normalize_percent(s: Any) -> str:
     v = _normalize(s)
     if not v:
         return v
+    # Remove prose/formula wrappers when the value ends in an elemental
+    # percentage series. The property itself already carries calculated vs
+    # experimental semantics, so those wrappers are not part of the value.
+    import re as _re
+    suffix = _re.search(
+        r"((?:[a-z]{1,2}\s*[:=]?\s*-?\d+(?:\.\d+)?\s*[,;]?\s*){2,})$",
+        v,
+    )
+    if suffix:
+        v = suffix.group(1)
     # Remove percentage symbols
     v = v.replace('%', '')
     # Normalize both separator styles to comma
     v = v.replace(';', ',')
     # Normalize both "element:" and "element " to just "element"
-    import re as _re
     v = _re.sub(r'([a-z]):\s*', r'\1', v)
     # Remove all spaces for consistent comparison
     v = v.replace(' ', '')
@@ -155,13 +170,18 @@ def _normalize_ir_bands(s: Any) -> str:
         # Handle: cm⁻¹ (Unicode superscript), cm^-1 (caret), cm-1 (hyphen)
         v = v.replace('cm⁻¹', 'cm-1')
         v = v.replace('cm^-1', 'cm-1')
+        v = v.replace('cm@1', 'cm-1')
         # Remove duplicate semicolon-separated entries (e.g., "... cm^-1 ; ... cm-1")
         parts = [p.strip() for p in v.split(';')]
         # Keep only unique normalized parts
         seen = set()
         unique_parts = []
         for p in parts:
-            normalized = p.replace('cm⁻¹', 'cm-1').replace('cm^-1', 'cm-1')
+            normalized = (
+                p.replace('cm⁻¹', 'cm-1')
+                .replace('cm^-1', 'cm-1')
+                .replace('cm@1', 'cm-1')
+            )
             if normalized and normalized not in seen:
                 seen.add(normalized)
                 unique_parts.append(normalized)
@@ -172,7 +192,20 @@ def _normalize_ir_bands(s: Any) -> str:
 
 
 def _normalize_shifts(s: Any) -> str:
-    return _normalize_parenthetical_spacing(s)
+    """Normalize NMR shifts so abbreviated peak lists match assigned ones."""
+    v = _normalize_parenthetical_spacing(s)
+    if not v:
+        return v
+    import re as _re
+    v = _re.sub(r"\([^)]*\)", "", v)
+    v = v.replace("δ", " ")
+    v = _re.sub(r"\bdelta\b", " ", v)
+    v = _re.sub(r"\bppm\b", " ", v)
+    v = _re.sub(r"[=:]+", " ", v)
+    v = _re.sub(r"[;]+", ",", v)
+    v = _re.sub(r"\s*,\s*", ", ", v)
+    v = _re.sub(r"\s{2,}", " ", v)
+    return v.strip(" ,")
 
 
 def _normalize_chemical_formula(s: Any) -> str:
@@ -234,28 +267,142 @@ def _pred_has_missing_ccdc(pred: Any) -> bool:
     return False
 
 
-def score_characterisation_fine_grained(gt_obj: Any, pred_obj: Any) -> Tuple[int, int, int, bool]:
+def _characterisation_field_pairs(gt_ch: Any, pr_ch: Any) -> List[Dict[str, str]]:
+    """Return normalized characterisation field pairs for one aligned product."""
+    rows: List[Dict[str, str]] = []
+
+    def _add(field_kind: str, gt_raw: Any, pr_raw: Any, gt_norm: str, pr_norm: str) -> None:
+        if field_kind.endswith(".shifts"):
+            gt_norm = "" if _is_na_string(gt_raw) else gt_norm
+            pr_norm = "" if _is_na_string(pr_raw) else pr_norm
+        rows.append(
+            {
+                "field_kind": field_kind,
+                "gt_raw": "" if gt_raw is None else str(gt_raw),
+                "pr_raw": "" if pr_raw is None else str(pr_raw),
+                "gt_norm": gt_norm,
+                "pr_norm": pr_norm,
+            }
+        )
+
+    gt_hnmr = (gt_ch or {}).get("HNMR") or {}
+    pr_hnmr = (pr_ch or {}).get("HNMR") or {}
+    _add(
+        "HNMR.shifts",
+        gt_hnmr.get("shifts"),
+        pr_hnmr.get("shifts"),
+        _normalize_shifts(gt_hnmr.get("shifts")),
+        _normalize_shifts(pr_hnmr.get("shifts")),
+    )
+    for field in ["solvent", "temperature"]:
+        _add(
+            f"HNMR.{field}",
+            gt_hnmr.get(field),
+            pr_hnmr.get(field),
+            _normalize(gt_hnmr.get(field)),
+            _normalize(pr_hnmr.get(field)),
+        )
+
+    gt_ea = (gt_ch or {}).get("ElementalAnalysis") or {}
+    pr_ea = (pr_ch or {}).get("ElementalAnalysis") or {}
+    for field in ["weightPercentageCalculated", "weightPercentageExperimental"]:
+        _add(
+            f"ElementalAnalysis.{field}",
+            gt_ea.get(field),
+            pr_ea.get(field),
+            _normalize_percent(gt_ea.get(field)),
+            _normalize_percent(pr_ea.get(field)),
+        )
+    _add(
+        "ElementalAnalysis.chemicalFormula",
+        gt_ea.get("chemicalFormula"),
+        pr_ea.get("chemicalFormula"),
+        _normalize_chemical_formula(gt_ea.get("chemicalFormula")),
+        _normalize_chemical_formula(pr_ea.get("chemicalFormula")),
+    )
+
+    gt_ir = (gt_ch or {}).get("InfraredSpectroscopy") or {}
+    pr_ir = (pr_ch or {}).get("InfraredSpectroscopy") or {}
+    _add(
+        "InfraredSpectroscopy.material",
+        gt_ir.get("material"),
+        pr_ir.get("material"),
+        _normalize_ir_material(gt_ir.get("material")),
+        _normalize_ir_material(pr_ir.get("material")),
+    )
+    _add(
+        "InfraredSpectroscopy.bands",
+        gt_ir.get("bands"),
+        pr_ir.get("bands"),
+        _normalize_ir_bands(gt_ir.get("bands")),
+        _normalize_ir_bands(pr_ir.get("bands")),
+    )
+    return rows
+
+
+def _score_optional_field(gt_val: str, pr_val: str, rescued: bool) -> Tuple[int, int, int]:
+    if gt_val and pr_val:
+        if gt_val == pr_val or rescued:
+            return 1, 0, 0
+        return 0, 1, 1
+    if not gt_val and not pr_val:
+        return 1, 0, 0
+    if gt_val:
+        return 0, 0, 1
+    return 0, 1, 0
+
+
+def score_characterisation_fine_grained(
+    gt_obj: Any,
+    pred_obj: Any,
+    field_config: FieldJudgeConfig | None = None,
+    judgements_out: List[FieldJudgement] | None = None,
+) -> Tuple[int, int, int, bool]:
     tp = fp = fn = 0
     pred_missing_ccdc = _pred_has_missing_ccdc(pred_obj)
+    config = field_config or FieldJudgeConfig()
 
     gt_chars = _collect_characterisations(gt_obj)
     pr_chars = _collect_characterisations(pred_obj)
 
     all_keys: Set[str] = set(gt_chars.keys()) | set(pr_chars.keys())
+    leftovers: List[tuple[str, str, str, str, str]] = []
+    field_rows: Dict[str, List[Dict[str, str]]] = {}
+    for key in all_keys:
+        rows = _characterisation_field_pairs(gt_chars.get(key, {}), pr_chars.get(key, {}))
+        field_rows[key] = rows
+        for row in rows:
+            if row["gt_norm"] and row["pr_norm"] and row["gt_norm"] != row["pr_norm"]:
+                leftovers.append(
+                    (
+                        row["field_kind"],
+                        row["gt_raw"],
+                        row["pr_raw"],
+                        row["gt_norm"],
+                        row["pr_norm"],
+                    )
+                )
+
+    judgements: List[FieldJudgement] = []
+    rescued: Set[Tuple[str, str, str]] = set()
+    if config.enabled and leftovers:
+        judgements = judge_field_pairs(leftovers, config)
+        rescued = {
+            (row.field_kind, row.ground_truth_fingerprint, row.prediction_fingerprint)
+            for row in judgements
+            if row.equivalent and row.status == "ok"
+        }
+    if judgements_out is not None:
+        judgements_out.extend(judgements)
 
     def _is_ccdc_only(name: str) -> bool:
         import re
         return bool(re.match(r'^\d{6,7}$', str(name).strip()))
 
-    def _normalize_percent(s: Any) -> str:
-        v = _normalize(s)
-        return v.replace('%', '').strip()
-
     for key in all_keys:
         gt_ch = gt_chars.get(key, {})
         pr_ch = pr_chars.get(key, {})
 
-        # Key match itself
         if key in gt_chars and key in pr_chars:
             tp += 1
         elif key in gt_chars:
@@ -263,7 +410,6 @@ def score_characterisation_fine_grained(gt_obj: Any, pred_obj: Any) -> Tuple[int
         elif key in pr_chars:
             fp += 1
 
-        # Product names comparison (ignore FP - extra names are not errors)
         gt_names = set(_normalize(n) for n in ((gt_ch or {}).get("productNames") or []) if _is_valid(n) and not _is_ccdc_only(n))
         pr_names = set(_normalize(n) for n in ((pr_ch or {}).get("productNames") or []) if _is_valid(n) and not _is_ccdc_only(n))
         if not gt_names and not pr_names:
@@ -271,82 +417,16 @@ def score_characterisation_fine_grained(gt_obj: Any, pred_obj: Any) -> Tuple[int
         else:
             tp += len(gt_names & pr_names)
             fn += len(gt_names - pr_names)
-            # fp += len(pr_names - gt_names)  # Ignore FP for chemical names
 
-        # HNMR
-        gt_hnmr = (gt_ch or {}).get("HNMR") or {}
-        pr_hnmr = (pr_ch or {}).get("HNMR") or {}
-        for field in ["shifts", "solvent", "temperature"]:
-            if field == "shifts":
-                gt_val = _normalize_shifts(gt_hnmr.get(field))
-                pr_val = _normalize_shifts(pr_hnmr.get(field))
-                # Map NA-like to empty for comparison
-                gt_val = "" if _is_na_string(gt_hnmr.get(field)) else gt_val
-                pr_val = "" if _is_na_string(pr_hnmr.get(field)) else pr_val
-            else:
-                gt_val = _normalize(gt_hnmr.get(field))
-                pr_val = _normalize(pr_hnmr.get(field))
-            if gt_val and pr_val:
-                if gt_val == pr_val:
-                    tp += 1
-                else:
-                    fp += 1
-                    fn += 1
-            elif not gt_val and not pr_val:
-                tp += 1
-            elif gt_val:
-                fn += 1
-            elif pr_val:
-                fp += 1
-
-        # ElementalAnalysis
-        gt_ea = (gt_ch or {}).get("ElementalAnalysis") or {}
-        pr_ea = (pr_ch or {}).get("ElementalAnalysis") or {}
-        for field in ["weightPercentageCalculated", "weightPercentageExperimental", "chemicalFormula"]:
-            if field in ("weightPercentageCalculated", "weightPercentageExperimental"):
-                gt_val = _normalize_percent(gt_ea.get(field))
-                pr_val = _normalize_percent(pr_ea.get(field))
-            elif field == "chemicalFormula":
-                gt_val = _normalize_chemical_formula(gt_ea.get(field))
-                pr_val = _normalize_chemical_formula(pr_ea.get(field))
-            else:
-                gt_val = _normalize(gt_ea.get(field))
-                pr_val = _normalize(pr_ea.get(field))
-            if gt_val and pr_val:
-                if gt_val == pr_val:
-                    tp += 1
-                else:
-                    fp += 1
-                    fn += 1
-            elif not gt_val and not pr_val:
-                tp += 1
-            elif gt_val:
-                fn += 1
-            elif pr_val:
-                fp += 1
-
-        # IR
-        gt_ir = (gt_ch or {}).get("InfraredSpectroscopy") or {}
-        pr_ir = (pr_ch or {}).get("InfraredSpectroscopy") or {}
-        for field in ["material", "bands"]:
-            if field == "material":
-                gt_val = _normalize_ir_material(gt_ir.get(field))
-                pr_val = _normalize_ir_material(pr_ir.get(field))
-            else:
-                gt_val = _normalize_ir_bands(gt_ir.get(field))
-                pr_val = _normalize_ir_bands(pr_ir.get(field))
-            if gt_val and pr_val:
-                if gt_val == pr_val:
-                    tp += 1
-                else:
-                    fp += 1
-                    fn += 1
-            elif not gt_val and not pr_val:
-                tp += 1
-            elif gt_val:
-                fn += 1
-            elif pr_val:
-                fp += 1
+        for row in field_rows[key]:
+            delta_tp, delta_fp, delta_fn = _score_optional_field(
+                row["gt_norm"],
+                row["pr_norm"],
+                (row["field_kind"], row["gt_norm"], row["pr_norm"]) in rescued,
+            )
+            tp += delta_tp
+            fp += delta_fp
+            fn += delta_fn
 
     return tp, fp, fn, pred_missing_ccdc
 
@@ -426,7 +506,52 @@ def _collect_field_differences(gt_chars: Dict[str, Any], pr_chars: Dict[str, Any
             diffs.append(f"- [{key}] " + "; ".join(per_key))
     return diffs
 
-def evaluate_current(use_full_gt: bool = False) -> None:
+
+def _render_field_judgements(judgements: List[FieldJudgement]) -> str:
+    if not judgements:
+        return ""
+    rescued = sum(1 for row in judgements if row.equivalent and row.status == "ok")
+    abbreviated = [
+        row for row in judgements if row.equivalent and row.gt_abbreviated and row.status == "ok"
+    ]
+    lines = [
+        "\n## LLM Characterisation Field Judgements\n\n",
+        f"Validated writing-style matches added to TP: **{rescued}**\n\n",
+    ]
+    if abbreviated:
+        lines.append(
+            "GT looks abbreviated relative to the prediction for: "
+            + ", ".join(f"`{row.field_kind}`" for row in abbreviated)
+            + ". If the paper text matches the prediction, revise GT.\n\n"
+        )
+    lines.append(
+        "| Field | GT | Prediction | Equivalent | GT abbreviated | Relation | Source | Reason |\n"
+    )
+    lines.append("| --- | --- | --- | --- | --- | --- | --- | --- |\n")
+    for row in judgements:
+        lines.append(
+            "| "
+            + " | ".join(
+                [
+                    row.field_kind,
+                    row.ground_truth_value.replace("|", "/"),
+                    row.prediction_value.replace("|", "/"),
+                    "yes" if row.equivalent else "no",
+                    "yes" if row.gt_abbreviated else "no",
+                    row.relation,
+                    row.source,
+                    row.reason.replace("|", "/"),
+                ]
+            )
+            + " |\n"
+        )
+    lines.append("\n")
+    return "".join(lines)
+
+def evaluate_current(
+    use_full_gt: bool = False,
+    field_config: FieldJudgeConfig | None = None,
+) -> None:
     if use_full_gt:
         GT_ROOT = Path("full_ground_truth/characterisation")
         OUT_ROOT = Path("evaluation/data/full_result/characterisation")
@@ -480,7 +605,13 @@ def evaluate_current(use_full_gt: bool = False) -> None:
             print(f"Error loading prediction file {res_path}: {e}")
             continue
 
-        tp, fp, fn, pred_missing = score_characterisation_fine_grained(gt_obj, pred_obj)
+        judgements: List[FieldJudgement] = []
+        tp, fp, fn, pred_missing = score_characterisation_fine_grained(
+            gt_obj,
+            pred_obj,
+            field_config=field_config,
+            judgements_out=judgements,
+        )
         if pred_missing:
             files_with_missing_ccdc.append(f"characterisation/{hv}.json")
 
@@ -534,6 +665,7 @@ def evaluate_current(use_full_gt: bool = False) -> None:
             lines.append("\n### Field-level differences\n\n")
             for d in field_diffs:
                 lines.append(d + "\n")
+        lines.append(_render_field_judgements(judgements))
         lines.append("\n")
         
         (OUT_ROOT / f"{hv}.md").write_text("".join(lines), encoding="utf-8")
@@ -565,11 +697,15 @@ def evaluate_current(use_full_gt: bool = False) -> None:
     print((OUT_ROOT / "_overall.md").resolve())
 
 
-def evaluate_full() -> None:
+def evaluate_full(
+    pred_root: Path | None = None,
+    out_root: Path | None = None,
+    field_config: FieldJudgeConfig | None = None,
+) -> None:
     """Evaluate current predictions against full ground truth dataset."""
     GT_ROOT = Path("full_ground_truth/characterisation")
-    RES_ROOT = Path("evaluation/data/merged_tll")
-    OUT_ROOT = Path("evaluation/data/full_result/characterisation")
+    RES_ROOT = Path(pred_root) if pred_root is not None else Path("evaluation/data/merged_tll")
+    OUT_ROOT = Path(out_root) if out_root is not None else Path("evaluation/data/full_result/characterisation")
     OUT_ROOT.mkdir(parents=True, exist_ok=True)
 
     hash_to_doi = hash_map_reverse(Path("data/doi_to_hash.json"))
@@ -604,7 +740,13 @@ def evaluate_full() -> None:
             print(f"Error loading prediction file {res_path}: {e}")
             continue
 
-        tp, fp, fn, pred_missing = score_characterisation_fine_grained(gt_obj, pred_obj)
+        judgements: List[FieldJudgement] = []
+        tp, fp, fn, pred_missing = score_characterisation_fine_grained(
+            gt_obj,
+            pred_obj,
+            field_config=field_config,
+            judgements_out=judgements,
+        )
         if pred_missing:
             files_with_missing_ccdc.append(f"characterisation/{hv}.json")
 
@@ -658,6 +800,7 @@ def evaluate_full() -> None:
             lines.append("\n### Field-level differences\n\n")
             for d in field_diffs:
                 lines.append(d + "\n")
+        lines.append(_render_field_judgements(judgements))
         lines.append("\n")
         
         (OUT_ROOT / f"{hv}.md").write_text("".join(lines), encoding="utf-8")
@@ -689,7 +832,11 @@ def evaluate_full() -> None:
     print((OUT_ROOT / "_overall.md").resolve())
 
 
-def evaluate_previous(use_anchored: bool = False, use_full_gt: bool = False) -> None:
+def evaluate_previous(
+    use_anchored: bool = False,
+    use_full_gt: bool = False,
+    field_config: FieldJudgeConfig | None = None,
+) -> None:
     """Evaluate previous predictions.
 
     Args:
@@ -818,7 +965,13 @@ def evaluate_previous(use_anchored: bool = False, use_full_gt: bool = False) -> 
             continue
 
         # Fine-grained scoring (shared)
-        tp, fp, fn, pred_missing = score_characterisation_fine_grained(gt_obj, pred_obj)
+        judgements: List[FieldJudgement] = []
+        tp, fp, fn, pred_missing = score_characterisation_fine_grained(
+            gt_obj,
+            pred_obj,
+            field_config=field_config,
+            judgements_out=judgements,
+        )
         if pred_missing:
             files_with_missing_ccdc.append(f"characterisation/{doi}.json")
         
@@ -878,6 +1031,7 @@ def evaluate_previous(use_anchored: bool = False, use_full_gt: bool = False) -> 
             lines.append("\n### Field-level differences\n\n")
             for d in field_diffs:
                 lines.append(d + "\n")
+        lines.append(_render_field_judgements(judgements))
         lines.append("\n")
 
         (OUT_ROOT / f"{doi}.md").write_text("".join(lines), encoding="utf-8")
@@ -925,15 +1079,66 @@ def main() -> None:
     parser.add_argument("--previous", action="store_true", help="Evaluate previous_work/characterisation/*.json against ground truth using fine-grained field-level scoring")
     parser.add_argument("--anchor", action="store_true", help="Use previous_work_anchored/ instead of previous_work/ (only with --previous)")
     parser.add_argument("--full", action="store_true", help="Evaluate against full ground truth dataset (full_ground_truth/characterisation/)")
+    parser.add_argument("--pred-root", type=Path, default=None, help="Merged prediction root (default evaluation/data/merged_tll)")
+    parser.add_argument("--out-root", type=Path, default=None, help="Write characterisation reports here")
+    parser.add_argument(
+        "--llm-synonyms",
+        action="store_true",
+        help="Use cached LLM judgements for unresolved characterisation field writing-style pairs",
+    )
+    parser.add_argument(
+        "--llm-synonym-model",
+        default=os.getenv("CHAR_FIELD_JUDGE_MODEL", "gpt-4o"),
+        help="Model used by the characterisation field judge",
+    )
+    parser.add_argument(
+        "--llm-synonym-cache-dir",
+        type=Path,
+        default=Path("evaluation/cache/characterisation_field_judge"),
+        help="Persistent per-pair characterisation field judgement cache",
+    )
+    parser.add_argument(
+        "--llm-synonyms-required",
+        action="store_true",
+        help="Fail scoring if a characterisation field judgement cannot be validated",
+    )
+    parser.add_argument(
+        "--llm-synonym-batch-size",
+        type=int,
+        default=int(os.getenv("CHAR_FIELD_BATCH_SIZE", "20")),
+        help="Pairs per characterisation-field LLM call (default 20)",
+    )
+    parser.add_argument(
+        "--llm-synonym-workers",
+        type=int,
+        default=int(os.getenv("CHAR_FIELD_MAX_WORKERS", "8")),
+        help="Parallel characterisation-field LLM chunk workers (default 8)",
+    )
     args = parser.parse_args()
+    field_config = FieldJudgeConfig(
+        enabled=args.llm_synonyms,
+        model=args.llm_synonym_model,
+        cache_dir=args.llm_synonym_cache_dir,
+        required=args.llm_synonyms_required,
+        batch_size=max(1, args.llm_synonym_batch_size),
+        max_workers=max(1, args.llm_synonym_workers),
+    )
 
     if args.previous:
         # --full flag also applies to previous work evaluation
-        evaluate_previous(use_anchored=args.anchor, use_full_gt=args.full)
+        evaluate_previous(
+            use_anchored=args.anchor,
+            use_full_gt=args.full,
+            field_config=field_config,
+        )
     elif args.full:
-        evaluate_full()
+        evaluate_full(
+            pred_root=args.pred_root,
+            out_root=args.out_root,
+            field_config=field_config,
+        )
     else:
-        evaluate_current(use_full_gt=args.full)
+        evaluate_current(use_full_gt=args.full, field_config=field_config)
 
 
 if __name__ == "__main__":

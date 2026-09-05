@@ -12,6 +12,10 @@ DATA_DIR = os.getenv("DATA_DIR", os.path.join(ROOT_DIR, "data"))
 RAW_DATA_DIR = os.getenv("RAW_DATA_DIR", os.path.join(ROOT_DIR, "raw_data"))
 CONFIGS_DIR = os.getenv("CONFIGS_DIR", os.path.join(ROOT_DIR, "configs"))
 DATA_LOG_DIR = os.getenv("DATA_LOG_DIR", os.path.join(DATA_DIR, "log"))
+CBU_DATABASE_PATH = os.getenv(
+    "CBU_DATABASE_PATH",
+    os.path.join(ROOT_DIR, "data", "ontologies", "full_cbus_with_canonical_smiles_updated.csv"),
+)
 SANDBOX_DIR = os.getenv("SANDBOX_DIR", os.path.join(ROOT_DIR, "sandbox"))
 SANDBOX_TASK_DIR = os.getenv("SANDBOX_TASK_DIR", os.path.join(SANDBOX_DIR, "tasks"))
 SANDBOX_CODE_DIR = os.getenv("SANDBOX_CODE_DIR", os.path.join(SANDBOX_DIR, "code"))

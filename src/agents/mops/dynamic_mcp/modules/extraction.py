@@ -145,10 +145,9 @@ Use this as reference/context for the current extraction task:
     # Save prompt if requested (for comparison purposes)
     if save_prompt_path:
         try:
-            import os
-            os.makedirs(os.path.dirname(save_prompt_path), exist_ok=True)
-            with open(save_prompt_path, "w", encoding="utf-8") as f:
-                f.write(prompt)
+            from src.pipelines.utils.runtime_paths import write_runtime_text
+
+            write_runtime_text(save_prompt_path, prompt)
             logger.info(f"Saved prompt to: {save_prompt_path}")
         except Exception as e:
             logger.warning(f"Failed to save prompt to {save_prompt_path}: {e}")

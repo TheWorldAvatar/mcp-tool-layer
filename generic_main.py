@@ -34,17 +34,25 @@ from src.pipelines.utils import (
     discover_dois,
     copy_pdfs_to_data_dir,
     load_step_module,
+    prepare_pipeline_runtime,
 )
 
 
-def setup_test_mcp_configs(meta_task_config_path: str = "configs/meta_task/meta_task_config.json"):
+def setup_test_mcp_configs(
+    meta_task_config_path: str = "configs/meta_task/meta_task_config.json",
+    data_dir: str = "data",
+):
     """
     Setup MCP config files to use generated MCP tools from ai_generated_contents_candidate.
     
     Creates test config files in configs/ that point to the generated MCP scripts.
     Returns the name of the test config file to use.
     """
-    scripts_dir = Path("ai_generated_contents_candidate/scripts")
+    artifact_root = Path(
+        os.environ.get("TWA_GENERATED_ARTIFACT_ROOT")
+        or "ai_generated_contents_candidate"
+    ).resolve()
+    scripts_dir = artifact_root / "scripts"
     if not scripts_dir.exists():
         print(f"❌ MCP scripts directory not found: {scripts_dir}")
         return None
@@ -66,6 +74,61 @@ def setup_test_mcp_configs(meta_task_config_path: str = "configs/meta_task/meta_
         return None
 
     extensions = meta.get("ontologies", {}).get("extensions", []) or []
+    python_cmd = sys.executable or "python"
+    repo_root = str(Path.cwd().resolve())
+    common_env = {
+        "PYTHONPATH": repo_root,
+        "PYTHONIOENCODING": "utf-8",
+        "TWA_GENERATED_ARTIFACT_ROOT": str(artifact_root),
+        "TWA_AGENTIC_DATA_DIR": str(Path(data_dir).resolve()),
+        "TWA_MAIN_ONTOLOGY_NAME": main_ontology_name,
+    }
+    for key in (
+        "TWA_REUSE_JUDGE_MODEL",
+        "TWA_REUSE_JUDGE_REQUIRED",
+        "TWA_REUSE_JUDGE_CONFIDENCE",
+        "TWA_REUSE_JUDGE_CACHE_DIR",
+        "TWA_REUSE_JUDGE_AUDIT_DIR",
+    ):
+        value = str(os.environ.get(key) or "").strip()
+        if value:
+            common_env[key] = value
+
+    def _generated_server(module_suffix: str) -> dict:
+        # Prefer importable candidate package path when artifacts live there.
+        if artifact_root.name == "ai_generated_contents_candidate":
+            module = f"ai_generated_contents_candidate.scripts.{module_suffix}.main"
+            return {
+                "command": python_cmd,
+                "args": ["-m", module],
+                "transport": "stdio",
+                "cwd": repo_root,
+                "env": dict(common_env),
+            }
+        launcher = artifact_root / f"_launch_{module_suffix}_mcp.py"
+        launcher.write_text(
+            "\n".join(
+                [
+                    "from __future__ import annotations",
+                    "import sys",
+                    "from pathlib import Path",
+                    f"ARTIFACT_ROOT = Path({str(artifact_root)!r})",
+                    "SCRIPTS_ROOT = ARTIFACT_ROOT / 'scripts'",
+                    "sys.path.insert(0, str(SCRIPTS_ROOT))",
+                    f"from {module_suffix}.main import mcp",
+                    'mcp.run(transport="stdio")',
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+        return {
+            "command": python_cmd,
+            "args": [str(launcher)],
+            "transport": "stdio",
+            "cwd": repo_root,
+            "env": dict(common_env),
+        }
 
     test_mcp_config = {}
 
@@ -76,12 +139,10 @@ def setup_test_mcp_configs(meta_task_config_path: str = "configs/meta_task/meta_
         print(f"   Expected: {target_dir / 'main.py'}")
         return None
     print(f"[INFO] Using MCP tools for main ontology: {main_ontology_name}")
+    print(f"[INFO] Artifact root: {artifact_root}")
+    main_server = _generated_server(main_ontology_name)
     for tool_name in main_tools:
-        test_mcp_config[tool_name] = {
-            "command": "python",
-            "args": ["-m", f"ai_generated_contents_candidate.scripts.{main_ontology_name}.main"],
-            "transport": "stdio",
-        }
+        test_mcp_config[str(tool_name)] = dict(main_server)
 
     # Extension tools -> extension generated servers (one server per extension ontology)
     for ext in extensions:
@@ -93,12 +154,31 @@ def setup_test_mcp_configs(meta_task_config_path: str = "configs/meta_task/meta_
         if not (ext_dir / "main.py").exists():
             print(f"[WARN] Missing generated MCP main.py for extension ontology: {ext_name}")
             continue
+        ext_server = _generated_server(str(ext_name))
         for tool_name in ext_tools:
-            test_mcp_config[tool_name] = {
-                "command": "python",
-                "args": ["-m", f"ai_generated_contents_candidate.scripts.{ext_name}.main"],
-                "transport": "stdio",
-            }
+            name = str(tool_name)
+            if name == "ccdc":
+                # MCP server process needs FastMCP (mcp_layer). Only the CSD
+                # search/fetch subprocess uses the hard-coded csd311 interpreter.
+                ccdc_env = dict(common_env)
+                try:
+                    from src.mcp_servers.ccdc.operations.wsl_ccdc import (
+                        resolve_csd_python_exe,
+                    )
+
+                    ccdc_env["CSD_PYTHON_EXE"] = resolve_csd_python_exe()
+                except Exception as exc:
+                    print(f"[WARN] CSD python resolve failed ({exc})")
+                ccdc_env["CSD_CONDA_ENV"] = os.environ.get("CSD_CONDA_ENV", "csd311")
+                test_mcp_config[name] = {
+                    "command": python_cmd,
+                    "args": ["-m", "src.mcp_servers.ccdc.main"],
+                    "transport": "stdio",
+                    "cwd": repo_root,
+                    "env": ccdc_env,
+                }
+                continue
+            test_mcp_config[name] = dict(ext_server)
     
     if not test_mcp_config:
         print(f"❌ No valid MCP tools found in {scripts_dir}")
@@ -107,7 +187,13 @@ def setup_test_mcp_configs(meta_task_config_path: str = "configs/meta_task/meta_
     # Write an ontology-scoped test MCP config so medical and OntoSynthesis test
     # runs do not overwrite each other's generated-tool server mapping.
     safe_ontology_name = "".join(ch if ch.isalnum() or ch in {"_", "-"} else "_" for ch in main_ontology_name)
-    test_config_path = Path("configs") / f"test_mcp_config_{safe_ontology_name}.json"
+    runtime_tag = Path(data_dir).resolve().parent.name
+    safe_runtime_tag = "".join(
+        ch if ch.isalnum() or ch in {"_", "-"} else "_" for ch in runtime_tag
+    )
+    test_config_path = (
+        Path("configs") / f"test_mcp_config_{safe_ontology_name}_{safe_runtime_tag}.json"
+    )
     try:
         with open(test_config_path, 'w') as f:
             json.dump(test_mcp_config, f, indent=2)
@@ -126,7 +212,8 @@ def run_pipeline(config_path: str, input_dir: Optional[str] = None,
                  skip_iter3_extraction: bool = False,
                  skip_iter4_extraction: bool = False,
                  meta_task_config: Optional[str] = None,
-                 vision_override: Optional[bool] = None):
+                 vision_override: Optional[bool] = None,
+                 resume_existing_runtime: bool = False):
     """
     Run the pipeline according to configuration.
 
@@ -140,6 +227,8 @@ def run_pipeline(config_path: str, input_dir: Optional[str] = None,
         skip_iter3_extraction: If True, skip extraction for iteration 3
         skip_iter4_extraction: If True, skip extraction for iteration 4
         vision_override: True = force vision on, False = force vision off, None = use config value
+        resume_existing_runtime: Preserve the existing runtime instead of the
+            mandatory full cleanup. Must be requested explicitly.
     """
     # Load configuration
     config = load_config(config_path)
@@ -182,13 +271,66 @@ def run_pipeline(config_path: str, input_dir: Optional[str] = None,
     print(f"Steps: {', '.join(steps)}")
     print(f"Input: {input_dir}")
     print("="*60 + "\n")
+
+    # Fresh execution is intentionally destructive within the configured
+    # scenario runtime. Clean the whole tree—not selected hash folders—so
+    # central_memory and global state can never survive an accidental rerun.
+    try:
+        runtime_path = prepare_pipeline_runtime(
+            data_dir=data_dir,
+            repository_root=Path.cwd(),
+            config_path=config_path,
+            selected_hashes=only_hashes,
+            resume_existing_runtime=resume_existing_runtime,
+            reuse_conversion_artifacts_from=config.get(
+                "reuse_conversion_artifacts_from"
+            ),
+            reuse_stitched_markdown=bool(
+                config.get("reuse_stitched_markdown", False)
+            ),
+        )
+    except (OSError, ValueError) as exc:
+        print(f"[FAIL] Runtime initialization refused: {exc}")
+        return False
+    data_dir = str(runtime_path)
+    # Pipeline-owned runtime paths must override any stale shell/MCP values,
+    # including direct imports of generated fixed runtimes outside BaseAgent.
+    os.environ["TWA_AGENTIC_DATA_DIR"] = str(Path(data_dir).resolve())
+    os.environ["TWA_CENTRAL_MEMORY_DIR"] = str(
+        (Path(data_dir) / "central_memory").resolve()
+    )
+    if effective_meta_task_config:
+        try:
+            meta_for_env = json.loads(
+                Path(effective_meta_task_config).read_text(encoding="utf-8")
+            )
+            main_name = str(
+                ((meta_for_env.get("ontologies") or {}).get("main") or {}).get(
+                    "name"
+                )
+                or ""
+            ).strip()
+            if main_name:
+                os.environ["TWA_MAIN_ONTOLOGY_NAME"] = main_name
+        except Exception:
+            pass
+    if resume_existing_runtime:
+        print(f"[WARN] Explicit resume mode: preserving existing runtime at {data_dir}\n")
+    else:
+        print(f"[OK] Fresh runtime initialized; previous central memory removed: {data_dir}\n")
+        if config.get("reuse_conversion_artifacts_from"):
+            print(
+                "[OK] Reused only whitelisted PDF-conversion Markdown from: "
+                f"{config['reuse_conversion_artifacts_from']}\n"
+            )
     
     # Setup test MCP configuration if in test mode
     test_mcp_config_name = None
     if use_mcp:
         print("🧪 Setting up test MCP configuration...")
         test_mcp_config_name = setup_test_mcp_configs(
-            meta_task_config_path=effective_meta_task_config or "configs/meta_task/meta_task_config.json"
+            meta_task_config_path=effective_meta_task_config or "configs/meta_task/meta_task_config.json",
+            data_dir=data_dir,
         )
         if not test_mcp_config_name:
             print("[FAIL] Could not setup test MCP configuration")
@@ -573,6 +715,16 @@ def main():
         action='store_true',
         help='Test mode: run pipeline using MCP-generated tools instead of regular modules'
     )
+
+    parser.add_argument(
+        '--resume-existing-runtime',
+        action='store_true',
+        help=(
+            'Explicitly preserve the configured runtime, central memory, and '
+            'global state. Without this flag the entire scenario runtime is '
+            'deleted before any DOI is processed.'
+        )
+    )
     
     parser.add_argument(
         '--iter1',
@@ -669,6 +821,7 @@ def main():
         skip_iter4_extraction=args.skip_iter4_extraction,
         meta_task_config=args.meta_task_config,
         vision_override=vision_override,
+        resume_existing_runtime=args.resume_existing_runtime,
     )
     
     sys.exit(0 if success else 1)

@@ -415,6 +415,60 @@ def main() -> None:
         action="store_true",
         help="Score previous_work instead of current results"
     )
+    parser.add_argument(
+        "--llm-synonyms",
+        action="store_true",
+        help="Enable cached LLM chemical-name, step-field, and characterisation-field judgements",
+    )
+    parser.add_argument(
+        "--llm-synonym-model",
+        default=None,
+        help="Model passed to chemical and step equivalence scorers",
+    )
+    parser.add_argument(
+        "--llm-synonym-cache-dir",
+        type=Path,
+        default=None,
+        help="Persistent cache directory (step and chemical subdirectories are used)",
+    )
+    parser.add_argument(
+        "--llm-synonyms-required",
+        action="store_true",
+        help="Fail if chemical or step-field equivalence judgements cannot be validated",
+    )
+    parser.add_argument(
+        "--llm-synonym-batch-size",
+        type=int,
+        default=None,
+        help="Pairs per LLM synonym/equivalence call (chemicals default 20; steps default 40)",
+    )
+    parser.add_argument(
+        "--llm-synonym-workers",
+        type=int,
+        default=None,
+        help="Parallel synonym/equivalence LLM chunk workers (chemicals default 8; steps default 16)",
+    )
+    parser.add_argument(
+        "--llm-fast-match",
+        action="store_true",
+        help="Enable gpt-4o rescue for quantity-in-name chemical fields",
+    )
+    parser.add_argument(
+        "--no-llm-product-match",
+        action="store_true",
+        help="Disable the default LLM synthesis pairing used when a CCDC is not unique",
+    )
+    parser.add_argument(
+        "--llm-fast-match-model",
+        default=None,
+        help="Model passed to the fast chemical-name species match (default gpt-4o)",
+    )
+    parser.add_argument(
+        "--llm-fast-match-cache-dir",
+        type=Path,
+        default=None,
+        help="Persistent cache directory for fast chemical-name species matches",
+    )
     
     args = parser.parse_args()
     
@@ -424,6 +478,70 @@ def main() -> None:
         base_args.append("--full")
     if args.previous:
         base_args.append("--previous")
+    chemical_args = base_args + (["--fuzzy", "--anchor"] if args.previous else [])
+    step_args = base_args + ["--skip-order", "--ignore", "--no-vessel"]
+    characterisation_args = base_args + (["--anchor"] if args.previous else [])
+    if args.llm_synonyms:
+        chemical_args.append("--llm-synonyms")
+        step_args.append("--llm-synonyms")
+        characterisation_args.append("--llm-synonyms")
+    if args.llm_synonym_model:
+        chemical_args.extend(["--llm-synonym-model", args.llm_synonym_model])
+        step_args.extend(["--llm-synonym-model", args.llm_synonym_model])
+        characterisation_args.extend(["--llm-synonym-model", args.llm_synonym_model])
+    if args.llm_synonym_cache_dir:
+        chemical_args.extend(
+            [
+                "--llm-synonym-cache-dir",
+                str(args.llm_synonym_cache_dir / "chemicals"),
+            ]
+        )
+        step_args.extend(
+            [
+                "--llm-synonym-cache-dir",
+                str(args.llm_synonym_cache_dir / "steps"),
+            ]
+        )
+        characterisation_args.extend(
+            [
+                "--llm-synonym-cache-dir",
+                str(args.llm_synonym_cache_dir / "characterisation"),
+            ]
+        )
+    if args.llm_synonyms_required:
+        chemical_args.append("--llm-synonyms-required")
+        step_args.append("--llm-synonyms-required")
+        characterisation_args.append("--llm-synonyms-required")
+    if args.llm_synonym_batch_size is not None:
+        chemical_args.extend(
+            ["--llm-synonym-batch-size", str(args.llm_synonym_batch_size)]
+        )
+        step_args.extend(
+            ["--llm-synonym-batch-size", str(args.llm_synonym_batch_size)]
+        )
+        characterisation_args.extend(
+            ["--llm-synonym-batch-size", str(args.llm_synonym_batch_size)]
+        )
+    if args.llm_synonym_workers is not None:
+        chemical_args.extend(
+            ["--llm-synonym-workers", str(args.llm_synonym_workers)]
+        )
+        step_args.extend(
+            ["--llm-synonym-workers", str(args.llm_synonym_workers)]
+        )
+        characterisation_args.extend(
+            ["--llm-synonym-workers", str(args.llm_synonym_workers)]
+        )
+    if args.llm_fast_match:
+        step_args.append("--llm-fast-match")
+    if args.no_llm_product_match:
+        step_args.append("--no-llm-product-match")
+    if args.llm_fast_match_model:
+        step_args.extend(["--llm-fast-match-model", args.llm_fast_match_model])
+    if args.llm_fast_match_cache_dir:
+        step_args.extend(
+            ["--llm-fast-match-cache-dir", str(args.llm_fast_match_cache_dir)]
+        )
     
     # Determine output directory
     base_dir = "full_result" if args.full else "result"
@@ -444,9 +562,9 @@ def main() -> None:
     # - Steps always uses --skip-order and --ignore flags
     scripts_config = [
         ("evaluation.scoring_cbu", base_args + (["--anchor"] if args.previous else [])),
-        ("evaluation.scoring_characterisation", base_args + (["--anchor"] if args.previous else [])),
-        ("evaluation.scoring_steps", base_args + ["--skip-order", "--ignore"]),
-        ("evaluation.scoring_chemicals", base_args + (["--fuzzy", "--anchor"] if args.previous else [])),
+        ("evaluation.scoring_characterisation", characterisation_args),
+        ("evaluation.scoring_steps", step_args),
+        ("evaluation.scoring_chemicals", chemical_args),
     ]
     
     success_count = 0

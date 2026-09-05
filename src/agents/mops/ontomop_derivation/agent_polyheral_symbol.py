@@ -3,6 +3,7 @@ import os, json, argparse, time
 from pathlib import Path
 from dotenv import load_dotenv
 from openai import OpenAI
+from models.llm_call_telemetry import instrument_openai_client
 
 # agent_symbol.py  — derive ONLY polyhedral_shape_symbol
 SCHEMA = {
@@ -85,7 +86,7 @@ def _get_client():
     model=os.getenv("REMOTE_MODEL") or os.getenv("OPENAI_MODEL") or "openai/gpt-5"
     if not api_key: raise SystemExit("Set REMOTE_API_KEY or OPENROUTER_API_KEY or OPENAI_API_KEY")
     headers={"HTTP-Referer":os.getenv("APP_URL","http://localhost"),"X-Title":os.getenv("APP_NAME","AM-GBU Deriver")} if "openrouter.ai" in base else {}
-    return OpenAI(api_key=api_key, base_url=base, default_headers=headers), model
+    return instrument_openai_client(OpenAI(api_key=api_key, base_url=base, default_headers=headers)), model
 
 def _read(p:Path)->str:
     if not p: return ""

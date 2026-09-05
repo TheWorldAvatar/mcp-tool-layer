@@ -82,6 +82,9 @@ def _normalize_json_structure(obj: Any, preserve_case: bool = False) -> Any:
         return obj
 
 
+_ELEMENT_TOKEN = re.compile(r"([A-Z][a-z]?|[a-z])(\d*)")
+
+
 def _normalize_cbu_formula(s: str) -> str:
     """Normalize CBU formula strings for comparison.
 
@@ -106,6 +109,86 @@ def _normalize_cbu_formula(s: str) -> str:
     val = val.replace("v6o6(och3)9(vo4)", "v7o10(och3)9")
 
     return val
+
+
+def _cbu_element_counts(formula: str) -> Dict[str, int] | None:
+    """Parse CBU bracket notation into element counts, e.g. [(C6H4)(CO2)2] → C8H4O4."""
+    text = str(formula or "").strip()
+    if text.startswith("[") and text.endswith("]"):
+        text = text[1:-1]
+    text = re.sub(r"\s+", "", text)
+    if not text or re.search(r"[^A-Za-z0-9()]", text):
+        return None
+
+    def _parse(src: str, index: int) -> tuple[Dict[str, int] | None, int]:
+        counts: Dict[str, int] = {}
+        while index < len(src):
+            char = src[index]
+            if char == "(":
+                inner, index = _parse(src, index + 1)
+                if inner is None or index >= len(src) or src[index] != ")":
+                    return None, index
+                index += 1
+                digits = re.match(r"\d+", src[index:])
+                multiplier = int(digits.group()) if digits else 1
+                if digits:
+                    index += len(digits.group())
+                for element, amount in inner.items():
+                    counts[element] = counts.get(element, 0) + amount * multiplier
+                continue
+            if char == ")":
+                return counts, index
+            token = _ELEMENT_TOKEN.match(src, index)
+            if not token:
+                return None, index
+            element = token.group(1)
+            element = element.upper() if len(element) == 1 else element[0].upper() + element[1:].lower()
+            counts[element] = counts.get(element, 0) + int(token.group(2) or 1)
+            index = token.end()
+        return counts, index
+
+    counts, consumed = _parse(text, 0)
+    if not counts or consumed != len(text):
+        return None
+    return counts
+
+
+def _rdkit_formula_inchi(formula: str) -> str:
+    """Best-effort RDKit identity when the string is already a SMILES/InChI."""
+    text = str(formula or "").strip()
+    if not text:
+        return ""
+    try:
+        from rdkit import Chem
+    except Exception:
+        return ""
+    mol = None
+    if text.startswith("InChI="):
+        mol = Chem.MolFromInchi(text)
+    else:
+        mol = Chem.MolFromSmiles(text)
+        if mol is None and text.startswith("[") and text.endswith("]"):
+            mol = Chem.MolFromSmiles(text[1:-1])
+    if mol is None:
+        return ""
+    try:
+        return str(Chem.MolToInchi(mol) or "").strip()
+    except Exception:
+        return ""
+
+
+def _cbu_formula_identity(formula: str) -> str:
+    """Canonical compare key: RDKit InChI, else elemental composition, else text."""
+    normalized = _normalize_cbu_formula(formula)
+    if not normalized or normalized in {"n/a", "na"}:
+        return ""
+    inchi = _rdkit_formula_inchi(formula) or _rdkit_formula_inchi(normalized)
+    if inchi:
+        return f"inchi:{inchi}"
+    counts = _cbu_element_counts(formula) or _cbu_element_counts(normalized)
+    if counts:
+        return "el:" + "".join(f"{element}{counts[element]}" for element in sorted(counts))
+    return normalized
 
 
 def _is_cbu_prediction_format(data: Any) -> bool:
@@ -164,9 +247,9 @@ def _map_cbu_species2_by_ccdc(data: Any) -> Dict[str, List[str]]:
 
 
 def _score_species_maps(gt_map: Dict[str, List[str]], res_map: Dict[str, List[str]]) -> Tuple[int, int, int]:
-    """Score species-name lists per CCDC with fairness: if any match in the list, do not count FP for that CCDC group.
+    """Score species-name lists per CCDC.
 
-    Returns (tp, fp, fn) across all groups. Names are normalized via to_fingerprint.
+    Extra predicted names are never FP. Missing GT names remain FN.
     """
     tp_total = fp_total = fn_total = 0
     keys = set(gt_map.keys()) | set(res_map.keys())
@@ -182,9 +265,7 @@ def _score_species_maps(gt_map: Dict[str, List[str]], res_map: Dict[str, List[st
         tp_total += len(inter)
         # Missing names still count as FN
         fn_total += len(gt_set - res_set)
-        # Fairness: only count FP when no match exists in the group
-        if len(inter) == 0:
-            fp_total += len(res_set - gt_set)
+        # Extra predicted names are PubChem/synonym dumps, never FP.
     return tp_total, fp_total, fn_total
 
 
@@ -197,8 +278,8 @@ def _extract_procedures(data: Any) -> List[Dict[str, Any]]:
 
         # Extract CCDC and formulas
         ccdc = str((proc or {}).get("mopCCDCNumber") or (proc or {}).get("CCDCNumber") or (proc or {}).get("ccdc_number") or "").strip()
-        f1 = _normalize_cbu_formula(str((proc or {}).get("cbuFormula1") or "").strip())
-        f2 = _normalize_cbu_formula(str((proc or {}).get("cbuFormula2") or "").strip())
+        f1 = _cbu_formula_identity(str((proc or {}).get("cbuFormula1") or "").strip())
+        f2 = _cbu_formula_identity(str((proc or {}).get("cbuFormula2") or "").strip())
 
         # Extract names
         names1 = _get_list_field(proc, "cbuSpeciesNames1", "chemicalName", "chemicalNames")
@@ -217,7 +298,39 @@ def _extract_procedures(data: Any) -> List[Dict[str, Any]]:
             'all_names': set(names1_norm + names2_norm)  # Set of all names
         })
 
-    return procedures
+    return _collapse_procedures_by_ccdc(procedures)
+
+
+def _collapse_procedures_by_ccdc(procedures: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Merge rows that share a CCDC so synonym-stuffed repeats are one product."""
+    merged: Dict[str, Dict[str, Any]] = {}
+    leftover: List[Dict[str, Any]] = []
+    for proc in procedures:
+        ccdc = str(proc.get("ccdc") or "").strip()
+        if not ccdc:
+            leftover.append(proc)
+            continue
+        current = merged.get(ccdc)
+        if current is None:
+            merged[ccdc] = {
+                "ccdc": ccdc,
+                "formula1": proc.get("formula1") or "",
+                "formula2": proc.get("formula2") or "",
+                "names1": list(proc.get("names1") or []),
+                "names2": list(proc.get("names2") or []),
+                "all_formulas": set(proc.get("all_formulas") or set()),
+                "all_names": set(proc.get("all_names") or set()),
+            }
+            continue
+        current["all_formulas"].update(proc.get("all_formulas") or set())
+        current["all_names"].update(proc.get("all_names") or set())
+        current["names1"] = sorted(set(current["names1"]) | set(proc.get("names1") or []))
+        current["names2"] = sorted(set(current["names2"]) | set(proc.get("names2") or []))
+        if not current["formula1"] and proc.get("formula1"):
+            current["formula1"] = proc["formula1"]
+        if not current["formula2"] and proc.get("formula2"):
+            current["formula2"] = proc["formula2"]
+    return list(merged.values()) + leftover
 
 
 def _score_procedures_flexible(gt_procedures: List[Dict[str, Any]], pred_procedures: List[Dict[str, Any]]) -> Tuple[int, int, int]:
@@ -378,28 +491,16 @@ def _score_procedures_combined(gt_procedures: List[Dict[str, Any]], pred_procedu
             fn_total += len(gt_formulas - pred_formulas)
             fp_total += len(pred_formulas - gt_formulas)
 
-        # Also score species names
+        # Also score species names. Extra predicted names are never FP.
         gt_names = gt_proc['all_names']
         pred_names = pred_proc['all_names']
+        tp_total += len(gt_names & pred_names)
+        fn_total += len(gt_names - pred_names)
 
-        # Apply fairness rule: if there's name overlap, don't count extra names as FP
-        if has_name_match:
-            # Only count truly matching names as TP, missing ones as FN
-            # Don't count extra names in prediction as FP
-            tp_total += len(gt_names & pred_names)
-            fn_total += len(gt_names - pred_names)
-            # No FP added for extra names when names match
-        else:
-            # Normal scoring when no name match
-            tp_total += len(gt_names & pred_names)
-            fn_total += len(gt_names - pred_names)
-            fp_total += len(pred_names - gt_names)
-
-    # Handle unmatched predictions - all their formulas and names are FP (unless they would match with fairness, but since they're unmatched, no fairness applies)
+    # Unmatched predictions: extra formulas can still be FP; extra names cannot.
     for pred_idx, pred_proc in enumerate(pred_procedures):
         if pred_idx not in matched_pred_indices:
             fp_total += len(pred_proc['all_formulas'])
-            fp_total += len(pred_proc['all_names'])
 
     # Handle unmatched GT procedures - all their formulas and names are FN
     for gt_idx, gt_proc in enumerate(gt_procedures):
@@ -587,10 +688,10 @@ def evaluate_current(use_full_gt: bool = False) -> None:
     print((OUT_ROOT / "_overall.md").resolve())
 
 
-def evaluate_full() -> None:
+def evaluate_full(pred_root: Path | None = None, out_root: Path | None = None) -> None:
     GT_ROOT = Path("full_ground_truth/cbu")
-    RES_ROOT = Path("evaluation/data/merged_tll")
-    OUT_ROOT = Path("evaluation/data/full_result/cbu")
+    RES_ROOT = Path(pred_root) if pred_root is not None else Path("evaluation/data/merged_tll")
+    OUT_ROOT = Path(out_root) if out_root is not None else Path("evaluation/data/full_result/cbu")
     OUT_ROOT.mkdir(parents=True, exist_ok=True)
 
     hash_to_doi = hash_map_reverse(Path("data/doi_to_hash.json"))
@@ -860,12 +961,14 @@ def main() -> None:
     parser.add_argument("--previous", action="store_true", help="Evaluate previous_work/cbu/*.json against ground truth using CCDC anchoring")
     parser.add_argument("--anchor", action="store_true", help="Use previous_work_anchored/ instead of previous_work/ (only with --previous)")
     parser.add_argument("--full", action="store_true", help="Use full ground truth set and write to evaluation/data/full_result/*")
+    parser.add_argument("--pred-root", type=Path, default=None, help="Merged prediction root (default evaluation/data/merged_tll)")
+    parser.add_argument("--out-root", type=Path, default=None, help="Write CBU reports here")
     args = parser.parse_args()
 
     if args.previous:
         evaluate_previous(use_anchored=args.anchor, use_full_gt=args.full)
     elif args.full:
-        evaluate_full()
+        evaluate_full(pred_root=args.pred_root, out_root=args.out_root)
     else:
         evaluate_current(use_full_gt=args.full)
 

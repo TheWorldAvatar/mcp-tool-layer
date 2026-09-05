@@ -14,6 +14,20 @@ from src.utils.global_logger import get_logger
 logger = get_logger("document_operations", "classify")
 
 
+def _document_data_dir() -> str:
+    """Prefer pipeline runtime root over static models.locations.DATA_DIR.
+
+    Section classification writes ``sections.json`` under
+    ``TWA_AGENTIC_DATA_DIR/<hash>/``. Document MCP previously always used
+    ``DATA_DIR`` (repo ``data/``), causing systematic ``sections.json not found``.
+    """
+    for key in ("TWA_AGENTIC_DATA_DIR", "TWA_EXTENSION_DATA_DIR"):
+        val = os.environ.get(key)
+        if val:
+            return val
+    return os.environ.get("DATA_DIR") or DATA_DIR
+
+
 def classify_section(section_index: int, option: str, doi: str) -> dict:
     """
     Classify a section as keep or discard.
@@ -31,7 +45,7 @@ def classify_section(section_index: int, option: str, doi: str) -> dict:
     """
     try:
         # Construct the full file path
-        sections_file = os.path.join(DATA_DIR, doi, "sections.json")
+        sections_file = os.path.join(_document_data_dir(), doi, "sections.json")
         
         logger.info(f"Classifying section {section_index} with option '{option}' for task '{doi}'")
         logger.info(f"Sections file: {sections_file}")
@@ -144,7 +158,7 @@ def load_sections(doi: str, classified: bool = False) -> dict:
     """
     try:
         filename = "sections.json"
-        file_path = os.path.join(DATA_DIR, doi, filename)
+        file_path = os.path.join(_document_data_dir(), doi, filename)
         
         if os.path.exists(file_path):
             with open(file_path, 'r', encoding='utf-8') as file:

@@ -23,6 +23,8 @@ Usage:
 """
 
 import json
+import os
+from collections import Counter
 from pathlib import Path
 from typing import Dict, List, Tuple, Any
 import argparse
@@ -35,6 +37,12 @@ try:
 except ModuleNotFoundError:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     from evaluation.utils.scoring_common import score_lists, precision_recall_f1, render_report, hash_map_reverse, to_fingerprint
+
+from evaluation.utils.chemical_synonym_judge import (
+    SynonymJudgeConfig,
+    SynonymJudgement,
+    judge_pairs,
+)
 
 TYPES = ["name", "formula", "amount", "supplier", "purity"]
 
@@ -135,6 +143,110 @@ def _as_list(v: Any) -> List[str]:
         return [str(x) for x in v if x is not None and str(x) != ""]
     s = str(v)
     return [s] if s else []
+
+
+def _remaining_raw_names(
+    raw_names: List[str],
+    remaining: Counter[str],
+) -> List[Tuple[str, str]]:
+    output: List[Tuple[str, str]] = []
+    available = remaining.copy()
+    for raw_name in raw_names:
+        fingerprint = to_fingerprint(raw_name)
+        if fingerprint != '""' and available[fingerprint] > 0:
+            output.append((raw_name, fingerprint))
+            available[fingerprint] -= 1
+    return output
+
+
+def _score_name_lists(
+    gt_list: List[str],
+    res_list: List[str],
+    synonym_config: SynonymJudgeConfig,
+) -> Tuple[int, int, int, List[SynonymJudgement], int]:
+    """Score names exactly, then optionally consume LLM-validated synonym pairs."""
+    gt_fp = [to_fingerprint(x) for x in gt_list if to_fingerprint(x) != '""']
+    res_fp = [to_fingerprint(x) for x in res_list if to_fingerprint(x) != '""']
+    gt_c = Counter(gt_fp)
+    res_c = Counter(res_fp)
+    all_keys = set(gt_c) | set(res_c)
+    exact_tp = sum(min(gt_c[k], res_c[k]) for k in all_keys)
+    gt_remaining = Counter(
+        {key: max(0, count - res_c.get(key, 0)) for key, count in gt_c.items()}
+    )
+    res_remaining = Counter(
+        {key: max(0, count - gt_c.get(key, 0)) for key, count in res_c.items()}
+    )
+
+    judgements: List[SynonymJudgement] = []
+    synonym_tp = 0
+    if synonym_config.enabled and sum(gt_remaining.values()) and sum(res_remaining.values()):
+        gt_raw = _remaining_raw_names(gt_list, gt_remaining)
+        res_raw = _remaining_raw_names(res_list, res_remaining)
+        judgements = judge_pairs(
+            (
+                (gt_name, res_name, gt_fingerprint, res_fingerprint)
+                for gt_name, gt_fingerprint in gt_raw
+                for res_name, res_fingerprint in res_raw
+            ),
+            synonym_config,
+        )
+        equivalent_edges = {
+            (row.ground_truth_fingerprint, row.prediction_fingerprint)
+            for row in judgements
+            if row.equivalent and row.status == "ok"
+        }
+        adjacency = {
+            gt_index: [
+                res_index
+                for res_index, (_, res_fingerprint) in enumerate(res_raw)
+                if (gt_fingerprint, res_fingerprint) in equivalent_edges
+            ]
+            for gt_index, (_, gt_fingerprint) in enumerate(gt_raw)
+        }
+        matched_gt_for_res: Dict[int, int] = {}
+
+        def _augment(gt_index: int, seen: set[int]) -> bool:
+            for res_index in adjacency[gt_index]:
+                if res_index in seen:
+                    continue
+                seen.add(res_index)
+                previous_gt = matched_gt_for_res.get(res_index)
+                if previous_gt is None or _augment(previous_gt, seen):
+                    matched_gt_for_res[res_index] = gt_index
+                    return True
+            return False
+
+        synonym_tp = sum(
+            1 for gt_index in sorted(adjacency) if _augment(gt_index, set())
+        )
+
+    tp = exact_tp + synonym_tp
+    fn = max(0, len(gt_fp) - tp)
+    fp = max(0, len(res_fp) - tp) if tp == 0 else 0
+    return tp, fp, fn, judgements, synonym_tp
+
+
+def _render_synonym_judgements(
+    judgements: List[SynonymJudgement],
+    synonym_tp: int,
+) -> str:
+    if not judgements:
+        return ""
+    lines = [
+        "\n## LLM Chemical Synonym Judgements\n\n",
+        f"Validated one-to-one synonym matches added to TP: **{synonym_tp}**\n\n",
+        "| GT name | Prediction name | Equivalent | Confidence | Relation | Source | Reason |\n",
+        "| --- | --- | --- | ---: | --- | --- | --- |\n",
+    ]
+    for row in judgements:
+        reason = row.reason.replace("|", "\\|").replace("\n", " ")
+        lines.append(
+            f"| {row.ground_truth_name} | {row.prediction_name} | "
+            f"{str(row.equivalent).lower()} | {row.confidence:.2f} | "
+            f"{row.relation} | {row.source} | {reason} |\n"
+        )
+    return "".join(lines)
 
 
 def _extract_input_chemical_names_from_gt(gt_obj: Dict) -> List[str]:
@@ -282,7 +394,13 @@ def _extract_chemical_names_flexible(res_obj: Dict) -> List[str]:
     return out
 
 
-def evaluate_current(*, fuzzy: bool = False, use_full_gt: bool = False) -> None:
+def evaluate_current(
+    *,
+    fuzzy: bool = False,
+    use_full_gt: bool = False,
+    synonym_config: SynonymJudgeConfig = SynonymJudgeConfig(),
+    selected_hashes: set[str] | None = None,
+) -> None:
     if use_full_gt:
         GT_ROOT = Path("full_ground_truth/chemicals")
         OUT_ROOT = Path("evaluation/data/full_result/chemicals")
@@ -308,8 +426,12 @@ def evaluate_current(*, fuzzy: bool = False, use_full_gt: bool = False) -> None:
     hash_to_doi = hash_map_reverse(Path("data/doi_to_hash.json"))
     hashes = sorted([p.name for p in RES_ROOT.iterdir() if p.is_dir()])
 
-    rows: List[Tuple[str, Tuple[int, int, int, float, float, float]]] = []
+    # Load all in-scope docs first; optionally prewarm synonym judgements in one
+    # chunked/parallel LLM pass so per-hash scoring mostly hits cache.
+    prepared: List[Tuple[str, str, Path, List[str], List[str]]] = []
     for hv in hashes:
+        if selected_hashes is not None and hv not in selected_hashes:
+            continue
         doi = hash_to_doi.get(hv)
         res_path = RES_ROOT / hv / "chemicals.json"
         if not doi or not res_path.exists():
@@ -324,27 +446,51 @@ def evaluate_current(*, fuzzy: bool = False, use_full_gt: bool = False) -> None:
             continue
         gt = json.loads(gt_path.read_text(encoding="utf-8"))
         res = json.loads(res_path.read_text(encoding="utf-8"))
-
         gt_list = _extract_input_chemical_names_from_gt(gt)
         res_list = _extract_chemical_names_flexible(res)
+        prepared.append((hv, doi, res_path, gt_list, res_list))
 
-        # Custom order-insensitive comparison with conditional FP counting
-        # Extra chemical names only count as FP if there's NO match (no TP)
-        from collections import Counter
-        gt_fp = [to_fingerprint(x) for x in gt_list if to_fingerprint(x) != '""']
-        res_fp = [to_fingerprint(x) for x in res_list if to_fingerprint(x) != '""']
-        
-        gt_c = Counter(gt_fp)
-        res_c = Counter(res_fp)
-        all_keys = set(gt_c) | set(res_c)
-        tp = sum(min(gt_c[k], res_c[k]) for k in all_keys)
-        fn = sum(max(0, gt_c[k] - res_c.get(k, 0)) for k in all_keys)
-        
-        # Only count FP if there's no TP (no correct match at all)
-        if tp == 0:
-            fp = sum(max(0, res_c[k] - gt_c.get(k, 0)) for k in all_keys)
-        else:
-            fp = 0
+    if synonym_config.enabled and prepared:
+        warm_pairs: List[Tuple[str, str, str, str]] = []
+        for _, _, _, gt_list, res_list in prepared:
+            gt_fp = [to_fingerprint(x) for x in gt_list if to_fingerprint(x) != '""']
+            res_fp = [to_fingerprint(x) for x in res_list if to_fingerprint(x) != '""']
+            gt_c = Counter(gt_fp)
+            res_c = Counter(res_fp)
+            gt_remaining = Counter(
+                {key: max(0, count - res_c.get(key, 0)) for key, count in gt_c.items()}
+            )
+            res_remaining = Counter(
+                {key: max(0, count - gt_c.get(key, 0)) for key, count in res_c.items()}
+            )
+            if not sum(gt_remaining.values()) or not sum(res_remaining.values()):
+                continue
+            gt_raw = _remaining_raw_names(gt_list, gt_remaining)
+            res_raw = _remaining_raw_names(res_list, res_remaining)
+            warm_pairs.extend(
+                (gt_name, res_name, gt_fingerprint, res_fingerprint)
+                for gt_name, gt_fingerprint in gt_raw
+                for res_name, res_fingerprint in res_raw
+            )
+        if warm_pairs:
+            print(
+                f"[chemicals] prewarming {len(warm_pairs)} unresolved name-pairs "
+                f"across {len(prepared)} document(s)",
+                flush=True,
+            )
+            judge_pairs(warm_pairs, synonym_config)
+
+    rows: List[Tuple[str, Tuple[int, int, int, float, float, float]]] = []
+    for hv, doi, res_path, gt_list, res_list in prepared:
+        gt_path = GT_ROOT / f"{doi}.json"
+        gt = json.loads(gt_path.read_text(encoding="utf-8"))
+        res = json.loads(res_path.read_text(encoding="utf-8"))
+
+        tp, fp, fn, synonym_rows, synonym_tp = _score_name_lists(
+            gt_list,
+            res_list,
+            synonym_config,
+        )
         
         prec, rec, f1 = precision_recall_f1(tp, fp, fn)
         rows.append((hv, (tp, fp, fn, prec, rec, f1)))
@@ -357,6 +503,7 @@ def evaluate_current(*, fuzzy: bool = False, use_full_gt: bool = False) -> None:
         lines.append(f"**Prediction file**: `{res_path.as_posix()}`  \n")
         lines.append(f"**Ground truth file**: `{gt_path.as_posix()}`\n\n")
         lines.append(f"**Fine-grained Scoring:** TP={tp} FP={fp} FN={fn} | P={prec:.3f} R={rec:.3f} F1={f1:.3f}\n\n")
+        lines.append(_render_synonym_judgements(synonym_rows, synonym_tp))
         
         # Fuzzy ignores for display if requested
         gt_display = _apply_fuzzy_ignores(gt, ignore_procedure_name=fuzzy, ignore_output_names=fuzzy, ignore_output_formula=fuzzy) if fuzzy else gt
@@ -409,11 +556,18 @@ def evaluate_current(*, fuzzy: bool = False, use_full_gt: bool = False) -> None:
     print((OUT_ROOT / "_overall.md").resolve())
 
 
-def evaluate_full(*, fuzzy: bool = False) -> None:
+def evaluate_full(
+    *,
+    fuzzy: bool = False,
+    synonym_config: SynonymJudgeConfig = SynonymJudgeConfig(),
+    selected_hashes: set[str] | None = None,
+    pred_root: Path | None = None,
+    out_root: Path | None = None,
+) -> None:
     """Evaluate current predictions against full ground truth dataset."""
     GT_ROOT = Path("full_ground_truth/chemicals")
-    RES_ROOT = Path("evaluation/data/merged_tll")
-    OUT_ROOT = Path("evaluation/data/full_result/chemicals")
+    RES_ROOT = Path(pred_root) if pred_root is not None else Path("evaluation/data/merged_tll")
+    OUT_ROOT = Path(out_root) if out_root is not None else Path("evaluation/data/full_result/chemicals")
     OUT_ROOT.mkdir(parents=True, exist_ok=True)
 
     hash_to_doi = hash_map_reverse(Path("data/doi_to_hash.json"))
@@ -422,6 +576,8 @@ def evaluate_full(*, fuzzy: bool = False) -> None:
 
     rows: List[Tuple[str, Tuple[int, int, int, float, float, float]]] = []
     for hv in hashes:
+        if selected_hashes is not None and hv not in selected_hashes:
+            continue
         doi = hash_to_doi.get(hv)
         res_path = RES_ROOT / hv / "chemicals.json"
         if not doi or not res_path.exists():
@@ -445,23 +601,11 @@ def evaluate_full(*, fuzzy: bool = False) -> None:
         gt_list = _extract_input_chemical_names_from_gt(gt)
         res_list = _extract_chemical_names_flexible(res)
 
-        # Custom order-insensitive comparison with conditional FP counting
-        # Extra chemical names only count as FP if there's NO match (no TP)
-        from collections import Counter
-        gt_fp = [to_fingerprint(x) for x in gt_list if to_fingerprint(x) != '""']
-        res_fp = [to_fingerprint(x) for x in res_list if to_fingerprint(x) != '""']
-        
-        gt_c = Counter(gt_fp)
-        res_c = Counter(res_fp)
-        all_keys = set(gt_c) | set(res_c)
-        tp = sum(min(gt_c[k], res_c[k]) for k in all_keys)
-        fn = sum(max(0, gt_c[k] - res_c.get(k, 0)) for k in all_keys)
-        
-        # Only count FP if there's no TP (no correct match at all)
-        if tp == 0:
-            fp = sum(max(0, res_c[k] - gt_c.get(k, 0)) for k in all_keys)
-        else:
-            fp = 0
+        tp, fp, fn, synonym_rows, synonym_tp = _score_name_lists(
+            gt_list,
+            res_list,
+            synonym_config,
+        )
         
         prec, rec, f1 = precision_recall_f1(tp, fp, fn)
         rows.append((hv, (tp, fp, fn, prec, rec, f1)))
@@ -474,6 +618,7 @@ def evaluate_full(*, fuzzy: bool = False) -> None:
         lines.append(f"**Prediction file**: `{res_path.as_posix()}`  \n")
         lines.append(f"**Ground truth file**: `{gt_path.as_posix()}`\n\n")
         lines.append(f"**Fine-grained Scoring:** TP={tp} FP={fp} FN={fn} | P={prec:.3f} R={rec:.3f} F1={f1:.3f}\n\n")
+        lines.append(_render_synonym_judgements(synonym_rows, synonym_tp))
         
         # Fuzzy ignores for display if requested
         gt_display = _apply_fuzzy_ignores(gt, ignore_procedure_name=fuzzy, ignore_output_names=fuzzy, ignore_output_formula=fuzzy) if fuzzy else gt
@@ -526,7 +671,13 @@ def evaluate_full(*, fuzzy: bool = False) -> None:
     print((OUT_ROOT / "_overall.md").resolve())
 
 
-def evaluate_previous(use_anchored: bool = False, *, fuzzy: bool = False, use_full_gt: bool = False) -> None:
+def evaluate_previous(
+    use_anchored: bool = False,
+    *,
+    fuzzy: bool = False,
+    use_full_gt: bool = False,
+    synonym_config: SynonymJudgeConfig = SynonymJudgeConfig(),
+) -> None:
     """Evaluate previous predictions using the SAME standard as current mode.
     The only extra step: compute CCDC anchoring gain by comparing previous_work vs previous_work_anchored.
     
@@ -580,7 +731,6 @@ def evaluate_previous(use_anchored: bool = False, *, fuzzy: bool = False, use_fu
         if not prev_path.exists():
             # No prediction for this ground truth - count as all FN
             gt_list = _extract_input_chemical_names_from_gt(gt)
-            from collections import Counter
             gt_fp = [to_fingerprint(x) for x in gt_list if to_fingerprint(x) != '""']
             fn = len(gt_fp)
             rows_overall.append((doi, (0, 0, fn)))
@@ -628,15 +778,11 @@ def evaluate_previous(use_anchored: bool = False, *, fuzzy: bool = False, use_fu
         gt_list = _extract_input_chemical_names_from_gt(gt)
         res_list = _extract_chemical_names_flexible(res)
 
-        from collections import Counter
-        gt_fp = [to_fingerprint(x) for x in gt_list if to_fingerprint(x) != '""']
-        res_fp = [to_fingerprint(x) for x in res_list if to_fingerprint(x) != '""']
-        gt_c = Counter(gt_fp)
-        res_c = Counter(res_fp)
-        all_keys = set(gt_c) | set(res_c)
-        tp = sum(min(gt_c[k], res_c[k]) for k in all_keys)
-        fn = sum(max(0, gt_c[k] - res_c.get(k, 0)) for k in all_keys)
-        fp = sum(max(0, res_c[k] - gt_c.get(k, 0)) for k in all_keys) if tp == 0 else 0
+        tp, fp, fn, synonym_rows, synonym_tp = _score_name_lists(
+            gt_list,
+            res_list,
+            synonym_config,
+        )
 
         rows_overall.append((doi, (tp, fp, fn)))
 
@@ -646,6 +792,7 @@ def evaluate_previous(use_anchored: bool = False, *, fuzzy: bool = False, use_fu
         lines.append(f"# Chemicals Previous Scoring{title_suffix} - {doi}\n\n")
         prec, rec, f1 = precision_recall_f1(tp, fp, fn)
         lines.append(f"**Fine-grained Scoring:** TP={tp} FP={fp} FN={fn} | P={prec:.3f} R={rec:.3f} F1={f1:.3f}\n\n")
+        lines.append(_render_synonym_judgements(synonym_rows, synonym_tp))
         gt_display = _apply_fuzzy_ignores(gt, ignore_procedure_name=fuzzy, ignore_output_names=fuzzy, ignore_output_formula=fuzzy) if fuzzy else gt
         res_display = _apply_fuzzy_ignores(res, ignore_procedure_name=fuzzy, ignore_output_names=fuzzy, ignore_output_formula=fuzzy) if fuzzy else res
         gt_normalized = _normalize_json_structure(gt_display)
@@ -751,15 +898,80 @@ def main() -> None:
     parser.add_argument("--anchor", action="store_true", help="Use previous_work_anchored/ instead of previous_work/ (only with --previous)")
     parser.add_argument("--full", action="store_true", help="Evaluate against full ground truth dataset (full_ground_truth/chemicals/)")
     parser.add_argument("--fuzzy", action="store_true", help="Ignore differences in procedureName and outputChemical (names, chemicalFormula) while displaying and scoring context")
+    parser.add_argument(
+        "--llm-synonyms",
+        action="store_true",
+        help="Use strict cached LLM judgements for unresolved chemical-name pairs",
+    )
+    parser.add_argument(
+        "--llm-synonym-model",
+        default=os.getenv("CHEMICAL_SYNONYM_JUDGE_MODEL", "gpt-4o"),
+        help="Model used by the chemical synonym judge",
+    )
+    parser.add_argument(
+        "--llm-synonym-cache-dir",
+        type=Path,
+        default=Path("evaluation/cache/chemical_synonym_judge"),
+        help="Persistent per-pair synonym judgement cache",
+    )
+    parser.add_argument(
+        "--llm-synonyms-required",
+        action="store_true",
+        help="Fail scoring if an LLM synonym judgement cannot be validated",
+    )
+    parser.add_argument(
+        "--llm-synonym-batch-size",
+        type=int,
+        default=int(os.getenv("CHEMICAL_SYNONYM_BATCH_SIZE", "20")),
+        help="Pairs per chemical-synonym LLM call (default 20)",
+    )
+    parser.add_argument(
+        "--llm-synonym-workers",
+        type=int,
+        default=int(os.getenv("CHEMICAL_SYNONYM_MAX_WORKERS", "8")),
+        help="Parallel chemical-synonym LLM chunk workers (default 8)",
+    )
+    parser.add_argument(
+        "--hash",
+        action="append",
+        dest="selected_hashes",
+        help="Restrict current-result scoring to this hash; may be repeated",
+    )
+    parser.add_argument("--pred-root", type=Path, default=None, help="Merged prediction root (default evaluation/data/merged_tll)")
+    parser.add_argument("--out-root", type=Path, default=None, help="Write chemical reports here")
     args = parser.parse_args()
+    synonym_config = SynonymJudgeConfig(
+        enabled=args.llm_synonyms,
+        model=args.llm_synonym_model,
+        cache_dir=args.llm_synonym_cache_dir,
+        required=args.llm_synonyms_required,
+        batch_size=max(1, args.llm_synonym_batch_size),
+        max_workers=max(1, args.llm_synonym_workers),
+    )
 
     if args.previous:
         # --full flag also applies to previous work evaluation
-        evaluate_previous(use_anchored=args.anchor, fuzzy=args.fuzzy, use_full_gt=args.full)
+        evaluate_previous(
+            use_anchored=args.anchor,
+            fuzzy=args.fuzzy,
+            use_full_gt=args.full,
+            synonym_config=synonym_config,
+        )
     elif args.full:
-        evaluate_full(fuzzy=args.fuzzy)
+        evaluate_full(
+            fuzzy=args.fuzzy,
+            synonym_config=synonym_config,
+            selected_hashes=set(args.selected_hashes) if args.selected_hashes else None,
+            pred_root=args.pred_root,
+            out_root=args.out_root,
+        )
     else:
-        evaluate_current(fuzzy=args.fuzzy, use_full_gt=args.full)
+        evaluate_current(
+            fuzzy=args.fuzzy,
+            use_full_gt=args.full,
+            synonym_config=synonym_config,
+            selected_hashes=set(args.selected_hashes) if args.selected_hashes else None,
+        )
 
 
 if __name__ == "__main__":

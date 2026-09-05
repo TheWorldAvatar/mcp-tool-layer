@@ -8,6 +8,10 @@ from langgraph.prebuilt import create_react_agent
 from dotenv import load_dotenv
 from models.MCPConfigDynamic import create_client
 from models.MCPConfig import MCPConfig
+from models.llm_call_telemetry import (
+    OpenRouterCostCallback,
+    apply_openrouter_usage_include,
+)
 import asyncio
 
 # ✅ Load variables from `.env` into os.environ
@@ -46,10 +50,29 @@ async def build_react_agent(
         client = MultiServerMCPClient(server_cfg)
     
     tools = await client.get_tools()
+    cost_callback = OpenRouterCostCallback(
+        model=model_name, base_url=base_url, api_key=api_key
+    )
+    extra_body = apply_openrouter_usage_include(None, base_url=base_url)
     if model_name in ["o4-mini", "o1-mini", "gpt-5"]:
-        llm = ChatOpenAI(model_name=model_name, base_url=base_url, api_key=api_key, seed=42)
+        llm = ChatOpenAI(
+            model_name=model_name,
+            base_url=base_url,
+            api_key=api_key,
+            seed=42,
+            callbacks=[cost_callback],
+            extra_body=extra_body or None,
+        )
     else:
-        llm = ChatOpenAI(model_name=model_name, temperature=0, base_url=base_url, api_key=api_key, seed=42)
+        llm = ChatOpenAI(
+            model_name=model_name,
+            temperature=0,
+            base_url=base_url,
+            api_key=api_key,
+            seed=42,
+            callbacks=[cost_callback],
+            extra_body=extra_body or None,
+        )
     agent = create_react_agent(llm, tools)
     return client, agent
 

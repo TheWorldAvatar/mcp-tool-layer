@@ -1,10 +1,15 @@
 import json
 import argparse
 import re
+from collections import Counter
 from pathlib import Path
 from typing import Dict, List, Tuple, Any, Set, Optional
 from evaluation.utils.scoring_common import precision_recall_f1, hash_map_reverse
 from evaluation.normalize_steps import normalize_json_structure
+from evaluation.utils.step_equivalence_judge import (
+    StepEquivalenceConfig,
+    StepEquivalenceJudge,
+)
 
 # Import step-type-only scoring logic from evaluation.py
 import sys
@@ -53,6 +58,352 @@ except ImportError:
 # Chemical synonymy mapping: define canonical species -> list of equivalent names.
 # Currently empty; populate with entries like {"canonical_name": ["synonym1", "synonym2"]}
 chemical_synomy_dict: Dict[str, List[str]] = {}
+VESSEL_FIELDS = {
+    "usedVesselName",
+    "usedVesselType",
+    "targetVesselName",
+    "targetVesselType",
+}
+QUANTITY_FIELDS = {
+    "chemicalAmount",
+    "amount",
+    "duration",
+    "targetTemperature",
+    "heatingCoolingRate",
+    "targetPH",
+}
+ATMOSPHERE_FIELDS = {"atmosphere"}
+_ACTIVE_STEP_EQUIVALENCE = StepEquivalenceJudge()
+
+
+class _EquivalencePrefetchCollector:
+    """Collect candidate pairs while resolving deterministic matches locally."""
+
+    def __init__(self, target: StepEquivalenceJudge) -> None:
+        self.target = target
+        self.pairs: Set[Tuple[str, str, str, str]] = set()
+        self.deterministic = StepEquivalenceJudge(
+            StepEquivalenceConfig(
+                enabled=False,
+                fast_match_enabled=False,
+                product_match_enabled=False,
+            )
+        )
+
+    def equivalent(
+        self,
+        field_kind: str,
+        field_name: str,
+        ground_truth_value: Any,
+        prediction_value: Any,
+    ) -> bool:
+        if isinstance(ground_truth_value, str) and isinstance(prediction_value, str):
+            cached = self.target.cached_equivalent(
+                field_kind,
+                field_name,
+                ground_truth_value,
+                prediction_value,
+            )
+            if cached is not None:
+                return cached
+            self.pairs.add(
+                (
+                    field_kind,
+                    field_name,
+                    ground_truth_value,
+                    prediction_value,
+                )
+            )
+        return self.deterministic.equivalent(
+            field_kind,
+            field_name,
+            ground_truth_value,
+            prediction_value,
+        )
+
+    def same_product(
+        self,
+        ground_truth_names: List[str],
+        prediction_names: List[str],
+    ) -> bool:
+        return self.target.same_product(ground_truth_names, prediction_names)
+
+
+def _prefetch_score_equivalence(
+    gt_obj: Dict[str, Any],
+    pred_obj: Dict[str, Any],
+    *,
+    ignore_vessel: bool,
+    skip_order: bool,
+) -> None:
+    """Dry-run deterministic scoring once, then batch all residual LLM pairs."""
+    global _ACTIVE_STEP_EQUIVALENCE
+    target = _ACTIVE_STEP_EQUIVALENCE
+    if (
+        not target.config.enabled
+        and not target.config.fast_match_enabled
+        and not target.config.product_match_enabled
+    ):
+        return
+    _prefetch_product_pairs(gt_obj, pred_obj)
+    if not target.config.enabled and not target.config.fast_match_enabled:
+        return
+    for _ in range(4):
+        collector = _EquivalencePrefetchCollector(target)
+        try:
+            _ACTIVE_STEP_EQUIVALENCE = collector
+            score_steps_fine_grained(
+                gt_obj,
+                pred_obj,
+                ignore_vessel,
+                skip_order,
+            )
+        finally:
+            _ACTIVE_STEP_EQUIVALENCE = target
+        if target.prefetch(collector.pairs) == 0:
+            break
+
+
+def _prefetch_product_pairs(gt_obj: Dict[str, Any], pred_obj: Dict[str, Any]) -> None:
+    """Batch the product-identity judge before per-pair pairing lookups."""
+    pairs: List[Tuple[List[str], List[str]]] = []
+    for gt_synth in (gt_obj or {}).get("Synthesis", []) or []:
+        gt_names = [str(value) for value in (gt_synth or {}).get("productNames", []) or []]
+        for pred_synth in (pred_obj or {}).get("Synthesis", []) or []:
+            pred_names = [
+                str(value) for value in (pred_synth or {}).get("productNames", []) or []
+            ]
+            pairs.append((gt_names, pred_names))
+    _ACTIVE_STEP_EQUIVALENCE.prefetch_products(pairs)
+
+
+def _paper_ccdc_counts(synths: List[Dict[str, Any]]) -> Counter:
+    counts: Counter = Counter()
+    for synth in synths or []:
+        ccdc = _synthesis_ccdc(synth)
+        if ccdc:
+            counts[ccdc] += 1
+    return counts
+
+
+def _field_kind(field_name: str) -> str:
+    if field_name.endswith(".names") or field_name in {"chemicalName", "names"}:
+        return "chemical_name"
+    if field_name.endswith(".amounts") or field_name in QUANTITY_FIELDS:
+        return "quantity"
+    if field_name in ATMOSPHERE_FIELDS:
+        return "atmosphere"
+    if field_name in VESSEL_FIELDS or "device" in field_name.lower():
+        return "device"
+    return "qualitative"
+
+
+NAME_LLM_TOP_K = 3
+_SMALL_RESIDUAL_PAIR_LIMIT = 6
+
+
+def _values_equivalent(field_name: str, gt_value: Any, pr_value: Any) -> bool:
+    return _ACTIVE_STEP_EQUIVALENCE.equivalent(
+        _field_kind(field_name),
+        field_name,
+        gt_value,
+        pr_value,
+    )
+
+
+def _text_normalized_equal(field_name: str, gt_value: Any, pr_value: Any) -> bool:
+    from evaluation.utils.step_equivalence_judge import _normalize_text
+
+    if not isinstance(gt_value, str) or not isinstance(pr_value, str):
+        return gt_value == pr_value
+    return _normalize_text(gt_value, _field_kind(field_name)) == _normalize_text(
+        pr_value, _field_kind(field_name)
+    )
+
+
+def _deterministic_values_equivalent(field_name: str, gt_value: Any, pr_value: Any) -> bool:
+    """Exact / species-core match. Does not call an LLM."""
+    if _text_normalized_equal(field_name, gt_value, pr_value):
+        return True
+    if _field_kind(field_name) != "chemical_name":
+        return False
+    if not isinstance(gt_value, str) or not isinstance(pr_value, str):
+        return False
+    from evaluation.utils.fast_field_match_judge import deterministic_species_match
+
+    return deterministic_species_match(gt_value, pr_value)
+
+
+def _deterministic_value_keys(field_name: str, value: Any) -> Set[str]:
+    """Return safe canonical keys used to avoid a GT × prediction pre-scan."""
+    from evaluation.utils.step_equivalence_judge import _normalize_text
+
+    if not isinstance(value, str):
+        return {f"{type(value).__name__}:{value!r}"}
+    kind = _field_kind(field_name)
+    if kind == "chemical_name":
+        from evaluation.utils.fast_field_match_judge import deterministic_species_keys
+
+        return deterministic_species_keys(value)
+    return {_normalize_text(value, kind)}
+
+
+def _deterministic_adjacency(
+    gt_items: List[str],
+    pr_items: List[str],
+    field_name: str,
+) -> Dict[int, List[int]]:
+    """Index prediction keys and return deterministic candidate edges."""
+    prediction_indices: Dict[str, Set[int]] = {}
+    for pr_index, pr_value in enumerate(pr_items):
+        for key in _deterministic_value_keys(field_name, pr_value):
+            prediction_indices.setdefault(key, set()).add(pr_index)
+
+    adjacency: Dict[int, List[int]] = {}
+    for gt_index, gt_value in enumerate(gt_items):
+        candidates: Set[int] = set()
+        for key in _deterministic_value_keys(field_name, gt_value):
+            candidates.update(prediction_indices.get(key, set()))
+        adjacency[gt_index] = sorted(candidates)
+    return adjacency
+
+
+def chemical_name_fuzzy_score(gt_value: str, pr_value: str) -> float:
+    """Rank leftover chemical names before asking the judge."""
+    from difflib import SequenceMatcher
+
+    from evaluation.utils.fast_field_match_judge import strip_quantity_annotation
+    from evaluation.utils.step_equivalence_judge import _normalize_text
+
+    left = _normalize_text(strip_quantity_annotation(gt_value), "chemical_name")
+    right = _normalize_text(strip_quantity_annotation(pr_value), "chemical_name")
+    if not left or not right:
+        return 0.0
+    if left == right or left in right or right in left:
+        return 1.0
+    return SequenceMatcher(None, left, right).ratio()
+
+
+def residual_llm_index_pairs(
+    gt_items: List[str],
+    pr_items: List[str],
+    unmatched_gt: Set[int],
+    unmatched_pr: Set[int],
+    field_name: str,
+    *,
+    top_k: int = NAME_LLM_TOP_K,
+) -> List[Tuple[int, int]]:
+    """Select leftover pairs that may still be rescued by the LLM judge."""
+    if not unmatched_gt or not unmatched_pr:
+        return []
+    residual_n = len(unmatched_gt) * len(unmatched_pr)
+    if (
+        _field_kind(field_name) != "chemical_name"
+        or residual_n <= max(top_k, _SMALL_RESIDUAL_PAIR_LIMIT)
+    ):
+        return [
+            (gt_index, pr_index)
+            for gt_index in sorted(unmatched_gt)
+            for pr_index in sorted(unmatched_pr)
+        ]
+    pairs: List[Tuple[int, int]] = []
+    for gt_index in sorted(unmatched_gt):
+        ranked = sorted(
+            unmatched_pr,
+            key=lambda pr_index: chemical_name_fuzzy_score(
+                gt_items[gt_index], pr_items[pr_index]
+            ),
+            reverse=True,
+        )
+        pairs.extend((gt_index, pr_index) for pr_index in ranked[:top_k])
+    return pairs
+
+
+def _augment_matches(
+    adjacency: Dict[int, List[int]],
+    matched_gt_for_pr: Dict[int, int],
+    gt_indices: List[int],
+) -> None:
+    def _augment(gt_index: int, seen: Set[int]) -> bool:
+        for pr_index in adjacency.get(gt_index, []):
+            if pr_index in seen:
+                continue
+            seen.add(pr_index)
+            previous_gt = matched_gt_for_pr.get(pr_index)
+            if previous_gt is None or _augment(previous_gt, seen):
+                matched_gt_for_pr[pr_index] = gt_index
+                return True
+        return False
+
+    for gt_index in gt_indices:
+        if gt_index not in set(matched_gt_for_pr.values()):
+            _augment(gt_index, set())
+
+
+def iter_llm_match_candidates(
+    gt_values: Set[str],
+    pr_values: Set[str],
+    field_name: str,
+) -> List[Tuple[str, str]]:
+    """Leftover (gt, pred) pairs after deterministic TP locking."""
+    gt_items = sorted(gt_values)
+    pr_items = sorted(pr_values)
+    adjacency = _deterministic_adjacency(gt_items, pr_items, field_name)
+    matched_gt_for_pr: Dict[int, int] = {}
+    _augment_matches(adjacency, matched_gt_for_pr, list(range(len(gt_items))))
+    unmatched_gt = {
+        index for index in range(len(gt_items)) if index not in set(matched_gt_for_pr.values())
+    }
+    unmatched_pr = {index for index in range(len(pr_items)) if index not in matched_gt_for_pr}
+    pairs: List[Tuple[str, str]] = []
+    seen: Set[Tuple[str, str]] = set()
+    for gt_index, pr_index in residual_llm_index_pairs(
+        gt_items, pr_items, unmatched_gt, unmatched_pr, field_name
+    ):
+        item = (gt_items[gt_index], pr_items[pr_index])
+        if item in seen:
+            continue
+        seen.add(item)
+        pairs.append(item)
+    return pairs
+
+
+def _match_equivalent_values(
+    gt_values: Set[str],
+    pr_values: Set[str],
+    field_name: str,
+) -> Tuple[Set[str], Set[str], int]:
+    """Return unmatched GT/pred values and maximum one-to-one match count.
+
+    Lock deterministic TPs first. Ask the LLM only for leftover FN/FP
+    candidates, with fuzzy top-k preselection when a chemical-name bag is large.
+    """
+    gt_items = sorted(gt_values)
+    pr_items = sorted(pr_values)
+    adjacency = _deterministic_adjacency(gt_items, pr_items, field_name)
+    matched_gt_for_pr: Dict[int, int] = {}
+    _augment_matches(adjacency, matched_gt_for_pr, list(range(len(gt_items))))
+
+    unmatched_gt = {
+        index for index in range(len(gt_items)) if index not in set(matched_gt_for_pr.values())
+    }
+    unmatched_pr = {index for index in range(len(pr_items)) if index not in matched_gt_for_pr}
+    for gt_index, pr_index in residual_llm_index_pairs(
+        gt_items, pr_items, unmatched_gt, unmatched_pr, field_name
+    ):
+        if pr_index in adjacency[gt_index]:
+            continue
+        if _values_equivalent(field_name, gt_items[gt_index], pr_items[pr_index]):
+            adjacency[gt_index].append(pr_index)
+    _augment_matches(adjacency, matched_gt_for_pr, sorted(unmatched_gt))
+
+    matched_gt = set(matched_gt_for_pr.values())
+    matched_pr = set(matched_gt_for_pr)
+    return (
+        {value for index, value in enumerate(gt_items) if index not in matched_gt},
+        {value for index, value in enumerate(pr_items) if index not in matched_pr},
+        len(matched_pr),
+    )
 
 def _normalize(s: Any) -> str:
     """Identity normalization: assume inputs are pre-normalized via external script."""
@@ -101,6 +452,370 @@ def _normalize_product_name(name: Any) -> str:
     return s.strip()
 
 
+_SYNTHESIS_NAME_STOPWORDS = {
+    "a",
+    "an",
+    "the",
+    "of",
+    "for",
+    "by",
+    "via",
+    "synthesis",
+    "synthesized",
+    "synthesised",
+    "method",
+    "route",
+}
+
+_SYNTHESIS_TITLE_PREFIX = re.compile(
+    r"^(?:the\s+)?(?:synthesis|preparation|syntheses)\s+(?:of\s+(?:the\s+)?)?",
+    re.I,
+)
+
+
+def _strip_synthesis_title_prefix(name: str) -> str:
+    """Drop leading 'synthesis of' so GT short names can match KG titles."""
+    return _SYNTHESIS_TITLE_PREFIX.sub("", name).strip()
+
+
+def _is_hyphen_suffix_product_alias(shorter: str, longer: str) -> bool:
+    """True when the shorter name is a hyphen-tail of the longer product code.
+
+    `vmot-2` matches `tma-vmot-2`. A bare digit such as `2` does not: that
+    collision is handled only as a paper-unique label key.
+    """
+    if not re.fullmatch(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)+", shorter):
+        return False
+    if not re.search(r"\d", shorter):
+        return False
+    return longer.endswith("-" + shorter)
+
+
+def _is_short_product_label(name: str) -> bool:
+    """True for paper codes / compound indices, not systematic formulae."""
+    text = str(name or "").strip()
+    if not text or len(text) > 40 or re.search(r"[\[\]{}]", text):
+        return False
+    if re.fullmatch(r"\d+[a-z]?", text):
+        return True
+    if re.fullmatch(r"(?:compound|complex|cage|product)\s+\d+[a-z]?", text):
+        return True
+    # zrt-1, vmot-2, tma-vmoc-p-2; not ligand fragments such as c5h5 or mu2-oh
+    if re.fullmatch(r"[a-z]{2,}[a-z0-9]*(?:-[a-z0-9]+)*-\d+[a-z]*", text):
+        return True
+    return bool(re.fullmatch(r"[a-z]{2,8}-\d+[a-z]{0,6}", text))
+
+
+def _label_keys_from_short_name(name: str) -> Set[str]:
+    """Index keys for a short product label: `zrt-4` -> {zrt-4, 4}."""
+    compact = re.sub(r"\s+", " ", _strip_synthesis_title_prefix(name)).strip()
+    compact = re.sub(r"^(?:compound|complex|cage|product)\s+", "", compact)
+    if not compact:
+        return set()
+    keys = {compact}
+    parts = [part for part in compact.split("-") if part]
+    if parts and re.search(r"\d", parts[-1]):
+        keys.add(parts[-1])
+        if len(parts) >= 2:
+            keys.add(f"{parts[-2]}-{parts[-1]}")
+    return keys
+
+
+def _synthesis_label_keys(synth: Dict[str, Any]) -> Set[str]:
+    """Paper-local product keys from short names and parenthetical codes only."""
+    keys: Set[str] = set()
+    for raw in (synth or {}).get("productNames", []) or []:
+        normalized = _normalize_product_name(raw)
+        stripped = _strip_synthesis_title_prefix(normalized)
+        if re.search(r"[\[\]{}]", stripped):
+            continue
+        for inner in re.findall(r"\(([^)]{1,40})\)", stripped):
+            inner_name = inner.strip()
+            if _is_short_product_label(inner_name):
+                keys.update(_label_keys_from_short_name(inner_name))
+        if _is_short_product_label(stripped):
+            keys.update(_label_keys_from_short_name(stripped))
+    return keys
+
+
+def _indexed_product_labels(synth: Dict[str, Any]) -> Set[Tuple[str, str]]:
+    """Return explicit ``(family, index)`` product codes from synthesis names.
+
+    These codes are hard negative evidence when their terminal indices differ.
+    An LLM product judge may recognize aliases, but it must not collapse
+    ``mop-1`` into ``mop-2`` merely because both names share the ``mop`` family.
+    """
+    labels: Set[Tuple[str, str]] = set()
+    for raw in (synth or {}).get("productNames", []) or []:
+        normalized = _normalize_product_name(raw)
+        stripped = _strip_synthesis_title_prefix(normalized)
+        candidates = [stripped, *re.findall(r"\(([^)]{1,40})\)", stripped)]
+        for candidate in candidates:
+            candidate = candidate.strip()
+            if not _is_short_product_label(candidate):
+                continue
+            compact = re.sub(
+                r"^(?:compound|complex|cage|product)\s+",
+                "",
+                candidate,
+            )
+            match = re.fullmatch(r"(.+?)[-\s]+(\d+[a-z]?)", compact)
+            if match and re.search(r"[a-z]", match.group(1)):
+                family = re.sub(r"[^a-z0-9]+", "-", match.group(1)).strip("-")
+                labels.add((family, match.group(2)))
+    return labels
+
+
+def _has_conflicting_product_index(
+    left: Dict[str, Any],
+    right: Dict[str, Any],
+) -> bool:
+    """True when explicit indexed product labels provide a hard contradiction."""
+    left_labels = _indexed_product_labels(left)
+    right_labels = _indexed_product_labels(right)
+    if not left_labels or not right_labels:
+        return False
+    for left_family, left_index in left_labels:
+        for right_family, right_index in right_labels:
+            families_related = (
+                left_family == right_family
+                or left_family.endswith("-" + right_family)
+                or right_family.endswith("-" + left_family)
+            )
+            if families_related and left_index != right_index:
+                return True
+    return False
+
+
+def _has_exact_product_name_anchor(
+    left: Dict[str, Any],
+    right: Dict[str, Any],
+) -> bool:
+    left_names = {
+        normalized
+        for value in (left or {}).get("productNames", []) or []
+        if (normalized := _normalize_product_name(value))
+    }
+    right_names = {
+        normalized
+        for value in (right or {}).get("productNames", []) or []
+        if (normalized := _normalize_product_name(value))
+    }
+    return bool(left_names & right_names)
+
+
+def _prediction_reserved_for_another_gt(
+    gt_synth: Dict[str, Any],
+    pred_synth: Dict[str, Any],
+    gt_synths: List[Dict[str, Any]],
+) -> bool:
+    """Protect exact paper-level identities from an earlier fuzzy/LLM match."""
+    if _has_exact_product_name_anchor(gt_synth, pred_synth):
+        return False
+    return any(
+        other_gt is not gt_synth
+        and _has_exact_product_name_anchor(other_gt, pred_synth)
+        for other_gt in gt_synths
+    )
+
+
+def _paper_label_key_counts(synths: List[Dict[str, Any]]) -> Counter:
+    counts: Counter = Counter()
+    for synth in synths or []:
+        for key in _synthesis_label_keys(synth):
+            counts[key] += 1
+    return counts
+
+
+def _unique_label_anchor(left: Dict[str, Any], right: Dict[str, Any], *, left_counts: Counter, right_counts: Counter) -> int:
+    """1 when a short product key is unique in both paper-level name lists."""
+    shared = _synthesis_label_keys(left) & _synthesis_label_keys(right)
+    return int(
+        any(
+            left_counts.get(key, 0) == 1 and right_counts.get(key, 0) == 1
+            for key in shared
+        )
+    )
+
+
+def _is_titled_product_alias(left: str, right: str) -> bool:
+    """True when one name is the other plus a title suffix, not a longer chemical id.
+
+    `zr-bpydc` matches `zr-bpydc (tetrahedral ...)`.
+    `zr-bpydc` does not match `zr-bpydc-cucl2 (...)` (hyphen continues the identifier).
+    `tma-vmoc-p-2` matches a long title that contains `(tma-vmoc-p-2)`.
+    `vmot-2` matches `tma-vmot-2`.
+    """
+    left_key = _strip_synthesis_title_prefix(left)
+    right_key = _strip_synthesis_title_prefix(right)
+    if not left_key or not right_key or left_key == right_key:
+        return bool(left_key) and left_key == right_key
+    shorter, longer = (left_key, right_key) if len(left_key) <= len(right_key) else (right_key, left_key)
+    if longer.startswith(shorter) and (
+        len(longer) == len(shorter) or longer[len(shorter)] in {" ", "("}
+    ):
+        return True
+    if re.search(rf"\({re.escape(shorter)}\)", longer):
+        return True
+    return _is_hyphen_suffix_product_alias(shorter, longer)
+
+
+def _titled_alias_overlap(left_names: Set[str], right_names: Set[str]) -> int:
+    """Count whether any normalized name pair is a titled alias of the other."""
+    if not left_names or not right_names:
+        return 0
+    for left in left_names:
+        for right in right_names:
+            if _is_titled_product_alias(left, right):
+                return 1
+    return 0
+
+
+def _synthesis_name_tokens(name: Any) -> Set[str]:
+    """Tokenize product identity while retaining route-discriminating words."""
+    normalized = _normalize_product_name(name)
+    return {
+        token
+        for token in re.findall(r"[a-z0-9]+", normalized)
+        if token and token not in _SYNTHESIS_NAME_STOPWORDS
+    }
+
+
+def _synthesis_identity_score(
+    left: Dict[str, Any],
+    right: Dict[str, Any],
+) -> Tuple[int, int, int, int]:
+    """Score product-name and synthesis-route identity before step similarity."""
+    left_names = {
+        normalized
+        for value in (left or {}).get("productNames", []) or []
+        if (normalized := _normalize_product_name(value))
+    }
+    right_names = {
+        normalized
+        for value in (right or {}).get("productNames", []) or []
+        if (normalized := _normalize_product_name(value))
+    }
+    exact_overlap = len(left_names & right_names)
+    alias_overlap = 0 if exact_overlap else _titled_alias_overlap(left_names, right_names)
+    left_tokens = set().union(*(_synthesis_name_tokens(name) for name in left_names)) if left_names else set()
+    right_tokens = set().union(*(_synthesis_name_tokens(name) for name in right_names)) if right_names else set()
+    overlap = len(left_tokens & right_tokens)
+    total = len(left_tokens) + len(right_tokens)
+    similarity = int(round((2000 * overlap / total))) if total else 0
+    difference = len(left_tokens ^ right_tokens)
+    llm_same = 0
+    if exact_overlap == 0 and alias_overlap == 0:
+        raw_left = [str(value) for value in (left or {}).get("productNames", []) or []]
+        raw_right = [str(value) for value in (right or {}).get("productNames", []) or []]
+        if _ACTIVE_STEP_EQUIVALENCE.same_product(raw_left, raw_right):
+            llm_same = 1
+    return (
+        exact_overlap + alias_overlap + llm_same,
+        similarity,
+        overlap,
+        -difference,
+    )
+
+
+def _procedure_kind(synthesis: Dict[str, Any]) -> str:
+    """Classify a route label as synthesis or structural transformation."""
+    names = " ".join(
+        str(value) for value in (synthesis or {}).get("productNames", []) or []
+    ).casefold()
+    if "transformation" in names or "conversion" in names:
+        return "transformation"
+    if re.search(
+        r"\b(?:synthesis|preparation|prepared|synthesi[sz]ed|from|via|"
+        r"mechanochemical|solvothermal|one-pot|route)\b",
+        names,
+    ):
+        return "synthesis"
+    return ""
+
+
+def _descriptive_route_tokens(synthesis: Dict[str, Any]) -> Set[str]:
+    """Return tokens from the most route-specific product label."""
+    token_sets = [
+        _synthesis_name_tokens(value)
+        for value in (synthesis or {}).get("productNames", []) or []
+    ]
+    return max(token_sets, key=lambda tokens: (len(tokens), sorted(tokens)), default=set())
+
+
+def _has_explicit_route_label(synthesis: Dict[str, Any]) -> bool:
+    """True when a label describes a procedure rather than only its product."""
+    text = " ".join(
+        str(value) for value in (synthesis or {}).get("productNames", []) or []
+    ).casefold()
+    return bool(
+        re.search(
+            r"\b(?:from|via|by|method|approach|route|transformation|conversion|"
+            r"mechanochemical|solvothermal|one-pot|degc|celsius)\b",
+            text,
+        )
+    )
+
+
+def _precursor_signature(synthesis: Dict[str, Any]) -> Set[str]:
+    """Collect aliases from the first Add event as a route precursor signature."""
+    for step in (synthesis or {}).get("steps", []) or []:
+        if not isinstance(step, dict) or not isinstance(step.get("Add"), dict):
+            continue
+        names = _extract_chemical_names_from_step(step["Add"])
+        if names:
+            return names
+    return set()
+
+
+def _synthesis_route_score(
+    left: Dict[str, Any],
+    right: Dict[str, Any],
+) -> Tuple[int, int, int, int, int]:
+    """Score procedure identity before generic product and step similarity.
+
+    Product aliases and CCDC numbers identify the product, but not which route
+    produced it.  The descriptive label is intentionally ranked before the
+    precursor signature: a contaminated extraction must still pair with its
+    labelled route so that its incorrect chemicals are counted as field errors.
+    """
+    left_kind = _procedure_kind(left)
+    right_kind = _procedure_kind(right)
+    if left_kind and right_kind:
+        kind_score = 1 if left_kind == right_kind else -1
+    else:
+        kind_score = 0
+
+    if _has_explicit_route_label(left) and _has_explicit_route_label(right):
+        left_tokens = _descriptive_route_tokens(left)
+        right_tokens = _descriptive_route_tokens(right)
+        route_overlap = len(left_tokens & right_tokens)
+        route_total = len(left_tokens) + len(right_tokens)
+        route_similarity = (
+            int(round(2000 * route_overlap / route_total)) if route_total else 0
+        )
+        route_difference = len(left_tokens ^ right_tokens)
+    else:
+        route_overlap = route_similarity = route_difference = 0
+
+    left_precursors = _precursor_signature(left)
+    right_precursors = _precursor_signature(right)
+    precursor_overlap = 0
+    if left_precursors and right_precursors:
+        _, _, precursor_overlap = _match_equivalent_values(
+            left_precursors,
+            right_precursors,
+            "addedChemical.names",
+        )
+    return (
+        kind_score,
+        route_similarity,
+        route_overlap,
+        -route_difference,
+        precursor_overlap,
+    )
+
+
 def _normalize_ccdc(ccdc: Any) -> str:
     """Canonicalize CCDC numbers so variants like '974183' and '97418 3' match.
 
@@ -127,6 +842,99 @@ def _normalize_ccdc(ccdc: Any) -> str:
     if m:
         return f"{m.group(1)} {m.group(2)}"
     return s
+
+
+_CCDC_NAME_PATTERN = re.compile(
+    r"(?<![a-z0-9])ccdc(?:\s*(?:no\.?|number|deposition))?\s*[-:#]?\s*"
+    r"(\d(?:[\d\s]*\d)?)",
+    re.IGNORECASE,
+)
+
+
+def _synthesis_ccdc(synth: Any) -> str:
+    """Return explicit CCDC, or an unambiguous CCDC embedded in product names.
+
+    Converters occasionally retain an identifier only as a product alias such
+    as ``CCDC-759738`` while leaving ``productCCDCNumber`` empty.  This strict
+    fallback accepts only explicitly CCDC-labelled digit strings; it does not
+    infer identifiers from arbitrary numbers in formulas or compound names.
+    """
+    row = synth if isinstance(synth, dict) else {}
+    explicit = _normalize_ccdc(row.get("productCCDCNumber"))
+    if explicit:
+        return explicit
+
+    candidates: Set[str] = set()
+    for value in row.get("productNames", []) or []:
+        try:
+            text = str(value or "")
+        except Exception:
+            continue
+        for match in _CCDC_NAME_PATTERN.finditer(text):
+            candidate = _normalize_ccdc(match.group(1))
+            if candidate:
+                candidates.add(candidate)
+    return next(iter(candidates)) if len(candidates) == 1 else ""
+
+
+def _correct_prediction_ccdc_by_product_name(
+    gt_obj: Dict[str, Any],
+    pred_obj: Dict[str, Any],
+) -> Dict[str, Any]:
+    """Copy GT CCDC anchors onto uniquely name-matched predicted syntheses."""
+    corrected = json.loads(json.dumps(pred_obj))
+    gt_syntheses = (gt_obj or {}).get("Synthesis", []) or []
+    used_gt: Set[int] = set()
+    for pred_synthesis in (corrected or {}).get("Synthesis", []) or []:
+        pred_names = {
+            _normalize_product_name(value)
+            for value in (pred_synthesis or {}).get("productNames", []) or []
+            if _normalize_product_name(value)
+        }
+        if not pred_names:
+            continue
+        exact: List[Dict[str, Any]] = []
+        partial: List[Dict[str, Any]] = []
+        for candidate in gt_syntheses:
+            if id(candidate) in used_gt:
+                continue
+            candidate_names = {
+                _normalize_product_name(value)
+                for value in (candidate or {}).get("productNames", []) or []
+                if _normalize_product_name(value)
+            }
+            if pred_names & candidate_names:
+                exact.append(candidate)
+            elif any(
+                len(pred_name) >= 5
+                and len(candidate_name) >= 5
+                and _is_titled_product_alias(pred_name, candidate_name)
+                for pred_name in pred_names
+                for candidate_name in candidate_names
+            ):
+                partial.append(candidate)
+        candidates = exact or partial
+        if not candidates:
+            continue
+        if len(candidates) > 1:
+            candidates = sorted(
+                candidates,
+                key=lambda candidate: (
+                    _synthesis_identity_score(candidate, pred_synthesis),
+                    _compare_steps(
+                        _gt_step_names(candidate),
+                        _gt_step_names(pred_synthesis),
+                    )[0],
+                ),
+                reverse=True,
+            )
+        matched = candidates[0]
+        used_gt.add(id(matched))
+        pred_synthesis["productCCDCNumber"] = matched.get(
+            "productCCDCNumber",
+            "N/A",
+        )
+    return corrected
 
 
 def _is_valid(s: Any) -> bool:
@@ -190,135 +998,57 @@ def _expand_add_steps(raw_steps: List[Dict]) -> List[Tuple[str, Dict]]:
     return expanded
 
 
-def _type_counts_for_objs(gt_obj: Any, pred_obj: Any) -> Tuple[int, int, int]:
-    """Compute positional step-type-only counts (tp, fp, fn) after Add-splitting.
+def _compare_type_lists(
+    gt_types: List[str],
+    pred_types: List[str],
+    *,
+    skip_order: bool,
+) -> Tuple[int, int, int]:
+    if not skip_order:
+        return _compare_steps(gt_types, pred_types)
+    gt_counts = Counter(gt_types)
+    pred_counts = Counter(pred_types)
+    tp = sum((gt_counts & pred_counts).values())
+    return tp, len(pred_types) - tp, len(gt_types) - tp
 
-    Uses evaluation.py functions directly: _gt_step_names() and _compare_steps()
-    Exactly mirrors evaluation.py _evaluate_previous logic.
-    """
+
+def _type_counts_for_objs(
+    gt_obj: Any,
+    pred_obj: Any,
+    skip_order: bool = False,
+) -> Tuple[int, int, int]:
+    """Compute type counts after identity-first synthesis matching."""
     tp_t = fp_t = fn_t = 0
-    
-    # Get all GT syntheses
     gt_synths_all = (gt_obj or {}).get("Synthesis", []) or []
-    
-    # Track which GT syntheses have been matched
-    matched_gt: Set[int] = set()
-    
-    # For each pred synthesis, match to GT and compare
-    for pred_synth in (pred_obj or {}).get("Synthesis", []) or []:
-        pred_ccdc = str((pred_synth or {}).get("productCCDCNumber") or "").strip()
-        # Canonicalize CCDC for matching/reporting
-        pred_ccdc = _normalize_ccdc(pred_ccdc)
-        # Normalize CCDC: treat empty as missing
-        if pred_ccdc == "":
-            pred_ccdc = ""
-        
-        # Extract pred step types using evaluation.py _gt_step_names()
-        pred_types = _gt_step_names(pred_synth)
-        
-        gt_synth = None
-        # Try name-based matching FIRST (prioritize product name over CCDC)
-        pred_names = [str(x) for x in (pred_synth or {}).get("productNames", []) or []]
-        if pred_names:
-            # Normalize ALL prediction names
-            pred_names_norm = [_normalize_product_name(n) for n in pred_names if _normalize_product_name(n)]
-            
-            # Filter candidates by name matching (check ALL pred names against ALL candidate names)
-            name_candidates = []
-            for candidate in gt_synths_all:
-                if id(candidate) in matched_gt:
-                    continue
-                cand_names = [str(x) for x in (candidate or {}).get("productNames", []) or []]
-                cand_names_norm = [_normalize_product_name(n) for n in cand_names if _normalize_product_name(n)]
-                
-                # Check if ANY pred name matches ANY candidate name
-                matched = False
-                for pred_name_norm in pred_names_norm:
-                    # Exact match
-                    if pred_name_norm in cand_names_norm:
-                        matched = True
-                        break
-                    # Substring match (either way)
-                    # Only allow substring matching if both names are reasonably long (>= 5 chars)
-                    # to avoid false matches like "i" matching "nanocapsule ii"
-                    for cn in cand_names_norm:
-                        if (pred_name_norm and len(pred_name_norm) >= 5 and len(cn) >= 5 and 
-                            (pred_name_norm in cn or cn in pred_name_norm)):
-                            matched = True
-                            break
-                    if matched:
-                        break
-                
-                if matched:
-                    name_candidates.append(candidate)
-            
-            # Pick best match by positional step comparison
-            if len(name_candidates) == 1:
-                gt_synth = name_candidates[0]
-                matched_gt.add(id(gt_synth))
-            elif len(name_candidates) > 1:
-                best_match = None
-                best_score = -1
-                for candidate in name_candidates:
-                    # Use evaluation.py _gt_step_names() and _compare_steps()
-                    cand_types = _gt_step_names(candidate)
-                    matches, _, _ = _compare_steps(cand_types, pred_types)
-                    if matches > best_score:
-                        best_score = matches
-                        best_match = candidate
-                if best_match is not None:
-                    gt_synth = best_match
-                    matched_gt.add(id(best_match))
-        
-        # Fall back to CCDC matching only if no name match was found
-        if gt_synth is None and pred_ccdc:
-            # Find all unmatched GT syntheses with this CCDC
-            ccdc_candidates = []
-            for candidate in gt_synths_all:
-                if id(candidate) in matched_gt:
-                    continue
-                gt_ccdc = _normalize_ccdc(str((candidate or {}).get("productCCDCNumber") or "").strip())
-                if gt_ccdc != "" and gt_ccdc == pred_ccdc:
-                    ccdc_candidates.append(candidate)
-            
-            # If multiple candidates (or one), pick best match by step comparison
-            if len(ccdc_candidates) == 1:
-                gt_synth = ccdc_candidates[0]
-                matched_gt.add(id(gt_synth))
-            elif len(ccdc_candidates) > 1:
-                best_match = None
-                best_score = -1
-                for candidate in ccdc_candidates:
-                    # Use evaluation.py _gt_step_names() and _compare_steps()
-                    cand_types = _gt_step_names(candidate)
-                    matches, _, _ = _compare_steps(cand_types, pred_types)
-                    if matches > best_score:
-                        best_score = matches
-                        best_match = candidate
-                if best_match is not None:
-                    gt_synth = best_match
-                    matched_gt.add(id(best_match))
-        
-        if gt_synth:
-            # Extract GT step types using evaluation.py _gt_step_names()
+    pred_synths_all = (pred_obj or {}).get("Synthesis", []) or []
+    matched_pred_indices: Set[int] = set()
+
+    for gt_synth in gt_synths_all:
+        pred_index, pred_synth = _find_best_synthesis_match(
+            gt_synth,
+            pred_synths_all,
+            matched_pred_indices,
+            gt_synths=gt_synths_all,
+        )
+        if pred_synth is not None:
+            matched_pred_indices.add(pred_index)
             gt_types = _gt_step_names(gt_synth)
-            
-            # Use evaluation.py _compare_steps() for positional comparison
-            tp, fp, fn = _compare_steps(gt_types, pred_types)
+            pred_types = _gt_step_names(pred_synth)
+            tp, fp, fn = _compare_type_lists(
+                gt_types,
+                pred_types,
+                skip_order=skip_order,
+            )
             tp_t += tp
             fp_t += fp
             fn_t += fn
         else:
-            # No GT match: all pred steps are FP
-            fp_t += len(pred_types)
-    
-    # Handle unmatched GT syntheses: all GT steps are FN
-    for gt_synth in gt_synths_all:
-        if id(gt_synth) not in matched_gt:
-            # Use evaluation.py _gt_step_names()
-            gt_types = _gt_step_names(gt_synth)
-            fn_t += len(gt_types)
-    
+            fn_t += len(_gt_step_names(gt_synth))
+
+    for pred_index, pred_synth in enumerate(pred_synths_all):
+        if pred_index not in matched_pred_indices:
+            fp_t += len(_gt_step_names(pred_synth))
+
     return tp_t, fp_t, fn_t
 
 
@@ -339,7 +1069,7 @@ def _compare_step_fields(gt_step_data: Dict, pr_step_data: Dict, step_type: str,
     all_keys = set(gt_step_data.keys()) | set(pr_step_data.keys())
     
     # Fields to skip when ignore_vessel is True
-    vessel_fields = {"usedVesselName", "usedVesselType"}
+    vessel_fields = VESSEL_FIELDS
     
     for key in all_keys:
         # Skip comment and stepNumber fields - don't measure them
@@ -392,17 +1122,25 @@ def _compare_step_fields(gt_step_data: Dict, pr_step_data: Dict, step_type: str,
             if not gt_names and not pr_names:
                 tp += 1
             else:
-                tp += len(gt_names & pr_names)
-                fn += len(gt_names - pr_names)
+                unmatched_gt_names, _, matched_names = _match_equivalent_values(
+                    gt_names, pr_names, f"{key}.names"
+                )
+                tp += matched_names
+                fn += len(unmatched_gt_names)
                 # fp += len(pr_names - gt_names)  # Ignore FP for chemical names
             
             # Compare amounts
             if not gt_amounts and not pr_amounts:
                 tp += 1
             else:
-                tp += len(gt_amounts & pr_amounts)
-                fn += len(gt_amounts - pr_amounts)
-                fp += len(pr_amounts - gt_amounts)
+                unmatched_gt_amounts, unmatched_pr_amounts, matched_amounts = (
+                    _match_equivalent_values(
+                        gt_amounts, pr_amounts, f"{key}.amounts"
+                    )
+                )
+                tp += matched_amounts
+                fn += len(unmatched_gt_amounts)
+                fp += len(unmatched_pr_amounts)
         
         # Special normalization for targetPH: treat -1/NA/"N/A"/empty as the same canonical "n/a"
         elif key == "targetPH":
@@ -428,7 +1166,8 @@ def _compare_step_fields(gt_step_data: Dict, pr_step_data: Dict, step_type: str,
         # Handle boolean and numeric fields
         elif isinstance(gt_val, (bool, int, float)) or isinstance(pr_val, (bool, int, float)):
             if gt_val is not None and pr_val is not None:
-                if gt_val == pr_val:
+                bool_mismatch = isinstance(gt_val, bool) != isinstance(pr_val, bool)
+                if not bool_mismatch and gt_val == pr_val:
                     tp += 1
                 else:
                     fp += 1
@@ -440,10 +1179,10 @@ def _compare_step_fields(gt_step_data: Dict, pr_step_data: Dict, step_type: str,
             elif pr_val is not None:
                 fp += 1
         
-        # Handle string fields
+        # Handle string fields through the same strict field-aware equivalence.
         else:
             if gt_val is not None and pr_val is not None:
-                if gt_val == pr_val:
+                if _values_equivalent(key, gt_val, pr_val):
                     tp += 1
                 else:
                     fp += 1
@@ -461,7 +1200,7 @@ def _compare_step_fields(gt_step_data: Dict, pr_step_data: Dict, step_type: str,
 def _get_synths_by_ccdc(data: Any) -> Dict[str, Any]:
     synths: Dict[str, Any] = {}
     for synth in (data or {}).get("Synthesis", []) or []:
-        ccdc = _normalize_ccdc(str((synth or {}).get("productCCDCNumber") or "").strip())
+        ccdc = _synthesis_ccdc(synth)
         # Use first product name as fallback key if CCDC is N/A
         if not ccdc:
             names = (synth or {}).get("productNames") or []
@@ -502,12 +1241,211 @@ def _find_best_add_match(gt_data: Dict, pr_add_steps: List[Tuple[int, Dict]]) ->
     
     for idx, (_, pr_data) in enumerate(pr_add_steps):
         pr_names = _extract_chemical_names_from_step(pr_data)
-        overlap = len(gt_names & pr_names)
+        _, _, overlap = _match_equivalent_values(
+            gt_names, pr_names, "addedChemical.names"
+        )
         if overlap > best_overlap:
             best_overlap = overlap
             best_idx = idx
     
     return best_idx, best_overlap
+
+
+def _find_best_synthesis_match(
+    gt_synth: Dict[str, Any],
+    pr_synths: List[Dict[str, Any]],
+    matched_pr_ids: Set[int],
+    *,
+    gt_synths: Optional[List[Dict[str, Any]]] = None,
+) -> Tuple[int, Optional[Dict[str, Any]]]:
+    """Return this GT row's globally assigned prediction when paper context exists.
+
+    A CCDC is a hard paper-level anchor only when it appears once in GT and
+    once in predictions. Shared or colliding CCDCs fall through to product
+    names and the default product-identity judge. A short product key such as
+    `vmot-2` or a bare compound index is also a paper-level anchor when it is
+    unique on both sides; this recovers empty-CCDC aliases the LLM fail-closes.
+    """
+    paper_gt = gt_synths if gt_synths is not None else [gt_synth]
+    if gt_synths is not None:
+        gt_index = next(
+            (
+                index
+                for index, candidate in enumerate(paper_gt)
+                if candidate is gt_synth
+            ),
+            -1,
+        )
+        if gt_index < 0:
+            gt_index = next(
+                (
+                    index
+                    for index, candidate in enumerate(paper_gt)
+                    if candidate == gt_synth
+                ),
+                -1,
+            )
+        if gt_index >= 0:
+            pred_index = _assign_synthesis_indices(paper_gt, pr_synths).get(gt_index)
+            if pred_index is None or pred_index in matched_pr_ids:
+                return -1, None
+            return pred_index, pr_synths[pred_index]
+
+    candidates = _synthesis_match_candidates(gt_synth, pr_synths, paper_gt)
+    candidates = [
+        candidate for candidate in candidates if candidate[1] not in matched_pr_ids
+    ]
+    if not candidates:
+        return -1, None
+
+    _, best_idx, best_synth = max(
+        candidates,
+        key=lambda candidate: (candidate[0], -candidate[1]),
+    )
+    return best_idx, best_synth
+
+
+def _synthesis_match_candidates(
+    gt_synth: Dict[str, Any],
+    pr_synths: List[Dict[str, Any]],
+    paper_gt: List[Dict[str, Any]],
+) -> List[Tuple[Tuple[int, ...], int, Dict[str, Any]]]:
+    """Build eligible prediction edges and a flat lexicographic score."""
+    gt_ccdc = _synthesis_ccdc(gt_synth)
+    gt_names = {
+        normalized
+        for name in (gt_synth or {}).get("productNames", []) or []
+        if (normalized := _normalize_product_name(name))
+    }
+    gt_type_names = _gt_step_names(gt_synth or {})
+    gt_ccdc_counts = _paper_ccdc_counts(paper_gt)
+    pred_ccdc_counts = _paper_ccdc_counts(pr_synths)
+    gt_label_counts = _paper_label_key_counts(paper_gt)
+    pred_label_counts = _paper_label_key_counts(pr_synths)
+    candidates: List[Tuple[Tuple[int, ...], int, Dict[str, Any]]] = []
+
+    for idx, pr_synth in enumerate(pr_synths):
+        if _prediction_reserved_for_another_gt(gt_synth, pr_synth, paper_gt):
+            continue
+        pr_ccdc = _synthesis_ccdc(pr_synth)
+        pr_names = {
+            normalized
+            for name in (pr_synth or {}).get("productNames", []) or []
+            if (normalized := _normalize_product_name(name))
+        }
+        if _has_conflicting_product_index(gt_synth, pr_synth):
+            continue
+        name_overlap = len(gt_names & pr_names)
+        identity_score = _synthesis_identity_score(gt_synth, pr_synth)
+        route_score = _synthesis_route_score(gt_synth, pr_synth)
+        gt_kind = _procedure_kind(gt_synth)
+        pred_kind = _procedure_kind(pr_synth)
+        if gt_kind and pred_kind and gt_kind != pred_kind:
+            continue
+        ccdc_match = bool(gt_ccdc and pr_ccdc == gt_ccdc)
+        ccdc_unique_anchor = int(
+            ccdc_match
+            and gt_ccdc_counts.get(gt_ccdc, 0) == 1
+            and pred_ccdc_counts.get(pr_ccdc, 0) == 1
+        )
+        label_unique_anchor = _unique_label_anchor(
+            gt_synth,
+            pr_synth,
+            left_counts=gt_label_counts,
+            right_counts=pred_label_counts,
+        )
+        name_related = bool(
+            name_overlap or identity_score[0] >= 1 or identity_score[1] >= 450
+        )
+        if not name_related and not ccdc_match and not label_unique_anchor:
+            continue
+
+        type_tp, type_fp, type_fn = _compare_steps(
+            gt_type_names,
+            _gt_step_names(pr_synth or {}),
+        )
+        candidates.append(
+            (
+                (
+                    ccdc_unique_anchor,
+                    label_unique_anchor,
+                    1,
+                    route_score[0],
+                    route_score[1],
+                    route_score[2],
+                    route_score[3],
+                    route_score[4],
+                    int(name_overlap > 0),
+                    int(identity_score[0] >= 1),
+                    identity_score[0],
+                    identity_score[1],
+                    identity_score[2],
+                    identity_score[3],
+                    type_tp,
+                    -(type_fp + type_fn),
+                ),
+                idx,
+                pr_synth,
+            )
+        )
+    return candidates
+
+
+def _assign_synthesis_indices(
+    gt_synths: List[Dict[str, Any]],
+    pr_synths: List[Dict[str, Any]],
+) -> Dict[int, int]:
+    """Globally maximize one-to-one synthesis pairing over a paper.
+
+    The route count in the benchmark is small (currently at most six), so an
+    exact bitmask dynamic program is simpler and more auditable than a greedy
+    assignment or an external Hungarian dependency.
+    """
+    edge_rows = [
+        {
+            pred_index: score
+            for score, pred_index, _pred in _synthesis_match_candidates(
+                gt_synth,
+                pr_synths,
+                gt_synths,
+            )
+        }
+        for gt_synth in gt_synths
+    ]
+    score_width = 16
+    zero_score = (0,) * score_width
+    memo: Dict[Tuple[int, int], Tuple[Tuple[int, ...], Tuple[int, ...]]] = {}
+
+    def add_scores(left: Tuple[int, ...], right: Tuple[int, ...]) -> Tuple[int, ...]:
+        return tuple(a + b for a, b in zip(left, right))
+
+    def solve(gt_index: int, used_mask: int) -> Tuple[Tuple[int, ...], Tuple[int, ...]]:
+        key = (gt_index, used_mask)
+        if key in memo:
+            return memo[key]
+        if gt_index >= len(gt_synths):
+            return zero_score, ()
+
+        tail_score, tail_assignment = solve(gt_index + 1, used_mask)
+        best = (tail_score, (-1,) + tail_assignment)
+        for pred_index in sorted(edge_rows[gt_index]):
+            bit = 1 << pred_index
+            if used_mask & bit:
+                continue
+            next_score, next_assignment = solve(gt_index + 1, used_mask | bit)
+            total_score = add_scores(edge_rows[gt_index][pred_index], next_score)
+            candidate = (total_score, (pred_index,) + next_assignment)
+            if candidate[0] > best[0]:
+                best = candidate
+        memo[key] = best
+        return best
+
+    _score, assignment = solve(0, 0)
+    return {
+        gt_index: pred_index
+        for gt_index, pred_index in enumerate(assignment)
+        if pred_index >= 0
+    }
 
 
 def score_steps_fine_grained(gt_obj: Any, pred_obj: Any, ignore_vessel: bool = False, skip_order: bool = False) -> Tuple[int, int, int, bool]:
@@ -528,8 +1466,8 @@ def score_steps_fine_grained(gt_obj: Any, pred_obj: Any, ignore_vessel: bool = F
 
     # Check for missing/N/A CCDC in prediction
     for synth in (pred_obj or {}).get("Synthesis", []) or []:
-        ccdc = str((synth or {}).get("productCCDCNumber") or "").strip()
-        if not ccdc or ccdc.lower() in ["n/a", "na", ""]:
+        ccdc = _synthesis_ccdc(synth)
+        if not ccdc:
             pred_missing_ccdc = True
             break
 
@@ -540,63 +1478,25 @@ def score_steps_fine_grained(gt_obj: Any, pred_obj: Any, ignore_vessel: bool = F
     # Track which pred syntheses have been matched
     matched_pr_ids: Set[int] = set()
     
-    # Match each GT synthesis to best pred synthesis using name priority + CCDC fallback
+    # Match each GT synthesis to the structurally closest unmatched prediction
+    # among candidates with an exact product-name or exact CCDC identity match.
+    # This prevents two procedures for the same product/CCDC (for example, a
+    # synthesis and a transformation) from being paired merely by list order.
     for gt_synth in gt_synths_all:
-        gt_ccdc = str((gt_synth or {}).get("productCCDCNumber") or "").strip()
+        gt_ccdc = _synthesis_ccdc(gt_synth)
         gt_names = [str(x) for x in (gt_synth or {}).get("productNames", []) or []]
-        
-        # Normalize CCDC
-        if gt_ccdc.lower() in ["n/a", "na", ""]:
-            gt_ccdc = ""
         
         # Get GT steps
         gt_steps: List[Tuple[str, Dict]] = []
         raw = (gt_synth or {}).get("steps", []) or []
         gt_steps.extend(_expand_add_steps(raw))
         
-        # Find best matching pred synthesis
-        best_pr_synth = None
-        best_pr_idx = -1
-        
-        # Try product name matching FIRST (prioritize product name over CCDC)
-        if gt_names:
-            gt_names_norm = [_normalize_product_name(n) for n in gt_names if _normalize_product_name(n)]
-            for idx, pr_synth in enumerate(pr_synths_all):
-                if idx in matched_pr_ids:
-                    continue
-                pr_names = [str(x) for x in (pr_synth or {})
-                            .get("productNames", []) or []]
-                pr_names_norm = [_normalize_product_name(n) for n in pr_names if _normalize_product_name(n)]
-                # ANY-to-ANY name match (exact or substring)
-                matched_by_name = False
-                for gt_n in gt_names_norm:
-                    if gt_n in pr_names_norm:
-                        matched_by_name = True
-                        break
-                    # Only allow substring matching if both names are reasonably long (>= 5 chars)
-                    # to avoid false matches like "i" matching "nanocapsule ii"
-                    for pr_n in pr_names_norm:
-                        if gt_n and len(gt_n) >= 5 and len(pr_n) >= 5 and (gt_n in pr_n or pr_n in gt_n):
-                            matched_by_name = True
-                            break
-                    if matched_by_name:
-                        break
-                if matched_by_name:
-                    best_pr_synth = pr_synth
-                    best_pr_idx = idx
-                    break
-        
-        # Fall back to CCDC matching only if no name match was found
-        if best_pr_synth is None and gt_ccdc:
-            for idx, pr_synth in enumerate(pr_synths_all):
-                if idx in matched_pr_ids:
-                    continue
-                pr_ccdc = str((pr_synth or {}).get("productCCDCNumber") or "").strip()
-                if pr_ccdc.lower() not in ["n/a", "na", ""] and pr_ccdc == gt_ccdc:
-                    # Found CCDC match
-                    best_pr_synth = pr_synth
-                    best_pr_idx = idx
-                    break
+        best_pr_idx, best_pr_synth = _find_best_synthesis_match(
+            gt_synth,
+            pr_synths_all,
+            matched_pr_ids,
+            gt_synths=gt_synths_all,
+        )
         
         # Get pred steps
         pr_steps: List[Tuple[str, Dict]] = []
@@ -765,7 +1665,7 @@ def _analyze_errors_by_field(gt_obj: Any, pr_obj: Any, ignore_vessel: bool = Fal
     """
     field_errors: Dict[str, Dict[str, int]] = {}
     detailed_errors: Dict[str, List[Dict[str, Any]]] = {}
-    vessel_fields = {"usedVesselName", "usedVesselType"}
+    vessel_fields = VESSEL_FIELDS
     
     def _track_field_error(field_name: str, error_type: str, count: int = 1, 
                           ccdc: str = "", step_idx: int = -1, step_type: str = "",
@@ -802,63 +1702,22 @@ def _analyze_errors_by_field(gt_obj: Any, pr_obj: Any, ignore_vessel: bool = Fal
     # Track which pred syntheses have been matched
     matched_pr_ids: Set[int] = set()
     
-    # Match each GT synthesis to best pred synthesis using name priority + CCDC fallback
+    # Use the same identity-and-structure pairing as the primary scorer.
     for gt_synth in gt_synths_all:
-        gt_ccdc = str((gt_synth or {}).get("productCCDCNumber") or "").strip()
+        gt_ccdc = _synthesis_ccdc(gt_synth)
         gt_names = [str(x) for x in (gt_synth or {}).get("productNames", []) or []]
-        
-        # Normalize CCDC
-        if gt_ccdc.lower() in ["n/a", "na", ""]:
-            gt_ccdc = ""
         
         # Get GT steps
         gt_steps: List[Tuple[str, Dict]] = []
         raw = (gt_synth or {}).get("steps", []) or []
         gt_steps.extend(_expand_add_steps(raw))
         
-        # Find best matching pred synthesis
-        best_pr_synth = None
-        best_pr_idx = -1
-        
-        # Try product name matching FIRST (prioritize product name over CCDC)
-        if gt_names:
-            gt_names_norm = [_normalize_product_name(n) for n in gt_names if _normalize_product_name(n)]
-            for idx, pr_synth in enumerate(pr_synths_all):
-                if idx in matched_pr_ids:
-                    continue
-                pr_names = [str(x) for x in (pr_synth or {})
-                            .get("productNames", []) or []]
-                pr_names_norm = [_normalize_product_name(n) for n in pr_names if _normalize_product_name(n)]
-                # ANY-to-ANY name match (exact or substring)
-                matched_by_name = False
-                for gt_n in gt_names_norm:
-                    if gt_n in pr_names_norm:
-                        matched_by_name = True
-                        break
-                    # Only allow substring matching if both names are reasonably long (>= 5 chars)
-                    # to avoid false matches like "i" matching "nanocapsule ii"
-                    for pr_n in pr_names_norm:
-                        if gt_n and len(gt_n) >= 5 and len(pr_n) >= 5 and (gt_n in pr_n or pr_n in gt_n):
-                            matched_by_name = True
-                            break
-                    if matched_by_name:
-                        break
-                if matched_by_name:
-                    best_pr_synth = pr_synth
-                    best_pr_idx = idx
-                    break
-        
-        # Fall back to CCDC matching only if no name match was found
-        if best_pr_synth is None and gt_ccdc:
-            for idx, pr_synth in enumerate(pr_synths_all):
-                if idx in matched_pr_ids:
-                    continue
-                pr_ccdc = str((pr_synth or {}).get("productCCDCNumber") or "").strip()
-                if pr_ccdc.lower() not in ["n/a", "na", ""] and pr_ccdc == gt_ccdc:
-                    # Found CCDC match
-                    best_pr_synth = pr_synth
-                    best_pr_idx = idx
-                    break
+        best_pr_idx, best_pr_synth = _find_best_synthesis_match(
+            gt_synth,
+            pr_synths_all,
+            matched_pr_ids,
+            gt_synths=gt_synths_all,
+        )
         
         # Get pred steps
         pr_steps: List[Tuple[str, Dict]] = []
@@ -1017,22 +1876,26 @@ def _count_field_errors(gt_data: Dict, pr_data: Dict, step_type: str, ignore_ves
                     if _is_valid(amount):
                         pr_amounts.add(_normalize(amount))
             
-            # Track name errors
-            fn_names = len(gt_names - pr_names)
+            # Track name errors using the same equivalence as primary scoring.
+            unmatched_gt_names, _, _ = _match_equivalent_values(
+                gt_names, pr_names, f"{key}.names"
+            )
+            fn_names = len(unmatched_gt_names)
             if fn_names > 0:
-                missing_names = gt_names - pr_names
+                missing_names = unmatched_gt_names
                 track_fn(f"{key}.names", "fn", fn_names, ccdc, step_idx, step_type, 
                         list(missing_names), list(pr_names))
             
             # Track amount errors
-            fn_amounts = len(gt_amounts - pr_amounts)
-            fp_amounts = len(pr_amounts - gt_amounts)
+            missing_amounts, extra_amounts, _ = _match_equivalent_values(
+                gt_amounts, pr_amounts, f"{key}.amounts"
+            )
+            fn_amounts = len(missing_amounts)
+            fp_amounts = len(extra_amounts)
             if fn_amounts > 0:
-                missing_amounts = gt_amounts - pr_amounts
                 track_fn(f"{key}.amounts", "fn", fn_amounts, ccdc, step_idx, step_type,
                         list(missing_amounts), list(pr_amounts))
             if fp_amounts > 0:
-                extra_amounts = pr_amounts - gt_amounts
                 track_fn(f"{key}.amounts", "fp", fp_amounts, ccdc, step_idx, step_type,
                         list(gt_amounts), list(extra_amounts))
         
@@ -1048,7 +1911,8 @@ def _count_field_errors(gt_data: Dict, pr_data: Dict, step_type: str, ignore_ves
                     track_fn(key, "fp", 1, ccdc, step_idx, step_type, gt_val, pr_val)
         elif isinstance(gt_val, (bool, int, float)) or isinstance(pr_val, (bool, int, float)):
             if gt_val is not None and pr_val is not None:
-                if gt_val != pr_val:
+                bool_mismatch = isinstance(gt_val, bool) != isinstance(pr_val, bool)
+                if bool_mismatch or gt_val != pr_val:
                     track_fn(key, "fn", 1, ccdc, step_idx, step_type, gt_val, pr_val)
                     track_fn(key, "fp", 1, ccdc, step_idx, step_type, gt_val, pr_val)
             elif gt_val is not None:
@@ -1057,7 +1921,7 @@ def _count_field_errors(gt_data: Dict, pr_data: Dict, step_type: str, ignore_ves
                 track_fn(key, "fp", 1, ccdc, step_idx, step_type, None, pr_val)
         else:
             if gt_val is not None and pr_val is not None:
-                if gt_val != pr_val:
+                if not _values_equivalent(key, gt_val, pr_val):
                     track_fn(key, "fn", 1, ccdc, step_idx, step_type, gt_val, pr_val)
                     track_fn(key, "fp", 1, ccdc, step_idx, step_type, gt_val, pr_val)
             elif gt_val is not None:
@@ -1071,7 +1935,7 @@ def _collect_step_field_differences(gt_synths: Dict[str, List[Dict]], pr_synths:
     all_ccdcs: Set[str] = set(gt_synths.keys()) | set(pr_synths.keys())
     
     # Fields to skip when ignore_vessel is True
-    vessel_fields = {"usedVesselName", "usedVesselType"}
+    vessel_fields = VESSEL_FIELDS
 
     def _norm_ph(v: Any) -> str:
         s = str(v if v is not None else "").strip().lower()
@@ -1115,9 +1979,15 @@ def _collect_step_field_differences(gt_synths: Dict[str, List[Dict]], pr_synths:
                     return names, amounts
                 gt_names, gt_amts = _collect(gt_list)
                 pr_names, pr_amts = _collect(pr_list)
-                miss_names = sorted(gt_names - pr_names)
-                miss_amts = sorted(gt_amts - pr_amts)
-                extra_amts = sorted(pr_amts - gt_amts)
+                unmatched_gt_names, _, _ = _match_equivalent_values(
+                    gt_names, pr_names, f"{list_key}.names"
+                )
+                unmatched_gt_amts, unmatched_pr_amts, _ = _match_equivalent_values(
+                    gt_amts, pr_amts, f"{list_key}.amounts"
+                )
+                miss_names = sorted(unmatched_gt_names)
+                miss_amts = sorted(unmatched_gt_amts)
+                extra_amts = sorted(unmatched_pr_amts)
                 # Only report differences that matter: skip extra_names since they're ignored in scoring
                 if miss_names or miss_amts or extra_amts:
                     parts: List[str] = []
@@ -1144,10 +2014,14 @@ def _collect_step_field_differences(gt_synths: Dict[str, List[Dict]], pr_synths:
             elif isinstance(g, (bool, int, float)) or isinstance(p, (bool, int, float)):
                 g_n = str(g).lower() if g is not None else ""
                 p_n = str(p).lower() if p is not None else ""
+                equivalent = type(g) is type(p) and g == p
             else:
                 g_n = _normalize(g)
                 p_n = _normalize(p)
-            if g_n != p_n:
+                equivalent = _values_equivalent(k, g, p)
+            if k == "targetPH":
+                equivalent = g_n == p_n
+            if not equivalent:
                 if g_n or p_n:
                     p_display = p_n if p_n else "(missing)"
                     g_display = g_n if g_n else "(missing)"
@@ -1318,8 +2192,8 @@ def _get_iter3_results(hash_value: str, gt_obj: Any, pred_obj: Any) -> Dict[str,
     
     # Add entity names from GT
     for synth in (gt_obj or {}).get("Synthesis", []) or []:
-        ccdc = str((synth or {}).get("productCCDCNumber") or "").strip()
-        if ccdc and ccdc.lower() not in ["n/a", "na", ""]:
+        ccdc = _synthesis_ccdc(synth)
+        if ccdc:
             if ccdc not in ccdc_to_names:
                 ccdc_to_names[ccdc] = []
             for name in (synth or {}).get("productNames", []) or []:
@@ -1330,8 +2204,8 @@ def _get_iter3_results(hash_value: str, gt_obj: Any, pred_obj: Any) -> Dict[str,
     
     # Add entity names from prediction
     for synth in (pred_obj or {}).get("Synthesis", []) or []:
-        ccdc = str((synth or {}).get("productCCDCNumber") or "").strip()
-        if ccdc and ccdc.lower() not in ["n/a", "na", ""]:
+        ccdc = _synthesis_ccdc(synth)
+        if ccdc:
             if ccdc not in ccdc_to_names:
                 ccdc_to_names[ccdc] = []
             for name in (synth or {}).get("productNames", []) or []:
@@ -1417,8 +2291,8 @@ def _get_entity_text_files(hash_value: str, pred_obj: Any) -> Dict[str, str]:
             if name:
                 entity_names.add(str(name).strip())
         # Also try CCDC if available
-        ccdc = str((synth or {}).get("productCCDCNumber") or "").strip()
-        if ccdc and ccdc.lower() not in ["n/a", "na", ""]:
+        ccdc = _synthesis_ccdc(synth)
+        if ccdc:
             entity_names.add(ccdc)
     
     # Look for entity_text_*.txt files
@@ -1499,7 +2373,9 @@ def _find_gt_file_new(doi: str) -> Optional[Path]:
     return None
 
 
-def evaluate_current(ignore_vessel: bool = False, short_mode: bool = False, skip_order: bool = False, ignore_mode: bool = False, use_new_gt: bool = False, use_full_gt: bool = False) -> None:
+def evaluate_current(ignore_vessel: bool = False, short_mode: bool = False, skip_order: bool = False, ignore_mode: bool = False, use_new_gt: bool = False, use_full_gt: bool = False, equivalence_config: StepEquivalenceConfig = StepEquivalenceConfig(), hash_filter: Set[str] | None = None, correct_ccdc_by_name: bool = False, pred_root: Path | None = None, out_root: Path | None = None) -> None:
+    global _ACTIVE_STEP_EQUIVALENCE
+    _ACTIVE_STEP_EQUIVALENCE = StepEquivalenceJudge(equivalence_config)
     if use_full_gt:
         GT_ROOT = Path("full_ground_truth/steps")
         OUT_ROOT = Path("evaluation/data/full_result/steps")
@@ -1524,11 +2400,17 @@ def evaluate_current(ignore_vessel: bool = False, short_mode: bool = False, skip
             "10.1039_C8DT02580K.json",
             "10.1039_D3QI01501G.json"
         }
-    RES_ROOT = Path("evaluation/data/merged_tll")
+    if correct_ccdc_by_name:
+        OUT_ROOT = OUT_ROOT.parent / f"{OUT_ROOT.name}_ccdc_corrected"
+    if out_root is not None:
+        OUT_ROOT = Path(out_root)
+    RES_ROOT = Path(pred_root) if pred_root is not None else Path("evaluation/data/merged_tll")
     OUT_ROOT.mkdir(parents=True, exist_ok=True)
 
     hash_to_doi = hash_map_reverse(Path("data/doi_to_hash.json"))
     hashes = sorted([p.name for p in RES_ROOT.iterdir() if p.is_dir()])
+    if hash_filter:
+        hashes = [value for value in hashes if value in hash_filter]
 
     rows_overall: List[Tuple[str, Tuple[int, int, int]]] = []
     rows_types_overall: List[Tuple[str, Tuple[int, int, int]]] = []
@@ -1576,6 +2458,8 @@ def evaluate_current(ignore_vessel: bool = False, short_mode: bool = False, skip
 
         gt_obj = json.loads(gt_path.read_text(encoding="utf-8"))
         pred_obj = json.loads(res_path.read_text(encoding="utf-8"))
+        if correct_ccdc_by_name:
+            pred_obj = _correct_prediction_ccdc_by_product_name(gt_obj, pred_obj)
         
         # Apply ignore_mode transformations if enabled
         if ignore_mode:
@@ -1595,110 +2479,69 @@ def evaluate_current(ignore_vessel: bool = False, short_mode: bool = False, skip
         gt_normalized = normalize_json_structure(gt_obj)
         pred_normalized = normalize_json_structure(pred_obj)
 
+        _prefetch_score_equivalence(
+            gt_normalized,
+            pred_normalized,
+            ignore_vessel=effective_ignore_vessel,
+            skip_order=skip_order,
+        )
         tp, fp, fn, pred_missing_ccdc = score_steps_fine_grained(gt_normalized, pred_normalized, effective_ignore_vessel, skip_order)
         # Step-type-only scoring
-        ttp, tfp, tfn = _type_counts_for_objs(gt_normalized, pred_normalized)
+        ttp, tfp, tfn = _type_counts_for_objs(
+            gt_normalized,
+            pred_normalized,
+            skip_order=skip_order,
+        )
         if pred_missing_ccdc:
             files_with_missing_ccdc.append(f"steps/{hv}.json")
 
         rows_overall.append((hv, (tp, fp, fn)))
         rows_types_overall.append((hv, (ttp, tfp, tfn)))
         
-        # Compute per-entity step-type-only scores for this hash
-        matched_gt_ids_entity: Set[int] = set()
-        for pred_synth in (pred_obj or {}).get("Synthesis", []) or []:
-            pred_ccdc = _normalize_ccdc(str((pred_synth or {}).get("productCCDCNumber") or "").strip())
-            if pred_ccdc == "":
-                pred_ccdc = ""
-            
-            pred_types = _gt_step_names(pred_synth)
-            
-            gt_synth = None
-            # Try name-based matching FIRST (prioritize product name over CCDC)
-            pred_names = [str(x) for x in (pred_synth or {}).get("productNames", []) or []]
-            if pred_names:
-                # Normalize ALL prediction names
-                pred_names_norm = [_normalize_product_name(n) for n in pred_names if _normalize_product_name(n)]
-                
-                name_candidates = []
-                for candidate in (gt_obj or {}).get("Synthesis", []) or []:
-                    if id(candidate) in matched_gt_ids_entity:
-                        continue
-                    cand_names = [str(x) for x in (candidate or {}).get("productNames", []) or []]
-                    cand_names_norm = [_normalize_product_name(n) for n in cand_names if _normalize_product_name(n)]
-                    
-                    # Check if ANY pred name matches ANY candidate name
-                    matched = False
-                    for pred_name_norm in pred_names_norm:
-                        if pred_name_norm in cand_names_norm:
-                            matched = True
-                            break
-                        # Only allow substring matching if both names are reasonably long (>= 5 chars)
-                        # to avoid false matches like "i" matching "nanocapsule ii"
-                        for cn in cand_names_norm:
-                            if (pred_name_norm and len(pred_name_norm) >= 5 and len(cn) >= 5 and 
-                                (pred_name_norm in cn or cn in pred_name_norm)):
-                                matched = True
-                                break
-                        if matched:
-                            break
-                    
-                    if matched:
-                        name_candidates.append(candidate)
-                
-                if len(name_candidates) == 1:
-                    gt_synth = name_candidates[0]
-                    matched_gt_ids_entity.add(id(gt_synth))
-                elif len(name_candidates) > 1:
-                    best_match = None
-                    best_score = -1
-                    for candidate in name_candidates:
-                        cand_types = _gt_step_names(candidate)
-                        matches, _, _ = _compare_steps(cand_types, pred_types)
-                        if matches > best_score:
-                            best_score = matches
-                            best_match = candidate
-                    if best_match is not None:
-                        gt_synth = best_match
-                        matched_gt_ids_entity.add(id(best_match))
-            
-            # Fall back to CCDC matching only if no name match was found
-            if gt_synth is None and pred_ccdc:
-                ccdc_candidates = []
-                for candidate in (gt_obj or {}).get("Synthesis", []) or []:
-                    if id(candidate) in matched_gt_ids_entity:
-                        continue
-                    gt_ccdc = _normalize_ccdc(str((candidate or {}).get("productCCDCNumber") or "").strip())
-                    if gt_ccdc != "" and gt_ccdc == pred_ccdc:
-                        ccdc_candidates.append(candidate)
-                
-                if len(ccdc_candidates) == 1:
-                    gt_synth = ccdc_candidates[0]
-                    matched_gt_ids_entity.add(id(gt_synth))
-                elif len(ccdc_candidates) > 1:
-                    best_match = None
-                    best_score = -1
-                    for candidate in ccdc_candidates:
-                        cand_types = _gt_step_names(candidate)
-                        matches, _, _ = _compare_steps(cand_types, pred_types)
-                        if matches > best_score:
-                            best_score = matches
-                            best_match = candidate
-                    if best_match is not None:
-                        gt_synth = best_match
-                        matched_gt_ids_entity.add(id(best_match))
-            
-            if gt_synth:
-                gt_types = _gt_step_names(gt_synth)
-                e_tp, e_fp, e_fn = _compare_steps(gt_types, pred_types)
+        # Compute per-entity scores from the same identity-first pairing used above.
+        gt_entities = (gt_normalized or {}).get("Synthesis", []) or []
+        pred_entities = (pred_normalized or {}).get("Synthesis", []) or []
+        matched_pred_entity_indices: Set[int] = set()
+        for gt_synth in gt_entities:
+            pred_index, pred_synth = _find_best_synthesis_match(
+                gt_synth,
+                pred_entities,
+                matched_pred_entity_indices,
+                gt_synths=gt_entities,
+            )
+            gt_types = _gt_step_names(gt_synth)
+            gt_names = [str(x) for x in (gt_synth.get("productNames", []) or [])]
+            gt_ccdc = _synthesis_ccdc(gt_synth)
+            if pred_synth is None:
+                entity_label = (
+                    gt_names[0] if gt_names else (gt_ccdc or "<unnamed>")
+                ) + " (GT only)"
+                pred_types: List[str] = []
+                e_tp, e_fp, e_fn = 0, 0, len(gt_types)
+                missing_gt_ccdcs.append({
+                    "doi": doi,
+                    "hash": hv,
+                    "gt_file": gt_path.as_posix(),
+                    "pred_file": res_path.as_posix(),
+                    "ccdc": gt_ccdc or "N/A",
+                    "entity_names": gt_names,
+                    "num_steps": len(gt_types),
+                })
             else:
-                gt_types = []
-                e_tp = 0
-                e_fp = len(pred_types)
-                e_fn = 0
-            
-            # Prioritize product names over CCDC for display to show what was actually matched
-            entity_label = pred_names[0] if pred_names else (pred_ccdc if pred_ccdc else "<unnamed>")
+                matched_pred_entity_indices.add(pred_index)
+                pred_types = _gt_step_names(pred_synth)
+                pred_names = [
+                    str(x) for x in (pred_synth.get("productNames", []) or [])
+                ]
+                pred_ccdc = _synthesis_ccdc(pred_synth)
+                entity_label = (
+                    pred_names[0] if pred_names else (pred_ccdc or "<unnamed>")
+                )
+                e_tp, e_fp, e_fn = _compare_type_lists(
+                    gt_types,
+                    pred_types,
+                    skip_order=skip_order,
+                )
             all_entity_scores.append({
                 "doi": doi,
                 "hash": hv,
@@ -1709,39 +2552,27 @@ def evaluate_current(ignore_vessel: bool = False, short_mode: bool = False, skip
                 "fp": e_fp,
                 "fn": e_fn,
             })
-        
-        # Handle unmatched GT syntheses
-        for gt_synth in (gt_obj or {}).get("Synthesis", []) or []:
-            if id(gt_synth) not in matched_gt_ids_entity:
-                gt_types_unmatched = _gt_step_names(gt_synth)
-                gt_ccdc_unmatched = _normalize_ccdc(str((gt_synth or {}).get("productCCDCNumber") or "").strip())
-                if gt_ccdc_unmatched == "":
-                    gt_ccdc_unmatched = ""
-                gt_names_unmatched = [str(x) for x in (gt_synth.get("productNames", []) or [])]
-                # Prioritize product names over CCDC for display
-                entity_label_unmatched = gt_names_unmatched[0] if gt_names_unmatched else (gt_ccdc_unmatched if gt_ccdc_unmatched else "<unnamed>")
-                
-                all_entity_scores.append({
-                    "doi": doi,
-                    "hash": hv,
-                    "entity": entity_label_unmatched + " (GT only)",
-                    "gt_len": len(gt_types_unmatched),
-                    "pred_len": 0,
-                    "tp": 0,
-                    "fp": 0,
-                    "fn": len(gt_types_unmatched),
-                })
-                
-                # Record this as a missing GT CCDC/entity
-                missing_gt_ccdcs.append({
-                    "doi": doi,
-                    "hash": hv,
-                    "gt_file": gt_path.as_posix(),
-                    "pred_file": res_path.as_posix(),
-                    "ccdc": gt_ccdc_unmatched if gt_ccdc_unmatched else "N/A",
-                    "entity_names": gt_names_unmatched,
-                    "num_steps": len(gt_types_unmatched),
-                })
+
+        for pred_index, pred_synth in enumerate(pred_entities):
+            if pred_index in matched_pred_entity_indices:
+                continue
+            pred_types = _gt_step_names(pred_synth)
+            pred_names = [
+                str(x) for x in (pred_synth.get("productNames", []) or [])
+            ]
+            pred_ccdc = _synthesis_ccdc(pred_synth)
+            all_entity_scores.append({
+                "doi": doi,
+                "hash": hv,
+                "entity": (
+                    pred_names[0] if pred_names else (pred_ccdc or "<unnamed>")
+                ) + " (Pred only)",
+                "gt_len": 0,
+                "pred_len": len(pred_types),
+                "tp": 0,
+                "fp": len(pred_types),
+                "fn": 0,
+            })
 
         # Build GT-to-Pred matching map for detailed reporting
         # When multiple GT syntheses have the same CCDC, match each to best prediction
@@ -1750,10 +2581,10 @@ def evaluate_current(ignore_vessel: bool = False, short_mode: bool = False, skip
         
         # Create GT-to-Pred matching: for each GT synthesis, find best matching pred
         gt_to_pred_matches: List[Tuple[Dict, Optional[Dict], str]] = []  # (gt_synth, pred_synth, match_key)
-        matched_pred_ids: Set[int] = set()
+        matched_pred_indices: Set[int] = set()
         
         for gt_synth in gt_synths_flat:
-            gt_ccdc = _normalize_ccdc(str((gt_synth or {}).get("productCCDCNumber") or "").strip())
+            gt_ccdc = _synthesis_ccdc(gt_synth)
             gt_names = [str(x) for x in (gt_synth.get("productNames", []) or [])]
             
             # Normalize CCDC
@@ -1765,64 +2596,21 @@ def evaluate_current(ignore_vessel: bool = False, short_mode: bool = False, skip
             else:
                 match_key = gt_ccdc
             
-            # Get GT step types for matching
-            gt_steps_raw = (gt_synth or {}).get("steps", []) or []
-            gt_types = [t for (t, _d) in _expand_add_steps(gt_steps_raw)]
-            
-            # Find best matching pred synthesis
-            best_pred = None
-            best_score = -1
-            
-            for pred_synth in pr_synths_flat:
-                if id(pred_synth) in matched_pred_ids:
-                    continue
-                
-                pred_ccdc = _normalize_ccdc(str((pred_synth or {}).get("productCCDCNumber") or "").strip())
-                pred_names = [str(x) for x in (pred_synth.get("productNames", []) or [])]
-                
-                # Check if CCDCs match
-                ccdc_match = False
-                if gt_ccdc and pred_ccdc:
-                    ccdc_match = (gt_ccdc == pred_ccdc)
-                
-                # Check if ANY-to-ANY product names match (normalized)
-                name_match = False
-                gt_names_norm = [_normalize_product_name(n) for n in gt_names if _normalize_product_name(n)]
-                pred_names_norm = [_normalize_product_name(n) for n in pred_names if _normalize_product_name(n)]
-                if gt_names_norm and pred_names_norm:
-                    for gn in gt_names_norm:
-                        if gn in pred_names_norm:
-                            name_match = True
-                            break
-                        for pn in pred_names_norm:
-                            if gn and (gn in pn or pn in gn):
-                                name_match = True
-                                break
-                        if name_match:
-                            break
-                
-                # Only consider this pred if CCDC or name matches
-                if not (ccdc_match or name_match):
-                    continue
-                
-                # Score the match based on step types
-                pred_steps_raw = (pred_synth or {}).get("steps", []) or []
-                pred_types = [t for (t, _d) in _expand_add_steps(pred_steps_raw)]
-                matches, _, _ = _compare_steps(gt_types, pred_types)
-                
-                if matches > best_score:
-                    best_score = matches
-                    best_pred = pred_synth
-            
+            best_pred_index, best_pred = _find_best_synthesis_match(
+                gt_synth,
+                pr_synths_flat,
+                matched_pred_indices,
+                gt_synths=gt_synths_flat,
+            )
             if best_pred is not None:
-                matched_pred_ids.add(id(best_pred))
+                matched_pred_indices.add(best_pred_index)
             
             gt_to_pred_matches.append((gt_synth, best_pred, match_key))
         
         # Add unmatched predictions
-        for pred_synth in pr_synths_flat:
-            if id(pred_synth) not in matched_pred_ids:
-                pred_ccdc = _normalize_ccdc(str((pred_synth or {}).get("productCCDCNumber") or "").strip())
+        for pred_index, pred_synth in enumerate(pr_synths_flat):
+            if pred_index not in matched_pred_indices:
+                pred_ccdc = _synthesis_ccdc(pred_synth)
                 pred_names = [str(x) for x in (pred_synth.get("productNames", []) or [])]
                 
                 if not pred_ccdc:
@@ -1928,8 +2716,11 @@ def evaluate_current(ignore_vessel: bool = False, short_mode: bool = False, skip
         fp_keys = sorted(pr_keys - gt_keys)
         gt_names = _collect_step_names_union([s for lst in gt_synths.values() for s in lst])
         pr_names = _collect_step_names_union([s for lst in pr_synths.values() for s in lst])
-        fn_names = sorted(gt_names - pr_names)
-        fp_names = sorted(pr_names - gt_names)
+        unmatched_gt_names, unmatched_pr_names, _ = _match_equivalent_values(
+            gt_names, pr_names, "chemicalName"
+        )
+        fn_names = sorted(unmatched_gt_names)
+        fp_names = sorted(unmatched_pr_names)
         lines.append("## Differences\n\n")
         lines.append(f"Keys (Prediction vs GT): {', '.join(sorted(pr_keys))} - {', '.join(sorted(gt_keys))}\n")
         lines.append(f"FN (missing keys): {', '.join(fn_keys) if fn_keys else 'None'}\n")
@@ -2349,7 +3140,9 @@ def evaluate_current(ignore_vessel: bool = False, short_mode: bool = False, skip
             print(f"  Generated error details: {output_file.resolve()}")
 
 
-def evaluate_previous(use_anchored: bool = True, ignore_vessel: bool = False, short_mode: bool = False, skip_order: bool = False, ignore_mode: bool = False, use_new_gt: bool = False, use_full_gt: bool = False) -> None:
+def evaluate_previous(use_anchored: bool = True, ignore_vessel: bool = False, short_mode: bool = False, skip_order: bool = False, ignore_mode: bool = False, use_new_gt: bool = False, use_full_gt: bool = False, equivalence_config: StepEquivalenceConfig = StepEquivalenceConfig()) -> None:
+    global _ACTIVE_STEP_EQUIVALENCE
+    _ACTIVE_STEP_EQUIVALENCE = StepEquivalenceJudge(equivalence_config)
     if use_full_gt:
         GT_ROOT = Path("full_ground_truth/steps")
         OUT_ROOT = Path("evaluation/data/full_result/steps_previous")
@@ -2428,7 +3221,11 @@ def evaluate_previous(use_anchored: bool = True, ignore_vessel: bool = False, sh
 
         tp, fp, fn, pred_missing_ccdc = score_steps_fine_grained(gt_normalized, pred_normalized, effective_ignore_vessel, skip_order)
         # Step-type-only scoring
-        ttp, tfp, tfn = _type_counts_for_objs(gt_normalized, pred_normalized)
+        ttp, tfp, tfn = _type_counts_for_objs(
+            gt_normalized,
+            pred_normalized,
+            skip_order=skip_order,
+        )
         if pred_missing_ccdc:
             files_with_missing_ccdc.append(f"steps/{doi}.json")
         
@@ -2441,7 +3238,7 @@ def evaluate_previous(use_anchored: bool = True, ignore_vessel: bool = False, sh
         matched_gt_ids_entity: Set[int] = set()
         
         for pred_synth in (pred_obj or {}).get("Synthesis", []) or []:
-            pred_ccdc = _normalize_ccdc(str((pred_synth or {}).get("productCCDCNumber") or "").strip())
+            pred_ccdc = _synthesis_ccdc(pred_synth)
             if pred_ccdc == "":
                 pred_ccdc = ""
             
@@ -2504,7 +3301,7 @@ def evaluate_previous(use_anchored: bool = True, ignore_vessel: bool = False, sh
                 for candidate in (gt_obj or {}).get("Synthesis", []) or []:
                     if id(candidate) in matched_gt_ids_entity:
                         continue
-                    gt_ccdc = _normalize_ccdc(str((candidate or {}).get("productCCDCNumber") or "").strip())
+                    gt_ccdc = _synthesis_ccdc(candidate)
                     if gt_ccdc != "" and gt_ccdc == pred_ccdc:
                         ccdc_candidates.append(candidate)
                 
@@ -2556,7 +3353,7 @@ def evaluate_previous(use_anchored: bool = True, ignore_vessel: bool = False, sh
                 gt_types_unmatched = _gt_step_names(gt_synth)
                 
                 # Get GT CCDC for display
-                gt_ccdc_unmatched = _normalize_ccdc(str((gt_synth or {}).get("productCCDCNumber") or "").strip())
+                gt_ccdc_unmatched = _synthesis_ccdc(gt_synth)
                 if gt_ccdc_unmatched == "":
                     gt_ccdc_unmatched = ""
                 gt_names_unmatched = [str(x) for x in (gt_synth.get("productNames", []) or [])]
@@ -2597,7 +3394,7 @@ def evaluate_previous(use_anchored: bool = True, ignore_vessel: bool = False, sh
         matched_pred_ids: Set[int] = set()
         
         for gt_synth in gt_synths_flat:
-            gt_ccdc = _normalize_ccdc(str((gt_synth or {}).get("productCCDCNumber") or "").strip())
+            gt_ccdc = _synthesis_ccdc(gt_synth)
             gt_names = [str(x) for x in (gt_synth.get("productNames", []) or [])]
             
             # Normalize CCDC
@@ -2621,7 +3418,7 @@ def evaluate_previous(use_anchored: bool = True, ignore_vessel: bool = False, sh
                 if id(pred_synth) in matched_pred_ids:
                     continue
                 
-                pred_ccdc = _normalize_ccdc(str((pred_synth or {}).get("productCCDCNumber") or "").strip())
+                pred_ccdc = _synthesis_ccdc(pred_synth)
                 pred_names = [str(x) for x in (pred_synth.get("productNames", []) or [])]
                 
                 # Check if CCDCs match
@@ -2666,7 +3463,7 @@ def evaluate_previous(use_anchored: bool = True, ignore_vessel: bool = False, sh
         # Add unmatched predictions
         for pred_synth in pr_synths_flat:
             if id(pred_synth) not in matched_pred_ids:
-                pred_ccdc = _normalize_ccdc(str((pred_synth or {}).get("productCCDCNumber") or "").strip())
+                pred_ccdc = _synthesis_ccdc(pred_synth)
                 pred_names = [str(x) for x in (pred_synth.get("productNames", []) or [])]
                 
                 if not pred_ccdc:
@@ -2789,8 +3586,11 @@ def evaluate_previous(use_anchored: bool = True, ignore_vessel: bool = False, sh
         fp_keys = sorted(pr_keys - gt_keys)
         gt_names = _collect_step_names_union([s for lst in gt_synths.values() for s in lst])
         pr_names = _collect_step_names_union([s for lst in pr_synths.values() for s in lst])
-        fn_names = sorted(gt_names - pr_names)
-        fp_names = sorted(pr_names - gt_names)
+        unmatched_gt_names, unmatched_pr_names, _ = _match_equivalent_values(
+            gt_names, pr_names, "chemicalName"
+        )
+        fn_names = sorted(unmatched_gt_names)
+        fp_names = sorted(unmatched_pr_names)
         lines.append("## Differences\n\n")
         lines.append(f"Keys (Prediction vs GT): {', '.join(sorted(pr_keys))} - {', '.join(sorted(gt_keys))}\n")
         lines.append(f"FN (missing keys): {', '.join(fn_keys) if fn_keys else 'None'}\n")
@@ -3332,16 +4132,104 @@ def main() -> None:
     parser.add_argument("--ignore", action="store_true", help="Ignore usedVesselName in scoring, filter out H4PBPTA product from comparison")
     parser.add_argument("--new", action="store_true", help="Use newer ground truth from newer_ground_truth_gao/prepared/steps, newer_ground_truth_lu/steps, and newer_ground_truth_sun/prepared/steps folders")
     parser.add_argument("--full", action="store_true", help="Use full_ground_truth/steps containing all ground truth files, output to evaluation/data/full_result/ (mutually exclusive with --new)")
+    parser.add_argument(
+        "--hash",
+        action="append",
+        dest="hashes",
+        help="Evaluate only this hash; repeat for multiple hashes",
+    )
+    parser.add_argument(
+        "--correct-ccdc-by-name",
+        action="store_true",
+        help="Correct prediction CCDC anchors from uniquely matched product names",
+    )
+    parser.add_argument(
+        "--llm-synonyms",
+        action="store_true",
+        help="Enable cached strict LLM equivalence for eligible step string fields",
+    )
+    parser.add_argument(
+        "--llm-synonym-model",
+        default="gpt-4o",
+        help="Model used by the step field equivalence judge",
+    )
+    parser.add_argument(
+        "--llm-synonym-cache-dir",
+        type=Path,
+        default=Path("evaluation/cache/step_equivalence_judge"),
+        help="Persistent per-pair step field equivalence cache",
+    )
+    parser.add_argument(
+        "--llm-synonyms-required",
+        action="store_true",
+        help="Fail scoring if a step field equivalence judgement cannot be validated",
+    )
+    parser.add_argument(
+        "--llm-synonym-batch-size",
+        type=int,
+        default=40,
+        help="Step field pairs per equivalence LLM call (default 40)",
+    )
+    parser.add_argument(
+        "--llm-synonym-workers",
+        type=int,
+        default=16,
+        help="Parallel step-equivalence LLM chunk workers (default 16)",
+    )
+    parser.add_argument(
+        "--llm-fast-match",
+        action="store_true",
+        help="Enable gpt-4o rescue for quantity-in-name chemical fields",
+    )
+    parser.add_argument(
+        "--no-llm-product-match",
+        action="store_true",
+        help="Disable the default LLM synthesis pairing used when a CCDC is not unique",
+    )
+    parser.add_argument(
+        "--llm-product-match-model",
+        default="gpt-4o",
+        help="Model used by the default synthesis product-identity judge",
+    )
+    parser.add_argument(
+        "--llm-fast-match-model",
+        default="gpt-4o",
+        help="Model used by the fast chemical-name species match",
+    )
+    parser.add_argument(
+        "--llm-fast-match-cache-dir",
+        type=Path,
+        default=Path("evaluation/cache/fast_field_match_judge"),
+        help="Persistent cache for fast chemical-name species matches",
+    )
+    parser.add_argument("--pred-root", type=Path, default=None, help="Merged prediction root (default evaluation/data/merged_tll)")
+    parser.add_argument("--out-root", type=Path, default=None, help="Write step reports here")
     args = parser.parse_args()
     
     # Check for mutually exclusive arguments
     if args.new and args.full:
         parser.error("--new and --full are mutually exclusive")
 
+    equivalence_config = StepEquivalenceConfig(
+        enabled=args.llm_synonyms,
+        model=args.llm_synonym_model,
+        cache_dir=args.llm_synonym_cache_dir,
+        required=args.llm_synonyms_required,
+        batch_size=max(1, args.llm_synonym_batch_size),
+        max_workers=max(1, args.llm_synonym_workers),
+        fast_match_enabled=args.llm_fast_match,
+        fast_match_model=args.llm_fast_match_model,
+        fast_match_cache_dir=args.llm_fast_match_cache_dir,
+        product_match_enabled=not args.no_llm_product_match,
+        product_match_model=args.llm_product_match_model,
+    )
+
     if args.previous:
-        evaluate_previous(use_anchored=not args.no_anchor, ignore_vessel=args.no_vessel, short_mode=args.short, skip_order=args.skip_order, ignore_mode=args.ignore, use_new_gt=args.new, use_full_gt=args.full)
+        if args.hashes:
+            parser.error("--hash is supported only for current-result scoring")
+        evaluate_previous(use_anchored=not args.no_anchor, ignore_vessel=args.no_vessel, short_mode=args.short, skip_order=args.skip_order, ignore_mode=args.ignore, use_new_gt=args.new, use_full_gt=args.full, equivalence_config=equivalence_config)
     else:
-        evaluate_current(ignore_vessel=args.no_vessel, short_mode=args.short, skip_order=args.skip_order, ignore_mode=args.ignore, use_new_gt=args.new, use_full_gt=args.full)
+        evaluate_current(ignore_vessel=args.no_vessel, short_mode=args.short, skip_order=args.skip_order, ignore_mode=args.ignore, use_new_gt=args.new, use_full_gt=args.full, equivalence_config=equivalence_config, hash_filter=set(args.hashes or []), correct_ccdc_by_name=args.correct_ccdc_by_name, pred_root=args.pred_root, out_root=args.out_root)
 
 
 if __name__ == "__main__":

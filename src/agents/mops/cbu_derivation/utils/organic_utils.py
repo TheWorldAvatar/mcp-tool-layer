@@ -1,6 +1,19 @@
+import asyncio
+import os
+
 from models.BaseAgent import BaseAgent
 from models.ModelConfig import ModelConfig
 from models.LLMCreator import LLMCreator
+
+
+def _organic_agent_timeout_seconds() -> float:
+    raw = (os.environ.get("ORGANIC_AGENT_TIMEOUT_SECONDS") or "").strip()
+    if raw:
+        try:
+            return float(raw)
+        except ValueError:
+            pass
+    return 720.0
 
 
 PROMPT = """
@@ -37,6 +50,12 @@ In some rare case that, after you spared no effort to find more information abou
 sufficient information to find the smiles strings and do conversion, in this case, you will have to derive the CBU formula 
 according to the RES file directly. 
 
+Stop-loop rules (do not spend remaining steps circling):
+- As soon as PubChem returns a SMILES (including source=curated-not-in-pubchem), do not search more names or web pages. Canonicalize that SMILES, call fuzzy_smiles_search once, then write the output format and stop.
+- Do not repeat the same PubChem, Google, or chemistry query.
+- At most two distinct species-name lookups. After the second miss, derive the CBU from the paper/RES and stop.
+- Step 1 websearch is only to identify the ligand name. Once you have a name or SMILES, go to PubChem / chemistry; do not keep browsing. 
+
 Guidelines:
 - Use the provided paper context for disambiguation only. Do not derive metal CBUs.
 - Do not attempt to infer metal-containing formulas; focus on organic ligands/species.
@@ -61,10 +80,18 @@ RES file (SHELXL .res):
 
 {res_content}
 
+Organic CBU database rows already linked to this DOI. If one of these is the ligand, CBU Match MUST use that exact formula notation. Do not replace it with an ungrouped empirical formula from the paper or TTL.
+{doi_organic_cbu_rows}
+
 """
 
 
-async def cbu_grounding_agent(res_content: str, paper_content: str, ttl_content: str) -> str:
+async def cbu_grounding_agent(
+    res_content: str,
+    paper_content: str,
+    ttl_content: str,
+    doi_organic_cbu_rows: str = "",
+) -> str:
     model_config = ModelConfig(temperature=0.2, top_p=0.02)
     # The `chemistry` MCP server depends on RDKit. On some Windows setups RDKit may be unavailable,
     # which would otherwise hard-fail the whole organic derivation. Degrade gracefully by dropping it.
@@ -79,15 +106,44 @@ async def cbu_grounding_agent(res_content: str, paper_content: str, ttl_content:
     instruction = PROMPT.format(
         res_content=res_content,
         paper_content=paper_content.strip(),
+        doi_organic_cbu_rows=(doi_organic_cbu_rows or "(none)").strip(),
         ttl_content=ttl_content.strip(),
     )
-    response, _metadata = await agent.run(instruction, recursion_limit=200)
+    timeout_seconds = _organic_agent_timeout_seconds()
+    print(
+        f"⏳ Organic grounding start (timeout={timeout_seconds:.0f}s)",
+        flush=True,
+    )
+    try:
+        response, _metadata = await asyncio.wait_for(
+            agent.run(instruction, recursion_limit=60),
+            timeout=timeout_seconds,
+        )
+    except asyncio.TimeoutError as exc:
+        print(
+            f"⚠️  Organic grounding timed out after {timeout_seconds:.0f}s",
+            flush=True,
+        )
+        raise TimeoutError(
+            f"organic grounding exceeded {timeout_seconds:.0f}s"
+        ) from exc
+    print("✓ Organic grounding finished", flush=True)
     return response
 
 
 # Backward-compatible alias expected by organic_cbu_derivation_agent.py
-async def organic_cbu_grounding_agent(res_content: str, paper_content: str, ttl_content: str) -> str:
-    return await cbu_grounding_agent(res_content=res_content, paper_content=paper_content, ttl_content=ttl_content)
+async def organic_cbu_grounding_agent(
+    res_content: str,
+    paper_content: str,
+    ttl_content: str,
+    doi_organic_cbu_rows: str = "",
+) -> str:
+    return await cbu_grounding_agent(
+        res_content=res_content,
+        paper_content=paper_content,
+        ttl_content=ttl_content,
+        doi_organic_cbu_rows=doi_organic_cbu_rows,
+    )
 
 
 def _extract_formula_exact(agent_output: str) -> str:

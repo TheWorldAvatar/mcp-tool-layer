@@ -2,10 +2,18 @@ import os
 import json
 import sys
 from typing import Dict, List, Optional, Tuple, Union
-from rdflib import Graph, Namespace, Literal
+from rdflib import Graph, Namespace, Literal, URIRef
 from rdflib.namespace import RDF, RDFS
 from models.locations import DATA_DIR
+from src.pipelines.utils.runtime_paths import (
+    list_runtime_files,
+    read_runtime_text,
+    runtime_path_exists,
+    write_runtime_text,
+)
+from src.pipelines.utils.top_entity_identity import entity_artifact_name
 from src.pipelines.utils.ttl_publisher import get_output_naming_config, load_meta_task_config
+from src.pipelines.utils.top_entity_identity import entity_scope_name
 
 
 def _configure_utf8_stdio() -> None:
@@ -30,13 +38,14 @@ def _list_hashes() -> List[str]:
 
 
 def _safe_name(name: str) -> str:
-    return "".join(c if (c.isalnum() or c in ("_", "-", " ", "(", ")", ",", "'", "+", ".", "{", "}", "·")) else "_" for c in name).replace(" ", "_")
+    return entity_artifact_name(name)
 
 
 def _read_text_file(path: str) -> str:
     try:
-        with open(path, "r", encoding="utf-8") as f:
-            return f.read().strip()
+        if not runtime_path_exists(path):
+            return ""
+        return read_runtime_text(path).strip()
     except Exception:
         return ""
 
@@ -45,22 +54,52 @@ def _normalize_label(text: str) -> str:
     return " ".join(str(text or "").casefold().replace("_", " ").split())
 
 
-def _resolve_root_ttl_path(hash_value: str, entity_label: str) -> str:
-    """Resolve the main ontology per-entity TTL using current config naming first."""
-    safe_entity = _safe_name(entity_label)
-    try:
-        meta_cfg = load_meta_task_config()
-        ontology_name = str((meta_cfg.get("ontologies", {}).get("main", {}) or {}).get("name") or "ontosynthesis").strip() or "ontosynthesis"
-        naming = get_output_naming_config(meta_cfg=meta_cfg, ontology_name=ontology_name)
-        candidate = os.path.join(DATA_DIR, hash_value, naming.output_dir, naming.entity_ttl_pattern.format(
-            entity_safe=safe_entity,
-            ontology_name=ontology_name,
-        ))
-        if os.path.exists(candidate):
-            return candidate
-    except Exception:
-        pass
-    return os.path.join(DATA_DIR, hash_value, f"output_{safe_entity}.ttl")
+def _resolve_root_ttl_path(hash_value: str, entity_label: str, *, data_dir: str) -> str:
+    """Resolve the exact published main TTL through the canonical identity lock."""
+    case_dir = os.path.join(data_dir, hash_value)
+    identity_lock_path = os.path.join(
+        case_dir,
+        "mcp_run",
+        "top_entity_identity_lock.json",
+    )
+    if not os.path.isfile(identity_lock_path):
+        raise FileNotFoundError(
+            f"Canonical top-entity identity lock is missing: {identity_lock_path}"
+        )
+    with open(identity_lock_path, "r", encoding="utf-8") as handle:
+        identity_lock = json.load(handle)
+    matches = [
+        item
+        for item in identity_lock.get("entities", [])
+        if isinstance(item, dict) and item.get("label") == entity_label
+    ]
+    if len(matches) != 1:
+        raise ValueError(
+            f"Expected exactly one canonical identity for {entity_label!r}; found {len(matches)}"
+        )
+
+    entity_uri = str(matches[0].get("uri") or "").strip()
+    if not entity_uri:
+        raise ValueError(f"Canonical identity URI is missing for {entity_label!r}")
+    scope_name = entity_scope_name(entity_label, entity_uri)
+
+    meta_cfg = load_meta_task_config()
+    ontology_name = str(
+        (meta_cfg.get("ontologies", {}).get("main", {}) or {}).get("name")
+        or "ontosynthesis"
+    ).strip() or "ontosynthesis"
+    naming = get_output_naming_config(
+        meta_cfg=meta_cfg,
+        ontology_name=ontology_name,
+    )
+    root_path = os.path.join(
+        case_dir,
+        naming.output_dir,
+        f"{scope_name}.ttl",
+    )
+    if not os.path.isfile(root_path):
+        raise FileNotFoundError(f"Canonical main ontology TTL is missing: {root_path}")
+    return root_path
 
 
 def _read_derived_mop_formula(hash_value: str, entity: str) -> str:
@@ -97,7 +136,7 @@ def _find_top_entities(hash_value: str) -> List[Tuple[str, str]]:
     def _score_candidate(path: str, expected_label: str) -> Tuple[int, int]:
         try:
             g = Graph()
-            g.parse(path, format="turtle")
+            g.parse(data=read_runtime_text(path), format="turtle")
         except Exception:
             return (-1, -1)
 
@@ -121,21 +160,21 @@ def _find_top_entities(hash_value: str) -> List[Tuple[str, str]]:
         return (label_matches, mop_facts)
 
     all_ttls = [
-        name for name in sorted(os.listdir(ttl_dir))
-        if name.startswith("ontomops_extension_") and name.endswith(".ttl")
+        os.path.basename(path)
+        for path in sorted(list_runtime_files(ttl_dir, suffix=".ttl"))
+        if os.path.basename(path).startswith("ontomops_extension_")
     ]
 
     # Load mapping file to convert filenames to actual entity labels
     mapping_file = os.path.join(ttl_dir, "ontomops_output_mapping.json")
     filename_to_label = {}  # Maps filename -> actual entity label
-    if os.path.exists(mapping_file):
+    if runtime_path_exists(mapping_file):
         try:
-            with open(mapping_file, 'r', encoding='utf-8') as mf:
-                mapping = json.load(mf)
-                # Reverse mapping: filename -> entity_label
-                for entity_label, filename in mapping.items():
-                    if not entity_label.startswith("https://"):  # Skip IRI entries, keep only label entries
-                        filename_to_label[filename] = entity_label
+            mapping = json.loads(read_runtime_text(mapping_file))
+            # Reverse mapping: filename -> entity_label
+            for entity_label, filename in mapping.items():
+                if not entity_label.startswith("https://"):  # Skip IRI entries, keep only label entries
+                    filename_to_label[filename] = entity_label
         except Exception:
             pass
 
@@ -189,14 +228,12 @@ def _read_metal_cbu_pair(hash_value: str, entity_name: str) -> Dict[str, str]:
     root = os.path.join(DATA_DIR, hash_value, "cbu_derivation", "metal", "structured")
     data: Dict[str, str] = {"formula": "", "iri": ""}
     
-    # Convert entity name to safe file name (spaces to underscores)
-    safe_entity = entity_name.replace(' ', '_')
+    safe_entity = _safe_name(entity_name)
     
     try:
         json_path = os.path.join(root, f"{safe_entity}.json")
-        if os.path.exists(json_path):
-            with open(json_path, "r", encoding="utf-8") as f:
-                j = json.load(f) or {}
+        if runtime_path_exists(json_path):
+            j = json.loads(read_runtime_text(json_path)) or {}
             # our writer used key 'metal_cbu'
             mc = j.get("metal_cbu")
             if isinstance(mc, str):
@@ -223,14 +260,12 @@ def _read_organic_cbu_pair(hash_value: str, entity_name: str) -> Dict[str, str]:
     root = os.path.join(DATA_DIR, hash_value, "cbu_derivation", "organic", "structured")
     data: Dict[str, str] = {"formula": "", "iri": ""}
     
-    # Convert entity name to safe file name (spaces to underscores)
-    safe_entity = entity_name.replace(' ', '_')
+    safe_entity = _safe_name(entity_name)
     
     try:
         json_path = os.path.join(root, f"{safe_entity}.json")
-        if os.path.exists(json_path):
-            with open(json_path, "r", encoding="utf-8") as f:
-                j = json.load(f) or {}
+        if runtime_path_exists(json_path):
+            j = json.loads(read_runtime_text(json_path)) or {}
             oc = j.get("organic_cbu")
             if isinstance(oc, str):
                 data["formula"] = oc
@@ -265,6 +300,181 @@ def _sanitize_iri(iri: str) -> str:
     return s
 
 
+def _select_primary_mop(graph: Graph, ontomops: Namespace):
+    """Pick the real MOP node, not an empty typed stub.
+
+    OntoMOPS graphs sometimes emit a bare ``MetalOrganicPolyhedron`` individual
+    with no CBUs or CCDC before the actual product node. Integration must attach
+    derived formulas to the node that already has building units.
+    """
+    typed: List[Tuple[int, int, object]] = []
+    for subject, _, _ in graph.triples((None, RDF.type, ontomops.MetalOrganicPolyhedron)):
+        cbu_count = len(list(graph.triples((subject, ontomops.hasChemicalBuildingUnit, None))))
+        has_ccdc = any(True for _ in graph.triples((subject, ontomops.hasCCDCNumber, None)))
+        typed.append((cbu_count, 1 if has_ccdc else 0, subject))
+    typed.sort(key=lambda item: (item[0], item[1]), reverse=True)
+    if typed and typed[0][0] > 0:
+        return typed[0][2]
+
+    likes: List[Tuple[int, object]] = []
+    seen = set()
+    for subject, _, _ in graph.triples((None, ontomops.hasChemicalBuildingUnit, None)):
+        if subject in seen:
+            continue
+        seen.add(subject)
+        cbu_count = len(list(graph.triples((subject, ontomops.hasChemicalBuildingUnit, None))))
+        likes.append((cbu_count, subject))
+    if likes:
+        likes.sort(key=lambda item: item[0], reverse=True)
+        return likes[0][1]
+    if typed:
+        return typed[0][2]
+    return None
+
+
+_METAL_HINTS = (
+    "voso",
+    "vanadyl",
+    "vanadium",
+    "v6o",
+    "zr6",
+    "fe3",
+    "cu2",
+    "cluster",
+    "och3",
+    "so4",
+    "metal precursor",
+)
+_ORGANIC_HINTS = (
+    "co2",
+    "bdc",
+    "btc",
+    "bpdc",
+    "edb",
+    "carboxylic",
+    "carboxylate",
+    "benzene",
+    "c6h",
+    "c8h",
+    "c9h",
+    "c12h",
+    "c14h",
+    "linker",
+)
+
+
+def _candidate_blob(candidate: Dict[str, object]) -> str:
+    parts: List[str] = []
+    for key in ("labels", "alt_names", "formulas"):
+        for item in candidate.get(key) or []:
+            text = str(item or "").strip()
+            if text:
+                parts.append(text)
+    return " ".join(parts).casefold()
+
+
+def _role_score(blob: str, hints: Tuple[str, ...]) -> int:
+    return sum(1 for hint in hints if hint in blob)
+
+
+def _try_heuristic_iris(
+    candidates: List[Dict[str, object]],
+    *,
+    metal_formula: str = "",
+    organic_formula: str = "",
+) -> Tuple[Optional[str], Optional[str]]:
+    """Assign existing CBU IRIs from labels/formulas when the split is obvious."""
+    del metal_formula, organic_formula
+    if not candidates:
+        return None, None
+    scored: List[Tuple[Dict[str, object], int, int]] = []
+    for candidate in candidates:
+        blob = _candidate_blob(candidate)
+        scored.append(
+            (
+                candidate,
+                _role_score(blob, _METAL_HINTS),
+                _role_score(blob, _ORGANIC_HINTS),
+            )
+        )
+    metal_iri: Optional[str] = None
+    organic_iri: Optional[str] = None
+    metal_ranked = sorted(scored, key=lambda item: (item[1] - item[2], item[1]), reverse=True)
+    organic_ranked = sorted(scored, key=lambda item: (item[2] - item[1], item[2]), reverse=True)
+    if metal_ranked and metal_ranked[0][1] > metal_ranked[0][2]:
+        metal_iri = str(metal_ranked[0][0].get("iri") or "").strip() or None
+    if organic_ranked and organic_ranked[0][2] > organic_ranked[0][1]:
+        organic_iri = str(organic_ranked[0][0].get("iri") or "").strip() or None
+    if metal_iri and organic_iri and metal_iri == organic_iri:
+        metal_margin = metal_ranked[0][1] - metal_ranked[0][2]
+        organic_margin = organic_ranked[0][2] - organic_ranked[0][1]
+        if metal_margin >= organic_margin:
+            organic_iri = None
+            for candidate, _metal_score, organic_score in organic_ranked:
+                iri = str(candidate.get("iri") or "").strip()
+                if iri and iri != metal_iri and organic_score > 0:
+                    organic_iri = iri
+                    break
+        else:
+            metal_iri = None
+            for candidate, metal_score, _organic_score in metal_ranked:
+                iri = str(candidate.get("iri") or "").strip()
+                if iri and iri != organic_iri and metal_score > 0:
+                    metal_iri = iri
+                    break
+    return metal_iri, organic_iri
+
+
+def _is_formula_like_label(text: str) -> bool:
+    value = str(text or "").strip()
+    return bool(value.startswith("[") and value.endswith("]") and len(value) > 2)
+
+
+def _overwrite_source_cbu_formulas(
+    src_path: str,
+    selected: List[Tuple[str, str]],
+) -> None:
+    """Replace OntoMOPS draft formulas on the selected CBU IRIs.
+
+    Merge unions ``ontomops_output`` with ``integrated``. If the source file
+    keeps the draft ``hasCBUFormula``, conversion will still score that value.
+    """
+    replacements = [
+        (_sanitize_iri(iri), str(formula).strip())
+        for iri, formula in selected
+        if _sanitize_iri(iri) and str(formula or "").strip()
+    ]
+    if not replacements or not runtime_path_exists(src_path):
+        return
+
+    graph = Graph()
+    graph.parse(data=read_runtime_text(src_path), format="turtle")
+    ontomops = Namespace("https://www.theworldavatar.com/kg/ontomops/")
+    for iri_str, formula in replacements:
+        cbu = URIRef(iri_str)
+        for obj in list(graph.objects(cbu, ontomops.hasCBUFormula)):
+            graph.remove((cbu, ontomops.hasCBUFormula, obj))
+        graph.add((cbu, ontomops.hasCBUFormula, Literal(formula)))
+        for obj in list(graph.objects(cbu, RDFS.label)):
+            if _is_formula_like_label(str(obj)):
+                graph.remove((cbu, RDFS.label, obj))
+        if not any(_is_formula_like_label(str(obj)) for obj in graph.objects(cbu, RDFS.label)):
+            graph.add((cbu, RDFS.label, Literal(formula)))
+
+    payload = graph.serialize(format="turtle")
+    if isinstance(payload, bytes):
+        payload = payload.decode("utf-8")
+    write_runtime_text(src_path, payload)
+    print(f"[INTEGRATION] Overwrote source CBU formulas in {src_path}")
+
+
+def _optional_root_ttl_path(hash_value: str, entity_label: str, *, data_dir: str) -> str:
+    try:
+        return _resolve_root_ttl_path(hash_value, entity_label, data_dir=data_dir)
+    except (FileNotFoundError, ValueError):
+        return ""
+
+
 def integrate_hash(hash_value: str) -> List[Dict[str, str]]:
     entities = _find_top_entities(hash_value)
     integrated_dir = os.path.join(DATA_DIR, hash_value, "cbu_derivation", "integrated")
@@ -290,49 +500,32 @@ def integrate_hash(hash_value: str) -> List[Dict[str, str]]:
         ttl_dir = os.path.join(DATA_DIR, hash_value, "ontomops_output")
         # Use the actual filename from mapping
         src_path = os.path.join(ttl_dir, ttl_filename)
-        # For root TTL, use safe name of actual entity label
-        root_ttl_path = _resolve_root_ttl_path(hash_value, actual_entity_label)
+        root_ttl_path = _optional_root_ttl_path(
+            hash_value,
+            actual_entity_label,
+            data_dir=DATA_DIR,
+        )
 
         g = Graph()
         root = Graph()
         try:
-            if os.path.exists(src_path):
-                g.parse(src_path, format="turtle")
+            if runtime_path_exists(src_path):
+                g.parse(data=read_runtime_text(src_path), format="turtle")
         except Exception:
             g = Graph()
         try:
-            if os.path.exists(root_ttl_path):
-                root.parse(root_ttl_path, format="turtle")
+            if root_ttl_path and runtime_path_exists(root_ttl_path):
+                root.parse(data=read_runtime_text(root_ttl_path), format="turtle")
         except Exception:
             root = Graph()
 
         ONTOMOPS = Namespace("https://www.theworldavatar.com/kg/ontomops/")
         ONTOSYN = Namespace("https://www.theworldavatar.com/kg/OntoSyn/")
 
-        mop_subject = None
-        # First try to find properly typed MOPs
-        for s, _, _ in g.triples((None, RDF.type, ONTOMOPS.MetalOrganicPolyhedron)):
-            mop_subject = s
-            for _, _, o in g.triples((s, ONTOMOPS.hasCCDCNumber, None)):
+        mop_subject = _select_primary_mop(g, ONTOMOPS)
+        if mop_subject is not None:
+            for _, _, o in g.triples((mop_subject, ONTOMOPS.hasCCDCNumber, None)):
                 ccdc_number = str(o)
-                break
-            break
-
-        # If no properly typed MOP found, try to find MOPs with CCDC numbers or MOP formulas
-        if mop_subject is None:
-            for s, _, _ in g.triples((None, ONTOMOPS.hasCCDCNumber, None)):
-                mop_subject = s
-                for _, _, o in g.triples((s, ONTOMOPS.hasCCDCNumber, None)):
-                    ccdc_number = str(o)
-                    break
-                break
-
-        if mop_subject is None:
-            for s, _, _ in g.triples((None, ONTOMOPS.hasMOPFormula, None)):
-                mop_subject = s
-                for _, _, o in g.triples((s, ONTOMOPS.hasCCDCNumber, None)):
-                    ccdc_number = str(o)
-                    break
                 break
 
         if mop_subject is None:
@@ -348,8 +541,7 @@ def integrate_hash(hash_value: str) -> List[Dict[str, str]]:
             }
             results.append(data)
             out_fn = os.path.join(integrated_dir, f"{safe_entity_name}.json")
-            with open(out_fn, "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
+            write_runtime_text(out_fn, json.dumps(data, ensure_ascii=False, indent=2))
             continue
 
         # Build candidate list from TTLs
@@ -390,6 +582,14 @@ def integrate_hash(hash_value: str) -> List[Dict[str, str]]:
                     s = str(cf).strip()
                     if s and s not in formulas:
                         formulas.append(s)
+                for _, _, cf in root.triples((cbu, ONTOMOPS.hasCBUFormula, None)):
+                    s = str(cf).strip()
+                    if s and s not in formulas:
+                        formulas.append(s)
+                for _, _, cf in g.triples((cbu, ONTOMOPS.hasCBUFormula, None)):
+                    s = str(cf).strip()
+                    if s and s not in formulas:
+                        formulas.append(s)
                 for _, _, am in root.triples((cbu, ONTOSYN.hasAmount, None)):
                     s = str(am).strip()
                     if s and s not in amounts:
@@ -414,7 +614,7 @@ def integrate_hash(hash_value: str) -> List[Dict[str, str]]:
         try:
             debug_dir = os.path.join(DATA_DIR, hash_value, "cbu_derivation", "selection", "debug")
             os.makedirs(debug_dir, exist_ok=True)
-            debug_file = os.path.join(debug_dir, f"{actual_entity_label}_integration_debug.md")
+            debug_file = os.path.join(debug_dir, f"{_safe_name(actual_entity_label)}_integration_debug.md")
             with open(debug_file, "w", encoding="utf-8") as df:
                 df.write(f"# Integration Debug - {actual_entity_label}\n\n")
                 df.write(f"**Timestamp:** {__import__('datetime').datetime.now().isoformat()}\n\n")
@@ -432,55 +632,61 @@ def integrate_hash(hash_value: str) -> List[Dict[str, str]]:
         except Exception as e:
             print(f"Warning: Failed to save integration debug info: {e}")
 
-        # LLM selection of IRIs
-        try:
-            from src.agents.mops.cbu_derivation.utils.iri_selection import llm_select_cbu_iris
-            sel_m, sel_o = llm_select_cbu_iris(
-                entity=actual_entity_label,
-                mop_labels=mop_labels,
-                mop_ccdc=mop_ccdc,
-                candidates=candidates,
-                metal_formula=m_formula,
-                organic_formula=o_formula,
-                hash_value=hash_value,
-            )
-        except Exception as e:
-            # Ensure downstream logic does not crash if selection fails.
-            sel_m, sel_o = None, None
-            # Save the exception details to debug file
+        heur_m, heur_o = _try_heuristic_iris(
+            candidates,
+            metal_formula=m_formula,
+            organic_formula=o_formula,
+        )
+        sel_m, sel_o = heur_m, heur_o
+        need_llm = bool((o_formula and not sel_o) or (m_formula and not sel_m))
+        if need_llm:
             try:
-                debug_dir = os.path.join(DATA_DIR, hash_value, "cbu_derivation", "selection", "debug")
-                os.makedirs(debug_dir, exist_ok=True)
-                error_file = os.path.join(debug_dir, f"{actual_entity_label}_integration_error.md")
-                with open(error_file, "w", encoding="utf-8") as ef:
-                    ef.write(f"# Integration Error - {actual_entity_label}\n\n")
-                    ef.write(f"**Timestamp:** {__import__('datetime').datetime.now().isoformat()}\n\n")
-                    ef.write(f"**Error:** {str(e)}\n")
-                    ef.write(f"**Error Type:** {type(e).__name__}\n\n")
-                    ef.write(f"**Metal Formula:** {m_formula}\n")
-                    ef.write(f"**Organic Formula:** {o_formula}\n")
-                    ef.write(f"**MOP Labels:** {mop_labels}\n")
-                    ef.write(f"**CCDC:** {mop_ccdc}\n")
-            except Exception:
-                pass
+                from src.agents.mops.cbu_derivation.utils.iri_selection import llm_select_cbu_iris
+                llm_m, llm_o = llm_select_cbu_iris(
+                    entity=actual_entity_label,
+                    mop_labels=mop_labels,
+                    mop_ccdc=mop_ccdc,
+                    candidates=candidates,
+                    metal_formula=m_formula,
+                    organic_formula=o_formula,
+                    hash_value=hash_value,
+                )
+                sel_m = sel_m or llm_m
+                sel_o = sel_o or llm_o
+            except Exception as e:
+                try:
+                    debug_dir = os.path.join(DATA_DIR, hash_value, "cbu_derivation", "selection", "debug")
+                    os.makedirs(debug_dir, exist_ok=True)
+                    error_file = os.path.join(debug_dir, f"{_safe_name(actual_entity_label)}_integration_error.md")
+                    with open(error_file, "w", encoding="utf-8") as ef:
+                        ef.write(f"# Integration Error - {actual_entity_label}\n\n")
+                        ef.write(f"**Timestamp:** {__import__('datetime').datetime.now().isoformat()}\n\n")
+                        ef.write(f"**Error:** {str(e)}\n")
+                        ef.write(f"**Error Type:** {type(e).__name__}\n\n")
+                        ef.write(f"**Metal Formula:** {m_formula}\n")
+                        ef.write(f"**Organic Formula:** {o_formula}\n")
+                        ef.write(f"**MOP Labels:** {mop_labels}\n")
+                        ef.write(f"**CCDC:** {mop_ccdc}\n")
+                except Exception:
+                    pass
 
-        # Check if IRI selection succeeded
-        if sel_m is None or sel_o is None:
-            print(f"[ERROR] IRI selection failed for entity {actual_entity_label}: Could not match CBU formulas to IRIs. "
-                  f"Metal formula: '{m_formula}', Organic formula: '{o_formula}'. "
-                  f"This usually indicates LLM failure or mismatched CBU formulas.")
-            print(f"[INTEGRATION] Skipping {actual_entity_label} due to IRI selection failure, continuing with other entities")
-            continue
+        if not sel_m and m_formula:
+            from src.agents.mops.cbu_derivation.utils.iri_selection import _generate_cbu_iri
+            sel_m = _generate_cbu_iri(actual_entity_label, m_formula, "metal", hash_value)
+            print(f"[INTEGRATION] Generated metal IRI for {actual_entity_label}: {sel_m}")
+        if not sel_o and o_formula:
+            from src.agents.mops.cbu_derivation.utils.iri_selection import _generate_cbu_iri
+            sel_o = _generate_cbu_iri(actual_entity_label, o_formula, "organic", hash_value)
+            print(f"[INTEGRATION] Generated organic IRI for {actual_entity_label}: {sel_o}")
 
-        sel_m = _sanitize_iri(sel_m)
-        sel_o = _sanitize_iri(sel_o)
+        sel_m = _sanitize_iri(sel_m or "")
+        sel_o = _sanitize_iri(sel_o or "")
 
-        # Validate that we got actual IRIs, not empty strings
-        if not sel_m or not sel_o:
-            print(f"[ERROR] IRI selection returned empty IRIs for entity {actual_entity_label}. "
-                  f"Selected metal IRI: '{sel_m}', organic IRI: '{sel_o}'. "
-                  f"Check LLM responses and CBU formula matching.")
-            print(f"[INTEGRATION] Skipping {actual_entity_label} due to empty IRI selection, continuing with other entities")
+        if not sel_m and not sel_o:
+            print(
+                f"[INTEGRATION] Skipping {actual_entity_label}: no CBU IRI could be "
+                f"resolved (metal='{m_formula}', organic='{o_formula}')."
+            )
             continue
 
         # Use safe name for output filename to match existing format
@@ -494,8 +700,7 @@ def integrate_hash(hash_value: str) -> List[Dict[str, str]]:
         results.append(data)
 
         out_fn = os.path.join(integrated_dir, f"{safe_entity_name}.json")
-        with open(out_fn, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+        write_runtime_text(out_fn, json.dumps(data, ensure_ascii=False, indent=2))
 
         # Write TTL using the LLM-selected IRIs from JSON
         # Generate TTL if we have valid IRIs, even if CCDC is missing
@@ -506,7 +711,16 @@ def integrate_hash(hash_value: str) -> List[Dict[str, str]]:
                 # Read derived MOP formula from agent_mop_formula.py (if available)
                 # This will override the MOP formula in the TTL with the derived one
                 mop_formula_override = _read_derived_mop_formula(hash_value, safe_entity_name)
-                _write_integrated_ttl(hash_value, actual_entity_label, ttl_filename, data["metal_cbu"], data["organic_cbu"], integrated_dir, mop_formula_override=mop_formula_override)
+                _write_integrated_ttl(
+                    hash_value,
+                    actual_entity_label,
+                    ttl_filename,
+                    data["metal_cbu"],
+                    data["organic_cbu"],
+                    integrated_dir,
+                    data_dir=DATA_DIR,
+                    mop_formula_override=mop_formula_override,
+                )
                 print(f"[INTEGRATION] Generated TTL for {actual_entity_label} with formula override: '{mop_formula_override}'")
             except Exception as e:
                 print(f"[INTEGRATION] Failed to generate TTL for {actual_entity_label}: {e}")
@@ -521,17 +735,27 @@ def integrate_all() -> Dict[str, List[Dict[str, str]]]:
     return out
 
 
-def _write_integrated_ttl(hash_value: str, entity_label: str, ttl_filename: str, metal_cbu: Dict[str, str], organic_cbu: Dict[str, str], out_dir: str, *, mop_formula_override: str = "") -> None:
+def _write_integrated_ttl(
+    hash_value: str,
+    entity_label: str,
+    ttl_filename: str,
+    metal_cbu: Dict[str, str],
+    organic_cbu: Dict[str, str],
+    out_dir: str,
+    *,
+    data_dir: str,
+    mop_formula_override: str = "",
+) -> None:
     """Copy the ontomops_extension TTL for entity, keep core MOP node and ONLY the specified CBUs with given IRIs and labels."""
     try:
-        ttl_dir = os.path.join(DATA_DIR, hash_value, "ontomops_output")
+        ttl_dir = os.path.join(data_dir, hash_value, "ontomops_output")
         # Use the actual filename from mapping
         src_path = os.path.join(ttl_dir, ttl_filename)
-        if not os.path.exists(src_path):
+        if not runtime_path_exists(src_path):
             print(f"[INTEGRATION] Source TTL not found: {src_path}")
             return
         g = Graph()
-        g.parse(src_path, format="turtle")
+        g.parse(data=read_runtime_text(src_path), format="turtle")
         print(f"[INTEGRATION] Parsed source TTL with {len(g)} triples")
         ONTOMOPS = Namespace("https://www.theworldavatar.com/kg/ontomops/")
         ONTOSYN = Namespace("https://www.theworldavatar.com/kg/OntoSyn/")
@@ -542,13 +766,15 @@ def _write_integrated_ttl(hash_value: str, entity_label: str, ttl_filename: str,
         print(f"[INTEGRATION] Failed to load source TTL {src_path}: {e}")
         return
 
-    # Load the root entity TTL to fetch detailed labels/types for CBUs referenced by the extension
-    # Use safe name for root TTL path
-    root_ttl_path = _resolve_root_ttl_path(hash_value, entity_label)
+    root_ttl_path = _optional_root_ttl_path(
+        hash_value,
+        entity_label,
+        data_dir=data_dir,
+    )
     root = Graph()
     try:
-        if os.path.exists(root_ttl_path):
-            root.parse(root_ttl_path, format="turtle")
+        if root_ttl_path and runtime_path_exists(root_ttl_path):
+            root.parse(data=read_runtime_text(root_ttl_path), format="turtle")
             print(f"[INTEGRATION] Parsed root TTL with {len(root)} triples")
         else:
             print(f"[INTEGRATION] Root TTL not found: {root_ttl_path}")
@@ -556,43 +782,11 @@ def _write_integrated_ttl(hash_value: str, entity_label: str, ttl_filename: str,
         print(f"[INTEGRATION] Failed to parse root TTL {root_ttl_path}: {e}")
         root = Graph()
 
-    # Find the MOP subject - select the properly typed MOP with the most CBUs
-    mop_candidates = []
-
-    # First try to find properly typed MOPs
-    mop_count = 0
-    for s, _, _ in g.triples((None, RDF.type, ONTOMOPS.MetalOrganicPolyhedron)):
-        cbu_count = len(list(g.triples((s, ONTOMOPS.hasChemicalBuildingUnit, None))))
-        mop_candidates.append((cbu_count, s))
-        mop_count += 1
-
-    # If no properly typed MOPs found, look for subjects that have MOP properties
-    # (hasChemicalBuildingUnit is required, others are optional)
-    if not mop_candidates:
-        print("[INTEGRATION] No properly typed MOPs found, looking for MOP-like subjects...")
-        candidate_subjects = set()
-
-        # Find subjects that have hasChemicalBuildingUnit (key MOP property)
-        for s, _, _ in g.triples((None, ONTOMOPS.hasChemicalBuildingUnit, None)):
-            candidate_subjects.add(s)
-
-        for subject in candidate_subjects:
-            cbu_count = len(list(g.triples((subject, ONTOMOPS.hasChemicalBuildingUnit, None))))
-            if cbu_count > 0:  # Must have at least one CBU
-                mop_candidates.append((cbu_count, subject))
-                mop_count += 1
-                print(f"[INTEGRATION] Found MOP-like subject: {subject} with {cbu_count} CBUs")
-
-    print(f"[INTEGRATION] Found {mop_count} MOP subjects with candidates: {[(count, str(s)) for count, s in mop_candidates]}")
-
-    # Select the MOP with the most CBUs (among properly typed MOPs)
-    if mop_candidates:
-        mop_candidates.sort(reverse=True)  # Sort by CBU count descending
-        mop_subject = mop_candidates[0][1]
-        print(f"[INTEGRATION] Selected MOP: {mop_subject}")
-    else:
+    mop_subject = _select_primary_mop(g, ONTOMOPS)
+    if mop_subject is None:
         print("[INTEGRATION] No MOP subjects found, skipping TTL creation")
         return
+    print(f"[INTEGRATION] Selected MOP: {mop_subject}")
 
     # Collect available CBUs from the source TTL
     cbu_nodes: List = []
@@ -669,14 +863,21 @@ def _write_integrated_ttl(hash_value: str, entity_label: str, ttl_filename: str,
         outg.add((mop_subject, ONTOMOPS.hasChemicalBuildingUnit, cbu_ref))
         outg.add((cbu_ref, RDF.type, ONTOMOPS.ChemicalBuildingUnit))
 
-        # Always add label if present (including empty string), but only add formula if non-empty
-        if lbl is not None:
-            outg.add((cbu_ref, RDFS.label, Literal(lbl)))
+        # Derived formula wins. If derivation left this side empty, keep the source formula.
         if lbl:
-            try:
-                outg.add((cbu_ref, ONTOMOPS.hasCBUFormula, Literal(lbl)))
-            except Exception:
-                pass
+            outg.add((cbu_ref, RDFS.label, Literal(lbl)))
+            outg.add((cbu_ref, ONTOMOPS.hasCBUFormula, Literal(lbl)))
+        else:
+            source_formula = ""
+            for _, _, obj in g.triples((cbu_ref, ONTOMOPS.hasCBUFormula, None)):
+                source_formula = str(obj).strip()
+                if source_formula:
+                    break
+            if source_formula:
+                outg.add((cbu_ref, RDFS.label, Literal(source_formula)))
+                outg.add((cbu_ref, ONTOMOPS.hasCBUFormula, Literal(source_formula)))
+            elif lbl is not None:
+                outg.add((cbu_ref, RDFS.label, Literal(lbl)))
 
         # For generated CBUs, also add as ChemicalInput type
         if is_generated:
@@ -688,8 +889,12 @@ def _write_integrated_ttl(hash_value: str, entity_label: str, ttl_filename: str,
     safe_entity_name = _safe_name(entity_label)
     out_path = os.path.join(out_dir, f"{safe_entity_name}.ttl")
     try:
-        outg.serialize(destination=out_path, format="turtle")
+        payload = outg.serialize(format="turtle")
+        if isinstance(payload, bytes):
+            payload = payload.decode("utf-8")
+        write_runtime_text(out_path, payload)
         print(f"[INTEGRATION] Successfully created TTL: {out_path} with {len(outg)} triples")
+        _overwrite_source_cbu_formulas(src_path, [(iri, formula) for iri, formula, _generated in selected_cbus])
     except Exception as e:
         print(f"[INTEGRATION] Failed to serialize TTL to {out_path}: {e}")
         raise

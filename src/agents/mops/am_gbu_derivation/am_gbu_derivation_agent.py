@@ -3,6 +3,7 @@ import os, sys, json, argparse, time
 from pathlib import Path
 from dotenv import load_dotenv
 from openai import OpenAI
+from models.llm_call_telemetry import instrument_openai_client
 from typing import List, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from models.locations import DATA_DIR
@@ -190,7 +191,7 @@ def _build_client() -> tuple[OpenAI, str, str]:
             "HTTP-Referer": os.getenv("APP_URL", "http://localhost"),
             "X-Title": os.getenv("APP_NAME", "AM/GBU Deriver"),
         }
-    client = OpenAI(api_key=api_key, base_url=base_url, default_headers=headers)
+    client = instrument_openai_client(OpenAI(api_key=api_key, base_url=base_url, default_headers=headers))
     return client, base_url, model
 
 def _parse_responses_obj(response) -> Optional[dict]:

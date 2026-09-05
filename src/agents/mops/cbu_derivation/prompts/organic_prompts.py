@@ -26,6 +26,12 @@ As a result, you might need to try both or more.
    - Construct a plausible organic CBU formula consistent with the paper context and the canonical formatting you observed.
    - Then retry the search and matching once more using any newly inferred names or fragments.
 
+Stop-loop rules (do not spend remaining steps circling):
+- As soon as PubChem returns a SMILES (including source=curated-not-in-pubchem), do not search more names or web pages. Canonicalize that SMILES, call fuzzy_smiles_search once, then write the output format and stop.
+- Do not repeat the same PubChem, Google, or chemistry query.
+- At most two distinct species-name lookups. After the second miss, derive the CBU from the paper/RES and stop.
+- Step 1 websearch is only to identify the ligand name. Once you have a name or SMILES, go to PubChem / chemistry; do not keep browsing.
+
 Guidelines:
 - Use the provided paper context for disambiguation only. Do not derive metal CBUs.
 - Do not attempt to infer metal-containing formulas; focus on organic ligands/species.
@@ -70,6 +76,9 @@ Format-only samples of organic CBU formulas (hints on conventions only; do not c
 
 Important: These samples demonstrate bracketed empirical formula style and grouping order only. They do not imply chemical relevance to this paper.
 
+Organic CBU database rows already linked to this DOI ({canonical_doi}). If one of these is the ligand, CBU Match MUST use that exact formula notation. Do not replace it with an ungrouped empirical formula from the paper or TTL.
+{doi_organic_cbu_rows}
+
 Important: If similarity to any existing CBU is low, directly output the explicit organic CBU you derive. Still follow the strict formatting rules above for CBU Match (bracketed formula only, no commentary).
 """
 
@@ -100,6 +109,12 @@ As a result, you might need to try both or more.
    - Sample and review a few representative organic CBU formulas from the database (format/style only) to internalize canonical formatting.
    - Construct a plausible organic CBU formula consistent with the paper context and the canonical formatting you observed.
    - Then retry the search and matching once more using any newly inferred names or fragments.
+
+Stop-loop rules (do not spend remaining steps circling):
+- As soon as PubChem returns a SMILES (including source=curated-not-in-pubchem), do not search more names or web pages. Canonicalize that SMILES, call fuzzy_smiles_search once, then write the output format and stop.
+- Do not repeat the same PubChem, Google, or chemistry query.
+- At most two distinct species-name lookups. After the second miss, derive the CBU from the paper/RES and stop.
+- Step 1 websearch is only to identify the ligand name. Once you have a name or SMILES, go to PubChem / chemistry; do not keep browsing.
 
 Guidelines:
 - Use the provided paper context for disambiguation only. Do not derive metal CBUs.

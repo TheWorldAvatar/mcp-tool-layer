@@ -56,6 +56,13 @@ class TokenCounter(BaseCallbackHandler):
         # gpt-4o family
         "gpt-4o":       {"in": 2.50e-6, "in_cached": 2.50e-6,  "out": 10.0e-6},  # no special cached rate
         "gpt-4o-mini":  {"in": 0.60e-6, "in_cached": 0.30e-6,  "out": 2.40e-6},
+        "qwen3-32b":    {"in": 0.08e-6, "in_cached": 0.08e-6,  "out": 0.28e-6},
+        "llama-4-maverick": {"in": 0.20e-6, "in_cached": 0.20e-6, "out": 0.696e-6},
+        "deepseek-v4-pro-0813": {"in": 0.66e-6, "in_cached": 0.022e-6, "out": 1.98e-6},
+        "deepseek-v4-flash-0731": {"in": 0.065e-6, "in_cached": 0.016e-6, "out": 0.18e-6},
+        "qwen3.8-flash": {"in": 0.15e-6, "in_cached": 0.016e-6, "out": 0.47e-6},
+        "qwen3-max": {"in": 0.78e-6, "in_cached": 0.156e-6, "out": 3.9e-6},
+        "kimi-k3": {"in": 3.0e-6, "in_cached": 0.3e-6, "out": 15.0e-6},
     }
 
     # Loose aliases → canonical pricing keys
@@ -140,6 +147,20 @@ class TokenCounter(BaseCallbackHandler):
             return "gpt-5-mini"
         if n.startswith("gpt-5"):
             return "gpt-5"
+        if n.startswith("qwen3-32b"):
+            return "qwen3-32b"
+        if "llama-4-maverick" in n:
+            return "llama-4-maverick"
+        if "deepseek-v4-flash-0731" in n or n.endswith("v4-flash-20260731"):
+            return "deepseek-v4-flash-0731"
+        if "deepseek-v4-pro-0813" in n or n.endswith("v4-pro-20260813"):
+            return "deepseek-v4-pro-0813"
+        if "qwen3.8-flash" in n:
+            return "qwen3.8-flash"
+        if n.startswith("qwen3-max"):
+            return "qwen3-max"
+        if "kimi-k3" in n:
+            return "kimi-k3"
 
         return n  # unknown → zero pricing
 
@@ -224,15 +245,15 @@ class TokenCounter(BaseCallbackHandler):
             "cached_prompt_tokens": billable_cached,
             "completion_tokens": c,
             "total_tokens": t,
-            "input_cost_usd": round(input_cost, 8),
-            "output_cost_usd": round(output_cost, 8),
-            "total_cost_usd": round(total_cost, 8),
+            "estimated_input_cost_usd": round(input_cost, 8),
+            "estimated_output_cost_usd": round(output_cost, 8),
+            "estimated_cost_usd": round(total_cost, 8),
         })
 
         self._log(
             f"[LLM call {self.calls}] model={model_raw or '?'} "
             f"prompt={p} (cached={billable_cached}), completion={c}, total={t}, "
-            f"cost=${total_cost:.6f}"
+            f"estimated_cost=${total_cost:.6f}"
         )
 
     # ----------------------------- hooks -------------------------------
@@ -343,12 +364,12 @@ class TokenCounter(BaseCallbackHandler):
                 "cached_prompt_tokens": self.cached_prompt_tokens,
                 "completion_tokens": self.completion_tokens,
                 "total_tokens": self.total_tokens,
-                "input_cost_usd": round(self.input_cost_usd, 6),
-                "output_cost_usd": round(self.output_cost_usd, 6),
-                "total_cost_usd": round(total_cost, 6),
+                "estimated_input_cost_usd": round(self.input_cost_usd, 6),
+                "estimated_output_cost_usd": round(self.output_cost_usd, 6),
+                "estimated_cost_usd": round(total_cost, 6),
                 "calls": self.calls,
             },
-            "aggregated_total_cost_usd": round(total_cost, 6),
+            "aggregated_estimated_cost_usd": round(total_cost, 6),
             "tool_activity": {
                 "tool_start_count": self.tool_start_count,
                 "tool_end_count": self.tool_end_count,

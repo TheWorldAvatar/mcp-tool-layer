@@ -11,8 +11,13 @@ import json
 from src.agents.mops.cbu_derivation.utils.io_utils import resolve_identifier_to_hash, get_paths_for_hash
 from src.agents.mops.cbu_derivation.utils.metal_cbu import (
     load_entity_extraction_content,
-    extract_ccdc_from_entity_ttl,
+    resolve_ccdc_for_derivation,
     safe_name as metal_safe_name,
+)
+from src.pipelines.utils.runtime_paths import (
+    list_runtime_files,
+    read_runtime_text,
+    runtime_path_exists,
 )
 from src.agents.mops.cbu_derivation.utils.cbu_general import load_res_file as util_load_res_file
 from src.agents.mops.cbu_derivation.utils.markdown_utils import write_individual_md, write_summary_md, write_instruction_md
@@ -25,7 +30,7 @@ from src.agents.mops.cbu_derivation.prompts.organic_prompts import (
     organic_prompt_doi_found,
     organic_prompt_doi_not_found,
 )
-from models.locations import DATA_DIR
+from models.locations import CBU_DATABASE_PATH, DATA_DIR
 import csv
 
 
@@ -50,18 +55,9 @@ async def run_for_hash(hash_value: str, test_mode: bool = False):
     output_dir = os.path.join(cbu_root_dir, "organic")
     os.makedirs(output_dir, exist_ok=True)
 
-    # Skipping: if summary exists and not test_mode, skip
-    summary_path = Path(output_dir) / "summary.md"
-    if summary_path.exists() and not test_mode:
-        # Only skip if we also have some structured outputs; otherwise a previous failed run
-        # may have written a summary but produced no per-entity results.
-        structured_dir = Path(output_dir) / "structured"
-        has_structured = structured_dir.exists() and any(
-            p.suffix in (".json", ".txt") for p in structured_dir.iterdir()
-        )
-        if has_structured:
-            print(f"⏭️  Skipping CBU derivation (summary exists): {summary_path}")
-            return True
+    # A previous partial run may have written summary.md after only some
+    # entities succeeded. Never skip the whole paper here; per-entity
+    # structured JSON is the resume signal below.
 
     # Load inputs: iterate top-level entities directly from ontomops_output TTL filenames
     ttl_dir = os.path.join(DATA_DIR, hash_value, "ontomops_output")
@@ -72,21 +68,21 @@ async def run_for_hash(hash_value: str, test_mode: bool = False):
     # Load mapping file to convert filenames to actual entity labels
     mapping_file = os.path.join(ttl_dir, "ontomops_output_mapping.json")
     filename_to_label = {}  # Maps filename -> actual entity label
-    if os.path.exists(mapping_file):
+    if runtime_path_exists(mapping_file):
         try:
-            with open(mapping_file, 'r', encoding='utf-8') as mf:
-                mapping = json.load(mf)
-                # Reverse mapping: filename -> entity_label
-                for entity_label, filename in mapping.items():
-                    if not entity_label.startswith("https://"):  # Skip IRI entries, keep only label entries
-                        filename_to_label[filename] = entity_label
+            mapping = json.loads(read_runtime_text(mapping_file))
+            # Reverse mapping: filename -> entity_label
+            for entity_label, filename in mapping.items():
+                if not entity_label.startswith("https://"):  # Skip IRI entries, keep only label entries
+                    filename_to_label[filename] = entity_label
         except Exception as e:
             print(f"⚠️  Could not load mapping file: {e}")
     
     # Collect pairs of (actual_entity_label, exact_filename) to avoid naming mismatches
     entities: List[tuple[str, str]] = []
-    for name in sorted(os.listdir(ttl_dir)):
-        if not name.startswith("ontomops_extension_") or not name.endswith(".ttl"):
+    for path in sorted(list_runtime_files(ttl_dir, suffix=".ttl")):
+        name = os.path.basename(path)
+        if not name.startswith("ontomops_extension_"):
             continue
         # Try to get actual entity label from mapping, fallback to filename-based label
         actual_entity_label = filename_to_label.get(name, name[len("ontomops_extension_"):-len(".ttl")])
@@ -110,10 +106,40 @@ async def run_for_hash(hash_value: str, test_mode: bool = False):
             return ''
         return ''
 
+    def _organic_csv_rows_for_doi(canonical_doi: str) -> str:
+        if not canonical_doi:
+            return "(none)"
+        csv_path = CBU_DATABASE_PATH
+        if not os.path.exists(csv_path):
+            return "(none)"
+        doi_lc = canonical_doi.strip().lower()
+        lines = ["| Formula | SMILES |", "|---|---|"]
+        found = 0
+        try:
+            with open(csv_path, "r", encoding="utf-8") as cf:
+                for row in csv.DictReader(cf):
+                    if (row.get("category") or "").strip() != "Organic":
+                        continue
+                    field = (row.get("kg_dois") or "").lower()
+                    if not any(doi_lc == item.strip() for item in field.split(";")):
+                        continue
+                    formula = (row.get("formula") or "").strip()
+                    smiles = (
+                        (row.get("canonical_smiles") or "").strip()
+                        or (row.get("smiles") or "").strip()
+                    )
+                    if not formula:
+                        continue
+                    lines.append(f"| {formula} | {smiles} |")
+                    found += 1
+        except Exception:
+            return "(none)"
+        return "\n".join(lines) if found else "(none for this DOI)"
+
     def _doi_in_cbu_csv(canonical_doi: str) -> bool:
         if not canonical_doi:
             return False
-        csv_path = os.path.join(DATA_DIR, 'ontologies', 'full_cbus_with_canonical_smiles_updated.csv')
+        csv_path = CBU_DATABASE_PATH
         if not os.path.exists(csv_path):
             return False
         try:
@@ -132,11 +158,24 @@ async def run_for_hash(hash_value: str, test_mode: bool = False):
 
     canonical_doi = _canonical_doi_for_hash(hash_value)
     doi_in_db = _doi_in_cbu_csv(canonical_doi)
+    doi_organic_cbu_rows = _organic_csv_rows_for_doi(canonical_doi) if doi_in_db else "(none)"
     print(f"🔎 DOI lookup: canonical='{canonical_doi}' in_cbu_db={doi_in_db}")
 
     for idx, (entity_label, exact_ttl_name) in enumerate(entities, 1):
-        print(f"🔬 [{idx}/{len(entities)}] Deriving organic CBU for entity: {entity_label}")
+        print(
+            f"🔬 [{idx}/{len(entities)}] Deriving organic CBU for entity: {entity_label}",
+            flush=True,
+        )
         try:
+            structured_dir_existing = os.path.join(output_dir, "structured")
+            existing_json = os.path.join(structured_dir_existing, f"{metal_safe_name(entity_label)}.json")
+            if runtime_path_exists(existing_json):
+                print(f"    ⏭️  Skip (structured JSON exists)")
+                try:
+                    summary[entity_label] = json.loads(read_runtime_text(existing_json)).get("organic_cbu")
+                except Exception:
+                    summary[entity_label] = "existing"
+                continue
             # Entity-specific context
             ttl_text = ""
             extraction_text = ""
@@ -144,12 +183,11 @@ async def run_for_hash(hash_value: str, test_mode: bool = False):
             # Load the exact filename discovered in the directory to avoid safe-name mismatches
             ttl_dir = os.path.join(DATA_DIR, hash_value, "ontomops_output")
             ttl_file = os.path.join(ttl_dir, exact_ttl_name)
-            if not os.path.exists(ttl_file):
+            if not runtime_path_exists(ttl_file):
                 print(f"⚠️  Skipping entity (TTL not found): {ttl_file}")
                 summary[entity_label] = None
                 continue
-            with open(ttl_file, "r", encoding="utf-8") as tf:
-                ttl_text = tf.read()
+            ttl_text = read_runtime_text(ttl_file)
             try:
                 extraction_text = load_entity_extraction_content(hash_value, entity_label)
             except Exception as e:
@@ -168,15 +206,15 @@ async def run_for_hash(hash_value: str, test_mode: bool = False):
             combined_paper_content = extraction_text
             if hints_text:
                 combined_paper_content = f"[iter2_hints_file]: {iter2_hint_file}\n\n{extraction_text}\n\n[iter2_hints]\n{hints_text}"
-            # Extract CCDC strictly from the entity TTL and load RES; no fallback allowed
-            ccdc = extract_ccdc_from_entity_ttl(ttl_text) if ttl_text else ""
-            if not ccdc or ccdc.strip().upper() == "N/A":
-                print(f"⚠️  Skipping entity (no valid CCDC in TTL): {ttl_file}")
-                summary[entity_label] = None
-                continue
-            res_text = util_load_res_file(ccdc)
-            if not res_text or res_text.strip().startswith("RES file is not provided"):
-                raise FileNotFoundError(f"RES file not found for CCDC {ccdc}")
+            ccdc = resolve_ccdc_for_derivation(entity_label, ttl_text)
+            if ccdc:
+                res_text = util_load_res_file(ccdc)
+                if not res_text or res_text.strip().startswith("RES file is not provided"):
+                    print(f"⚠️  RES missing for CCDC {ccdc}; deriving organic from paper/TTL only")
+                    res_text = ""
+            else:
+                print(f"⚠️  No CCDC for '{entity_label}'; deriving organic from paper/TTL only")
+                res_text = ""
 
             # Strict validation: require non-empty entity-specific paper extraction
             missing_bits = []
@@ -190,40 +228,46 @@ async def run_for_hash(hash_value: str, test_mode: bool = False):
             # Build and persist instruction
             # Build two full prompts based on DOI presence
             tmpl = organic_prompt_doi_found if doi_in_db else organic_prompt_doi_not_found
-            print(f"🧩 Prompt selection: {'doi_found' if doi_in_db else 'doi_not_found'} for '{entity_label}'")
+            print(
+                f"🧩 Prompt selection: {'doi_found' if doi_in_db else 'doi_not_found'} for '{entity_label}'",
+                flush=True,
+            )
             instruction_text = tmpl.format(
                 paper_content=combined_paper_content,
                 res_content=res_text or "",
                 canonical_doi=canonical_doi,
+                doi_organic_cbu_rows=doi_organic_cbu_rows,
             )
             write_instruction_md(os.path.join(output_dir, "instructions"), entity_label, instruction_text)
 
-            # Invoke agent with full context, with retry mechanism
             max_retries = 3
             structured = None
             response = ""
-            
             for attempt in range(1, max_retries + 1):
                 try:
                     response = await run_cbu_agent(
                         res_content=res_text or "",
                         paper_content=combined_paper_content,
                         ttl_content=ttl_text or "",
+                        doi_organic_cbu_rows=doi_organic_cbu_rows,
                     )
                     write_individual_md(output_dir, entity_label, response)
-                    
-                    # Post-process for controllable structured output
                     structured = extract_formula_and_classify(response)
-                    
-                    # Check if we got a valid result
                     if structured and structured != "Ignore" and structured.strip():
                         print(f"✓ Successfully derived organic CBU for {entity_label} (attempt {attempt})")
                         break
-                    elif attempt < max_retries:
+                    if attempt < max_retries:
                         print(f"⚠️  Attempt {attempt}/{max_retries} returned empty/invalid result for {entity_label}, retrying...")
                     else:
                         print(f"⚠️  Failed to derive valid organic CBU after {max_retries} attempts for {entity_label}")
                 except Exception as e:
+                    if isinstance(e, TimeoutError):
+                        print(
+                            f"⚠️  Organic agent timed out for {entity_label}; "
+                            "not retrying a hung run",
+                            flush=True,
+                        )
+                        raise
                     if attempt < max_retries:
                         print(f"⚠️  Attempt {attempt}/{max_retries} failed with error: {e}, retrying...")
                     else:
@@ -241,17 +285,19 @@ async def run_for_hash(hash_value: str, test_mode: bool = False):
 
             if structured and structured != "Ignore" and structured.strip() and _is_valid_formula_block(structured):
                 # Write formula-only output
-                safe_name = entity_label.replace(' ', '_')
+                from src.pipelines.utils.runtime_paths import write_runtime_text
+                safe_name = metal_safe_name(entity_label)
                 txt_path = os.path.join(structured_dir, f"{safe_name}.txt")
-                with open(txt_path, "w", encoding="utf-8") as f:
-                    f.write(structured)
+                write_runtime_text(txt_path, structured)
                 summary[entity_label] = structured
 
                 # Also write per-entity JSON; IRI selection is deferred to integration
                 json_path = os.path.join(structured_dir, f"{safe_name}.json")
                 try:
-                    with open(json_path, "w", encoding="utf-8") as jf:
-                        json.dump({"organic_cbu": structured, "entity_label": entity_label}, jf, indent=2, ensure_ascii=False)
+                    write_runtime_text(
+                        json_path,
+                        json.dumps({"organic_cbu": structured, "entity_label": entity_label}, indent=2, ensure_ascii=False),
+                    )
                 except Exception:
                     pass
 

@@ -233,7 +233,10 @@ async def _run_ccdc_test_for_entity(agent: BaseAgent, hash_id: str, entity: Dict
                 print(f"Wrote: {out_file}")
                 # Show summary
                 aggregated = meta.get("aggregated_usage", {}) if isinstance(meta, dict) else {}
-                print(f"  → Tokens: {aggregated.get('total_tokens', 'n/a')}, Cost: ${aggregated.get('total_cost_usd', 0):.6f}")
+                print(
+                    f"  → Tokens: {aggregated.get('total_tokens', 'n/a')}, "
+                    f"Estimated cost: ${aggregated.get('estimated_cost_usd', 0):.6f}"
+                )
                 return
             else:
                 print(f"Attempt {attempt}: empty output for '{label}', retrying...")

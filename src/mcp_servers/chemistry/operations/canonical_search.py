@@ -11,8 +11,8 @@ import unicodedata
 from difflib import SequenceMatcher
 from pathlib import Path
 from typing import List, Dict
-from models.locations import DATA_DIR
-import os   
+from models.locations import CBU_DATABASE_PATH
+import os
 
 def _norm(s: str) -> str:
     """Normalize for robust string equality: strip, collapse spaces, NFC."""
@@ -32,8 +32,8 @@ def load_cbu_database_for_search() -> List[Dict[str, str]]:
         List of CBU entries with canonical SMILES data
     """
     cbu_data: List[Dict[str, str]] = []
+    csv_path = Path(os.environ.get("CBU_DATABASE_PATH") or CBU_DATABASE_PATH)
     try:
-        csv_path = Path(os.path.join(DATA_DIR, "ontologies", "full_cbus_with_canonical_smiles_updated.csv"))
         with open(csv_path, "r", encoding="utf-8") as file:
             reader = csv.DictReader(file)
             for row in reader:
@@ -75,6 +75,7 @@ def fuzzy_search_canonical_smiles(canonical_smiles: str, top_n: int = 5) -> str:
         if not cbu_database:
             return json.dumps({
                 "error": "CBU database not loaded or empty",
+                "cbu_database_path": str(Path(os.environ.get("CBU_DATABASE_PATH") or CBU_DATABASE_PATH)),
                 "input_canonical_smiles": input_norm,
                 "search_successful": False
             }, indent=2, ensure_ascii=False)

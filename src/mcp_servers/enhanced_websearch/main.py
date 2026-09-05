@@ -28,7 +28,10 @@ def google_search_tool(query: str, page: int = 1) -> str:
     return google_search(query, page)
 
 @mcp.tool(name="url_to_markdown", description="""
-Convert URL content to markdown format using Docling.
+Convert URL content to markdown.
+
+PubChem compound pages return a compact REST summary (CID, formula, SMILES, CAS).
+ACS DOI pages return a Crossref title/abstract card, not the paywalled HTML.
 
 Parameters:
 - url: The URL to fetch and convert to markdown
