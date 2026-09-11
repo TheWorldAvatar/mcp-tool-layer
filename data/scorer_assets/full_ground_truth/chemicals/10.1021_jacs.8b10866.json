@@ -1,0 +1,390 @@
+{
+  "synthesisProcedures": [
+    {
+      "procedureName": "Synthesis of MOP-1",
+      "steps": [
+        {
+          "inputChemicals": [
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "VOSO4·5H2O"
+                  ],
+                  "chemicalAmount": "25 mg, 0.1 mmol"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "[WV5O19]",
+                    "Na2WO4·2H2O"
+                  ],
+                  "chemicalAmount": "15 mg, 0.04 mmol"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "1,4-benzenedicarboxylic acid",
+                    "[(C6H4)(CO2)2]"
+                  ],
+                  "chemicalAmount": "25 mg, 0.15 mmol"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "Ethanol",
+                    "ch3ch2oh",
+                    "etoh"
+                  ],
+                  "chemicalAmount": "0.3125 mL"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "N,N-dimethylformamide",
+                    "dimethylformamide",
+                    "dmf",
+                    "n, n'-dimethylformamide"
+                  ],
+                  "chemicalAmount": "1.875 mL"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "Acetonitrile",
+                    "mecn"
+                  ],
+                  "chemicalAmount": "0.3125 mL"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            }
+          ],
+          "outputChemical": [
+            {
+              "names": [
+                "MOP-1"
+              ],
+              "yield": "N/A",
+              "CCDCNumber": "1552945"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "procedureName": "Synthesis of MOP-2",
+      "steps": [
+        {
+          "inputChemicals": [
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "VOSO4·5H2O",
+                    "vanadyl sulfate pentahydrate"
+                  ],
+                  "chemicalAmount": "25 mg, 0.1 mmol"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "Na2WO4·2H2O",
+                    "sodium tungstate dihydrate",
+                    "[WV5O11]"
+                  ],
+                  "chemicalAmount": "15 mg, 0.04 mmol"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "[(C10H6)(CO2)]",
+                    "2,6-naphthalenedicarboxylic acid"
+                  ],
+                  "chemicalAmount": "25 mg, 0.12 mmol"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "Ethanol",
+                    "ch3ch2oh",
+                    "etoh"
+                  ],
+                  "chemicalAmount": "0.3125 mL"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "N,N-dimethylformamide",
+                    "dimethylformamide",
+                    "dmf",
+                    "n, n'-dimethylformamide"
+                  ],
+                  "chemicalAmount": "1.875 mL"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "Acetonitrile",
+                    "mecn"
+                  ],
+                  "chemicalAmount": "0.3125 mL"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            }
+          ],
+          "outputChemical": [
+            {
+              "names": [
+                "MOP-2"
+              ],
+              "yield": "N/A",
+              "CCDCNumber": "1552946"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "procedureName": "Synthesis of MOP-3",
+      "steps": [
+        {
+          "inputChemicals": [
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "[WV5O11]",
+                    "VOSO4·5H2O"
+                  ],
+                  "chemicalAmount": "51 mg, 0.2 mmol"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "Na2WO4·2H2O"
+                  ],
+                  "chemicalAmount": "10 mg, 0.03 mmol"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "[(C6H3)(CO2)3]",
+                    "1,3,5-benzenetricarboxylic acid"
+                  ],
+                  "chemicalAmount": "31 mg, 0.15 mmol"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "DMF",
+                    "dimethylformamide",
+                    "n, n'-dimethylformamide",
+                    "n, n-dimethylformamide"
+                  ],
+                  "chemicalAmount": "2.0 mL"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "H2O",
+                    "water"
+                  ],
+                  "chemicalAmount": "0.5 mL"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            }
+          ],
+          "outputChemical": [
+            {
+              "names": [
+                "MOP-3",
+                "MetalOrganicPolyhedron for MOP-3"
+              ],
+              "yield": "N/A",
+              "CCDCNumber": "1552953"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "procedureName": "Synthesis of MOP-4",
+      "steps": [
+        {
+          "inputChemicals": [
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "VOSO4·5H2O"
+                  ],
+                  "chemicalAmount": "51 mg, 0.2 mmol"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "Na2WO4·2H2O",
+                    "[WV5O11]"
+                  ],
+                  "chemicalAmount": "15 mg, 0.05 mmol"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "[(C3N3)(C6H4)3(CO2)3]",
+                    "4,4′,4″-s-triazine-2,4,6-triyl-tribenzoic acid",
+                    "H3TATB",
+                    "4,4',4''-σ-triazine-2,4,6-triyl-tribenzoic acid",
+                    "1, 3, 5-triamino-2, 4, 6-trinitrobenzene"
+                  ],
+                  "chemicalAmount": "25 mg, 0.6 mmol"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "DMF",
+                    "dimethylformamide",
+                    "n, n'-dimethylformamide",
+                    "n, n-dimethylformamide"
+                  ],
+                  "chemicalAmount": "3.0 ml"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "methanol",
+                    "ch3oh",
+                    "meoh",
+                    "methyl alcohol"
+                  ],
+                  "chemicalAmount": "0.5ml"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "acetonitrile",
+                    "mecn"
+                  ],
+                  "chemicalAmount": "0.5ml"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            }
+          ],
+          "outputChemical": [
+            {
+              "names": [
+                "MOP-4",
+                "Goldberg MOP-4"
+              ],
+              "yield": "N/A",
+              "CCDCNumber": "1552951"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,144 @@
+{
+    "Devices": [
+        {
+            "HNMRDevice": {
+                "deviceName": "Bruker Avance 400",
+                "frequency": "400.1 MHz"
+            },
+            "ElementalAnalysisDevice": {
+                "deviceName": "Elementar Vario MICRO"
+            },
+            "InfraredSpectroscopyDevice": {
+                "deviceName": "Perkin−Elmer Spectrum One FT-IR"
+            },
+            "Characterisation": [
+                {
+                    "productNames": [
+                        "[Zr3O(OH)3(C5H5)3]4[(C6H4)2(CO2)2]6",
+                        "ZrT-1"
+                    ],
+                    "productCCDCNumber": "950330",
+                    "HNMR": {
+                        "shifts": "10.58 (s, 12H, O-H), 7.94 (s, 24H, Ph-H), 6.64 (s, 60H, Cp-H)",
+                        "solvent": "DMSO-d6",
+                        "temperature": "295 K"
+                    },
+                    "ElementalAnalysis": {
+                        "weightPercentageCalculated": "C 37.94, H 4.96, N 3.63",
+                        "weightPercentageExperimental": "C 37.93, H 4.76, N 3.62",
+                        "chemicalFormula": "{[Cp3Zr3µ3-O(µ2-OH)3]4(BDC)6}4⋅Cl16⋅47DMF⋅90H2O"
+                    },
+                    "InfraredSpectroscopy": {
+                        "material": "KBr pellet",
+                        "bands": "3231 (s), 2932 (m), 1661 (s), 1566 (vs), 1505(s), 1017 (m), 820 (s), 747 (s), 616 (s), 551 (s)"
+                    }
+                }
+            ]
+        },
+        {
+            "HNMRDevice": {
+                "deviceName": "Bruker Avance 400",
+                "frequency": "400.1 MHz"
+            },
+            "ElementalAnalysisDevice": {
+                "deviceName": "Elementar Vario MICRO"
+            },
+            "InfraredSpectroscopyDevice": {
+                "deviceName": "Perkin−Elmer Spectrum One FT-IR"
+            },
+            "Characterisation": [
+                {
+                    "productNames": [
+                        "[Zr3O(OH)3(C5H5)3]4[(C6H3)(CO2)3]4",
+                        "ZrT-2"
+                    ],
+                    "productCCDCNumber": "950331",
+                    "HNMR": {
+                        "shifts": "8.55 and 8.58 (s, 12H, Ph-H), 6.73 (s, 60H, Cp-H)",
+                        "solvent": "MeOH-d4",
+                        "temperature": "295 K"
+                    },
+                    "ElementalAnalysis": {
+                        "weightPercentageCalculated": "C 37.42, H 4.99, N 4.64",
+                        "weightPercentageExperimental": "C 37.42, H 4.80, N 4.69",
+                        "chemicalFormula": "{[Cp3Zr3µ3-O(µ2-OH)3]4(BTC)4}2⋅Cl8⋅30DMF⋅35H2O"
+                    },
+                    "InfraredSpectroscopy": {
+                        "material": "KBr pellet",
+                        "bands": "3233 (s), 2931 (m), 1692 (m), 1655 (s), 1618 (vs), 1560 (s), 1448 (s), 1418 (m), 1386 (s), 1018 (m), 816 (s), 758 (s), 715 (m), 613 (s), 474 (s)"
+                    }
+                }
+            ]
+        },
+        {
+            "HNMRDevice": {
+                "deviceName": "Bruker Avance 400",
+                "frequency": "400.1 MHz"
+            },
+            "ElementalAnalysisDevice": {
+                "deviceName": "Elementar Vario MICRO"
+            },
+            "InfraredSpectroscopyDevice": {
+                "deviceName": "Perkin−Elmer Spectrum One FT-IR"
+            },
+            "Characterisation": [
+                {
+                    "productNames": [
+                        "[Zr3O(OH)3(C5H5)3]4[(C6H4)2(CO2)2]6",
+                        "ZrT-3"
+                    ],
+                    "productCCDCNumber": "950332",
+                    "HNMR": {
+                        "shifts": "10.48 (s, 12H, O-H), 7.97 (d, 24H, Ph-H), 7.91 (d, 24H, Ph-H), 6.65 (s, 60H, Cp-H)",
+                        "solvent": "DMSO-d6",
+                        "temperature": "295 K"
+                    },
+                    "ElementalAnalysis": {
+                        "weightPercentageCalculated": "C 39.78, H 6.78, N 4.24",
+                        "weightPercentageExperimental": "C 39.15, H 5.78, N 4.18",
+                        "chemicalFormula": "{[Cp3Zr3µ3-O(µ2-OH)3]4(BPDC)6}8⋅Cl32⋅166DMA⋅633H2O"
+                    },
+                    "InfraredSpectroscopy": {
+                        "material": "KBr pellet",
+                        "bands": "3266 (s), 2935 (m), 1613 (s), 1578 (vs), 1529(s), 1410 (vs), 1180(w), 1018(m), 815 (s), 771(m), 617 (m), 474 (m)"
+                    }
+                }
+            ]
+        },
+        {
+            "HNMRDevice": {
+                "deviceName": "Bruker Avance 400",
+                "frequency": "400.1 MHz"
+            },
+            "ElementalAnalysisDevice": {
+                "deviceName": "Elementar Vario MICRO"
+            },
+            "InfraredSpectroscopyDevice": {
+                "deviceName": "Perkin−Elmer Spectrum One FT-IR"
+            },
+            "Characterisation": [
+                {
+                    "productNames": [
+                        "[Zr3O(OH)3(C5H5)3]4[(C6H3)(C6H4)3(CO2)3]4",
+                        "ZrT-4"
+                    ],
+                    "productCCDCNumber": "950333",
+                    "HNMR": {
+                        "shifts": "10.52 (s, 12H, O-H), 8.20 (s, 12H, Ph-H), 8.07 (d, 24H, Ph-H), 7.82 (d, 24H, Ph-H), 6.70 (s, 60H, Cp-H)",
+                        "solvent": "DMSO-d6",
+                        "temperature": "295 K"
+                    },
+                    "ElementalAnalysis": {
+                        "weightPercentageCalculated": "C 47.50, H 5.85, N 4.47",
+                        "weightPercentageExperimental": "C 47.43, H 5.63, N 4.47",
+                        "chemicalFormula": "{[Cp3Zr3µ3-O(µ2-OH)3]4(BTB)4}4⋅Cl16⋅80DMA⋅110H2O"
+                    },
+                    "InfraredSpectroscopy": {
+                        "material": "KBr pellet",
+                        "bands": "3231 (s), 2926 (m), 1608 (s), 1581 (vs), 1532 (s), 1422 (s), 1016 (m), 811 (m), 781 (m), 747 (s), 617 (s), 506 (s)"
+                    }
+                }
+            ]
+        }
+    ]
+}

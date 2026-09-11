@@ -1,0 +1,449 @@
+{
+    "synthesisProcedures": [
+        {
+            "procedureName": "IRMOP-50",
+            "steps": [
+                {
+                    "inputChemicals": [
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "Fe2(SO4)3·xH2O",
+                                    "chemicalName": [
+                                        "Iron(III) sulfate hydrate"
+                                    ],
+                                    "chemicalAmount": "0.20 g"
+                                }
+                            ],
+                            "supplierName": "Aldrich Chemical Co.",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "C8H6O4",
+                                    "chemicalName": [
+                                        "1,4-benzenedicarboxylic acid",
+                                        "H2BDC"
+                                    ],
+                                    "chemicalAmount": "0.083 g"
+                                }
+                            ],
+                            "supplierName": "Aldrich Chemical Co.",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "C3H7NO",
+                                    "chemicalName": [
+                                        "N,N-Dimethylformamide",
+                                        "DMF"
+                                    ],
+                                    "chemicalAmount": "50 mL"
+                                }
+                            ],
+                            "supplierName": "Fisher Chemicals",
+                            "purity": "99.9%"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "C5H5N",
+                                    "chemicalName": [
+                                        "pyridine",
+                                        "py"
+                                    ],
+                                    "chemicalAmount": "4 mL"
+                                }
+                            ],
+                            "supplierName": "Fisher Chemicals",
+                            "purity": "99.9%"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "C6H15N",
+                                    "chemicalName": [
+                                        "triethylamine",
+                                        "TEA"
+                                    ],
+                                    "chemicalAmount": "130 µL"
+                                }
+                            ],
+                            "supplierName": "Aldrich Chemical Co.",
+                            "purity": "N/A"
+                        }
+                    ],
+                    "outputChemical": [
+                        {
+                            "chemicalFormula": "[Fe3O(SO4)3(C5H5N)3]4[(C6H4)(CO2)2]6",
+                            "names": [
+                                "IRMOP-50",
+                                "[NH2(CH3)2]8[Fe12O4(BDC)6(SO4)12(py)12]"
+                            ],
+                            "yield": "N/A",
+                            "CCDCNumber": "273613"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "procedureName": "IRMOP-51",
+            "steps": [
+                {
+                    "inputChemicals": [
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "Fe2(SO4)3·xH2O",
+                                    "chemicalName": [
+                                        "Iron(III) sulfate hydrate"
+                                    ],
+                                    "chemicalAmount": "0.20 g"
+                                }
+                            ],
+                            "supplierName": "Aldrich Chemical Co.",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "C14H10O4",
+                                    "chemicalName": [
+                                        "4,4'-biphenyldicarboxylic acid",
+                                        "H2BPDC"
+                                    ],
+                                    "chemicalAmount": "0.12 g"
+                                }
+                            ],
+                            "supplierName": "Aldrich Chemical Co.",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "C3H7NO",
+                                    "chemicalName": [
+                                        "N,N-Dimethylformamide",
+                                        "DMF"
+                                    ],
+                                    "chemicalAmount": "50 mL"
+                                }
+                            ],
+                            "supplierName": "Fisher Chemicals",
+                            "purity": "99.9%"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "C5H5N",
+                                    "chemicalName": [
+                                        "pyridine",
+                                        "py"
+                                    ],
+                                    "chemicalAmount": "3.6 mL"
+                                }
+                            ],
+                            "supplierName": "Fisher Chemicals",
+                            "purity": "99.9%"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "C6H15N",
+                                    "chemicalName": [
+                                        "triethylamine",
+                                        "TEA"
+                                    ],
+                                    "chemicalAmount": "130 µL"
+                                }
+                            ],
+                            "supplierName": "Aldrich Chemical Co.",
+                            "purity": "N/A"
+                        }
+                    ],
+                    "outputChemical": [
+                        {
+                            "chemicalFormula": "[Fe3O(SO4)3(C5H5N)3]4[(C6H4)2(CO2)2]6",
+                            "names": [
+                                "IRMOP-51",
+                                "[NH2(CH3)2]8[Fe12O4(SO4)12(BPDC)6(py)12]"
+                            ],
+                            "yield": "28%",
+                            "CCDCNumber": "273616"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "procedureName": "IRMOP-52",
+            "steps": [
+                {
+                    "inputChemicals": [
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "Fe2(SO4)3·xH2O",
+                                    "chemicalName": [
+                                        "Iron(III) sulfate hydrate"
+                                    ],
+                                    "chemicalAmount": "0.05 g"
+                                }
+                            ],
+                            "supplierName": "Aldrich Chemical Co.",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "C18H14O4",
+                                    "chemicalName": [
+                                        "tetrahydropyrene-2,7-dicarboxylic acid",
+                                        "H2HPDC"
+                                    ],
+                                    "chemicalAmount": "0.04 g"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "C3H7NO",
+                                    "chemicalName": [
+                                        "N,N-Dimethylformamide",
+                                        "DMF"
+                                    ],
+                                    "chemicalAmount": "20 mL"
+                                }
+                            ],
+                            "supplierName": "Fisher Chemicals",
+                            "purity": "99.9%"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "C5H5N",
+                                    "chemicalName": [
+                                        "pyridine",
+                                        "py"
+                                    ],
+                                    "chemicalAmount": "20 mL"
+                                }
+                            ],
+                            "supplierName": "Fisher Chemicals",
+                            "purity": "99.9%"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "C6H15N",
+                                    "chemicalName": [
+                                        "triethylamine",
+                                        "TEA"
+                                    ],
+                                    "chemicalAmount": "50 µL"
+                                }
+                            ],
+                            "supplierName": "Aldrich Chemical Co.",
+                            "purity": "N/A"
+                        }
+                    ],
+                    "outputChemical": [
+                        {
+                            "chemicalFormula": "[Fe3O(SO4)3(C5H5N)3]4[(C16H12)(CO2)2]6",
+                            "names": [
+                                "IRMOP-52",
+                                "[NH2(CH3)2]8[Fe12O4(SO4)12(HPDC)6(py)12]"
+                            ],
+                            "yield": "5%",
+                            "CCDCNumber": "273620"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "procedureName": "IRMOP-53",
+            "steps": [
+                {
+                    "inputChemicals": [
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "Fe2(SO4)3·xH2O",
+                                    "chemicalName": [
+                                        "Iron(III) sulfate hydrate"
+                                    ],
+                                    "chemicalAmount": "0.19 g"
+                                }
+                            ],
+                            "supplierName": "Aldrich Chemical Co.",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "C20H14O4",
+                                    "chemicalName": [
+                                        "4,4''-terphenyldicarboxylic acid",
+                                        "H2TPDC"
+                                    ],
+                                    "chemicalAmount": "0.15 g"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "C3H7NO",
+                                    "chemicalName": [
+                                        "N,N-Dimethylformamide",
+                                        "DMF"
+                                    ],
+                                    "chemicalAmount": "15 mL"
+                                }
+                            ],
+                            "supplierName": "Fisher Chemicals",
+                            "purity": "99.9%"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "C5H5N",
+                                    "chemicalName": [
+                                        "pyridine",
+                                        "py"
+                                    ],
+                                    "chemicalAmount": "15 mL"
+                                }
+                            ],
+                            "supplierName": "Fisher Chemicals",
+                            "purity": "99.9%"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "C6H15N",
+                                    "chemicalName": [
+                                        "triethylamine",
+                                        "TEA"
+                                    ],
+                                    "chemicalAmount": "130 µL"
+                                }
+                            ],
+                            "supplierName": "Aldrich Chemical Co.",
+                            "purity": "N/A"
+                        }
+                    ],
+                    "outputChemical": [
+                        {
+                            "chemicalFormula": "[Fe3O(SO4)3(C5H5N)3]4[(C6H4)3(CO2)2]6",
+                            "names": [
+                                "IRMOP-53",
+                                "[NH2(CH3)2]8[Fe12O4(SO4)12(TPDC)6(py)12]"
+                            ],
+                            "yield": "31%",
+                            "CCDCNumber": "273621"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "procedureName": "MOP-54",
+            "steps": [
+                {
+                    "inputChemicals": [
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "Fe2(SO4)3·xH2O",
+                                    "chemicalName": [
+                                        "Iron(III) sulfate hydrate"
+                                    ],
+                                    "chemicalAmount": "0.06 g"
+                                }
+                            ],
+                            "supplierName": "Aldrich Chemical Co.",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "C27H18O6",
+                                    "chemicalName": [
+                                        "1,3,5-tris(4-carboxyphenyl)benzene",
+                                        "H3BTB"
+                                    ],
+                                    "chemicalAmount": "0.044 g"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "C3H7NO",
+                                    "chemicalName": [
+                                        "N,N-Dimethylformamide",
+                                        "DMF"
+                                    ],
+                                    "chemicalAmount": "10 mL"
+                                }
+                            ],
+                            "supplierName": "Fisher Chemicals",
+                            "purity": "99.9%"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "C5H5N",
+                                    "chemicalName": [
+                                        "pyridine",
+                                        "py"
+                                    ],
+                                    "chemicalAmount": "10 mL"
+                                }
+                            ],
+                            "supplierName": "Fisher Chemicals",
+                            "purity": "99.9%"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "C6H15N",
+                                    "chemicalName": [
+                                        "triethylamine",
+                                        "TEA"
+                                    ],
+                                    "chemicalAmount": "150 µL"
+                                }
+                            ],
+                            "supplierName": "Aldrich Chemical Co.",
+                            "purity": "N/A"
+                        }
+                    ],
+                    "outputChemical": [
+                        {
+                            "chemicalFormula": "[Fe3O(SO4)3(C5H5N)3]4[(C6H3)(C6H4)3(CO2)3]4",
+                            "names": [
+                                "MOP-54",
+                                "[NH2(CH3)2]8[Fe12O4(SO4)12(BTB)4(py)12]"
+                            ],
+                            "yield": "20%",
+                            "CCDCNumber": "273623"
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

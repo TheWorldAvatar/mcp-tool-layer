@@ -1,0 +1,278 @@
+{
+  "Synthesis": [
+    {
+      "productCCDCNumber": "1576897",
+      "productNames": [
+        "UMC-1"
+      ],
+      "steps": [
+        {
+          "Add": {
+            "addedChemical": [
+              {
+                "chemicalAmount": "17.5 mg, 0.06 mmol",
+                "chemicalName": [
+                  "Cp2ZrCl2",
+                  "bis(cyclopentadienyl)zirconium dichloride",
+                  "zirconocene dichloride"
+                ]
+              }
+            ],
+            "atmosphere": "N/A",
+            "comment": "add cp2zrcl2",
+            "duration": "N/A",
+            "isLayered": false,
+            "stepNumber": 1,
+            "stir": false,
+            "targetPH": -1,
+            "usedVesselName": "vial 1",
+            "usedVesselType": "sealed vial"
+          }
+        },
+        {
+          "Add": {
+            "addedChemical": [
+              {
+                "chemicalAmount": "9.2 mg, 0.03 mmol",
+                "chemicalName": [
+                  "H2SDB"
+                ]
+              }
+            ],
+            "atmosphere": "N/A",
+            "comment": "add h2sdb",
+            "duration": "N/A",
+            "isLayered": false,
+            "stepNumber": 2,
+            "stir": false,
+            "targetPH": -1,
+            "usedVesselName": "vial 1",
+            "usedVesselType": "sealed vial"
+          }
+        },
+        {
+          "Add": {
+            "addedChemical": [
+              {
+                "chemicalAmount": "1 mL",
+                "chemicalName": [
+                  "DMF",
+                  "N,N-dimethylformamide",
+                  "dimethylformamide",
+                  "n, n'-dimethylformamide"
+                ]
+              }
+            ],
+            "atmosphere": "N/A",
+            "comment": "add dmf",
+            "duration": "N/A",
+            "isLayered": false,
+            "stepNumber": 3,
+            "stir": false,
+            "targetPH": -1,
+            "usedVesselName": "vial 1",
+            "usedVesselType": "sealed vial"
+          }
+        },
+        {
+          "Add": {
+            "addedChemical": [
+              {
+                "chemicalAmount": "four drops",
+                "chemicalName": [
+                  "H2O",
+                  "water"
+                ]
+              }
+            ],
+            "atmosphere": "N/A",
+            "comment": "add h2o",
+            "duration": "N/A",
+            "isLayered": false,
+            "stepNumber": 4,
+            "stir": false,
+            "targetPH": -1,
+            "usedVesselName": "vial 1",
+            "usedVesselType": "sealed vial"
+          }
+        },
+        {
+          "Add": {
+            "addedChemical": [
+              {
+                "chemicalAmount": "two drops",
+                "chemicalName": [
+                  "MeOH",
+                  "methanol",
+                  "ch3oh",
+                  "methyl alcohol"
+                ]
+              }
+            ],
+            "atmosphere": "N/A",
+            "comment": "add meoh",
+            "duration": "N/A",
+            "isLayered": false,
+            "stepNumber": 5,
+            "stir": false,
+            "targetPH": -1,
+            "usedVesselName": "vial 1",
+            "usedVesselType": "sealed vial"
+          }
+        },
+        {
+          "Sonicate": {
+            "atmosphere": "N/A",
+            "comment": "sonicate for 3 minutes",
+            "duration": "3 min",
+            "stepNumber": 6,
+            "targetPH": -1,
+            "usedVesselName": "vial 1",
+            "usedVesselType": "sealed vial"
+          }
+        },
+        {
+          "HeatChill": {
+            "atmosphere": "N/A",
+            "comment": "heated at 60 °C for 8 hours and produced rhombic transparent crystals",
+            "duration": "8 h",
+            "heatingCoolingRate": "N/A",
+            "sealedVessel": true,
+            "stepNumber": 7,
+            "stir": false,
+            "targetTemperature": "60 °C",
+            "underVacuum": false,
+            "usedDevice": "N/A",
+            "usedVesselName": "vial 1",
+            "usedVesselType": "sealed vial"
+          }
+        }
+      ]
+    },
+    {
+      "productCCDCNumber": "1576898",
+      "productNames": [
+        "UMC-2"
+      ],
+      "steps": [
+        {
+          "Add": {
+            "addedChemical": [
+              {
+                "chemicalAmount": "17.5 mg, 0.06 mmol",
+                "chemicalName": [
+                  "Cp2ZrCl2",
+                  "bis(cyclopentadienyl)zirconium dichloride",
+                  "zirconocene dichloride"
+                ]
+              }
+            ],
+            "atmosphere": "N/A",
+            "comment": "add cp2zrcl2",
+            "duration": "N/A",
+            "isLayered": false,
+            "stepNumber": 1,
+            "stir": false,
+            "targetPH": -1,
+            "usedVesselName": "vial 2",
+            "usedVesselType": "sealed vial"
+          }
+        },
+        {
+          "Add": {
+            "addedChemical": [
+              {
+                "chemicalAmount": "7.7 mg, 0.03 mmol",
+                "chemicalName": [
+                  "H2MDB"
+                ]
+              }
+            ],
+            "atmosphere": "N/A",
+            "comment": "add h2mdb",
+            "duration": "N/A",
+            "isLayered": false,
+            "stepNumber": 2,
+            "stir": false,
+            "targetPH": -1,
+            "usedVesselName": "vial 2",
+            "usedVesselType": "sealed vial"
+          }
+        },
+        {
+          "Add": {
+            "addedChemical": [
+              {
+                "chemicalAmount": "1 mL",
+                "chemicalName": [
+                  "DMF",
+                  "N,N-dimethylformamide",
+                  "dimethylformamide",
+                  "n, n'-dimethylformamide"
+                ]
+              }
+            ],
+            "atmosphere": "N/A",
+            "comment": "add dmf",
+            "duration": "N/A",
+            "isLayered": false,
+            "stepNumber": 3,
+            "stir": false,
+            "targetPH": -1,
+            "usedVesselName": "vial 2",
+            "usedVesselType": "sealed vial"
+          }
+        },
+        {
+          "Add": {
+            "addedChemical": [
+              {
+                "chemicalAmount": "six drops",
+                "chemicalName": [
+                  "H2O",
+                  "water"
+                ]
+              }
+            ],
+            "atmosphere": "N/A",
+            "comment": "add h2o",
+            "duration": "N/A",
+            "isLayered": false,
+            "stepNumber": 4,
+            "stir": false,
+            "targetPH": -1,
+            "usedVesselName": "vial 2",
+            "usedVesselType": "sealed vial"
+          }
+        },
+        {
+          "Sonicate": {
+            "atmosphere": "N/A",
+            "comment": "sonicate for 3 minutes",
+            "duration": "3 min",
+            "stepNumber": 5,
+            "targetPH": -1,
+            "usedVesselName": "vial 2",
+            "usedVesselType": "sealed vial"
+          }
+        },
+        {
+          "HeatChill": {
+            "atmosphere": "N/A",
+            "comment": "heated at 60 °C for 8 hours",
+            "duration": "8 h",
+            "heatingCoolingRate": "N/A",
+            "sealedVessel": true,
+            "stepNumber": 6,
+            "stir": false,
+            "targetTemperature": "60 °C",
+            "underVacuum": false,
+            "usedDevice": "N/A",
+            "usedVesselName": "vial 2",
+            "usedVesselType": "sealed vial"
+          }
+        }
+      ]
+    }
+  ]
+}

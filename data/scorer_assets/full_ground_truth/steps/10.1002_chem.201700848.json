@@ -1,0 +1,472 @@
+{
+  "Synthesis": [
+    {
+      "productCCDCNumber": "1497171",
+      "productNames": [
+        "MOP-MIA"
+      ],
+      "steps": [
+        {
+          "Add": {
+            "usedVesselName": "15 mL glass vial",
+            "usedVesselType": "glass vial",
+            "stepNumber": 1,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "Add copper nitrate",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "Cu(NO3)2·6H2O",
+                  "copper(II) nitrate hexahydrate"
+                ],
+                "chemicalAmount": "24.1 mg, 0.1 mmol"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "15 mL glass vial",
+            "usedVesselType": "glass vial",
+            "stepNumber": 2,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "Add linker",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "5-methoxy isophthalic acid",
+                  "5-MIA"
+                ],
+                "chemicalAmount": "0.2 mmol"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "15 mL glass vial",
+            "usedVesselType": "glass vial",
+            "stepNumber": 3,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "add dmf",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "DMF",
+                  "N,N-dimethylformamide",
+                  "dimethylformamide",
+                  "n, n'-dimethylformamide"
+                ],
+                "chemicalAmount": "4 mL"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "15 mL glass vial",
+            "usedVesselType": "glass vial",
+            "stepNumber": 4,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "add mecn",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "MeCN",
+                  "acetonitrile"
+                ],
+                "chemicalAmount": "2 mL"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "HeatChill": {
+            "usedVesselName": "15 mL glass vial",
+            "usedVesselType": "glass vial",
+            "stepNumber": 5,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "Cap vial and place in hot air oven",
+            "duration": "24 h",
+            "usedDevice": "hot air oven",
+            "targetTemperature": "90 degree celsius",
+            "heatingCoolingRate": "n/a",
+            "underVacuum": false,
+            "sealedVessel": true,
+            "stir": false
+          }
+        },
+        {
+          "Separate": {
+            "usedVesselName": "15 mL glass vial",
+            "usedVesselType": "glass vial",
+            "stepNumber": 6,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "Single crystals separated within 24 hrs by crystallization",
+            "duration": "24 h"
+          }
+        },
+        {
+          "Filter": {
+            "usedVesselName": "15 mL glass vial",
+            "usedVesselType": "glass vial",
+            "stepNumber": 7,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "Collect and wash with mother solvent mixture",
+            "washingSolvent": [
+              {
+                "chemicalName": [
+                  "DMF",
+                  "N,N-dimethylformamide",
+                  "dimethylformamide",
+                  "n, n'-dimethylformamide"
+                ],
+                "chemicalAmount": "n/a"
+              },
+              {
+                "chemicalName": [
+                  "MeCN",
+                  "acetonitrile"
+                ],
+                "chemicalAmount": "n/a"
+              }
+            ],
+            "vacuumFiltration": false,
+            "numberOfFiltrations": 1
+          }
+        }
+      ]
+    },
+    {
+      "productCCDCNumber": "1497172",
+      "productNames": [
+        "MOP-EIA"
+      ],
+      "steps": [
+        {
+          "Add": {
+            "usedVesselName": "15 mL glass vial",
+            "usedVesselType": "glass vial",
+            "stepNumber": 1,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "Add copper nitrate",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "Cu(NO3)2·6H2O",
+                  "copper(II) nitrate hexahydrate"
+                ],
+                "chemicalAmount": "24.1 mg, 0.1 mmol"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "15 mL glass vial",
+            "usedVesselType": "glass vial",
+            "stepNumber": 2,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "Add linker",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "5-ethoxy isophthalic acid",
+                  "5-EIA"
+                ],
+                "chemicalAmount": "0.2 mmol"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "15 mL glass vial",
+            "usedVesselType": "glass vial",
+            "stepNumber": 3,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "add dmf",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "DMF",
+                  "N,N-dimethylformamide",
+                  "dimethylformamide",
+                  "n, n'-dimethylformamide"
+                ],
+                "chemicalAmount": "4 mL"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "15 mL glass vial",
+            "usedVesselType": "glass vial",
+            "stepNumber": 4,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "add water",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "H2O",
+                  "water"
+                ],
+                "chemicalAmount": "0.5 mL"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "HeatChill": {
+            "usedVesselName": "15 mL glass vial",
+            "usedVesselType": "glass vial",
+            "stepNumber": 5,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "Cap vial and place in hot air oven",
+            "duration": "24 h",
+            "usedDevice": "hot air oven",
+            "targetTemperature": "90 degree celsius",
+            "heatingCoolingRate": "n/a",
+            "underVacuum": false,
+            "sealedVessel": true,
+            "stir": false
+          }
+        },
+        {
+          "Separate": {
+            "usedVesselName": "15 mL glass vial",
+            "usedVesselType": "glass vial",
+            "stepNumber": 6,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "Single crystals separated within 24 hrs by crystallization",
+            "duration": "24 h"
+          }
+        },
+        {
+          "Filter": {
+            "usedVesselName": "15 mL glass vial",
+            "usedVesselType": "glass vial",
+            "stepNumber": 7,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "Collect and wash with mother solvent mixture",
+            "washingSolvent": [
+              {
+                "chemicalName": [
+                  "DMF",
+                  "N,N-dimethylformamide",
+                  "dimethylformamide",
+                  "n, n'-dimethylformamide"
+                ],
+                "chemicalAmount": "n/a"
+              },
+              {
+                "chemicalName": [
+                  "H2O",
+                  "water"
+                ],
+                "chemicalAmount": "n/a"
+              }
+            ],
+            "vacuumFiltration": false,
+            "numberOfFiltrations": 1
+          }
+        }
+      ]
+    },
+    {
+      "productCCDCNumber": "1497173",
+      "productNames": [
+        "MOP-PrIA"
+      ],
+      "steps": [
+        {
+          "Add": {
+            "usedVesselName": "15 mL glass vial",
+            "usedVesselType": "glass vial",
+            "stepNumber": 1,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "Add copper nitrate",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "Cu(NO3)2·6H2O",
+                  "copper(II) nitrate hexahydrate"
+                ],
+                "chemicalAmount": "24.1 mg, 0.1 mmol"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "15 mL glass vial",
+            "usedVesselType": "glass vial",
+            "stepNumber": 2,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "Add linker",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "5-(n-propyloxy) isophthalic acid",
+                  "5-PrIA"
+                ],
+                "chemicalAmount": "0.2 mmol"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "15 mL glass vial",
+            "usedVesselType": "glass vial",
+            "stepNumber": 3,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "add dmf",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "DMF",
+                  "N,N-dimethylformamide",
+                  "dimethylformamide",
+                  "n, n'-dimethylformamide"
+                ],
+                "chemicalAmount": "4 mL"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "15 mL glass vial",
+            "usedVesselType": "glass vial",
+            "stepNumber": 4,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "add mecn",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "MeCN",
+                  "acetonitrile"
+                ],
+                "chemicalAmount": "2 mL"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "HeatChill": {
+            "usedVesselName": "15 mL glass vial",
+            "usedVesselType": "glass vial",
+            "stepNumber": 5,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "Cap vial and place in hot air oven",
+            "duration": "24 h",
+            "usedDevice": "hot air oven",
+            "targetTemperature": "90 degree celsius",
+            "heatingCoolingRate": "n/a",
+            "underVacuum": false,
+            "sealedVessel": true,
+            "stir": false
+          }
+        },
+        {
+          "Separate": {
+            "usedVesselName": "15 mL glass vial",
+            "usedVesselType": "glass vial",
+            "stepNumber": 6,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "Single crystals separated within 24 hrs by crystallization",
+            "duration": "24 h"
+          }
+        },
+        {
+          "Filter": {
+            "usedVesselName": "15 mL glass vial",
+            "usedVesselType": "glass vial",
+            "stepNumber": 7,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "Collect and wash with mother solvent mixture",
+            "washingSolvent": [
+              {
+                "chemicalName": [
+                  "DMF",
+                  "N,N-dimethylformamide",
+                  "dimethylformamide",
+                  "n, n'-dimethylformamide"
+                ],
+                "chemicalAmount": "n/a"
+              },
+              {
+                "chemicalName": [
+                  "MeCN",
+                  "acetonitrile"
+                ],
+                "chemicalAmount": "n/a"
+              }
+            ],
+            "vacuumFiltration": false,
+            "numberOfFiltrations": 1
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -159,7 +159,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--scorer-repo",
-        help="Read-only scorer checkout. Defaults to the Reproduction repo if present.",
+        help="Optional scorer checkout. Default: auto-find or clone into data/third_party_repos/.",
     )
     parser.add_argument(
         "--compare-one-shot",
@@ -253,7 +253,7 @@ def main(argv: list[str] | None = None) -> int:
     if ok and args.score:
         scorer = resolve_scorer_repo(args.scorer_repo)
         if scorer is None:
-            print("[FAIL] --score needs --scorer-repo (Reproduction checkout not found)")
+            print("[FAIL] --score could not find or clone scoring engines")
             return 1
         _score_pipeline_run(
             config=config,

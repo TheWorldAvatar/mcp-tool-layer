@@ -1,0 +1,60 @@
+{
+    "Devices": [
+        {
+            "HNMRDevice": {
+                "deviceName": "N/A",
+                "frequency": "N/A"
+            },
+            "ElementalAnalysisDevice": {
+                "deviceName": "Perkin-Elmer 2400CHN elemental analyzer"
+            },
+            "InfraredSpectroscopyDevice": {
+                "deviceName": "Alpha Centaurt FT/IR spectrophotometer"
+            },
+            "Characterisation": [
+                {
+                    "productNames": [
+                        "[V7O10(OCH3)9]4[(C6H4)(CO2)2]6",
+                        "VMOP-16"
+                    ],
+                    "productCCDCNumber": "1490971",
+                    "HNMR": {
+                        "shifts": "N/A",
+                        "solvent": "N/A",
+                        "temperature": "N/A"
+                    },
+                    "ElementalAnalysis": {
+                        "weightPercentageCalculated": "C, 27.22; H, 4.31; N, 1.39",
+                        "weightPercentageExperimental": "C, 27.36; H, 4.05; N, 1.58",
+                        "chemicalFormula": "N/A"
+                    },
+                    "InfraredSpectroscopy": {
+                        "material": "KBr pellet",
+                        "bands": "3444 (br), 2929 (w), 2813 (w), 2499 (w), 1577 (vs), 1396 (vs), 1070 (m), 953 (m), 848 (s), 744 (w), 567 (w)"
+                    }
+                },
+                {
+                    "productNames": [
+                        "[V7O10(OCH3)9]4[(C6H3NH2)(CO2)2]6",
+                        "VMOP-17"
+                    ],
+                    "productCCDCNumber": "1490972",
+                    "HNMR": {
+                        "shifts": "N/A",
+                        "solvent": "N/A",
+                        "temperature": "N/A"
+                    },
+                    "ElementalAnalysis": {
+                        "weightPercentageCalculated": "C, 26.72; H, 4.39; N, 3.18",
+                        "weightPercentageExperimental": "C, 26.58; H, 4.55; N, 3.02",
+                        "chemicalFormula": "N/A"
+                    },
+                    "InfraredSpectroscopy": {
+                        "material": "KBr pellet",
+                        "bands": "3484 (w), 3374 (w), 2927 (w), 2815 (w), 2497 (w), 1565 (s), 1440 (w), 1382 (w), 1259 (w), 1072 (s), 958 (s), 852 (s), 763 (w), 532 (w)"
+                    }
+                }
+            ]
+        }
+    ]
+}

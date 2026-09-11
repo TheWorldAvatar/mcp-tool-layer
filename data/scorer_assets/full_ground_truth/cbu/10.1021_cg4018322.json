@@ -1,0 +1,15 @@
+{
+  "synthesisProcedures": [
+    {
+      "mopCCDCNumber": "962728",
+      "cbuFormula1": "[C6(CH3)3(CH2)3(CO2)3]",
+      "cbuSpeciesNames1": [
+        "(2,4,6-Trimethylbenzene)-1,3,5-triacetic acid"
+      ],
+      "cbuFormula2": "[Cu2]",
+      "cbuSpeciesNames2": [
+        "dicopper(II) paddlewheel"
+      ]
+    }
+  ]
+}

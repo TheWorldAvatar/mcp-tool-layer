@@ -1,0 +1,96 @@
+{
+  "synthesisProcedures": [
+    {
+      "procedureName": "Cr-1 Synthesis",
+      "steps": [
+        {
+          "inputChemicals": [
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "100 mg",
+                  "chemicalFormula": "C8H6O4",
+                  "chemicalName": [
+                    "isophthalic acid"
+                  ]
+                }
+              ],
+              "purity": "N/A",
+              "supplierName": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "100 mg",
+                  "chemicalFormula": "Cr2(C2H3O2)4",
+                  "chemicalName": [
+                    "chromium(II) acetate",
+                    "Cr(OAc)2"
+                  ]
+                }
+              ],
+              "purity": "N/A",
+              "supplierName": "N/A"
+            }
+          ],
+          "outputChemical": [
+            {
+              "CCDCNumber": "974183",
+              "chemicalFormula": "N/A",
+              "names": [
+                "Cr-1"
+              ],
+              "yield": "N/A"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "procedureName": "Cr-2 Synthesis",
+      "steps": [
+        {
+          "inputChemicals": [
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "200 mg",
+                  "chemicalFormula": "C12H14O4",
+                  "chemicalName": [
+                    "5-tert-butylisophthalic acid"
+                  ]
+                }
+              ],
+              "purity": "N/A",
+              "supplierName": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "200 mg",
+                  "chemicalFormula": "Cr2(C2H3O2)4",
+                  "chemicalName": [
+                    "chromium(II) acetate",
+                    "Cr(OAc)2"
+                  ]
+                }
+              ],
+              "purity": "N/A",
+              "supplierName": "N/A"
+            }
+          ],
+          "outputChemical": [
+            {
+              "CCDCNumber": "974181",
+              "chemicalFormula": "N/A",
+              "names": [
+                "Cr-2"
+              ],
+              "yield": "N/A"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

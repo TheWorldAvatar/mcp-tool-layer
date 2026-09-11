@@ -1,0 +1,369 @@
+{
+    "synthesisProcedures": [
+        {
+            "procedureName": "VMOC-1",
+            "steps": [
+                {
+                    "inputChemicals": [
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "C16H10O8",
+                                    "chemicalName": [
+                                        "[1,1'-biphenyl]-3,3',5,5'-tetracarboxylic acid",
+                                        "H4BPTC"
+                                    ],
+                                    "chemicalAmount": "0.01 g, 0.03 mmol"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "VOSO4",
+                                    "chemicalName": [
+                                        "VOSO4"
+                                    ],
+                                    "chemicalAmount": "0.032 g, 0.2 mmol"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "CH3OH",
+                                    "chemicalName": [
+                                        "methanol"
+                                    ],
+                                    "chemicalAmount": "1.0 mL"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "C3H7NO",
+                                    "chemicalName": [
+                                        "N,N-dimethylformamide",
+                                        "DMF"
+                                    ],
+                                    "chemicalAmount": "1.5 mL"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        }
+                    ],
+                    "outputChemical": [
+                        {
+                            "chemicalFormula": "[(C12H6)(CO2)4]6[V6O6(OCH3)9(SO4)]8",
+                            "names": [
+                                "VMOC-1"
+                            ],
+                            "yield": "52%",
+                            "CCDCNumber": "1583722"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "procedureName": "VMOC-2",
+            "steps": [
+                {
+                    "inputChemicals": [
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "C16H10N2O8",
+                                    "chemicalName": [
+                                        "azobenzene-3,3',5,5'-tetracarboxylic acid",
+                                        "H4ABTC"
+                                    ],
+                                    "chemicalAmount": "0.010 g, 0.028 mmol"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "VOSO4",
+                                    "chemicalName": [
+                                        "VOSO4"
+                                    ],
+                                    "chemicalAmount": "0.032 g, 0.2 mmol"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "CH3OH",
+                                    "chemicalName": [
+                                        "methanol"
+                                    ],
+                                    "chemicalAmount": "1.0 mL"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "C3H7NO",
+                                    "chemicalName": [
+                                        "N,N-dimethylformamide",
+                                        "DMF"
+                                    ],
+                                    "chemicalAmount": "1.5 mL"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        }
+                    ],
+                    "outputChemical": [
+                        {
+                            "chemicalFormula": "[(C12H6N2)(CO2)4]6[V6O6(OCH3)9(SO4)]8",
+                            "names": [
+                                "VMOC-2"
+                            ],
+                            "yield": "68%",
+                            "CCDCNumber": "1985926"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "procedureName": "VMOC-3",
+            "steps": [
+                {
+                    "inputChemicals": [
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "C18H10O8",
+                                    "chemicalName": [
+                                        "1,1'-ethynebenzene-3,3',5,5'-tetracarboxylic acid",
+                                        "H4EBTC"
+                                    ],
+                                    "chemicalAmount": "0.0088 g, 0.025 mmol"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "VOSO4",
+                                    "chemicalName": [
+                                        "VOSO4"
+                                    ],
+                                    "chemicalAmount": "0.032 g, 0.2 mmol"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "CH3OH",
+                                    "chemicalName": [
+                                        "methanol"
+                                    ],
+                                    "chemicalAmount": "2.0 mL"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "C3H7NO",
+                                    "chemicalName": [
+                                        "N,N-dimethylformamide",
+                                        "DMF"
+                                    ],
+                                    "chemicalAmount": "1.0 mL"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        }
+                    ],
+                    "outputChemical": [
+                        {
+                            "chemicalFormula": "[(C14H6)(CO2)4]6[V6O6(OCH3)9(SO4)]8",
+                            "names": [
+                                "VMOC-3"
+                            ],
+                            "yield": "65%",
+                            "CCDCNumber": "1985927"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "procedureName": "VMOC-4",
+            "steps": [
+                {
+                    "inputChemicals": [
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "C22H14O8",
+                                    "chemicalName": [
+                                        "[1,1′:4′,1″]-terphenyl-3,3″,5,5″-tetracarboxylic acid",
+                                        "H4TPTC"
+                                    ],
+                                    "chemicalAmount": "0.01 g, 0.025 mmol"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "VOSO4",
+                                    "chemicalName": [
+                                        "VOSO4"
+                                    ],
+                                    "chemicalAmount": "0.032 g, 0.2 mmol"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "CH3OH",
+                                    "chemicalName": [
+                                        "methanol"
+                                    ],
+                                    "chemicalAmount": "2.0 mL"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "C3H7NO",
+                                    "chemicalName": [
+                                        "N,N-dimethylformamide",
+                                        "DMF"
+                                    ],
+                                    "chemicalAmount": "1.0 mL"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        }
+                    ],
+                    "outputChemical": [
+                        {
+                            "chemicalFormula": "[(C18H10)(CO2)4]6[V6O6(OCH3)9(SO4)]8",
+                            "names": [
+                                "VMOC-4"
+                            ],
+                            "yield": "41%",
+                            "CCDCNumber": "1985928"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "procedureName": "VMOC-5",
+            "steps": [
+                {
+                    "inputChemicals": [
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "C30H18O8",
+                                    "chemicalName": [
+                                        "5,5′-(anthracene-9,10-diyl)diisophthalic acid",
+                                        "H4ADIP"
+                                    ],
+                                    "chemicalAmount": "0.013 g, 0.025 mmol"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "VOSO4",
+                                    "chemicalName": [
+                                        "VOSO4"
+                                    ],
+                                    "chemicalAmount": "0.032 g, 0.2 mmol"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "CH3OH",
+                                    "chemicalName": [
+                                        "methanol"
+                                    ],
+                                    "chemicalAmount": "2.0 mL"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "C3H7NO",
+                                    "chemicalName": [
+                                        "N,N-dimethylformamide",
+                                        "DMF"
+                                    ],
+                                    "chemicalAmount": "1.0 mL"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        }
+                    ],
+                    "outputChemical": [
+                        {
+                            "chemicalFormula": "[(C26H14)(CO2)4]6[V6O6(OCH3)9(SO4)]8",
+                            "names": [
+                                "VMOC-5"
+                            ],
+                            "yield": "33%",
+                            "CCDCNumber": "1985929"
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

@@ -1,0 +1,48 @@
+{
+    "Devices": [
+        {
+            "Characterisation": [
+                {
+                    "HNMR": {
+                        "shifts": "δ = 13.22 (s, 2H, OH), 9.61 (s, 1H, NH), 8.54 (s, 2H, CH arom), 8.15 (s, 1H, CH arom), 1.23 (s, 6H, CH3)",
+                        "solvent": "DMSO",
+                        "temperature": "N/A"
+                    },
+                    "InfraredSpectroscopy": {
+                        "bands": "N/A",
+                        "material": "N/A"
+                    },
+                    "productCCDCNumber": "1835131",
+                    "productNames": [
+                        "Cu24(tBu-amide-bdc)24"
+                    ]
+                },
+                {
+                    "HNMR": {
+                        "shifts": "N/A",
+                        "solvent": "N/A",
+                        "temperature": "N/A"
+                    },
+                    "InfraredSpectroscopy": {
+                        "bands": "N/A",
+                        "material": "N/A"
+                    },
+                    "productCCDCNumber": "",
+                    "productNames": [
+                        "Cu24(H-bdc)24"
+                    ]
+                }
+            ],
+            "HNMRDevice": {
+                "deviceName": "Bruker 400 MHz",
+                "frequency": "400 MHz"
+            },
+            "InfraredSpectroscopyDevice": {
+                "deviceName": "N/A"
+            },
+            "XRayDevice": {
+                "deviceName": "Bruker-AXS APEX II DUO CCD diffractometer"
+            }
+        }
+    ]
+}

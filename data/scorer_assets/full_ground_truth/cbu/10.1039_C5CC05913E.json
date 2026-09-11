@@ -1,0 +1,15 @@
+{
+  "synthesisProcedures": [
+    {
+      "mopCCDCNumber": "1412183",
+      "cbuFormula1": "[(C6H4)(C3H2N2)2]",
+      "cbuSpeciesNames1": [
+        "1,4-bis(1H-pyrazol-4-yl)benzene"
+      ],
+      "cbuFormula2": "[V3O2(OH)2(HCO2)3]",
+      "cbuSpeciesNames2": [
+        "vanadium(iii) chloride"
+      ]
+    }
+  ]
+}

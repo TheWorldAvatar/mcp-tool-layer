@@ -15,6 +15,8 @@ if str(SCRIPTS) not in sys.path:
 
 from ship_lib import (  # noqa: E402
     DEFAULT_WORKERS,
+    MEDICAL_GOLD,
+    MEDICAL_SCHEMA,
     bounded_workers,
     chemistry_score_table,
     find_scorer_repo,
@@ -143,8 +145,6 @@ class ShipLibTests(unittest.TestCase):
                 "scripts/merge_and_conversion_main.py",
                 "scripts/medical_ttl_to_csv_sparql.py",
                 "scripts/medical_score_predicted_vs_gold.py",
-                "evaluation/medical/medical_cases_new_20260710_all30_corrected.csv",
-                "medical_case/medical_case_schema_de_non_flat_v3.ttl",
             ):
                 path = fake / relative
                 path.parent.mkdir(parents=True, exist_ok=True)
@@ -152,6 +152,21 @@ class ShipLibTests(unittest.TestCase):
             self.assertTrue(scorer_looks_valid(fake))
             found = find_scorer_repo(fake)
             self.assertEqual(found, fake.resolve())
+
+    def test_medical_gold_lives_in_this_repo(self) -> None:
+        root = repository_root()
+        self.assertTrue((root / MEDICAL_GOLD).is_file())
+        self.assertTrue((root / MEDICAL_SCHEMA).is_file())
+        self.assertTrue((root / "data" / "scorer_assets" / "full_ground_truth" / "steps").is_dir())
+
+    def test_overlay_copies_missing_ground_truth(self) -> None:
+        from src.kg_building.scorer_repo import overlay_scorer_assets
+
+        with tempfile.TemporaryDirectory() as raw:
+            scorer = Path(raw) / "engines"
+            scorer.mkdir()
+            overlay_scorer_assets(scorer)
+            self.assertTrue((scorer / "full_ground_truth" / "steps").is_dir())
 
 
 class ShipCliTests(unittest.TestCase):

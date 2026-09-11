@@ -1,0 +1,146 @@
+{
+  "synthesisProcedures": [
+    {
+      "procedureName": "Synthesis of UMC-1",
+      "steps": [
+        {
+          "inputChemicals": [
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "74 mg, 0.25 mmol",
+                  "chemicalFormula": "Cp2ZrCl2",
+                  "chemicalName": [
+                    "bis(cyclopentadienyl)zirconium dichloride"
+                  ]
+                }
+              ]
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "81 mg, 0.25 mmol",
+                  "chemicalFormula": "C14H10O6S",
+                  "chemicalName": [
+                    "4,4'-sulfonyldibenzoic acid",
+                    "H2SDB"
+                  ]
+                }
+              ]
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "5 mL",
+                  "chemicalFormula": "C3H7NO",
+                  "chemicalName": [
+                    "N,N-dimethylformamide",
+                    "DMF"
+                  ]
+                }
+              ]
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "1 mL",
+                  "chemicalFormula": "H2O",
+                  "chemicalName": [
+                    "water"
+                  ]
+                }
+              ]
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "1 mL",
+                  "chemicalFormula": "CH3OH",
+                  "chemicalName": [
+                    "methanol",
+                    "MeOH"
+                  ]
+                }
+              ]
+            }
+          ],
+          "outputChemical": [
+            {
+              "CCDCNumber": "1576897",
+              "chemicalFormula": "{[Cp3Zr3O(μ2-OH)3]2(SDB)3}·Cl2",
+              "names": [
+                "UMC-1"
+              ],
+              "yield": "N/A"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "procedureName": "Synthesis of UMC-2",
+      "steps": [
+        {
+          "inputChemicals": [
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "74 mg, 0.25 mmol",
+                  "chemicalFormula": "Cp2ZrCl2",
+                  "chemicalName": [
+                    "bis(cyclopentadienyl)zirconium dichloride"
+                  ]
+                }
+              ]
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "69 mg, 0.25 mmol",
+                  "chemicalFormula": "C15H12O4",
+                  "chemicalName": [
+                    "4,4'-methylenedibenzoic acid",
+                    "H2MDB"
+                  ]
+                }
+              ]
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "5 mL",
+                  "chemicalFormula": "C3H7NO",
+                  "chemicalName": [
+                    "N,N-dimethylformamide",
+                    "DMF"
+                  ]
+                }
+              ]
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "1 mL",
+                  "chemicalFormula": "H2O",
+                  "chemicalName": [
+                    "water"
+                  ]
+                }
+              ]
+            }
+          ],
+          "outputChemical": [
+            {
+              "CCDCNumber": "1576898",
+              "chemicalFormula": "{[Cp3Zr3O(μ2-OH)3]2(MDB)3}·Cl2",
+              "names": [
+                "UMC-2"
+              ],
+              "yield": "N/A"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

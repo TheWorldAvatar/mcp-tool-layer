@@ -1,0 +1,102 @@
+{
+  "Devices": [
+    {
+      "Characterisation": [
+        {
+          "ElementalAnalysis": {
+            "chemicalFormula": "Cr24C192H96O120",
+            "measurementDevice": "N/A",
+            "weightPercentageCalculated": "N/A",
+            "weightPercentageExperimental": "N/A"
+          },
+          "HNMR": {
+            "shifts": "N/A",
+            "solvent": "N/A",
+            "temperature": "N/A"
+          },
+          "InfraredSpectroscopy": {
+            "bands": "617, 694, 716, 744, 775, 812, 829, 910, 1026, 1109, 1201, 1269, 1367, 1566, 1598, 1726, 2312, 2372, 2864, 2962 cm⁻¹",
+            "material": "KBr pellet"
+          },
+          "productCCDCNumber": "974183",
+          "productNames": [
+            "Cr-1"
+          ]
+        },
+        {
+          "ElementalAnalysis": {
+            "chemicalFormula": "Cr24C288H288O120",
+            "measurementDevice": "N/A",
+            "weightPercentageCalculated": "N/A",
+            "weightPercentageExperimental": "N/A"
+          },
+          "HNMR": {
+            "shifts": "N/A",
+            "solvent": "N/A",
+            "temperature": "N/A"
+          },
+          "InfraredSpectroscopy": {
+            "bands": "623, 675, 696, 717, 746, 777, 810, 910, 949, 1012, 1058, 1188, 1265, 1354, 1394, 1502, 1597, 1641, 1708, 2873, 2951 cm⁻¹",
+            "material": "KBr pellet"
+          },
+          "productCCDCNumber": "974181",
+          "productNames": [
+            "Cr-2"
+          ]
+        },
+        {
+          "ElementalAnalysis": {
+            "chemicalFormula": "Cr24C456H576O120Si24",
+            "measurementDevice": "N/A",
+            "weightPercentageCalculated": "N/A",
+            "weightPercentageExperimental": "N/A"
+          },
+          "HNMR": {
+            "shifts": "N/A",
+            "solvent": "N/A",
+            "temperature": "N/A"
+          },
+          "InfraredSpectroscopy": {
+            "bands": "671, 719, 771, 825, 881, 916, 962, 997, 1012, 1072, 1103, 1130, 1211, 1247, 1271, 1357, 1427, 1564, 1625, 2152, 2864, 2943 cm⁻¹",
+            "material": "KBr pellet"
+          },
+          "productCCDCNumber": "974184",
+          "productNames": [
+            "Cr-3tetra"
+          ]
+        },
+        {
+          "ElementalAnalysis": {
+            "chemicalFormula": "Cr24C456H576O120Si24",
+            "measurementDevice": "N/A",
+            "weightPercentageCalculated": "N/A",
+            "weightPercentageExperimental": "N/A"
+          },
+          "HNMR": {
+            "shifts": "N/A",
+            "solvent": "N/A",
+            "temperature": "N/A"
+          },
+          "InfraredSpectroscopy": {
+            "bands": "671, 719, 771, 825, 881, 916, 962, 997, 1012, 1072, 1103, 1130, 1211, 1247, 1271, 1357, 1427, 1564, 1625, 2152, 2864, 2943 cm⁻¹",
+            "material": "KBr pellet"
+          },
+          "productCCDCNumber": "974182",
+          "productNames": [
+            "Cr-3rho"
+          ]
+        }
+      ],
+      "ElementalAnalysisDevice": {
+        "deviceName": "N/A"
+      },
+      "HNMRDevice": {
+        "deviceName": "Mercury 300 MHZ spectrometer",
+        "frequency": "300 MHZ"
+      },
+      "InfraredSpectroscopyDevice": {
+        "deviceName": "IRAffinity-1 (Shimadzu)"
+      }
+    }
+  ]
+}

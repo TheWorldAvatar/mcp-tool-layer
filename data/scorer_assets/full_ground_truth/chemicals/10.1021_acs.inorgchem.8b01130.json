@@ -1,0 +1,368 @@
+{
+  "synthesisProcedures": [
+    {
+      "procedureName": "Ni(Me-bdc) tetragonal sheet",
+      "steps": [
+        {
+          "inputChemicals": [
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "0.250 g, 1 mmol",
+                  "chemicalFormula": "Ni(C2H3O2)2·4H2O",
+                  "chemicalName": [
+                    "Ni(acetate)2·4H2O",
+                    "nickel(II) acetate tetrahydrate"
+                  ]
+                }
+              ]
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "0.540 g, 3 mmol",
+                  "chemicalFormula": "C9H8O4",
+                  "chemicalName": [
+                    "5-methyl-1,3-benzenedicarboxylic acid",
+                    "Me-BDC"
+                  ]
+                }
+              ]
+            }
+          ],
+          "outputChemical": [
+            {
+              "CCDCNumber": "1833896",
+              "chemicalFormula": "N/A",
+              "names": [
+                "Ni(Me-bdc)"
+              ],
+              "yield": "N/A"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "procedureName": "Co(Me-bdc) tetragonal sheet",
+      "steps": [
+        {
+          "inputChemicals": [
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "0.131 g, 1.0 mmol",
+                  "chemicalFormula": "CoCl2·6H2O",
+                  "chemicalName": [
+                    "Cobalt(II) chloride·6 H2O",
+                    "cobalt(II) chloride hexahydrate"
+                  ]
+                }
+              ]
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "0.725 g, 0.4 mmol",
+                  "chemicalFormula": "C9H8O4",
+                  "chemicalName": [
+                    "5-methyl-1,3-benzenedicarboxylic acid"
+                  ]
+                }
+              ]
+            }
+          ],
+          "outputChemical": [
+            {
+              "CCDCNumber": "1833892",
+              "chemicalFormula": "N/A",
+              "names": [
+                "Co(Me-bdc)"
+              ],
+              "yield": "N/A"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "procedureName": "Ni(OEt-bdc) tetragonal sheet",
+      "steps": [
+        {
+          "inputChemicals": [
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "0.995 g, 4 mmol",
+                  "chemicalFormula": "Ni(C2H3O2)2·4H2O",
+                  "chemicalName": [
+                    "Ni(acetate)2·4H2O",
+                    "nickel(II) acetate tetrahydrate"
+                  ]
+                }
+              ]
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "0.810 g, 3.8 mmol",
+                  "chemicalFormula": "C10H10O5",
+                  "chemicalName": [
+                    "5-ethoxy-1,3-benzenedicarboxylic acid"
+                  ]
+                }
+              ]
+            }
+          ],
+          "outputChemical": [
+            {
+              "CCDCNumber": "1833898",
+              "chemicalFormula": "N/A",
+              "names": [
+                "Ni(OEt-bdc)"
+              ],
+              "yield": "N/A"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "procedureName": "Co(OEt-bdc) tetragonal sheet",
+      "steps": [
+        {
+          "inputChemicals": [
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "0.107 g, 0.57 mmol",
+                  "chemicalFormula": "Co(NO3)2·6H2O",
+                  "chemicalName": [
+                    "Cobalt(II) nitrate·6 H2O",
+                    "cobalt(II) nitrate hexahydrate"
+                  ]
+                }
+              ]
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "0.838 g, 0.4 mmol",
+                  "chemicalFormula": "C10H10O5",
+                  "chemicalName": [
+                    "5-ethoxy-1,3-benzenedicarboxylic acid"
+                  ]
+                }
+              ]
+            }
+          ],
+          "outputChemical": [
+            {
+              "CCDCNumber": "1833893",
+              "chemicalFormula": "N/A",
+              "names": [
+                "Co(OEt-bdc)"
+              ],
+              "yield": "N/A"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "procedureName": "Ni(tBu-bdc) hexagonal sheet",
+      "steps": [
+        {
+          "inputChemicals": [
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "1.97 g, 7.9 mmol",
+                  "chemicalFormula": "Ni(C2H3O2)2·4H2O",
+                  "chemicalName": [
+                    "Ni(acetate)2·4H2O",
+                    "nickel(II) acetate tetrahydrate"
+                  ]
+                }
+              ]
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "1.959 g, 8.8 mmol",
+                  "chemicalFormula": "C12H14O4",
+                  "chemicalName": [
+                    "5-tert-butyl-1,3-benzenedicarboxylic acid"
+                  ]
+                }
+              ]
+            }
+          ],
+          "outputChemical": [
+            {
+              "CCDCNumber": "1833897",
+              "chemicalFormula": "N/A",
+              "names": [
+                "Ni(tBu-bdc)"
+              ],
+              "yield": "N/A"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "procedureName": "Ni24(OH-bdc)24 cuboctahedral cage",
+      "steps": [
+        {
+          "inputChemicals": [
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "0.250 g, 1 mmol",
+                  "chemicalFormula": "Ni(C2H3O2)2·4H2O",
+                  "chemicalName": [
+                    "Ni(acetate)2·4H2O",
+                    "nickel(II) acetate tetrahydrate"
+                  ]
+                }
+              ]
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "0.546 g, 3 mmol",
+                  "chemicalFormula": "C8H6O5",
+                  "chemicalName": [
+                    "5-hydroxy benzene-1,3-dicarboxylic acid",
+                    "OH-BDC",
+                    "5-hydroxyisophthalic acid"
+                  ]
+                }
+              ]
+            }
+          ],
+          "outputChemical": [
+            {
+              "CCDCNumber": "1833900",
+              "chemicalFormula": "N/A",
+              "names": [
+                "Ni24(OH-bdc)24 cage"
+              ],
+              "yield": "N/A"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "procedureName": "Ni12(iPr-cdc)12 octahedral cage",
+      "steps": [
+        {
+          "inputChemicals": [
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "0.500 g, 2 mmol",
+                  "chemicalFormula": "Ni(C2H3O2)2·4H2O",
+                  "chemicalName": [
+                    "Ni(Acetate)2·4H2O",
+                    "nickel(II) acetate tetrahydrate"
+                  ]
+                }
+              ]
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "0.148 g, 0.5 mmol",
+                  "chemicalFormula": "C18H15NO4",
+                  "chemicalName": [
+                    "9-isopropyl-carbazole-3,6-dicarboxylic acid",
+                    "H2iPr-cdc"
+                  ]
+                }
+              ]
+            }
+          ],
+          "outputChemical": [
+            {
+              "CCDCNumber": "1833901",
+              "chemicalFormula": "N/A",
+              "names": [
+                "Ni12(iPr-cdc)12 cage"
+              ],
+              "yield": "N/A"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "procedureName": "Co12(iPr-cdc)12 octahedral cage",
+      "steps": [
+        {
+          "inputChemicals": [
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "0.048 g, 0.26 mmol",
+                  "chemicalFormula": "Co(NO3)2·6H2O",
+                  "chemicalName": [
+                    "Cobalt(II) nitrate·6 H2O",
+                    "cobalt(II) nitrate hexahydrate"
+                  ]
+                }
+              ]
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "0.148 g, 0.5 mmol",
+                  "chemicalFormula": "C18H15NO4",
+                  "chemicalName": [
+                    "9-isopropyl-carbazole-3,6-dicarboxylic acid",
+                    "H2iPr-cdc"
+                  ]
+                }
+              ]
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "0.056 g, 0.5 mmol",
+                  "chemicalFormula": "C6H12N2",
+                  "chemicalName": [
+                    "1,4-diazabicyclo[2.2.2]octane",
+                    "DABCO"
+                  ]
+                }
+              ]
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "0.08 mL",
+                  "chemicalFormula": "C5H5N",
+                  "chemicalName": [
+                    "pyridine"
+                  ]
+                }
+              ]
+            }
+          ],
+          "outputChemical": [
+            {
+              "CCDCNumber": "1833899",
+              "chemicalFormula": "N/A",
+              "names": [
+                "Co12(iPr-cdc)12 cage"
+              ],
+              "yield": "N/A"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

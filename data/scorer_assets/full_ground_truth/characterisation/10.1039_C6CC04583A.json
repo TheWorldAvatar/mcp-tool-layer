@@ -1,0 +1,123 @@
+{
+    "Devices": [
+        {
+            "HNMRDevice": {
+                "deviceName": "N/A",
+                "frequency": "N/A"
+            },
+            "ElementalAnalysisDevice": {
+                "deviceName": "Perkin-Elmer 2400CHN elemental analyzer"
+            },
+            "InfraredSpectroscopyDevice": {
+                "deviceName": "Alpha Centaurt FT/IR spectrophotometer"
+            },
+            "Characterisation": [
+                {
+                    "productNames": [
+                        "[V6O6(OCH3)9(SO4)]4[(C6H4)(CO2)2]6",
+                        "VMOP-11"
+                    ],
+                    "productCCDCNumber": "1479717",
+                    "HNMR": {
+                        "shifts": "N/A",
+                        "solvent": "N/A",
+                        "temperature": "N/A"
+                    },
+                    "ElementalAnalysis": {
+                        "weightPercentageCalculated": "C, 30.96; H, 5.16; N, 2.87",
+                        "weightPercentageExperimental": "C, 30.82; H, 5.35; N, 2.58",
+                        "chemicalFormula": "N/A"
+                    },
+                    "InfraredSpectroscopy": {
+                        "material": "KBr pellet",
+                        "bands": "3430 (br), 2931 (w), 2815 (w), 2499 (w), 1564(w), 1589 (vs), 1402 (vs), 1201 (w), 1080 (m), 954 (s), 744 (w), 649 (w), 570 (w)"
+                    }
+                },
+                {
+                    "productNames": [
+                        "[V6O6(OCH3)9(SO4)]4[(C6H3NH2)(CO2)2]6",
+                        "VMOP-12"
+                    ],
+                    "productCCDCNumber": "1479718",
+                    "HNMR": {
+                        "shifts": "N/A",
+                        "solvent": "N/A",
+                        "temperature": "N/A"
+                    },
+                    "ElementalAnalysis": {
+                        "weightPercentageCalculated": "C, 30.10; H, 5.12; N, 4.41",
+                        "weightPercentageExperimental": "C, 29.92; H, 4.85; N, 4.58",
+                        "chemicalFormula": "N/A"
+                    },
+                    "InfraredSpectroscopy": {
+                        "material": "KBr pellet",
+                        "bands": "3484 (w), 3372 (w), 2931 (w), 2817 (w), 2497 (w), 1569 (s), 1440 (w), 1388 (w), 1205 (w), 1074 (s), 952 (s), 765 (w), 649 (w), 574 (w)"
+                    }
+                },
+                {
+                    "productNames": [
+                        "[V6O6(OCH3)9(SO4)]4[(C6H3Br)(CO2)2]6",
+                        "VMOP-13"
+                    ],
+                    "productCCDCNumber": "1479719",
+                    "HNMR": {
+                        "shifts": "N/A",
+                        "solvent": "N/A",
+                        "temperature": "N/A"
+                    },
+                    "ElementalAnalysis": {
+                        "weightPercentageCalculated": "C, 27.63; H, 4.46; N, 2.40",
+                        "weightPercentageExperimental": "C, 27.86; H, 4.25; N, 2.58",
+                        "chemicalFormula": "N/A"
+                    },
+                    "InfraredSpectroscopy": {
+                        "material": "KBr pellet",
+                        "bands": "3444 (br), 2929 (w), 2817 (w), 2499 (w), 1596 (s), 1398 (s), 1203 (w), 1079 (s), 950 (s), 763 (w), 647 (w), 576 (w), 539 (w)"
+                    }
+                },
+                {
+                    "productNames": [
+                        "[V6O6(OCH3)9(SO4)]4[(C6H3)(CO2)3]4",
+                        "VMOP-14"
+                    ],
+                    "productCCDCNumber": "1479720",
+                    "HNMR": {
+                        "shifts": "N/A",
+                        "solvent": "N/A",
+                        "temperature": "N/A"
+                    },
+                    "ElementalAnalysis": {
+                        "weightPercentageCalculated": "C, 27.93; H, 4.87; N, 2.60",
+                        "weightPercentageExperimental": "C, 27.76; H, 4.75; N, 2.76",
+                        "chemicalFormula": "N/A"
+                    },
+                    "InfraredSpectroscopy": {
+                        "material": "KBr pellet",
+                        "bands": "3432 (br), 2931 (w), 2817 (w), 2497 (w), 1619 (s), 1571 (s), 1442 (s), 1384 (s), 1205 (w), 1076 (s), 950 (vs), 723 (s), 649 (w), 578 (w), 539 (w)"
+                    }
+                },
+                {
+                    "productNames": [
+                        "[V6O6(OCH3)9(SO4)]4[(C6H3)(C6H4)3(CO2)3]4",
+                        "VMOP-15"
+                    ],
+                    "productCCDCNumber": "1479721",
+                    "HNMR": {
+                        "shifts": "N/A",
+                        "solvent": "N/A",
+                        "temperature": "N/A"
+                    },
+                    "ElementalAnalysis": {
+                        "weightPercentageCalculated": "C, 39.39; H, 5.05; N, 2.38",
+                        "weightPercentageExperimental": "C, 39.16; H, 4.83; N, 2.47",
+                        "chemicalFormula": "N/A"
+                    },
+                    "InfraredSpectroscopy": {
+                        "material": "KBr pellet",
+                        "bands": "3436 (br), 2929 (w), 2817 (w), 2495 (w), 1658 (w), 1591 (s), 1419 (vs), 1201 (w), 1076 (s), 954 (s), 775 (s), 647 (w), 574 (w), 539 (w)"
+                    }
+                }
+            ]
+        }
+    ]
+}

@@ -1,0 +1,81 @@
+{
+  "Devices": [
+    {
+      "HNMRDevice": {
+        "deviceName": "N/A",
+        "frequency": "N/A"
+      },
+      "ElementalAnalysisDevice": {
+        "deviceName": "N/A"
+      },
+      "InfraredSpectroscopyDevice": {
+        "deviceName": "Bruker Optics ALPHA-E"
+      },
+      "Characterisation": [
+        {
+          "productNames": [
+            "MOP-MIA"
+          ],
+          "productCCDCNumber": "1497173",
+          "HNMR": {
+            "shifts": "N/A",
+            "solvent": "N/A",
+            "temperature": "N/A"
+          },
+          "ElementalAnalysis": {
+            "weightPercentageCalculated": "C: 40.32, H: 3.51, N: 2.29",
+            "weightPercentageExperimental": "N/A",
+            "chemicalFormula": "C226Cu24N4O145",
+            "measurementDevice": "N/A"
+          },
+          "InfraredSpectroscopy": {
+            "material": "ATR (Zn-Se)",
+            "bands": "1054, 1375 cm-1"
+          }
+        },
+        {
+          "productNames": [
+            "MOP-EIA"
+          ],
+          "productCCDCNumber": "1497172",
+          "HNMR": {
+            "shifts": "N/A",
+            "solvent": "N/A",
+            "temperature": "N/A"
+          },
+          "ElementalAnalysis": {
+            "weightPercentageCalculated": "C: 42.76, H: 4.04, N: 3.05",
+            "weightPercentageExperimental": "N/A",
+            "chemicalFormula": "C492Cu48O176",
+            "measurementDevice": "N/A"
+          },
+          "InfraredSpectroscopy": {
+            "material": "ATR (Zn-Se)",
+            "bands": "1054, 1375 cm-1"
+          }
+        },
+        {
+          "productNames": [
+            "MOP-PrIA"
+          ],
+          "productCCDCNumber": "1497171",
+          "HNMR": {
+            "shifts": "N/A",
+            "solvent": "N/A",
+            "temperature": "N/A"
+          },
+          "ElementalAnalysis": {
+            "weightPercentageCalculated": "C: 44.93, H: 4.50, N: 2.66",
+            "weightPercentageExperimental": "N/A",
+            "chemicalFormula": "C480Cu48O288",
+            "measurementDevice": "N/A"
+          },
+          "InfraredSpectroscopy": {
+            "material": "ATR (Zn-Se)",
+            "bands": "1054, 1375 cm-1"
+          }
+        }
+      ]
+    }
+  ]
+}

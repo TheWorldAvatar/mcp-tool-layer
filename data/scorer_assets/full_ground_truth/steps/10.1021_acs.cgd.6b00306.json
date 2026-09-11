@@ -1,0 +1,137 @@
+{
+  "Synthesis": [
+    {
+      "productCCDCNumber": "142470 6",
+      "productNames": [
+        "chemicalsynthesis_—_[co24(c-pentylpyrogallol[4]arene)6]_nanocapsule_(1)",
+        "[co24(c-pentylpyrogallol[4]arene)6] nanocapsule",
+        "metalorganicpolyhedron for [co24(c-pentylpyrogallol[4]arene)6] nanocapsule"
+      ],
+      "steps": [
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "glass vial",
+            "stepNumber": 1,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "add c-pentylpyrogallol[4]arene",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "c-pentylpyrogallol[4]arene"
+                ],
+                "chemicalAmount": "0.0832 g, 0.1 mmol"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "glass vial",
+            "stepNumber": 2,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "add cocl2·6h2o",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "[co3]",
+                  "cobalt(ii) chloride hexahydrate"
+                ],
+                "chemicalAmount": "0.0952 g, 0.4 mmol"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "glass vial",
+            "stepNumber": 3,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "add naome",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "sodium methoxide"
+                ],
+                "chemicalAmount": "0.0162 g, 0.3 mmol"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "glass vial",
+            "stepNumber": 4,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "add dmf",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "n, n-dimethylformamide",
+                  "dimethylformamide",
+                  "dmf",
+                  "n, n'-dimethylformamide"
+                ],
+                "chemicalAmount": "n/a"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "glass vial",
+            "stepNumber": 5,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "add methanol",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "methanol",
+                  "ch3oh",
+                  "meoh",
+                  "methyl alcohol"
+                ],
+                "chemicalAmount": "n/a"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Evaporate": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "glass vial",
+            "stepNumber": 6,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "Slow evaporation of mother liquor produced crystals.",
+            "duration": "several weeks"
+          }
+        }
+      ]
+    }
+  ]
+}

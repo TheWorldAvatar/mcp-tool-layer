@@ -1,0 +1,60 @@
+{
+  "Devices": [
+    {
+      "Characterisation": [
+        {
+          "ElementalAnalysis": {
+            "chemicalFormula": "{[Cp3Zr3O(μ2-OH)3]2(SDB)3}·Cl2",
+            "measurementDevice": "N/A",
+            "weightPercentageCalculated": "N/A",
+            "weightPercentageExperimental": "N/A"
+          },
+          "HNMR": {
+            "shifts": "N/A",
+            "solvent": "N/A",
+            "temperature": "N/A"
+          },
+          "InfraredSpectroscopy": {
+            "bands": "N/A",
+            "material": "N/A"
+          },
+          "productCCDCNumber": "1576897",
+          "productNames": [
+            "UMC-1"
+          ]
+        },
+        {
+          "ElementalAnalysis": {
+            "chemicalFormula": "{[Cp3Zr3O(μ2-OH)3]2(MDB)3}·Cl2",
+            "measurementDevice": "N/A",
+            "weightPercentageCalculated": "N/A",
+            "weightPercentageExperimental": "N/A"
+          },
+          "HNMR": {
+            "shifts": "N/A",
+            "solvent": "N/A",
+            "temperature": "N/A"
+          },
+          "InfraredSpectroscopy": {
+            "bands": "N/A",
+            "material": "N/A"
+          },
+          "productCCDCNumber": "1576898",
+          "productNames": [
+            "UMC-2"
+          ]
+        }
+      ],
+      "ElementalAnalysisDevice": {
+        "deviceName": "N/A"
+      },
+      "HNMRDevice": {
+        "deviceName": "N/A",
+        "frequency": "N/A"
+      },
+      "InfraredSpectroscopyDevice": {
+        "deviceName": "N/A"
+      }
+    }
+  ]
+}

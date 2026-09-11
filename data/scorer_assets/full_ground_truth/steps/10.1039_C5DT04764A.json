@@ -1,0 +1,468 @@
+{
+  "Synthesis": [
+    {
+      "steps": [
+        {
+          "Add": {
+            "usedVesselName": "N/A",
+            "usedVesselType": "N/A",
+            "stepNumber": 1,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add H2BDC to the mixture.",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "H2BDC"
+                ],
+                "chemicalAmount": "0.032 g, 0.19 mmol"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "N/A",
+            "usedVesselType": "N/A",
+            "stepNumber": 2,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add VCl3 to the mixture.",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "VCl3",
+                  "vanadium(iii) chloride"
+                ],
+                "chemicalAmount": "0.030 g, 0.19 mmol"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "N/A",
+            "usedVesselType": "N/A",
+            "stepNumber": 3,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add DMF to the mixture.",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "DMF",
+                  "dimethylformamide",
+                  "n, n'-dimethylformamide",
+                  "n, n-dimethylformamide"
+                ],
+                "chemicalAmount": "2 mL"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "N/A",
+            "usedVesselType": "N/A",
+            "stepNumber": 4,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add CH3CH2OH to the mixture.",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "CH3CH2OH",
+                  "ethanol",
+                  "etoh"
+                ],
+                "chemicalAmount": "0.5 mL"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "HeatChill": {
+            "usedVesselName": "N/A",
+            "usedVesselType": "N/A",
+            "stepNumber": 5,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Heat to 150°C for 2 days.",
+            "duration": "2.0 day",
+            "usedDevice": "N/A",
+            "targetTemperature": "150.0 degree celsius",
+            "heatingCoolingRate": "N/A",
+            "underVacuum": false,
+            "sealedVessel": true,
+            "stir": false
+          }
+        },
+        {
+          "HeatChill": {
+            "usedVesselName": "N/A",
+            "usedVesselType": "N/A",
+            "stepNumber": 6,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Cool to room temperature.",
+            "duration": "N/A",
+            "usedDevice": "N/A",
+            "targetTemperature": "25.0 degree celsius",
+            "heatingCoolingRate": "N/A",
+            "underVacuum": false,
+            "sealedVessel": true,
+            "stir": false
+          }
+        },
+        {
+          "Filter": {
+            "usedVesselName": "N/A",
+            "usedVesselType": "N/A",
+            "stepNumber": 7,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Filter and wash with CH3CH2OH.",
+            "washingSolvent": [
+              {
+                "chemicalName": [
+                  "CH3CH2OH",
+                  "ethanol",
+                  "etoh"
+                ],
+                "chemicalAmount": "0.5 mL"
+              }
+            ],
+            "vacuumFiltration": false,
+            "numberOfFiltrations": 1
+          }
+        }
+      ],
+      "productNames": [
+        "VMOP-1"
+      ],
+      "productCCDCNumber": "1434668"
+    },
+    {
+      "steps": [
+        {
+          "Add": {
+            "usedVesselName": "N/A",
+            "usedVesselType": "N/A",
+            "stepNumber": 1,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add H2BDC-NH2",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "H2BDC-NH2",
+                  "2-aminoterephthalic acid",
+                  "2-amino-1,4-benzenedicarboxylate"
+                ],
+                "chemicalAmount": "0.020 g, 0.11 mmol"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "N/A",
+            "usedVesselType": "N/A",
+            "stepNumber": 2,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add VCl3",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "VCl3",
+                  "vanadium(iii) chloride"
+                ],
+                "chemicalAmount": "0.030 g, 0.19 mmol"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "N/A",
+            "usedVesselType": "N/A",
+            "stepNumber": 3,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add DMF",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "DMF",
+                  "dimethylformamide",
+                  "n, n'-dimethylformamide",
+                  "n, n-dimethylformamide"
+                ],
+                "chemicalAmount": "2 mL"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "N/A",
+            "usedVesselType": "N/A",
+            "stepNumber": 4,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add Ethanol",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "CH3CH2OH",
+                  "ethanol",
+                  "etoh"
+                ],
+                "chemicalAmount": "0.5 mL"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "HeatChill": {
+            "usedVesselName": "N/A",
+            "usedVesselType": "N/A",
+            "stepNumber": 5,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Heat to 150°C",
+            "duration": "2.0 day",
+            "usedDevice": "N/A",
+            "targetTemperature": "150.0 degree celsius",
+            "heatingCoolingRate": "N/A",
+            "underVacuum": false,
+            "sealedVessel": true,
+            "stir": false
+          }
+        },
+        {
+          "HeatChill": {
+            "usedVesselName": "N/A",
+            "usedVesselType": "N/A",
+            "stepNumber": 6,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Cool to room temperature",
+            "duration": "N/A",
+            "usedDevice": "N/A",
+            "targetTemperature": "25.0 degree celsius",
+            "heatingCoolingRate": "N/A",
+            "underVacuum": false,
+            "sealedVessel": true,
+            "stir": false
+          }
+        },
+        {
+          "Filter": {
+            "usedVesselName": "N/A",
+            "usedVesselType": "N/A",
+            "stepNumber": 7,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Filter and wash with ethanol",
+            "washingSolvent": [
+              {
+                "chemicalName": [
+                  "CH3CH2OH",
+                  "ethanol",
+                  "etoh"
+                ],
+                "chemicalAmount": "0.5 mL"
+              }
+            ],
+            "vacuumFiltration": false,
+            "numberOfFiltrations": 1
+          }
+        }
+      ],
+      "productNames": [
+        "VMOP-2"
+      ],
+      "productCCDCNumber": "1434669"
+    },
+    {
+      "steps": [
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 1,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add H2BDC-Br",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "H2BDC-Br"
+                ],
+                "chemicalAmount": "0.030 g, 0.123 mmol"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 2,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add VCl3",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "VCl3",
+                  "vanadium(iii) chloride"
+                ],
+                "chemicalAmount": "0.030 g, 0.19 mmol"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 3,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add DMF",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "DMF",
+                  "dimethylformamide",
+                  "n, n'-dimethylformamide",
+                  "n, n-dimethylformamide"
+                ],
+                "chemicalAmount": "2 mL"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 4,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add CH₃CH₂OH",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "CH3CH2OH",
+                  "ethanol",
+                  "etoh"
+                ],
+                "chemicalAmount": "0.5 mL"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "HeatChill": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 5,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Heat at 150 °C for 2 days",
+            "duration": "2.0 day",
+            "usedDevice": "N/A",
+            "targetTemperature": "150.0 degree celsius",
+            "heatingCoolingRate": "N/A",
+            "underVacuum": false,
+            "sealedVessel": true,
+            "stir": false
+          }
+        },
+        {
+          "HeatChill": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 6,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Slow cooling to room temperature",
+            "duration": "N/A",
+            "usedDevice": "N/A",
+            "targetTemperature": "25.0 degree celsius",
+            "heatingCoolingRate": "N/A",
+            "underVacuum": false,
+            "sealedVessel": true,
+            "stir": false
+          }
+        },
+        {
+          "Filter": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 7,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Filter crystals washed with CH₃CH₂OH",
+            "washingSolvent": [
+              {
+                "chemicalName": [
+                  "CH3CH2OH",
+                  "ethanol",
+                  "etoh"
+                ],
+                "chemicalAmount": "0.5 mL"
+              }
+            ],
+            "vacuumFiltration": false,
+            "numberOfFiltrations": 1
+          }
+        }
+      ],
+      "productNames": [
+        "VMOP-3"
+      ],
+      "productCCDCNumber": "1434670"
+    }
+  ]
+}

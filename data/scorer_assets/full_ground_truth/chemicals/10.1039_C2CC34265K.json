@@ -1,0 +1,266 @@
+{
+  "synthesisProcedures": [
+    {
+      "procedureName": "Synthesis of CIAC-105",
+      "steps": [
+        {
+          "inputChemicals": [
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "p-tert-butylsulfonylcalix[4]arene"
+                  ],
+                  "chemicalAmount": "0.075 g, 0.09 mmol"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "[Co4(OH)(C40H44O12S4)]",
+                    "Cobalt(II) chloride hexahydrate"
+                  ],
+                  "chemicalAmount": "0.1 g, 0.4 mmol"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "1,3,5-benzenetricarboxylic acid",
+                    "[(C6H3)(CO2)3]"
+                  ],
+                  "chemicalAmount": "0.02 g, 0.1 mmol"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "Triethylamine"
+                  ],
+                  "chemicalAmount": "2 drops"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "Methanol",
+                    "ch3oh",
+                    "meoh",
+                    "methyl alcohol"
+                  ],
+                  "chemicalAmount": "5 ml"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "N,N-dimethylformamide",
+                    "dimethylformamide",
+                    "dmf",
+                    "n, n'-dimethylformamide"
+                  ],
+                  "chemicalAmount": "3 ml"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            }
+          ],
+          "outputChemical": [
+            {
+              "names": [
+                "CIAC-105"
+              ],
+              "yield": "N/A",
+              "CCDCNumber": "869988"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "procedureName": "Synthesis of CIAC-106",
+      "steps": [
+        {
+          "inputChemicals": [
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "p-tert-butylsulfonylcalix[4]arene"
+                  ],
+                  "chemicalAmount": "0.075 g, 0.09 mmol"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "cobalt(II) chloride hexahydrate",
+                    "[Co4O]"
+                  ],
+                  "chemicalAmount": "0.1 g, 0.4 mmol"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "4,4',4''-benzene-1,3,5-triyl-tribenzoic acid"
+                  ],
+                  "chemicalAmount": "0.044 g, 0.1 mmol"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "triethylamine"
+                  ],
+                  "chemicalAmount": "2 drops"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "N,N-dimethylacetamide",
+                    "dimethylacetamide",
+                    "dma",
+                    "n, n'-dimethylacetamide"
+                  ],
+                  "chemicalAmount": "3.0 ml"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            }
+          ],
+          "outputChemical": [
+            {
+              "names": [
+                "CIAC-106"
+              ],
+              "yield": "N/A",
+              "CCDCNumber": "869989"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "procedureName": "Synthesis of CIAC-107",
+      "steps": [
+        {
+          "inputChemicals": [
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "p-tert-Butylsulfonylcalix[4]arene"
+                  ],
+                  "chemicalAmount": "0.075 g, 0.09 mmol"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "Cobalt(II) chloride hexahydrate",
+                    "[Co4C40H44O12S4]"
+                  ],
+                  "chemicalAmount": "0.1 g, 0.4 mmol"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "4,4',4''-(benzene-1,3,5-triyltris(ethyne-2,1-diyl))tribenzoic acid"
+                  ],
+                  "chemicalAmount": "0.051 g, 0.1 mmol"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "Triethylamine"
+                  ],
+                  "chemicalAmount": "2 drops"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "N,N-Dimethylacetamide",
+                    "dimethylacetamide",
+                    "dma",
+                    "n, n'-dimethylacetamide"
+                  ],
+                  "chemicalAmount": "3.0 ml"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            }
+          ],
+          "outputChemical": [
+            {
+              "names": [
+                "CIAC-107"
+              ],
+              "yield": "N/A",
+              "CCDCNumber": "869990"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

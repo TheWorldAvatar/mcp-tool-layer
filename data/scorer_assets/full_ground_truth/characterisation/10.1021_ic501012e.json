@@ -1,0 +1,58 @@
+{
+  "Devices": [
+    {
+      "Characterisation": [
+        {
+          "productNames": [
+            "CIAC-113"
+          ],
+          "productCCDCNumber": "998116",
+          "HNMR": {
+            "shifts": "N/A",
+            "solvent": "N/A",
+            "temperature": "N/A"
+          },
+          "ElementalAnalysis": {
+            "weightPercentageCalculated": "C 49.78, H 4.65, N 3.45",
+            "weightPercentageExperimental": "C 50.98, H 4.52, N 3.45",
+            "chemicalFormula": "[(C2H5)3NH]2{[Co4(TC4A)(Cl)]2[Co4(TC4A)(SO4)]4(C12H6O4N2)8}·(CH3OH)10(DMF)4"
+          },
+          "InfraredSpectroscopy": {
+            "material": "N/A",
+            "bands": "N/A"
+          }
+        },
+        {
+          "productNames": [
+            "CIAC-112"
+          ],
+          "productCCDCNumber": "998115",
+          "HNMR": {
+            "shifts": "N/A",
+            "solvent": "N/A",
+            "temperature": "N/A"
+          },
+          "ElementalAnalysis": {
+            "weightPercentageCalculated": "C 50.20, H 4.69, N 3.48",
+            "weightPercentageExperimental": "C 51.84, H 4.60, N 3.58",
+            "chemicalFormula": "[(C2H5)3NH]2{[Fe4(TC4A)(Cl)]2[Fe4(TC4A)(SO4)]4(C12H6O4N2)8}·(CH3OH)10(DMF)4"
+          },
+          "InfraredSpectroscopy": {
+            "material": "N/A",
+            "bands": "N/A"
+          }
+        }
+      ],
+      "ElementalAnalysisDevice": {
+        "deviceName": "N/A"
+      },
+      "HNMRDevice": {
+        "deviceName": "N/A",
+        "frequency": "N/A"
+      },
+      "InfraredSpectroscopyDevice": {
+        "deviceName": "N/A"
+      }
+    }
+  ]
+}

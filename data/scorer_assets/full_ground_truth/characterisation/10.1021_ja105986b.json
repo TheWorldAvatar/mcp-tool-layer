@@ -1,0 +1,41 @@
+{
+  "Devices": [
+    {
+      "Characterisation": [
+        {
+          "productNames": [
+            "[Ni(en)2(H2O)2]6{Ni6(Tris)(en)3 (BTC)1.5(B-R-PW9O34)}8·12en·54H2O",
+            "1",
+            "Cage_1",
+            "MetalOrganicPolyhedron for 1"
+          ],
+          "productCCDCNumber": "759738",
+          "HNMR": {
+            "shifts": "N/A",
+            "solvent": "N/A",
+            "temperature": "N/A"
+          },
+          "ElementalAnalysis": {
+            "weightPercentageCalculated": "C, 9.93; H, 2.18; N, 5.11",
+            "weightPercentageExperimental": "C, 10.32; H, 2.73; N, 5.01",
+            "chemicalFormula": "C236H616N104Ni54O434P8W72"
+          },
+          "InfraredSpectroscopy": {
+            "material": "N/A",
+            "bands": "N/A"
+          }
+        }
+      ],
+      "ElementalAnalysisDevice": {
+        "deviceName": "N/A"
+      },
+      "HNMRDevice": {
+        "deviceName": "N/A",
+        "frequency": "N/A"
+      },
+      "InfraredSpectroscopyDevice": {
+        "deviceName": "N/A"
+      }
+    }
+  ]
+}

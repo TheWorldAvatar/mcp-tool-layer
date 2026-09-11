@@ -1,0 +1,68 @@
+{
+  "synthesisProcedures": [
+    {
+      "procedureName": "Synthesis of Synthesis_of_[V3(μ3-O)O(OH)2(BPD)1.5(HCOO)3]_1",
+      "steps": [
+        {
+          "inputChemicals": [
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "[V3O2(OH)2(HCO2)3]",
+                    "VCl3",
+                    "vanadium(iii) chloride"
+                  ],
+                  "chemicalAmount": "200 mg, 1.27 mmol"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "[(C6H4)(C3H2N2)2]",
+                    "1,4-bis(1H-pyrazol-4-yl)benzene",
+                    "benzene-1,4-bipyrazolate",
+                    "H2BDP",
+                    "1,4-bi(1H-pyrazol-4-yl)benzene"
+                  ],
+                  "chemicalAmount": "134 mg, 0.64 mmol"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "DMF",
+                    "dimethylformamide",
+                    "n, n'-dimethylformamide",
+                    "n, n-dimethylformamide"
+                  ],
+                  "chemicalAmount": "10 mL"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            }
+          ],
+          "outputChemical": [
+            {
+              "names": [
+                "Synthesis_of_[V3(μ3-O)O(OH)2(BPD)1.5(HCOO)3]_1",
+                "[V3(μ3-O)O(OH)2(BPD)1.5(HCOO)3] 1"
+              ],
+              "yield": "N/A",
+              "CCDCNumber": "1412183"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

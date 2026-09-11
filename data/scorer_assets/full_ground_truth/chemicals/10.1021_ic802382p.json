@@ -1,0 +1,93 @@
+{
+  "synthesisProcedures": [
+    {
+      "procedureName": "Synthesis of 1; [Cu12L8(DMA)3(H2O)9]·18H2O",
+      "steps": [
+        {
+          "inputChemicals": [
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "[(C6H3)(CONHC6H4)3(CO2)3]",
+                    "H3L"
+                  ],
+                  "chemicalAmount": "56.7 mg (0.100 mmol)"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "[Cu2]",
+                    "Copper(II) nitrate trihydrate",
+                    "cu(no3)2·3h2o"
+                  ],
+                  "chemicalAmount": "40.0 mg (0.166 mmol)"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "N,N'-dimethylacetamide",
+                    "dimethylacetamide",
+                    "dma",
+                    "n, n-dimethylacetamide"
+                  ],
+                  "chemicalAmount": "-1"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "Methanol",
+                    "ch3oh",
+                    "meoh",
+                    "methyl alcohol"
+                  ],
+                  "chemicalAmount": "-1"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "Methylene chloride"
+                  ],
+                  "chemicalAmount": "-1"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            }
+          ],
+          "outputChemical": [
+            {
+              "names": [
+                "Synthesis_Procedure_1",
+                "1; [Cu12L8(DMA)3(H2O)9]·18H2O",
+                "Cage 1"
+              ],
+              "yield": "N/A",
+              "CCDCNumber": "707887"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

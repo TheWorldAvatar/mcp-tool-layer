@@ -1,0 +1,153 @@
+{
+    "synthesisProcedures": [
+        {
+            "procedureName": "Synthesis of (NH2Me2)16[(V6O6(OCH3)9(SO4))8(PBPTA)6] (VMOC-6)",
+            "steps": [
+                {
+                    "inputChemicals": [
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "VOSO4·xH2O",
+                                    "chemicalName": [
+                                        "vanadyl sulfate hydrate"
+                                    ],
+                                    "chemicalAmount": "0.02 g, 0.12 mmol"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "C44H28N2O8",
+                                    "chemicalName": [
+                                        "H4PBPTA",
+                                        "4,4′,4″,4″-(1,4-phenylbis(pyridine-4,2,6-triyl))tetrabenzoic acid"
+                                    ],
+                                    "chemicalAmount": "0.01 g, 0.03 mmol"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "C3H7NO",
+                                    "chemicalName": [
+                                        "N,N-dimethylformamide",
+                                        "DMF"
+                                    ],
+                                    "chemicalAmount": "0.5 mL"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "CH4O",
+                                    "chemicalName": [
+                                        "methanol",
+                                        "MeOH"
+                                    ],
+                                    "chemicalAmount": "2.5 mL"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        }
+                    ],
+                    "outputChemical": [
+                        {
+                            "chemicalFormula": "[(C16H8N2)(C6H4CO2)4]6[V6O6(OCH3)9(SO4)]8",
+                            "names": [
+                                "VMOC-6"
+                            ],
+                            "yield": "40%",
+                            "CCDCNumber": "2278526"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "procedureName": "Synthesis of (NH2Me2)24[(V6O6(OCH3)9(VO4))8(PBPTA)6] (VMOC-7)",
+            "steps": [
+                {
+                    "inputChemicals": [
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "C10H14O5V",
+                                    "chemicalName": [
+                                        "vanadyl acetylacetonate",
+                                        "VO(acac)2"
+                                    ],
+                                    "chemicalAmount": "0.02 g, 0.07 mmol"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "C48H28N4O8",
+                                    "chemicalName": [
+                                        "H4PBPTA",
+                                        "4,4′,4″,4″-(1,4-phenylbis(pyridine-4,2,6-triyl))tetrabenzoic acid"
+                                    ],
+                                    "chemicalAmount": "0.01 g, 0.03 mmol"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "C3H7NO",
+                                    "chemicalName": [
+                                        "N,N-dimethylformamide",
+                                        "DMF"
+                                    ],
+                                    "chemicalAmount": "0.5 mL"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "CH4O",
+                                    "chemicalName": [
+                                        "methanol",
+                                        "MeOH"
+                                    ],
+                                    "chemicalAmount": "2.5 mL"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        }
+                    ],
+                    "outputChemical": [
+                        {
+                            "chemicalFormula": "[(C16H8N2)(C6H4CO2)4]6[V7O10(OCH3)9]8",
+                            "names": [
+                                "VMOC-7"
+                            ],
+                            "yield": "45%",
+                            "CCDCNumber": "2278527"
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

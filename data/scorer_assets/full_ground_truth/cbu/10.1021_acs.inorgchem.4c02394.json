@@ -1,0 +1,60 @@
+{
+    "synthesisProcedures": [
+        {
+            "mopCCDCNumber": "2359340",
+            "cbuFormula1": "[V6O6(OCH3)9(SO4)]",
+            "cbuSpeciesNames1": [],
+            "cbuFormula2": "[(C10H6)(C6H4)2(CO2)2]",
+            "cbuSpeciesNames2": [
+                "4,4'-(naphthalene-1,4-diyl)dibenzoic acid",
+                "H2NDBDC"
+            ]
+        },
+        {
+            "mopCCDCNumber": "2359341",
+            "cbuFormula1": "[V6O6(OCH3)9(SO4)]",
+            "cbuSpeciesNames1": [],
+            "cbuFormula2": "[(C14H8)(C6H4)2(CO2)2]",
+            "cbuSpeciesNames2": [
+                "4,4'-(anthracene-9,10-diyl)dibenzoic acid",
+                "H2ADBDC"
+            ]
+        },
+        {
+            "mopCCDCNumber": "2359342",
+            "cbuFormula1": "[V6O6(OCH3)9(PhPO3)]",
+            "cbuSpeciesNames1": [
+                "[V6O6(OCH3)9(PhPO3)]"
+            ],
+            "cbuFormula2": "[(C10H6)(C6H4)2(CO2)2]",
+            "cbuSpeciesNames2": [
+                "4,4'-(naphthalene-1,4-diyl)dibenzoic acid",
+                "H2NDBDC"
+            ]
+        },
+        {
+            "mopCCDCNumber": "2359351",
+            "cbuFormula1": "[V6O6(OCH3)9(PhPO3)]",
+            "cbuSpeciesNames1": [
+                "[V6O6(OCH3)9(PhPO3)]"
+            ],
+            "cbuFormula2": "[(C14H8)(C6H4)2(CO2)2]",
+            "cbuSpeciesNames2": [
+                "4,4'-(anthracene-9,10-diyl)dibenzoic acid",
+                "H2ADBDC"
+            ]
+        },
+        {
+            "mopCCDCNumber": "2359343",
+            "cbuFormula1": "[V6O6(OCH3)9(PhPO3)]",
+            "cbuSpeciesNames1": [
+                "[V6O6(OCH3)9(PhPO3)]"
+            ],
+            "cbuFormula2": "[(C20H12N4)(C6H4)2(CO2)2]",
+            "cbuSpeciesNames2": [
+                "4,4′-(porphyrin-5,15-diyl)dibenzoic acid",
+                "H2DCPP"
+            ]
+        }
+    ]
+}

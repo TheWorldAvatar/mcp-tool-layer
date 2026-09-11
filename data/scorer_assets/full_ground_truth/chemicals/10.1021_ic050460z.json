@@ -1,0 +1,186 @@
+{
+  "synthesisProcedures": [
+    {
+      "procedureName": "Synthesis of [Mo24(BBDC)24](py)12 (1)",
+      "steps": [
+        {
+          "inputChemicals": [
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "22 mg",
+                  "chemicalFormula": "Mo2(ac)4",
+                  "chemicalName": [
+                    "molybdenum(II) acetate"
+                  ]
+                }
+              ]
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "N/A",
+                  "chemicalFormula": "C12H14O4",
+                  "chemicalName": [
+                    "BBDC",
+                    "5-tert-butyl-1,3-benzenedicarboxylic acid"
+                  ]
+                }
+              ]
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "2 mL",
+                  "chemicalFormula": "C6H4Cl2",
+                  "chemicalName": [
+                    "1,2-dichlorobenzene"
+                  ]
+                }
+              ]
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "0.1 mL",
+                  "chemicalFormula": "C5H5N",
+                  "chemicalName": [
+                    "pyridine"
+                  ]
+                }
+              ]
+            }
+          ],
+          "outputChemical": [
+            {
+              "CCDCNumber": "277345",
+              "chemicalFormula": "[Mo24(BBDC)24](py)12",
+              "names": [
+                "[Mo24(BBDC)24](py)12"
+              ],
+              "yield": "36%"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "procedureName": "Synthesis of Mo24(BDC)24 (2)",
+      "steps": [
+        {
+          "inputChemicals": [
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "22 mg",
+                  "chemicalFormula": "Mo2(ac)4",
+                  "chemicalName": [
+                    "molybdenum(II) acetate"
+                  ]
+                }
+              ]
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "17 mg",
+                  "chemicalFormula": "C8H6O4",
+                  "chemicalName": [
+                    "BDC", 
+                    "1,3-benzenedicarboxylic acid"
+                  ]
+                }
+              ]
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "2 mL",
+                  "chemicalFormula": "C3H7NO",
+                  "chemicalName": [
+                    "DMF",
+                    "N,N-dimethylformamide"
+                  ]
+                }
+              ]
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "0.1 mL",
+                  "chemicalFormula": "C5H5N",
+                  "chemicalName": [
+                    "pyridine"
+                  ]
+                }
+              ]
+            }
+          ],
+          "outputChemical": [
+            {
+              "CCDCNumber": "277343",
+              "chemicalFormula": "Mo24(BDC)24",
+              "names": [
+                "Mo24(BDC)24"
+              ],
+              "yield": "N/A"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "procedureName": "Synthesis of [Cu24(BBDC)24](py)12(MeOH)12 (3)",
+      "steps": [
+        {
+          "inputChemicals": [
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "1 mmol",
+                  "chemicalFormula": "Cu(NO3)2",
+                  "chemicalName": [
+                    "copper(II) nitrate"
+                  ]
+                }
+              ]
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "1 mmol",
+                  "chemicalFormula": "C12H14O4",
+                  "chemicalName": [
+                    "BBDC",
+                    "5-tert-butyl-1,3-benzenedicarboxylic acid"
+                  ]
+                }
+              ]
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "0.1 mL",
+                  "chemicalFormula": "C5H5N",
+                  "chemicalName": [
+                    "pyridine"
+                  ]
+                }
+              ]
+            }
+          ],
+          "outputChemical": [
+            {
+              "CCDCNumber": "277344",
+              "chemicalFormula": "[Cu24(BBDC)24](py)12(MeOH)12",
+              "names": [
+                "[Cu24(BBDC)24](py)12(MeOH)12"
+              ],
+              "yield": "N/A"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,212 @@
+{
+  "Synthesis": [
+    {
+      "steps": [
+        {
+          "Add": {
+            "usedVesselName": "N/A",
+            "usedVesselType": "N/A",
+            "stepNumber": 1,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add TMTAH3 (0.1 mmol, 0.0423 g, solid)",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "Trimesoyltri(L-alanine)",
+                  "[C6H3(CONHCHCH3)3(CO2)3]"
+                ],
+                "chemicalAmount": "0.1 mmol, 0.0423 g"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "N/A",
+            "usedVesselType": "N/A",
+            "stepNumber": 2,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add CuCl2·2H2O (0.3 mmol, 0.0519 g, solid)",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "[Cu2]",
+                  "Copper(II) chloride dihydrate",
+                  "cucl2·2h2o"
+                ],
+                "chemicalAmount": "0.3 mmol, 0.0519 g"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "N/A",
+            "usedVesselType": "N/A",
+            "stepNumber": 3,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add DMF (2 mL)",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "N,N-Dimethylformamide",
+                  "dimethylformamide",
+                  "dmf",
+                  "n, n'-dimethylformamide"
+                ],
+                "chemicalAmount": "2 mL"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "N/A",
+            "usedVesselType": "N/A",
+            "stepNumber": 4,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add Ethanol (8 mL)",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "Ethanol",
+                  "ch3ch2oh",
+                  "etoh"
+                ],
+                "chemicalAmount": "8 mL"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Stir": {
+            "usedVesselName": "N/A",
+            "usedVesselType": "N/A",
+            "stepNumber": 5,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Stir the mixture for 20 minutes",
+            "duration": "20.0 minute",
+            "temperature": "N/A",
+            "wait": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "N/A",
+            "usedVesselType": "N/A",
+            "stepNumber": 6,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add 1 mol L–1 KOH (0.2 mL)",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "KOH",
+                  "potassium hydroxide"
+                ],
+                "chemicalAmount": "0.2 mL of 1 mol/L KOH"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Stir": {
+            "usedVesselName": "N/A",
+            "usedVesselType": "N/A",
+            "stepNumber": 7,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Stir the mixture for 3 hours",
+            "duration": "3.0 hour",
+            "temperature": "N/A",
+            "wait": false
+          }
+        },
+        {
+          "Filter": {
+            "usedVesselName": "N/A",
+            "usedVesselType": "N/A",
+            "stepNumber": 8,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Filter the mixture",
+            "washingSolvent": [],
+            "vacuumFiltration": false,
+            "numberOfFiltrations": 1
+          }
+        },
+        {
+          "Evaporate": {
+            "usedVesselName": "N/A",
+            "usedVesselType": "N/A",
+            "stepNumber": 9,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Evaporate solvent at room temperature for seven weeks",
+            "duration": "1176.0 hour"
+          }
+        },
+        {
+          "Filter": {
+            "usedVesselName": "N/A",
+            "usedVesselType": "N/A",
+            "stepNumber": 10,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Filter and wash with ethanol",
+            "washingSolvent": [
+              {
+                "chemicalName": [
+                  "Ethanol",
+                  "ch3ch2oh",
+                  "etoh"
+                ],
+                "chemicalAmount": "8 mL"
+              }
+            ],
+            "vacuumFiltration": false,
+            "numberOfFiltrations": 1
+          }
+        },
+        {
+          "Dry": {
+            "usedVesselName": "N/A",
+            "usedVesselType": "N/A",
+            "stepNumber": 11,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Air-dry the crystals for six hours",
+            "duration": "6.0 hour"
+          }
+        }
+      ],
+      "productNames": [
+        "Synthesis_of_[Cu12(TMTA)8(H2O)12]·8CH3CH2OH·40H2O_(1)",
+        "[Cu12(TMTA)8(H2O)12]·8CH3CH2OH·40H2O",
+        "MetalOrganicPolyhedron for [Cu12(TMTA)8(H2O)12]·8CH3CH2OH·40H2O",
+        "Cage 1"
+      ],
+      "productCCDCNumber": "1439771"
+    }
+  ]
+}

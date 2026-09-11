@@ -1,0 +1,62 @@
+{
+  "Devices": [
+    {
+      "Characterisation": [
+        {
+          "productNames": [
+            "Synthesis_Procedure_1",
+            "magnesium-seamed hexameric pyrogallol[4]arene nanocapsule",
+            "Nanocapsule_[Mg24(C40H40O12)6(DMF)4(H2O)44]"
+          ],
+          "productCCDCNumber": "1525508",
+          "HNMR": {
+            "shifts": "N/A",
+            "solvent": "N/A",
+            "temperature": "N/A"
+          },
+          "ElementalAnalysis": {
+            "weightPercentageCalculated": "N/A",
+            "weightPercentageExperimental": "N/A",
+            "chemicalFormula": "N/A"
+          },
+          "InfraredSpectroscopy": {
+            "material": "N/A",
+            "bands": "N/A"
+          }
+        },
+        {
+          "productNames": [
+            "Synthesis_Procedure_2",
+            "[Mg24(C40H40O12)6(H2O)48·2py]",
+            "MetalOrganicPolyhedron for [Mg24(C40H40O12)6(H2O)48·2py]"
+          ],
+          "productCCDCNumber": "1525509",
+          "HNMR": {
+            "shifts": "N/A",
+            "solvent": "N/A",
+            "temperature": "N/A"
+          },
+          "ElementalAnalysis": {
+            "weightPercentageCalculated": "N/A",
+            "weightPercentageExperimental": "N/A",
+            "chemicalFormula": "N/A"
+          },
+          "InfraredSpectroscopy": {
+            "material": "N/A",
+            "bands": "N/A"
+          }
+        }
+      ],
+      "ElementalAnalysisDevice": {
+        "deviceName": "N/A"
+      },
+      "HNMRDevice": {
+        "deviceName": "N/A",
+        "frequency": "N/A"
+      },
+      "InfraredSpectroscopyDevice": {
+        "deviceName": "N/A"
+      }
+    }
+  ]
+}

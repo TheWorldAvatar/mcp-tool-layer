@@ -33,7 +33,7 @@ from ship_lib import (
     child_env,
     command_succeeded,
     configure_stdio,
-    find_scorer_repo,
+    ensure_scorer_repo,
     format_score_report,
     hash_cli,
     latest_scenario_run,
@@ -493,17 +493,17 @@ def _score_medical(
         "--output",
         str(pred.resolve()),
         "--reference-csv",
-        str((scorer / MEDICAL_GOLD).resolve()),
+        str((repo_root() / MEDICAL_GOLD).resolve()),
         "--reference-csv-header-row",
         "0",
         "--schema-ttl",
-        str((scorer / MEDICAL_SCHEMA).resolve()),
+        str((repo_root() / MEDICAL_SCHEMA).resolve()),
     ]
     score = [
         _python(),
         str(scorer / "scripts" / "medical_score_predicted_vs_gold.py"),
         "--gold",
-        str((scorer / MEDICAL_GOLD).resolve()),
+        str((repo_root() / MEDICAL_GOLD).resolve()),
         "--pred",
         str(pred.resolve()),
         "--out-json",
@@ -531,15 +531,15 @@ def step_score(
 ) -> Path:
     print("\n=== STEP 5 / 5  Score and report ===", flush=True)
     root = repo_root()
-    scorer = find_scorer_repo(args.scorer_repo, root=root)
+    scorer = ensure_scorer_repo(args.scorer_repo, root=root, clone=not args.dry_run)
     if scorer is None:
         if args.dry_run:
             print("[dry-run] scorer checkout not found; score commands skipped", flush=True)
             print(format_score_report(cases=cases, main_scores=None, medical=None), flush=True)
             return campaign_path(root)
         raise SystemExit(
-            "Scorer checkout not found. Set SCORER_REPO to the Reproduction "
-            "repo (needs evaluation/scoring_steps.py and the medical CSV scripts)."
+            "Could not find or clone scoring engines. "
+            "setup.cmd / run.cmd clone them into data/third_party_repos/ automatically."
         )
     print(f"[OK] Scorer: {scorer}", flush=True)
     main_scores = None
@@ -652,17 +652,21 @@ def main(argv: list[str] | None = None) -> int:
             print(f"[FAIL] {exc}")
             return 2
 
+    scorer = None
     if from_step <= 5 and not args.dry_run:
-        scorer = find_scorer_repo(args.scorer_repo, root=root)
+        scorer = ensure_scorer_repo(args.scorer_repo, root=root)
         if scorer is None:
             print(
-                "[FAIL] Scorer checkout not found. Clone MCP-enhanced-MOPs-Extraction_Reproduction "
-                "and set SCORER_REPO to that folder."
+                "[FAIL] Could not find or clone scoring engines. "
+                "Need git access to origin (archive branch). "
+                "setup.cmd does this automatically."
             )
             return 2
         print(f"[OK] Scorer: {scorer}")
 
     env = child_env(root)
+    if scorer is not None:
+        env["SCORER_REPO"] = str(scorer)
     generated_root = None
     campaign = load_campaign(root)
     campaign.update(

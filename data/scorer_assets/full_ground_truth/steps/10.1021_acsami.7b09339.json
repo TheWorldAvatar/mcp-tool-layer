@@ -1,0 +1,476 @@
+{
+  "Synthesis": [
+    {
+      "productCCDCNumber": "97418 3",
+      "productNames": [
+        "Cr-1",
+        "Cr-1 (Cr24isoph24)",
+        "Cage_Cr-1"
+      ],
+      "steps": [
+        {
+          "Add": {
+            "usedVesselName": "20 mL vial",
+            "usedVesselType": "glass vial",
+            "stepNumber": 1,
+            "atmosphere": "argon",
+            "targetPH": -1,
+            "comment": "add isophthalic acid",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "isophthalic acid"
+                ],
+                "chemicalAmount": "100 mg"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "20 mL vial",
+            "usedVesselType": "glass vial",
+            "stepNumber": 2,
+            "atmosphere": "argon",
+            "targetPH": -1,
+            "comment": "add def",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "DEF",
+                  "N,N-diethylformamide",
+                  "diethylformamide"
+                ],
+                "chemicalAmount": "5 mL"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "20 mL vial",
+            "usedVesselType": "glass vial",
+            "stepNumber": 3,
+            "atmosphere": "argon",
+            "targetPH": -1,
+            "comment": "add cr(oac)2",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "Cr(OAc)2"
+                ],
+                "chemicalAmount": "100 mg"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "20 mL vial",
+            "usedVesselType": "glass vial",
+            "stepNumber": 4,
+            "atmosphere": "argon",
+            "targetPH": -1,
+            "comment": "add def",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "DEF",
+                  "N,N-diethylformamide",
+                  "diethylformamide"
+                ],
+                "chemicalAmount": "10 mL"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "HeatChill": {
+            "usedVesselName": "20 mL vial",
+            "usedVesselType": "glass vial",
+            "stepNumber": 5,
+            "atmosphere": "argon",
+            "targetPH": -1,
+            "comment": "Stand at room temperature; purple block crystals form",
+            "duration": "2 d",
+            "usedDevice": "n/a",
+            "targetTemperature": "room temperature",
+            "heatingCoolingRate": "n/a",
+            "underVacuum": false,
+            "sealedVessel": true,
+            "stir": false
+          }
+        }
+      ]
+    },
+    {
+      "productCCDCNumber": "97418 1",
+      "productNames": [
+        "Cr-2",
+        "Cr-2 (Cr24TBI24)",
+        "Cage_Cr-2"
+      ],
+      "steps": [
+        {
+          "Add": {
+            "usedVesselName": "20 mL vial",
+            "usedVesselType": "glass vial",
+            "stepNumber": 1,
+            "atmosphere": "argon",
+            "targetPH": -1,
+            "comment": "add 5-tert-butylisophthalic acid",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "5-tert-butylisophthalic acid"
+                ],
+                "chemicalAmount": "200 mg"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "20 mL vial",
+            "usedVesselType": "glass vial",
+            "stepNumber": 2,
+            "atmosphere": "argon",
+            "targetPH": -1,
+            "comment": "add dma",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "DMA",
+                  "N,N-dimethylacetamide",
+                  "dimethylacetamide",
+                  "n, n'-dimethylacetamide"
+                ],
+                "chemicalAmount": "5 mL"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "20 mL vial",
+            "usedVesselType": "glass vial",
+            "stepNumber": 3,
+            "atmosphere": "argon",
+            "targetPH": -1,
+            "comment": "add cr(oac)2",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "Cr(OAc)2"
+                ],
+                "chemicalAmount": "200 mg"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "20 mL vial",
+            "usedVesselType": "glass vial",
+            "stepNumber": 4,
+            "atmosphere": "argon",
+            "targetPH": -1,
+            "comment": "add dma",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "DMA",
+                  "N,N-dimethylacetamide",
+                  "dimethylacetamide",
+                  "n, n'-dimethylacetamide"
+                ],
+                "chemicalAmount": "10 mL"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "HeatChill": {
+            "usedVesselName": "20 mL vial",
+            "usedVesselType": "glass vial",
+            "stepNumber": 5,
+            "atmosphere": "argon",
+            "targetPH": -1,
+            "comment": "Stand at room temperature; purple block crystals form; I4/m space group",
+            "duration": "2 d",
+            "usedDevice": "n/a",
+            "targetTemperature": "room temperature",
+            "heatingCoolingRate": "n/a",
+            "underVacuum": false,
+            "sealedVessel": true,
+            "stir": false
+          }
+        }
+      ]
+    },
+    {
+      "productCCDCNumber": "97418 2",
+      "productNames": [
+        "Cr-3rho",
+        "Cr-3 (rhombic)",
+        "Cr-3 (R-3c)",
+        "Cr-3 in a Rhombic space group",
+        "Cr-3",
+        "cr-3rho",
+        "metalorganicpolyhedron for cr-3rho"
+      ],
+      "steps": [
+        {
+          "Add": {
+            "usedVesselName": "20 mL vial",
+            "usedVesselType": "glass vial",
+            "stepNumber": 1,
+            "atmosphere": "argon",
+            "targetPH": -1,
+            "comment": "add H2TEI",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "H2TEI",
+                  "5-triisopropylsilylethynylisophthalic acid"
+                ],
+                "chemicalAmount": "100 mg"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "20 mL vial",
+            "usedVesselType": "glass vial",
+            "stepNumber": 2,
+            "atmosphere": "argon",
+            "targetPH": -1,
+            "comment": "add DEF",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "DEF",
+                  "N,N-diethylformamide",
+                  "diethylformamide"
+                ],
+                "chemicalAmount": "5 mL"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "20 mL vial",
+            "usedVesselType": "glass vial",
+            "stepNumber": 3,
+            "atmosphere": "argon",
+            "targetPH": -1,
+            "comment": "add Cr(OAc)2",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "Cr(OAc)2"
+                ],
+                "chemicalAmount": "50 mg"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "20 mL vial",
+            "usedVesselType": "glass vial",
+            "stepNumber": 4,
+            "atmosphere": "argon",
+            "targetPH": -1,
+            "comment": "add DEF",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "DEF",
+                  "N,N-diethylformamide",
+                  "diethylformamide"
+                ],
+                "chemicalAmount": "10 mL"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "HeatChill": {
+            "usedVesselName": "20 mL vial",
+            "usedVesselType": "glass vial",
+            "stepNumber": 5,
+            "atmosphere": "argon",
+            "targetPH": -1,
+            "comment": "Stand at room temperature; purple crystals (diamond) form",
+            "duration": "2 d",
+            "usedDevice": "n/a",
+            "targetTemperature": "room temperature",
+            "heatingCoolingRate": "n/a",
+            "underVacuum": false,
+            "sealedVessel": true,
+            "stir": false
+          }
+        }
+      ]
+    },
+    {
+      "productCCDCNumber": "97418 4",
+      "productNames": [
+        "Cr-3tetra",
+        "Cr-3 (tetragonal)",
+        "Cr-3 (I4/m)",
+        "Cr-3 in a tetragonal space group",
+        "Cr-3",
+        "cr-3tetra",
+        "metalorganicpolyhedron for cr-3tetra"
+      ],
+      "steps": [
+        {
+          "Add": {
+            "usedVesselName": "20 mL vial",
+            "usedVesselType": "glass vial",
+            "stepNumber": 1,
+            "atmosphere": "argon",
+            "targetPH": -1,
+            "comment": "add H2TEI",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "H2TEI",
+                  "5-triisopropylsilylethynylisophthalic acid"
+                ],
+                "chemicalAmount": "100 mg"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "20 mL vial",
+            "usedVesselType": "glass vial",
+            "stepNumber": 2,
+            "atmosphere": "argon",
+            "targetPH": -1,
+            "comment": "add DEF",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "DEF",
+                  "N,N-diethylformamide",
+                  "diethylformamide"
+                ],
+                "chemicalAmount": "3 mL"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "20 mL vial",
+            "usedVesselType": "glass vial",
+            "stepNumber": 3,
+            "atmosphere": "argon",
+            "targetPH": -1,
+            "comment": "add Cr(OAc)2",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "Cr(OAc)2"
+                ],
+                "chemicalAmount": "50 mg"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "20 mL vial",
+            "usedVesselType": "glass vial",
+            "stepNumber": 4,
+            "atmosphere": "argon",
+            "targetPH": -1,
+            "comment": "add DEF",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "DEF",
+                  "N,N-diethylformamide",
+                  "diethylformamide"
+                ],
+                "chemicalAmount": "5 mL"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "HeatChill": {
+            "usedVesselName": "20 mL vial",
+            "usedVesselType": "glass vial",
+            "stepNumber": 5,
+            "atmosphere": "argon",
+            "targetPH": -1,
+            "comment": "Stand at room temperature; purple crystals (octahedral) form",
+            "duration": "2 d",
+            "usedDevice": "n/a",
+            "targetTemperature": "room temperature",
+            "heatingCoolingRate": "n/a",
+            "underVacuum": false,
+            "sealedVessel": true,
+            "stir": false
+          }
+        }
+      ]
+    }
+  ]
+}

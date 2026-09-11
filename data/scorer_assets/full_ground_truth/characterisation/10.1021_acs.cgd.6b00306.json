@@ -1,0 +1,39 @@
+{
+  "Devices": [
+    {
+      "HNMRDevice": {
+        "deviceName": "N/A",
+        "frequency": "N/A"
+      },
+      "ElementalAnalysisDevice": {
+        "deviceName": "N/A"
+      },
+      "InfraredSpectroscopyDevice": {
+        "deviceName": "N/A"
+      },
+      "Characterisation": [
+        {
+          "productNames": [
+            "[Co24(C-pentylpyrogallol[4]arene)6] nanocapsule (1)"
+          ],
+          "productCCDCNumber": "1424706",
+          "HNMR": {
+            "shifts": "N/A",
+            "solvent": "N/A",
+            "temperature": "N/A"
+          },
+          "ElementalAnalysis": {
+            "weightPercentageCalculated": "N/A",
+            "weightPercentageExperimental": "N/A",
+            "chemicalFormula": "N/A",
+            "measurementDevice": "N/A"
+          },
+          "InfraredSpectroscopy": {
+            "material": "N/A",
+            "bands": "N/A"
+          }
+        }
+      ]
+    }
+  ]
+}

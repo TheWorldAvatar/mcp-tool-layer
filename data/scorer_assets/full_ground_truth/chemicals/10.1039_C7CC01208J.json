@@ -1,0 +1,184 @@
+{
+  "synthesisProcedures": [
+    {
+      "procedureName": "Synthesis of magnesium-seamed hexameric pyrogallol[4]arene nanocapsule",
+      "steps": [
+        {
+          "inputChemicals": [
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "C-propylpyrogallol[4]arene"
+                  ],
+                  "chemicalAmount": "72.0 mg, 0.1 mmol"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "Magnesium nitrate hexahydrate"
+                  ],
+                  "chemicalAmount": "102.6 mg, 0.4 mmol"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "N,N-dimethylformamide",
+                    "dimethylformamide",
+                    "dmf",
+                    "n, n'-dimethylformamide"
+                  ],
+                  "chemicalAmount": "1 mL"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "Acetonitrile",
+                    "mecn"
+                  ],
+                  "chemicalAmount": "1 mL"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "Water",
+                    "h2o"
+                  ],
+                  "chemicalAmount": "100 μL"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "Imidazole"
+                  ],
+                  "chemicalAmount": "27.2 mg, 0.4 mmol"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            }
+          ],
+          "outputChemical": [
+            {
+              "names": [
+                "Synthesis_Procedure_1",
+                "magnesium-seamed hexameric pyrogallol[4]arene nanocapsule",
+                "Nanocapsule_[Mg24(C40H40O12)6(DMF)4(H2O)44]"
+              ],
+              "yield": "N/A",
+              "CCDCNumber": "1525508"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "procedureName": "Synthesis of [Mg24(C40H40O12)6(H2O)48·2py]",
+      "steps": [
+        {
+          "inputChemicals": [
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "C-propylpyrogallol[4]arene"
+                  ],
+                  "chemicalAmount": "0.1 mmol, 72.0 mg"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "Magnesium nitrate hexahydrate",
+                    "[Mg(NO3)6H2O]"
+                  ],
+                  "chemicalAmount": "0.4 mmol, 102.6 mg"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "Acetonitrile",
+                    "mecn"
+                  ],
+                  "chemicalAmount": "3 mL"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "Water",
+                    "h2o"
+                  ],
+                  "chemicalAmount": "100 μL"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "Pyridine"
+                  ],
+                  "chemicalAmount": "100 μL, 1.2 mmol"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            }
+          ],
+          "outputChemical": [
+            {
+              "names": [
+                "Synthesis_Procedure_2",
+                "[Mg24(C40H40O12)6(H2O)48·2py]",
+                "MetalOrganicPolyhedron for [Mg24(C40H40O12)6(H2O)48·2py]"
+              ],
+              "yield": "N/A",
+              "CCDCNumber": "1525509"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

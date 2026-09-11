@@ -1,0 +1,91 @@
+{
+  "synthesisProcedures": [
+    {
+      "procedureName": "Synthesis of [Co24(C-pentylpyrogallol[4]arene)6] nanocapsule (1)",
+      "steps": [
+        {
+          "inputChemicals": [
+            {
+              "chemical": [
+                {
+                  "chemicalFormula": "C44H56O12",
+                  "chemicalName": [
+                    "C-pentylpyrogallol[4]arene",
+                    "PgC5"
+                  ],
+                  "chemicalAmount": "0.0832 g (0.10 mmol)"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalFormula": "CoCl2·6H2O",
+                  "chemicalName": [
+                    "Cobalt(II) chloride hexahydrate"
+                  ],
+                  "chemicalAmount": "0.0952 g (0.40 mmol)"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalFormula": "CH3ONa",
+                  "chemicalName": [
+                    "NaOMe"
+                  ],
+                  "chemicalAmount": "0.0162 g (0.30 mmol)"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalFormula": "C3H7NO",
+                  "chemicalName": [
+                    "DMF",
+                    "Dimethylformamide"
+                  ],
+                  "chemicalAmount": "N/A"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalFormula": "CH3OH",
+                  "chemicalName": [
+                    "methanol",
+                    "MeOH"
+                  ],
+                  "chemicalAmount": "N/A"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            }
+          ],
+          "outputChemical": [
+            {
+              "chemicalFormula": "[Co24(H2O)x(DMF)y(C48H56O12)6]",
+              "names": [
+                "[Co24(C-pentylpyrogallol[4]arene)6] nanocapsule (1)"
+              ],
+              "yield": "N/A",
+              "CCDCNumber": "1424706"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

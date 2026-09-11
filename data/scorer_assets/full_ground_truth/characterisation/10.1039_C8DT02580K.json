@@ -1,0 +1,60 @@
+{
+    "Devices": [
+        {
+            "HNMRDevice": {
+                "deviceName": "N/A",
+                "frequency": "N/A"
+            },
+            "ElementalAnalysisDevice": {
+                "deviceName": "PerkinElmer 2400 CHN Elemental analyzer"
+            },
+            "InfraredSpectroscopyDevice": {
+                "deviceName": "Alpha Centaurt FT/IR spectrophotometer"
+            },
+            "Characterisation": [
+                {
+                    "productNames": [
+                        "[V6O6(OCH3)9(VO4)]4[(C3N3)(C6H4)3(CO2)3]4",
+                        "VMOP-18"
+                    ],
+                    "productCCDCNumber": "1849691",
+                    "HNMR": {
+                        "shifts": "N/A",
+                        "solvent": "N/A",
+                        "temperature": "N/A"
+                    },
+                    "ElementalAnalysis": {
+                        "weightPercentageCalculated": "C, 33.44; H, 4.86; N, 3.80",
+                        "weightPercentageExperimental": "C, 33.32; H, 4.73; N, 3.71",
+                        "chemicalFormula": "N/A"
+                    },
+                    "InfraredSpectroscopy": {
+                        "material": "KBr",
+                        "bands": "3446 (br), 2924 (w), 2813 (s), 1671 (vs), 1569 (vs), 1403 (s), 1255 (m), 1073 (w), 949 (s), 857 (m), 838 (m), 774 (s), 660 (m), 536 (s)"
+                    }
+                },
+                {
+                    "productNames": [
+                        "[V6O6(OCH3)9(SO4)]4[(C3N3)(C6H4)3(CO2)3]4",
+                        "VMOP-19"
+                    ],
+                    "productCCDCNumber": "1849692",
+                    "HNMR": {
+                        "shifts": "N/A",
+                        "solvent": "N/A",
+                        "temperature": "N/A"
+                    },
+                    "ElementalAnalysis": {
+                        "weightPercentageCalculated": "C, 34.15; H, 4.63; N, 5.11",
+                        "weightPercentageExperimental": "C, 34.29; H, 4.72; N, 5.28",
+                        "chemicalFormula": "N/A"
+                    },
+                    "InfraredSpectroscopy": {
+                        "material": "KBr",
+                        "bands": "3423 (br), 2926 (w), 2818 (w), 1603 (m), 1567 (vs), 1520 (m), 1488 (w), 1425 (m), 1404 (m), 1361 (m), 1225 (s), 948 (s), 824 (s), 774 (s), 649 (m), 538 (s)"
+                    }
+                }
+            ]
+        }
+    ]
+}

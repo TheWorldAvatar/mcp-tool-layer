@@ -1,0 +1,249 @@
+{
+  "rule": "Keep Characterisation only when it matches a Steps Synthesis product (CCDC or product name).",
+  "files": {
+    "10.1002_anie.201811027.json": {
+      "status": "revised",
+      "kept": 2,
+      "removed": 1,
+      "dropped": [
+        {
+          "productNames": [
+            "[Me2NH2]5[V6O6(OCH3)9(SO4)4]"
+          ],
+          "productCCDCNumber": "2139536",
+          "reason": "not_synthesis_output"
+        }
+      ]
+    },
+    "10.1002_anie.202010824.json": {
+      "status": "unchanged",
+      "kept": 5,
+      "removed": 0,
+      "dropped": []
+    },
+    "10.1002_chem.201604264.json": {
+      "status": "unchanged",
+      "kept": 3,
+      "removed": 0,
+      "dropped": []
+    },
+    "10.1002_chem.201700798.json": {
+      "status": "unchanged",
+      "kept": 1,
+      "removed": 0,
+      "dropped": []
+    },
+    "10.1002_chem.201700848.json": {
+      "status": "unchanged",
+      "kept": 3,
+      "removed": 0,
+      "dropped": []
+    },
+    "10.1021_acs.cgd.6b00306.json": {
+      "status": "unchanged",
+      "kept": 1,
+      "removed": 0,
+      "dropped": []
+    },
+    "10.1021_acs.chemmater.8b01667.json": {
+      "status": "revised",
+      "kept": 2,
+      "removed": 2,
+      "dropped": [
+        {
+          "productNames": [
+            "Cu(OPent-bdc)"
+          ],
+          "productCCDCNumber": "",
+          "reason": "not_synthesis_output"
+        },
+        {
+          "productNames": [
+            "Cu(NH2-bdc)"
+          ],
+          "productCCDCNumber": "",
+          "reason": "not_synthesis_output"
+        }
+      ]
+    },
+    "10.1021_acs.inorgchem.4c02394.json": {
+      "status": "unchanged",
+      "kept": 5,
+      "removed": 0,
+      "dropped": []
+    },
+    "10.1021_acs.inorgchem.8b01130.json": {
+      "status": "revised",
+      "kept": 3,
+      "removed": 2,
+      "dropped": [
+        {
+          "productNames": [
+            "Ni(Me-bdc)"
+          ],
+          "productCCDCNumber": "1833896",
+          "reason": "not_synthesis_output"
+        },
+        {
+          "productNames": [
+            "Co(Me-bdc)"
+          ],
+          "productCCDCNumber": "1833892",
+          "reason": "not_synthesis_output"
+        }
+      ]
+    },
+    "10.1021_acsami.7b09339.json": {
+      "status": "unchanged",
+      "kept": 4,
+      "removed": 0,
+      "dropped": []
+    },
+    "10.1021_acsami.7b18836.json": {
+      "status": "unchanged",
+      "kept": 2,
+      "removed": 0,
+      "dropped": []
+    },
+    "10.1021_acsami.8b02015.json": {
+      "status": "unchanged",
+      "kept": 2,
+      "removed": 0,
+      "dropped": []
+    },
+    "10.1021_cg4018322.json": {
+      "status": "revised",
+      "kept": 1,
+      "removed": 2,
+      "dropped": [
+        {
+          "productNames": [
+            "TMBTA-Co(II)"
+          ],
+          "productCCDCNumber": "963230",
+          "reason": "not_synthesis_output"
+        },
+        {
+          "productNames": [
+            "TMBTA-Zn(II)"
+          ],
+          "productCCDCNumber": "963231",
+          "reason": "not_synthesis_output"
+        }
+      ]
+    },
+    "10.1021_ic050460z.json": {
+      "status": "unchanged",
+      "kept": 3,
+      "removed": 0,
+      "dropped": []
+    },
+    "10.1021_ic402428m.json": {
+      "status": "unchanged",
+      "kept": 4,
+      "removed": 0,
+      "dropped": []
+    },
+    "10.1021_ic501012e.json": {
+      "status": "unchanged",
+      "kept": 2,
+      "removed": 0,
+      "dropped": []
+    },
+    "10.1021_ic802382p.json": {
+      "status": "unchanged",
+      "kept": 1,
+      "removed": 0,
+      "dropped": []
+    },
+    "10.1021_ja042802q.json": {
+      "status": "unchanged",
+      "kept": 5,
+      "removed": 0,
+      "dropped": []
+    },
+    "10.1021_ja105986b.json": {
+      "status": "unchanged",
+      "kept": 1,
+      "removed": 0,
+      "dropped": []
+    },
+    "10.1021_jacs.7b00037.json": {
+      "status": "unchanged",
+      "kept": 2,
+      "removed": 0,
+      "dropped": []
+    },
+    "10.1021_jacs.8b10866.json": {
+      "status": "unchanged",
+      "kept": 4,
+      "removed": 0,
+      "dropped": []
+    },
+    "10.1039_C2CC34265K.json": {
+      "status": "unchanged",
+      "kept": 3,
+      "removed": 0,
+      "dropped": []
+    },
+    "10.1039_C5CC05913E.json": {
+      "status": "unchanged",
+      "kept": 1,
+      "removed": 0,
+      "dropped": []
+    },
+    "10.1039_C5DT04764A.json": {
+      "status": "unchanged",
+      "kept": 3,
+      "removed": 0,
+      "dropped": []
+    },
+    "10.1039_C5RA26357C.json": {
+      "status": "unchanged",
+      "kept": 1,
+      "removed": 0,
+      "dropped": []
+    },
+    "10.1039_C6CC04583A.json": {
+      "status": "unchanged",
+      "kept": 5,
+      "removed": 0,
+      "dropped": []
+    },
+    "10.1039_C6DT02764D.json": {
+      "status": "unchanged",
+      "kept": 2,
+      "removed": 0,
+      "dropped": []
+    },
+    "10.1039_C7CC01208J.json": {
+      "status": "unchanged",
+      "kept": 2,
+      "removed": 0,
+      "dropped": []
+    },
+    "10.1039_C8DT02580K.json": {
+      "status": "unchanged",
+      "kept": 2,
+      "removed": 0,
+      "dropped": []
+    },
+    "10.1039_D3QI01501G.json": {
+      "status": "revised",
+      "kept": 2,
+      "removed": 1,
+      "dropped": [
+        {
+          "productNames": [
+            "H4PBPTA",
+            "4,4′,4″,4″-(1,4-phenylbis(pyridine-4,2,6-triyl))tetrabenzoic acid"
+          ],
+          "productCCDCNumber": "N/A",
+          "reason": "not_synthesis_output"
+        }
+      ]
+    }
+  },
+  "kept": 77,
+  "removed": 8
+}

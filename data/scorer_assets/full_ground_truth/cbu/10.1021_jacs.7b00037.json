@@ -1,0 +1,26 @@
+{
+  "synthesisProcedures": [
+    {
+      "mopCCDCNumber": "1521975",
+      "cbuFormula1": "[(CHC6HO3)4(C3H6OH)4]",
+      "cbuSpeciesNames1": [
+        "C-propan-3-ol pyrogallol[4]arene"
+      ],
+      "cbuFormula2": "[Ni3]",
+      "cbuSpeciesNames2": [
+        "Nickel(II) nitrate hexahydrate"
+      ]
+    },
+    {
+      "mopCCDCNumber": "1521976",
+      "cbuFormula1": "[(CHC6HO3)4(C3H6OH)4]",
+      "cbuSpeciesNames1": [
+        "C-propan-3-olpyrogallol[4]arene"
+      ],
+      "cbuFormula2": "[Ni3]",
+      "cbuSpeciesNames2": [
+        "Nickel(II) nitrate hexahydrate"
+      ]
+    }
+  ]
+}

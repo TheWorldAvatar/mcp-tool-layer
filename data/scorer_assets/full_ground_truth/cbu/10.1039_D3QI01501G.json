@@ -1,0 +1,22 @@
+{
+    "synthesisProcedures": [
+        {
+            "mopCCDCNumber": "2278527",
+            "cbuFormula1": "[(C16H8N2)(C6H4CO2)4]",
+            "cbuSpeciesNames1": [
+                "H4PBPTA"
+            ],
+            "cbuFormula2": "[V7O10(OCH3)9]",
+            "cbuSpeciesNames2": []
+        },
+        {
+            "mopCCDCNumber": "2278526",
+            "cbuFormula1": "[(C16H8N2)(C6H4CO2)4]",
+            "cbuSpeciesNames1": [
+                "H4PBPTA"
+            ],
+            "cbuFormula2": "[V6O6(OCH3)9(SO4)]",
+            "cbuSpeciesNames2": []
+        }
+    ]
+}

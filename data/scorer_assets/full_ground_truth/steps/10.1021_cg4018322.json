@@ -1,0 +1,173 @@
+{
+  "Synthesis": [
+    {
+      "productCCDCNumber": "96272 8",
+      "productNames": [
+        "mop-to_[{cu12(tmbta)8(dma)4(h2o)8}]",
+        "[{cu12(tmbta)8(dma)4(h2o)8}]·8h2o·48h2o (mop-to)",
+        "metalorganicpolyhedron for [{cu12(tmbta)8(dma)4(h2o)8}]·8h2o·48h2o (mop-to)"
+      ],
+      "steps": [
+        {
+          "Add": {
+            "addedChemical": [
+              {
+                "chemicalAmount": "97 mg, 0.33 mmol",
+                "chemicalName": [
+                  "(2, 4, 6-trimethylbenzene)-1, 3, 5-triacetic acid"
+                ]
+              }
+            ],
+            "atmosphere": "n/a",
+            "comment": "add tmbta",
+            "stepNumber": 1,
+            "stir": false,
+            "usedVesselName": "tube 1",
+            "usedVesselType": "sealed glass tube",
+            "isLayered": false,
+            "duration": "n/a",
+            "targetPH": -1
+          }
+        },
+        {
+          "Add": {
+            "addedChemical": [
+              {
+                "chemicalAmount": "241.6 mg, 1 mmol",
+                "chemicalName": [
+                  "[cu2]",
+                  "copper(ii) nitrate trihydrate",
+                  "cu(no3)2·3h2o"
+                ]
+              }
+            ],
+            "atmosphere": "n/a",
+            "comment": "add cu(no3)2·3h2o",
+            "stepNumber": 2,
+            "stir": false,
+            "usedVesselName": "tube 1",
+            "usedVesselType": "sealed glass tube",
+            "isLayered": false,
+            "duration": "n/a",
+            "targetPH": -1
+          }
+        },
+        {
+          "Add": {
+            "addedChemical": [
+              {
+                "chemicalAmount": "79 μl, 1 mmol",
+                "chemicalName": [
+                  "pyridine"
+                ]
+              }
+            ],
+            "atmosphere": "n/a",
+            "comment": "add pyridine",
+            "stepNumber": 3,
+            "stir": false,
+            "usedVesselName": "tube 1",
+            "usedVesselType": "sealed glass tube",
+            "isLayered": false,
+            "duration": "n/a",
+            "targetPH": -1
+          }
+        },
+        {
+          "Add": {
+            "addedChemical": [
+              {
+                "chemicalAmount": "solvent, amount n/a",
+                "chemicalName": [
+                  "n,n-dimethylacetamide",
+                  "dimethylacetamide",
+                  "dma",
+                  "n, n'-dimethylacetamide"
+                ]
+              }
+            ],
+            "atmosphere": "n/a",
+            "comment": "add dma",
+            "stepNumber": 4,
+            "stir": false,
+            "usedVesselName": "tube 1",
+            "usedVesselType": "sealed glass tube",
+            "isLayered": false,
+            "duration": "n/a",
+            "targetPH": -1
+          }
+        },
+        {
+          "Add": {
+            "addedChemical": [
+              {
+                "chemicalAmount": "solvent, amount n/a",
+                "chemicalName": [
+                  "ethanol",
+                  "ch3ch2oh",
+                  "etoh"
+                ]
+              }
+            ],
+            "atmosphere": "n/a",
+            "comment": "add ethanol",
+            "stepNumber": 5,
+            "stir": false,
+            "usedVesselName": "tube 1",
+            "usedVesselType": "sealed glass tube",
+            "isLayered": false,
+            "duration": "n/a",
+            "targetPH": -1
+          }
+        },
+        {
+          "Transfer": {
+            "usedVesselName": "tube 1",
+            "usedVesselType": "sealed glass tube",
+            "stepNumber": 6,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "seal tube",
+            "duration": "n/a",
+            "targetVesselName": "tube 1",
+            "targetVesselType": "sealed glass tube",
+            "transferedAmount": "n/a",
+            "isLayered": false
+          }
+        },
+        {
+          "HeatChill": {
+            "atmosphere": "n/a",
+            "comment": "heat to 85°c",
+            "duration": "48 h",
+            "heatingCoolingRate": "n/a",
+            "sealedVessel": true,
+            "stepNumber": 7,
+            "stir": false,
+            "targetTemperature": "85 degree celsius",
+            "underVacuum": false,
+            "usedDevice": "n/a",
+            "usedVesselName": "tube 1",
+            "usedVesselType": "sealed glass tube"
+          }
+        },
+        {
+          "HeatChill": {
+            "atmosphere": "n/a",
+            "comment": "cool to room temperature",
+            "duration": "12 h",
+            "heatingCoolingRate": "5 degree celsius per hour",
+            "sealedVessel": true,
+            "stepNumber": 8,
+            "stir": false,
+            "targetTemperature": "25 degree celsius",
+            "underVacuum": false,
+            "usedDevice": "n/a",
+            "usedVesselName": "tube 1",
+            "usedVesselType": "sealed glass tube"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,58 @@
+{
+  "synthesisProcedures": [
+    {
+      "mopCCDCNumber": "869988",
+      "cbuFormula1": "[Co4C40H44O12S4]",
+      "cbuSpeciesNames1": [
+        "p-tert-butylsulfonylcalix[4]arene"
+      ],
+      "cbuFormula2": "[(C6H3)(CO2)3]",
+      "cbuSpeciesNames2": [
+        "1,3,5-benzenetricarboxylic acid",
+        "H3BTC",
+        "C9H6O6"
+      ],
+      "cbuFormula3": "[Co2]",
+      "cbuSpeciesNames3": [
+        "cobalt(II) chloride hexahydrate",
+        "CoCl2·6H2O"
+      ]
+    },
+    {
+      "mopCCDCNumber": "869989",
+      "cbuFormula1": "[Co4C40H44O12S4]",
+      "cbuSpeciesNames1": [
+        "p-tert-butylsulfonylcalix[4]arene"
+      ],
+      "cbuFormula2": "[(C6H3)(C6H4)3(CO2)3]",
+      "cbuSpeciesNames2": [
+        "4,4',4''-benzene-1,3,5-triyl-tribenzoic acid",
+        "H3BTB"
+      ],
+      "cbuFormula3": "[Co2]",
+      "cbuSpeciesNames3": [
+        "cobalt(II) chloride hexahydrate",
+        "CoCl2·6H2O"
+      ]
+    },
+    {
+      "mopCCDCNumber": "869990",
+      "cbuFormula1": "[Co4C40H44O12S4]",
+      "cbuSpeciesNames1": [
+        "p-tert-butylsulfonylcalix[4]arene"
+      ],
+      "cbuFormula2": "[C33H18O6]",
+      "cbuSpeciesNames2": [
+        "4,4',4''-(benzene-1,3,5-triyltris(ethyne-2,1-diyl))tribenzoic acid",
+        "H3BTE"
+      ],
+      "cbuFormula3": "[Co2]",
+      "cbuSpeciesNames3": [
+        "cobalt(II) chloride hexahydrate",
+        "CoCl2·6H2O"
+      ]
+    }
+  ]
+}
+
+

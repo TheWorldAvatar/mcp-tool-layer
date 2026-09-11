@@ -1,0 +1,48 @@
+{
+  "synthesisProcedures": [
+    {
+      "mopCCDCNumber": "1833900",
+      "cbuFormula1": "[(C6H3OH)(CO2)2]",
+      "cbuSpeciesNames1": [
+        "5-hydroxy-isophthalate",
+        "C8H6O5"
+      ],
+      "cbuFormula2": "[Ni2]",
+      "cbuSpeciesNames2": [
+        "dinickel paddlewheel",
+        "Nickel(II) nitrate hexahydrate",
+        "Ni(NO3)2·6H2O"
+      ]
+    },
+    {
+      "mopCCDCNumber": "1833901",
+      "cbuFormula1": "[(C6H3)2NC3H7(CO2)2]",
+      "cbuSpeciesNames1": [
+        "9-isopropylcarbazole-3,6-dicarboxylic acid",
+        "H2(iPr-cdc)",
+        "H2iPr-cdc",
+        "C17H15NO4"
+      ],
+      "cbuFormula2": "[Ni2]",
+      "cbuSpeciesNames2": [
+        "dinickel paddlewheel",
+        "Nickel(II) nitrate hexahydrate",
+        "Ni(NO3)2·6H2O"
+      ]
+    },
+    {
+      "mopCCDCNumber": "1833899",
+      "cbuFormula1": "[(C6H3)2NC3H7(CO2)2]",
+      "cbuSpeciesNames1": [
+        "9-isopropylcarbazole-3,6-dicarboxylic acid",
+        "H2(iPr-cdc)",
+        "H2iPr-cdc",
+        "C17H15NO4"
+      ],
+      "cbuFormula2": "[Co2]",
+      "cbuSpeciesNames2": [
+        "dicobalt paddlewheel"
+      ]
+    }
+  ]
+}

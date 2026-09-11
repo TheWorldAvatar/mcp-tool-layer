@@ -1,0 +1,848 @@
+{
+  "Synthesis": [
+    {
+      "productCCDCNumber": "1469173",
+      "productNames": [
+        "Zr-bpydc"
+      ],
+      "steps": [
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "n/a",
+            "stepNumber": 1,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "add h2bpydc",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "h2bpydc",
+                  "2 , 2'-bipyridine-5, 5'-dicarboxylic acid",
+                  "[(c5h3n)2(co2)2]"
+                ],
+                "chemicalAmount": "5 mg, 0.03 mmol"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "n/a",
+            "stepNumber": 2,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "add zirconocene dichloride",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "zirconocene dichloride",
+                  "cp2zrcl2",
+                  "[zr3o(oh)3(c5h5)3]",
+                  "bis(cyclopentadienyl)zirconium dichloride"
+                ],
+                "chemicalAmount": "30 mg, 0.1 mmol"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "n/a",
+            "stepNumber": 3,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "add water",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "water",
+                  "h2o"
+                ],
+                "chemicalAmount": "6 drops"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "n/a",
+            "stepNumber": 4,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "add dmf",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "dmf",
+                  "n, n-dimethylformamide",
+                  "dimethylformamide",
+                  "n, n'-dimethylformamide"
+                ],
+                "chemicalAmount": "1.0 mL"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "n/a",
+            "stepNumber": 5,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "add thf",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "thf",
+                  "tetrahydrofuran"
+                ],
+                "chemicalAmount": "0.5 mL"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "HeatChill": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "n/a",
+            "stepNumber": 6,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "Heat to produce tetrahedral cage compound",
+            "duration": "4 h",
+            "usedDevice": "n/a",
+            "targetTemperature": "65 degree celsius",
+            "heatingCoolingRate": "n/a",
+            "underVacuum": false,
+            "sealedVessel": false,
+            "stir": false
+          }
+        },
+        {
+          "Filter": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "n/a",
+            "stepNumber": 7,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "Wash crystals",
+            "washingSolvent": [
+              {
+                "chemicalName": [
+                  "DMF",
+                  "N,N-dimethylformamide",
+                  "dimethylformamide",
+                  "n, n'-dimethylformamide"
+                ],
+                "chemicalAmount": "n/a"
+              },
+              {
+                "chemicalName": [
+                  "ch2cl2",
+                  "dichloromethane"
+                ],
+                "chemicalAmount": "n/a"
+              }
+            ],
+            "vacuumFiltration": false,
+            "numberOfFiltrations": 1
+          }
+        },
+        {
+          "Dry": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "n/a",
+            "stepNumber": 8,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "Vacuum dry",
+            "duration": "n/a"
+          }
+        }
+      ]
+    },
+    {
+      "productCCDCNumber": "1469174",
+      "productNames": [
+        "Cage_Zr-bpydc-CuCl2_(metalloligand_approach)",
+        "Zr-bpydc-CuCl2"
+      ],
+      "steps": [
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "n/a",
+            "stepNumber": 1,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "add h2bpydc-cucl2",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "H2bpydc-CuCl2"
+                ],
+                "chemicalAmount": "5 mg, 0.013 mmol"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "n/a",
+            "stepNumber": 2,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "add zirconocene dichloride",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "zirconocene dichloride",
+                  "cp2zrcl2",
+                  "bis(cyclopentadienyl)zirconium dichloride"
+                ],
+                "chemicalAmount": "15 mg, 0.05 mmol"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "n/a",
+            "stepNumber": 3,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "add dmf",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "dmf",
+                  "n, n-dimethylformamide",
+                  "dimethylformamide",
+                  "n, n'-dimethylformamide"
+                ],
+                "chemicalAmount": "1.5 mL"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "n/a",
+            "stepNumber": 4,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "add water",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "water",
+                  "h2o"
+                ],
+                "chemicalAmount": "2 drops"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "HeatChill": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "n/a",
+            "stepNumber": 5,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "heat to 75 degree celsius until dissolved",
+            "duration": "n/a",
+            "usedDevice": "n/a",
+            "targetTemperature": "75 degree celsius",
+            "heatingCoolingRate": "n/a",
+            "underVacuum": false,
+            "sealedVessel": false,
+            "stir": false
+          }
+        },
+        {
+          "HeatChill": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "n/a",
+            "stepNumber": 6,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "cool to room temperature",
+            "duration": "n/a",
+            "usedDevice": "n/a",
+            "targetTemperature": "25 degree celsius",
+            "heatingCoolingRate": "n/a",
+            "underVacuum": false,
+            "sealedVessel": false,
+            "stir": false
+          }
+        },
+        {
+          "HeatChill": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "n/a",
+            "stepNumber": 7,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "stand at room temperature",
+            "duration": "3 day",
+            "usedDevice": "n/a",
+            "targetTemperature": "25 degree celsius",
+            "heatingCoolingRate": "n/a",
+            "underVacuum": false,
+            "sealedVessel": false,
+            "stir": false
+          }
+        },
+        {
+          "Filter": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "n/a",
+            "stepNumber": 8,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "Wash crystals",
+            "washingSolvent": [
+              {
+                "chemicalName": [
+                  "DMF",
+                  "N,N-dimethylformamide",
+                  "dimethylformamide",
+                  "n, n'-dimethylformamide"
+                ],
+                "chemicalAmount": "n/a"
+              },
+              {
+                "chemicalName": [
+                  "CH2Cl2",
+                  "dichloromethane"
+                ],
+                "chemicalAmount": "n/a"
+              }
+            ],
+            "vacuumFiltration": false,
+            "numberOfFiltrations": 1
+          }
+        },
+        {
+          "Dry": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "n/a",
+            "stepNumber": 9,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "Vacuum dry",
+            "duration": "n/a"
+          }
+        }
+      ]
+    },
+    {
+      "productCCDCNumber": "1469174",
+      "productNames": [
+        "Cage_Zr-bpydc-CuCl2_(one-pot_method)",
+        "Zr-bpydc-CuCl2"
+      ],
+      "steps": [
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "n/a",
+            "stepNumber": 1,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "add zirconocene dichloride",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "zirconocene dichloride",
+                  "cp2zrcl2",
+                  "bis(cyclopentadienyl)zirconium dichloride"
+                ],
+                "chemicalAmount": "0.100 g, 0.34 mmol"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "n/a",
+            "stepNumber": 2,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "add h2bpydc",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "H2bpydc",
+                  "2,2'-bipyridine-5,5'-dicarboxylic acid",
+                  "[(c5h3n)2(co2)2]"
+                ],
+                "chemicalAmount": "25 mg, 0.10 mmol"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "n/a",
+            "stepNumber": 3,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "add copper(ii) nitrate trihydrate",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "copper(ii) nitrate trihydrate",
+                  "cu(no3)2·3h2o"
+                ],
+                "chemicalAmount": "50 mg, 0.21 mmol"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "n/a",
+            "stepNumber": 4,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "add dmf",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "dmf",
+                  "n, n-dimethylformamide",
+                  "dimethylformamide",
+                  "n, n'-dimethylformamide"
+                ],
+                "chemicalAmount": "21.0 mL"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "n/a",
+            "stepNumber": 5,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "add water",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "water",
+                  "h2o"
+                ],
+                "chemicalAmount": "10 drops"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "HeatChill": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "n/a",
+            "stepNumber": 6,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "Allow to stand at room temperature",
+            "duration": "1 week",
+            "usedDevice": "n/a",
+            "targetTemperature": "room temperature",
+            "heatingCoolingRate": "n/a",
+            "underVacuum": false,
+            "sealedVessel": false,
+            "stir": false
+          }
+        },
+        {
+          "Filter": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "n/a",
+            "stepNumber": 7,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "Wash crystals",
+            "washingSolvent": [
+              {
+                "chemicalName": [
+                  "DMF",
+                  "N,N-dimethylformamide",
+                  "dimethylformamide",
+                  "n, n'-dimethylformamide"
+                ],
+                "chemicalAmount": "n/a"
+              },
+              {
+                "chemicalName": [
+                  "CH2Cl2",
+                  "dichloromethane"
+                ],
+                "chemicalAmount": "n/a"
+              }
+            ],
+            "vacuumFiltration": false,
+            "numberOfFiltrations": 1
+          }
+        },
+        {
+          "Dry": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "n/a",
+            "stepNumber": 8,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "Vacuum dry",
+            "duration": "n/a"
+          }
+        }
+      ]
+    },
+    {
+      "productCCDCNumber": "1469174",
+      "productNames": [
+        "Cage_Zr-bpydc-CuCl2_(post-synthetic_metallization)",
+        "Zr-bpydc-CuCl2"
+      ],
+      "steps": [
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "n/a",
+            "stepNumber": 1,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "add zr-bpydc crystals",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "Zr-bpydc"
+                ],
+                "chemicalAmount": "5 mg"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "n/a",
+            "stepNumber": 2,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "add copper(ii) chloride dihydrate",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "copper(ii) chloride dihydrate",
+                  "cucl2·2h2o"
+                ],
+                "chemicalAmount": "5 mg, 0.03 mmol"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "HeatChill": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "n/a",
+            "stepNumber": 3,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "Allow to stand at room temperature",
+            "duration": "1 week",
+            "usedDevice": "n/a",
+            "targetTemperature": "room temperature",
+            "heatingCoolingRate": "n/a",
+            "underVacuum": false,
+            "sealedVessel": false,
+            "stir": false
+          }
+        },
+        {
+          "Filter": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "n/a",
+            "stepNumber": 4,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "Wash crystals",
+            "washingSolvent": [
+              {
+                "chemicalName": [
+                  "DMF",
+                  "N,N-dimethylformamide",
+                  "dimethylformamide",
+                  "n, n'-dimethylformamide"
+                ],
+                "chemicalAmount": "n/a"
+              },
+              {
+                "chemicalName": [
+                  "CH2Cl2",
+                  "dichloromethane"
+                ],
+                "chemicalAmount": "n/a"
+              }
+            ],
+            "vacuumFiltration": false,
+            "numberOfFiltrations": 1
+          }
+        },
+        {
+          "Dry": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "n/a",
+            "stepNumber": 5,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "Vacuum dry",
+            "duration": "n/a"
+          }
+        }
+      ]
+    },
+    {
+      "productCCDCNumber": "1469175",
+      "productNames": [
+        "Zr-bpydc-PdCl2"
+      ],
+      "steps": [
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "n/a",
+            "stepNumber": 1,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "add zirconocene dichloride",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "zirconocene dichloride",
+                  "Cp2ZrCl2",
+                  "[zr3o(oh)3(c5h5)3]",
+                  "bis(cyclopentadienyl)zirconium dichloride"
+                ],
+                "chemicalAmount": "15 mg, 0.05 mmol"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "n/a",
+            "stepNumber": 2,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "add h2bpydc",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "h2bpydc",
+                  "2 , 2'-bipyridine-5, 5'-dicarboxylic acid",
+                  "[(c5h3n)2(co2)2]"
+                ],
+                "chemicalAmount": "5 mg, 0.03 mmol"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "n/a",
+            "stepNumber": 3,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "add bis(acetylacetonato)palladium(ii)",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "bis(acetylacetonato)palladium(II)",
+                  "bis(2, 4-pentanedionato)palladium(ii)",
+                  "pd(acac)2"
+                ],
+                "chemicalAmount": "10 mg, 0.03 mmol"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "n/a",
+            "stepNumber": 4,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "add dmf",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "dmf",
+                  "n, n-dimethylformamide",
+                  "dimethylformamide",
+                  "n, n'-dimethylformamide"
+                ],
+                "chemicalAmount": "5.0 mL"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "n/a",
+            "stepNumber": 5,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "add distilled water",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "distilled water"
+                ],
+                "chemicalAmount": "3 drops"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "HeatChill": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "n/a",
+            "stepNumber": 6,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "Allow to stand at room temperature",
+            "duration": "1 month",
+            "usedDevice": "n/a",
+            "targetTemperature": "room temperature",
+            "heatingCoolingRate": "n/a",
+            "underVacuum": false,
+            "sealedVessel": false,
+            "stir": false
+          }
+        },
+        {
+          "Filter": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "n/a",
+            "stepNumber": 7,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "Wash crystals",
+            "washingSolvent": [
+              {
+                "chemicalName": [
+                  "dmf",
+                  "n, n-dimethylformamide",
+                  "dimethylformamide",
+                  "n, n'-dimethylformamide"
+                ],
+                "chemicalAmount": "n/a"
+              },
+              {
+                "chemicalName": [
+                  "CH2Cl2",
+                  "dichloromethane"
+                ],
+                "chemicalAmount": "n/a"
+              }
+            ],
+            "vacuumFiltration": false,
+            "numberOfFiltrations": 1
+          }
+        },
+        {
+          "Dry": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "n/a",
+            "stepNumber": 8,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "Vacuum dry",
+            "duration": "n/a"
+          }
+        }
+      ]
+    }
+  ]
+}

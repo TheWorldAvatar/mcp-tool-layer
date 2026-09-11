@@ -1,0 +1,92 @@
+{
+  "synthesisProcedures": [
+    {
+      "procedureName": "Synthesis of HCCF-1",
+      "steps": [
+        {
+          "inputChemicals": [
+            {
+              "chemical": [
+                {
+                  "chemicalFormula": "Cp2ZrCl2",
+                  "chemicalName": [
+                    "bis(cyclopentadienyl)zirconium dichloride",
+                    "zirconocene dichloride"
+                  ],
+                  "chemicalAmount": "50 mg"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalFormula": "C10H16O4",
+                  "chemicalName": [
+                    "H2(d-cam)",
+                    "D-camphoric acid"
+                  ],
+                  "chemicalAmount": "14 mg"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalFormula": "C4H9NO",
+                  "chemicalName": [
+                    "DMA",
+                    "N,N-dimethylacetamide"
+                  ],
+                  "chemicalAmount": "1.33 ml"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalFormula": "CH3OH",
+                  "chemicalName": [
+                    "MeOH",
+                    "methanol"
+                  ],
+                  "chemicalAmount": "0.66 ml"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalFormula": "H2O",
+                  "chemicalName": [
+                    "water"
+                  ],
+                  "chemicalAmount": "8 drops"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            }
+          ],
+          "outputChemical": [
+            {
+              "chemicalFormula": "C240H312Cl8O80Zr24",
+              "names": [
+                "HCCF-1"
+              ],
+              "yield": "N/A",
+              "CCDCNumber": "1528352"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

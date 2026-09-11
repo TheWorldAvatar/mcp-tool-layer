@@ -1,0 +1,224 @@
+{
+  "synthesisProcedures": [
+    {
+      "procedureName": "Synthesis of MOP-MIA",
+      "steps": [
+        {
+          "inputChemicals": [
+            {
+              "chemical": [
+                {
+                  "chemicalFormula": "Cu(NO3)2·6H2O",
+                  "chemicalName": [
+                    "copper(II) nitrate hexahydrate"
+                  ],
+                  "chemicalAmount": "24.1 mg (0.10 mmol)"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalFormula": "C9H8O5",
+                  "chemicalName": [
+                    "5-methoxy isophthalic acid",
+                    "5-MIA"
+                  ],
+                  "chemicalAmount": "0.20 mmol"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalFormula": "C3H7NO",
+                  "chemicalName": [
+                    "DMF",
+                    "Dimethylformamide"
+                  ],
+                  "chemicalAmount": "4 mL"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalFormula": "C2H3N",
+                  "chemicalName": [
+                    "MeCN",
+                    "Acetonitrile"
+                  ],
+                  "chemicalAmount": "2 ml"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            }
+          ],
+          "outputChemical": [
+            {
+              "chemicalFormula": "C226Cu24N4O145",
+              "names": [
+                "MOP-MIA"
+              ],
+              "yield": "N/A",
+              "CCDCNumber": "1497173"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "procedureName": "Synthesis of MOP-EIA",
+      "steps": [
+        {
+          "inputChemicals": [
+            {
+              "chemical": [
+                {
+                  "chemicalFormula": "Cu(NO3)2·H2O",
+                  "chemicalName": [
+                    "copper(II) nitrate hexahydrate"
+                  ],
+                  "chemicalAmount": "24.1 mg (0.10 mmol)"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalFormula": "C10H10O5",
+                  "chemicalName": [
+                    "5-EIA",
+                    "5-ethoxy isophthalic acid"
+                  ],
+                  "chemicalAmount": "0.20 mmol"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalFormula": "C3H7NO",
+                  "chemicalName": [
+                    "DMF",
+                    "Dimethylformamide"
+                  ],
+                  "chemicalAmount": "4 mL"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalFormula": "H2O",
+                  "chemicalName": [
+                    "water"
+                  ],
+                  "chemicalAmount": "0.5 ml"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            }
+          ],
+          "outputChemical": [
+            {
+              "chemicalFormula": "C492Cu48O176",
+              "names": [
+                "MOP-EIA"
+              ],
+              "yield": "N/A",
+              "CCDCNumber": "1497172"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "procedureName": "Synthesis of MOP-PrIA",
+      "steps": [
+        {
+          "inputChemicals": [
+            {
+              "chemical": [
+                {
+                  "chemicalFormula": "Cu(NO3)2·6H2O",
+                  "chemicalName": [
+                    "copper(II) nitrate hexahydrate"
+                  ],
+                  "chemicalAmount": "24.1 mg (0.10 mmol)"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalFormula": "N/A",
+                  "chemicalName": [
+                    "5-PrIA",
+                    "5-(n-propyloxy) isophthalic acid"
+                  ],
+                  "chemicalAmount": "0.20 mmol"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalFormula": "C3H7NO",
+                  "chemicalName": [
+                    "DMF",
+                    "Dimethylformamide"
+                  ],
+                  "chemicalAmount": "4 mL"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalFormula": "H2O",
+                  "chemicalName": [
+                    "water"
+                  ],
+                  "chemicalAmount": "0.25 ml"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            }
+          ],
+          "outputChemical": [
+            {
+              "chemicalFormula": "C480Cu48O288",
+              "names": [
+                "MOP-PrIA"
+              ],
+              "yield": "N/A",
+              "CCDCNumber": "1497171"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

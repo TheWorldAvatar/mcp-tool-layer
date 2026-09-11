@@ -1,0 +1,40 @@
+{
+  "Devices": [
+    {
+      "Characterisation": [
+        {
+          "productNames": [
+            "Synthesis_Procedure_1",
+            "1; [Cu12L8(DMA)3(H2O)9]·18H2O",
+            "Cage 1"
+          ],
+          "productCCDCNumber": "707887",
+          "HNMR": {
+            "shifts": "N/A",
+            "solvent": "N/A",
+            "temperature": "N/A"
+          },
+          "ElementalAnalysis": {
+            "weightPercentageCalculated": "C 50.23, H 3.76, N, 6.28%",
+            "weightPercentageExperimental": "C 50.68, H 3.97, N 6.29%",
+            "chemicalFormula": "C252H225N27O102Cu12"
+          },
+          "InfraredSpectroscopy": {
+            "material": "KBr pellet",
+            "bands": "3289, 1707, 1673, 1604, 1528, 1409, 1313, 1252, 1178, 1115, 1015, 953, 913, 861"
+          }
+        }
+      ],
+      "ElementalAnalysisDevice": {
+        "deviceName": "N/A"
+      },
+      "HNMRDevice": {
+        "deviceName": "N/A",
+        "frequency": "N/A"
+      },
+      "InfraredSpectroscopyDevice": {
+        "deviceName": "N/A"
+      }
+    }
+  ]
+}

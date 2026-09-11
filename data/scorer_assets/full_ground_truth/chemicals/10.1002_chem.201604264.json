@@ -1,0 +1,441 @@
+{
+  "synthesisProcedures": [
+    {
+      "procedureName": "Synthesis of Zr-bpydc",
+      "steps": [
+        {
+          "inputChemicals": [
+            {
+              "chemical": [
+                {
+                  "chemicalFormula": "C12H8N2O4",
+                  "chemicalName": [
+                    "2,2-bipyridine-5,5-dicarboxylic acid",
+                    "H2bpydc"
+                  ],
+                  "chemicalAmount": "5 mg, 0.03 mmol"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalFormula": "Cp2ZrCl2",
+                  "chemicalName": [
+                    "zirconocene dichloride"
+                  ],
+                  "chemicalAmount": "30 mg, 0.10 mmol"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalFormula": "H2O",
+                  "chemicalName": [
+                    "Water"
+                  ],
+                  "chemicalAmount": "6 drops"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalFormula": "C3H7NO",
+                  "chemicalName": [
+                    "DMF",
+                    "Dimethylformamide"
+                  ],
+                  "chemicalAmount": "1.0 ml"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "99.5%"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalFormula": "C4H8O",
+                  "chemicalName": [
+                    "THF",
+                    "Tetrahydrofuran"
+                  ],
+                  "chemicalAmount": "0.5 ml"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            }
+          ],
+          "outputChemical": [
+            {
+              "chemicalFormula": "N/A",
+              "names": [
+                "Zr-bpydc"
+              ],
+              "yield": "21.5%",
+              "CCDCNumber": "1469173"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "procedureName": "synthesis of Zr-bpydc-CuCl2 One-pot method",
+      "steps": [
+        {
+          "inputChemicals": [
+            {
+              "chemical": [
+                {
+                  "chemicalFormula": "Cp2ZrCl2",
+                  "chemicalName": [
+                    "Zirconocene dichloride"
+                  ],
+                  "chemicalAmount": "0.100 g, 0.34 mmol"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalFormula": "C12H8N2O4",
+                  "chemicalName": [
+                    "2,2-bipyridine-5,5-dicarboxylic acid",
+                    "H2bpydc"
+                  ],
+                  "chemicalAmount": "25 mg, 0.10 mmol"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalFormula": "Cu(NO3)2·H2O",
+                  "chemicalName": [
+                    "copper nitrate trihydrate"
+                  ],
+                  "chemicalAmount": "50 mg, 0.21 mmol"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalFormula": "H2O",
+                  "chemicalName": [
+                    "water"
+                  ],
+                  "chemicalAmount": "10 drops"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalFormula": "C3H7NO",
+                  "chemicalName": [
+                    "Dimethylformamide",
+                    "DMF"
+                  ],
+                  "chemicalAmount": "21 ml"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "99.5%"
+            }
+          ],
+          "outputChemical": [
+            {
+              "chemicalFormula": "N/A",
+              "names": [
+                "Zr-bpydc-CuCl2"
+              ],
+              "yield": "47%",
+              "CCDCNumber": "1469174"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "procedureName": "Synthesis of H2bpydc-CuCl2",
+      "steps": [
+        {
+          "inputChemicals": [
+            {
+              "chemical": [
+                {
+                  "chemicalFormula": "C12H8N2O4",
+                  "chemicalName": [
+                    "2,2-bipyridine-5,5-dicarboxylic acid",
+                    "H2bpydc"
+                  ],
+                  "chemicalAmount": "40 mg, 0.16 mmol"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalFormula": "CuCl2·2H2O",
+                  "chemicalName": [
+                    "copper chloride dihydrate"
+                  ],
+                  "chemicalAmount": "60 mg, 0.35 mmol"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalFormula": "C3H7NO",
+                  "chemicalName": [
+                    "DMF",
+                    "Dimethylformamide"
+                  ],
+                  "chemicalAmount": "6 ml"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "99.5%"
+            }
+          ],
+          "outputChemical": [
+            {
+              "chemicalFormula": "N/A",
+              "names": [
+                "H2bpydc-CuCl2"
+              ],
+              "yield": "82%",
+              "CCDCNumber": "N/A"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "procedureName": "Synthesis of Zr-bpydc-PdCl2",
+      "steps": [
+        {
+          "inputChemicals": [
+            {
+              "chemical": [
+                {
+                  "chemicalFormula": "Cp2ZrCl2",
+                  "chemicalName": [
+                    "Zirconocene dichloride"
+                  ],
+                  "chemicalAmount": "15 mg, 0.05 mmol"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalFormula": "C12H8N2O4",
+                  "chemicalName": [
+                    "2,2-bipyridine-5,5-dicarboxylic acid",
+                    "H2bpydc"
+                  ],
+                  "chemicalAmount": "5 mg, 0.03 mmol"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalFormula": "N/A",
+                  "chemicalName": [
+                    "bis(acetylacetonato)palladium(II)",
+                    "Pd(acac)2"
+                  ],
+                  "chemicalAmount": "10 mg, 0.03 mmol"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalFormula": "C3H7NO",
+                  "chemicalName": [
+                    "DMF",
+                    "Dimethylformamide"
+                  ],
+                  "chemicalAmount": "5 ml"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "99.5%"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalFormula": "H2O",
+                  "chemicalName": [
+                    "water"
+                  ],
+                  "chemicalAmount": "5 drops"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            }
+          ],
+          "outputChemical": [
+            {
+              "chemicalFormula": "N/A",
+              "names": [
+                "Zr-bpydc-PdCl2"
+              ],
+              "yield": "6%",
+              "CCDCNumber": "1469175"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "procedureName": "Synthesis of Zr-bpydc-CuCl2 Metalloligand approach",
+      "steps": [
+        {
+          "inputChemicals": [
+            {
+              "chemical": [
+                {
+                  "chemicalFormula": "N/A",
+                  "chemicalName": [
+                    "H2bpydc-CuCl2"
+                  ],
+                  "chemicalAmount": "5 mg, 0.013 mmol"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalFormula": "Cp2ZrCl2",
+                  "chemicalName": [
+                    "Zirconocene dichloride"
+                  ],
+                  "chemicalAmount": "15 mg, 0.05 mmol"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalFormula": "C3H7NO",
+                  "chemicalName": [
+                    "DMF",
+                    "Dimethylformamide"
+                  ],
+                  "chemicalAmount": "1.5 ml"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "99.5%"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalFormula": "H2O",
+                  "chemicalName": [
+                    "water"
+                  ],
+                  "chemicalAmount": "2 drops"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            }
+          ],
+          "outputChemical": [
+            {
+              "chemicalFormula": "N/A",
+              "names": [
+                "Zr-bpydc-CuCl2"
+              ],
+              "yield": "43%",
+              "CCDCNumber": "1469174"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "procedureName": "Synthesis of Zr-bpydc-CuCl2 Post-synthetic metallization",
+      "steps": [
+        {
+          "inputChemicals": [
+            {
+              "chemical": [
+                {
+                  "chemicalFormula": "N/A",
+                  "chemicalName": [
+                    "Zr-bpydc"
+                  ],
+                  "chemicalAmount": "5 mg"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalFormula": "CuCl2·2H2O",
+                  "chemicalName": [
+                    "copper chloride dihydrate"
+                  ],
+                  "chemicalAmount": "5 mg, 0.03 mmol"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            }
+          ],
+          "outputChemical": [
+            {
+              "chemicalFormula": "N/A",
+              "names": [
+                "Zr-bpydc-CuCl2"
+              ],
+              "yield": "49%",
+              "CCDCNumber": "1469174"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

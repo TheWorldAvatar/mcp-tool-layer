@@ -1,0 +1,418 @@
+{
+    "synthesisProcedures": [
+        {
+            "procedureName": "Synthesis of (TMA)8{[V6O6(OCH3)9(SO4)]4(NDBDC)6}·10CH3OH·8DMF (TMA-VMOT-2)",
+            "steps": [
+                {
+                    "inputChemicals": [
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "VOSO4",
+                                    "chemicalName": [
+                                        "vanadyl sulfate"
+                                    ],
+                                    "chemicalAmount": "0.045 g (0.276 mmol)"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "C24H16O4",
+                                    "chemicalName": [
+                                        "4,4'-(naphthalene-1,4-diyl)dibenzoic acid",
+                                        "H2NDBDC"
+                                    ],
+                                    "chemicalAmount": "0.020 g (0.054 mmol)"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "C3H7NO",
+                                    "chemicalName": [
+                                        "N,N-Dimethylformamide",
+                                        "DMF"
+                                    ],
+                                    "chemicalAmount": "1.5 mL"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "CH4O",
+                                    "chemicalName": [
+                                        "methanol",
+                                        "MeOH"
+                                    ],
+                                    "chemicalAmount": "4.5 mL"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        }
+                    ],
+                    "outputChemical": [
+                        {
+                            "chemicalFormula": "[V6O6(OCH3)9(SO4)]4[(C10H6)(C6H4)2(CO2)2]6",
+                            "names": [
+                                "VMOT-2",
+                                "TMA-VMOT-2"
+                            ],
+                            "yield": "53%",
+                            "CCDCNumber": "2359340"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "procedureName": "Synthesis of (TMA)8{[V6O6(OCH3)9(SO4)]4(ADBDC)6}·16CH3OH·12DMF (TMA-VMOT-3)",
+            "steps": [
+                {
+                    "inputChemicals": [
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "VOSO4",
+                                    "chemicalName": [
+                                        "vanadyl sulfate"
+                                    ],
+                                    "chemicalAmount": "0.045 g (0.276 mmol)"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "C32H18O4",
+                                    "chemicalName": [
+                                        "4,4'-(anthracene-9,10-diyl)dibenzoic acid",
+                                        "H2ADBDC"
+                                    ],
+                                    "chemicalAmount": "0.019 g (0.045 mmol)"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "C3H7NO",
+                                    "chemicalName": [
+                                        "N,N-Dimethylformamide",
+                                        "DMF"
+                                    ],
+                                    "chemicalAmount": "1.5 mL"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "CH4O",
+                                    "chemicalName": [
+                                        "methanol",
+                                        "MeOH"
+                                    ],
+                                    "chemicalAmount": "4.5 mL"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        }
+                    ],
+                    "outputChemical": [
+                        {
+                            "chemicalFormula": "[V6O6(OCH3)9(SO4)]4[(C14H8)(C6H4)2(CO2)2]6",
+                            "names": [
+                                "TMA-VMOT-3",
+                                "VMOT-3"
+                            ],
+                            "yield": "38%",
+                            "CCDCNumber": "2359341"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "procedureName": "Synthesis of (TMA)4{[V6O6(OCH3)9(PhPO3)]2(NDBDC)3}·6CH3OH·3DMF (TMA-VMOC-P-2)",
+            "steps": [
+                {
+                    "inputChemicals": [
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "VOSO4",
+                                    "chemicalName": [
+                                        "vanadyl sulfate"
+                                    ],
+                                    "chemicalAmount": "0.045 g (0.276 mmol)"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "C24H16O4",
+                                    "chemicalName": [
+                                        "4,4'-(naphthalene-1,4-diyl)dibenzoic acid",
+                                        "H2NDBDC"
+                                    ],
+                                    "chemicalAmount": "0.020 g (0.054 mmol)"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "C3H7NO",
+                                    "chemicalName": [
+                                        "N,N-Dimethylformamide",
+                                        "DMF"
+                                    ],
+                                    "chemicalAmount": "1.5 mL"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "CH4O",
+                                    "chemicalName": [
+                                        "methanol",
+                                        "MeOH"
+                                    ],
+                                    "chemicalAmount": "4.5 mL"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "C6H7O3P",
+                                    "chemicalName": [
+                                        "phenylphosphonic acid"
+                                    ],
+                                    "chemicalAmount": "0.005 g (0.032 mmol)"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        }
+                    ],
+                    "outputChemical": [
+                        {
+                            "chemicalFormula": "[V6O6(OCH3)9(PhPO3)]2[(C10H6)(C6H4)2(CO2)2]3",
+                            "names": [
+                                "TMA-VMOC-P-2",
+                                "VMOC-P-2"
+                            ],
+                            "yield": "61%",
+                            "CCDCNumber": "2359342"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "procedureName": "Synthesis of (TMA)4{[V6O6(OCH3)9(PhPO3)]2(ADBDC)3}·3CH3OH·2DMF (TMA-VMOC-P-3)",
+            "steps": [
+                {
+                    "inputChemicals": [
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "VOSO4",
+                                    "chemicalName": [
+                                        "vanadyl sulfate"
+                                    ],
+                                    "chemicalAmount": "0.045 g (0.276 mmol)"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "C30H20O4",
+                                    "chemicalName": [
+                                        "4,4'-(anthracene-9,10-diyl)dibenzoic acid",
+                                        "H2ADBDC"
+                                    ],
+                                    "chemicalAmount": "0.019 g (0.045 mmol)"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "C3H7NO",
+                                    "chemicalName": [
+                                        "N,N-Dimethylformamide",
+                                        "DMF"
+                                    ],
+                                    "chemicalAmount": "1.5 mL"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "CH4O",
+                                    "chemicalName": [
+                                        "methanol",
+                                        "MeOH"
+                                    ],
+                                    "chemicalAmount": "4.5 mL"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "C6H7O3P",
+                                    "chemicalName": [
+                                        "phenylphosphonic acid"
+                                    ],
+                                    "chemicalAmount": "0.005 g (0.032 mmol)"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        }
+                    ],
+                    "outputChemical": [
+                        {
+                            "chemicalFormula": "[V6O6(OCH3)9(PhPO3)]2[(C14H8)(C6H4)2(CO2)2]3",
+                            "names": [
+                                "TMA-VMOC-P-3",
+                                "VMOC-P-3"
+                            ],
+                            "yield": "38%",
+                            "CCDCNumber": "2359351"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "procedureName": "Synthesis of (TMA)4{[V6O6(OCH3)9(PhPO3)]2(DCPP)3}·4CH3OH·3DMF (TMA-VMOC-P-4)",
+            "steps": [
+                {
+                    "inputChemicals": [
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "VOSO4",
+                                    "chemicalName": [
+                                        "vanadyl sulfate"
+                                    ],
+                                    "chemicalAmount": "0.055 g (0.337 mmol)"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "C34H22N4O4",
+                                    "chemicalName": [
+                                        "4,4′-(porphyrin-5,15-diyl)dibenzoic acid",
+                                        "H2DCPP"
+                                    ],
+                                    "chemicalAmount": "0.020 g (0.036 mmol)"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "C3H7NO",
+                                    "chemicalName": [
+                                        "N,N-Dimethylformamide",
+                                        "DMF"
+                                    ],
+                                    "chemicalAmount": "2 mL"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "CH4O",
+                                    "chemicalName": [
+                                        "methanol",
+                                        "MeOH"
+                                    ],
+                                    "chemicalAmount": "4 mL"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "C6H7O3P",
+                                    "chemicalName": [
+                                        "phenylphosphonic acid"
+                                    ],
+                                    "chemicalAmount": "0.005 g (0.032 mmol)"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        }
+                    ],
+                    "outputChemical": [
+                        {
+                            "chemicalFormula": "[V6O6(OCH3)9(PhPO3)]2[(C20H12N4)(C6H4)2(CO2)2]3",
+                            "names": [
+                                "TMA-VMOC-P-4",
+                                "VMOC-P-4"
+                            ],
+                            "yield": "52%",
+                            "CCDCNumber": "2359343"
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

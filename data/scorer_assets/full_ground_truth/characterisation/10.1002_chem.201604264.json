@@ -1,0 +1,81 @@
+{
+  "Devices": [
+    {
+      "HNMRDevice": {
+        "deviceName": "Bruker Avance 400",
+        "frequency": "400 MHz"
+      },
+      "ElementalAnalysisDevice": {
+        "deviceName": "Elementar Vario MICRO"
+      },
+      "InfraredSpectroscopyDevice": {
+        "deviceName": "Perkin-Elmer Spectrum One FT-IR"
+      },
+      "Characterisation": [
+        {
+          "productNames": [
+            "Zr-bpydc"
+          ],
+          "productCCDCNumber": "1469173",
+          "HNMR": {
+            "shifts": "10.71 (s, 12H, O-H), 9.23 (s, 6H, Ar-H), 8.49 (s, 12H, Ar-H), 6.72 (s, 60H, Cp-H)",
+            "solvent": "DMSO-d6",
+            "temperature": "295K"
+          },
+          "ElementalAnalysis": {
+            "weightPercentageCalculated": "C: 37.50; H: 4.26; N: 4.65",
+            "weightPercentageExperimental": "C: 37.49; H: 4.25; N: 4.71",
+            "chemicalFormula": "{[Cp3Zr3O(OH)3]4(bpydc)6}·4Cl·3DMF·31H2O",
+            "measurementDevice": "Elementar Vario MICRO"
+          },
+          "InfraredSpectroscopy": {
+            "material": "KBr pellet",
+            "bands": "3392, 1657, 1594, 1530, 1472, 1419, 1020, 816, 781, 613, 477 cm-1"
+          }
+        },
+        {
+          "productNames": [
+            "Zr-bpydc-CuCl2"
+          ],
+          "productCCDCNumber": "1469174",
+          "HNMR": {
+            "shifts": "N/A",
+            "solvent": "N/A",
+            "temperature": "N/A"
+          },
+          "ElementalAnalysis": {
+            "weightPercentageCalculated": "C: 32.95; H: 4.91; N: 6.09",
+            "weightPercentageExperimental": "C: 32.75; H: 4.73; N: 6.16",
+            "chemicalFormula": "{[Cp3Zr3O(OH)3]4(bpydc-CuCl2)4(bpydc-CuCl2·DMF)2}·4Cl·15DMF·49H2O",
+            "measurementDevice": "Elementar Vario MICRO"
+          },
+          "InfraredSpectroscopy": {
+            "material": "KBr pellet",
+            "bands": "3401, 1652, 1613, 1592, 1557, 1423, 1393, 824, 776, 618, 477 cm-1"
+          }
+        },
+        {
+          "productNames": [
+            "Zr-bpydc-PdCl2"
+          ],
+          "productCCDCNumber": "1469175",
+          "HNMR": {
+            "shifts": "11.23 (br, 12H, O-H), 9.69 (br, 6H, Ar-H), 8.66 (br, 12H, Ar-H), 6.72 (br, 60H, Cp-H)",
+            "solvent": "DMSO-d6",
+            "temperature": "295K"
+          },
+          "ElementalAnalysis": {
+            "weightPercentageCalculated": "N/A",
+            "weightPercentageExperimental": "N/A",
+            "chemicalFormula": "N/A",
+            "measurementDevice": "Elementar Vario MICRO"
+          },
+          "InfraredSpectroscopy": {
+            "material": "KBr pellet",
+            "bands": "N/A"
+          }
+        }
+      ]
+    }
+  ]
+}

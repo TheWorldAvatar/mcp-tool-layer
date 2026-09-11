@@ -1,0 +1,693 @@
+{
+  "Synthesis": [
+    {
+      "steps": [
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 1,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add VOSO4·5H2O to the vessel.",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "VOSO4·5H2O"
+                ],
+                "chemicalAmount": "25 mg, 0.1 mmol"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 2,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add Na2WO4·2H2O to the vessel.",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "[WV5O19]",
+                  "Na2WO4·2H2O"
+                ],
+                "chemicalAmount": "15 mg, 0.04 mmol"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 3,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add 1,4-benzenedicarboxylic acid to the vessel.",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "1,4-benzenedicarboxylic acid",
+                  "[(C6H4)(CO2)2]"
+                ],
+                "chemicalAmount": "25 mg, 0.15 mmol"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 4,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add ethanol to the vessel.",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "Ethanol",
+                  "ch3ch2oh",
+                  "etoh"
+                ],
+                "chemicalAmount": "0.3125 mL"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 5,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add DMF to the vessel.",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "N,N-dimethylformamide",
+                  "dimethylformamide",
+                  "dmf",
+                  "n, n'-dimethylformamide"
+                ],
+                "chemicalAmount": "1.875 mL"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 6,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add acetonitrile to the vessel.",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "Acetonitrile",
+                  "mecn"
+                ],
+                "chemicalAmount": "0.3125 mL"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "HeatChill": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 7,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Heat the mixture to 433 K.",
+            "duration": "48.0 hour",
+            "usedDevice": "N/A",
+            "targetTemperature": "433.0 kelvin",
+            "heatingCoolingRate": "N/A",
+            "underVacuum": false,
+            "sealedVessel": true,
+            "stir": false
+          }
+        },
+        {
+          "HeatChill": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 8,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Cool the mixture to room temperature.",
+            "duration": "N/A",
+            "usedDevice": "N/A",
+            "targetTemperature": "298.0 kelvin",
+            "heatingCoolingRate": "N/A",
+            "underVacuum": false,
+            "sealedVessel": true,
+            "stir": false
+          }
+        }
+      ],
+      "productNames": [
+        "MOP-1"
+      ],
+      "productCCDCNumber": "1552945"
+    },
+    {
+      "steps": [
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 1,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add VOSO₄·5H₂O to the vessel.",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "VOSO4·5H2O",
+                  "vanadyl sulfate pentahydrate"
+                ],
+                "chemicalAmount": "25 mg, 0.1 mmol"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 2,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add Na₂WO₄·2H₂O to the vessel.",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "Na2WO4·2H2O",
+                  "sodium tungstate dihydrate",
+                  "[WV5O11]"
+                ],
+                "chemicalAmount": "15 mg, 0.04 mmol"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 3,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add 2,6-naphthalenedicarboxylic acid to the vessel.",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "[(C10H6)(CO2)]",
+                  "2,6-naphthalenedicarboxylic acid"
+                ],
+                "chemicalAmount": "25 mg, 0.12 mmol"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 4,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add ethanol to the vessel.",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "Ethanol",
+                  "ch3ch2oh",
+                  "etoh"
+                ],
+                "chemicalAmount": "0.3125 mL"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 5,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add DMF to the vessel.",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "N,N-dimethylformamide",
+                  "dimethylformamide",
+                  "dmf",
+                  "n, n'-dimethylformamide"
+                ],
+                "chemicalAmount": "1.875 mL"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 6,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add acetonitrile to the vessel.",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "Acetonitrile",
+                  "mecn"
+                ],
+                "chemicalAmount": "0.3125 mL"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "HeatChill": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 7,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Heat the mixture to 433 K.",
+            "duration": "48.0 hour",
+            "usedDevice": "N/A",
+            "targetTemperature": "433.0 kelvin",
+            "heatingCoolingRate": "N/A",
+            "underVacuum": false,
+            "sealedVessel": true,
+            "stir": false
+          }
+        },
+        {
+          "HeatChill": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 8,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Cool the mixture to room temperature.",
+            "duration": "N/A",
+            "usedDevice": "N/A",
+            "targetTemperature": "25.0 degree celsius",
+            "heatingCoolingRate": "N/A",
+            "underVacuum": false,
+            "sealedVessel": true,
+            "stir": false
+          }
+        }
+      ],
+      "productNames": [
+        "MOP-2"
+      ],
+      "productCCDCNumber": "1552946"
+    },
+    {
+      "steps": [
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 1,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add VOSO₄·5H₂O to Parr vessel",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "[WV5O11]",
+                  "VOSO4·5H2O"
+                ],
+                "chemicalAmount": "51 mg, 0.2 mmol"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 2,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add Na₂WO₄·2H₂O to Parr vessel",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "Na2WO4·2H2O"
+                ],
+                "chemicalAmount": "10 mg, 0.03 mmol"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 3,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add 1,3,5-benzenetricarboxylic acid to Parr vessel",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "[(C6H3)(CO2)3]",
+                  "1,3,5-benzenetricarboxylic acid"
+                ],
+                "chemicalAmount": "31 mg, 0.15 mmol"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 4,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add mixed solvent to Parr vessel",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "DMF",
+                  "dimethylformamide",
+                  "n, n'-dimethylformamide",
+                  "n, n-dimethylformamide"
+                ],
+                "chemicalAmount": "2.0 mL"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 5,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add mixed solvent to Parr vessel",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "H2O",
+                  "water"
+                ],
+                "chemicalAmount": "0.5 mL"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "HeatChill": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 6,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Heat at 433 K for 48 h",
+            "duration": "48.0 hour",
+            "usedDevice": "N/A",
+            "targetTemperature": "433.0 kelvin",
+            "heatingCoolingRate": "N/A",
+            "underVacuum": false,
+            "sealedVessel": true,
+            "stir": false
+          }
+        },
+        {
+          "HeatChill": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 7,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Cool to room temperature (after heating)",
+            "duration": "N/A",
+            "usedDevice": "N/A",
+            "targetTemperature": "298.0 kelvin",
+            "heatingCoolingRate": "N/A",
+            "underVacuum": false,
+            "sealedVessel": true,
+            "stir": false
+          }
+        }
+      ],
+      "productNames": [
+        "MOP-3",
+        "MetalOrganicPolyhedron for MOP-3"
+      ],
+      "productCCDCNumber": "1552953"
+    },
+    {
+      "steps": [
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 1,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add VOSO4·5H2O to the vessel.",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "VOSO4·5H2O"
+                ],
+                "chemicalAmount": "51 mg, 0.2 mmol"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 2,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add Na2WO4·2H2O to the vessel.",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "Na2WO4·2H2O",
+                  "[WV5O11]"
+                ],
+                "chemicalAmount": "15 mg, 0.05 mmol"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 3,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add 4,4',4''-s-triazine-2,4,6-triyl-tribenzoic acid to the vessel.",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "[(C3N3)(C6H4)3(CO2)3]",
+                  "4,4′,4″-s-triazine-2,4,6-triyl-tribenzoic acid",
+                  "H3TATB",
+                  "4,4',4''-σ-triazine-2,4,6-triyl-tribenzoic acid",
+                  "1, 3, 5-triamino-2, 4, 6-trinitrobenzene"
+                ],
+                "chemicalAmount": "25 mg, 0.6 mmol"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 4,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add mixed solvent (DMF/methanol/acetonitrile) to the vessel.",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "DMF",
+                  "dimethylformamide",
+                  "n, n'-dimethylformamide",
+                  "n, n-dimethylformamide"
+                ],
+                "chemicalAmount": "3.0 ml"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 5,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add mixed solvent (DMF/methanol/acetonitrile) to the vessel.",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "methanol",
+                  "ch3oh",
+                  "meoh",
+                  "methyl alcohol"
+                ],
+                "chemicalAmount": "0.5ml"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 6,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add mixed solvent (DMF/methanol/acetonitrile) to the vessel.",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "acetonitrile",
+                  "mecn"
+                ],
+                "chemicalAmount": "0.5ml"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "HeatChill": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 7,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Heat to 433 K for 48 h.",
+            "duration": "48.0 hour",
+            "usedDevice": "N/A",
+            "targetTemperature": "433.0 kelvin",
+            "heatingCoolingRate": "N/A",
+            "underVacuum": false,
+            "sealedVessel": true,
+            "stir": false
+          }
+        },
+        {
+          "HeatChill": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 8,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Slow cool to room temperature.",
+            "duration": "N/A",
+            "usedDevice": "N/A",
+            "targetTemperature": "298.0 kelvin",
+            "heatingCoolingRate": "N/A",
+            "underVacuum": false,
+            "sealedVessel": true,
+            "stir": false
+          }
+        }
+      ],
+      "productNames": [
+        "MOP-4",
+        "Goldberg MOP-4"
+      ],
+      "productCCDCNumber": "1552951"
+    }
+  ]
+}

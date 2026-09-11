@@ -1,0 +1,39 @@
+{
+  "Devices": [
+    {
+      "HNMRDevice": {
+        "deviceName": "Bruker AVANCE 400",
+        "frequency": "400 MHz"
+      },
+      "ElementalAnalysisDevice": {
+        "deviceName": "Elementar Vario EL III"
+      },
+      "InfraredSpectroscopyDevice": {
+        "deviceName": "Nicolet Magna 750 FT-IR"
+      },
+      "Characterisation": [
+        {
+          "productNames": [
+            "HCCF-1"
+          ],
+          "productCCDCNumber": "1528352",
+          "HNMR": {
+            "shifts": "6.50 (d, 120H, Cp-H), 2.68 (s, 12H, C-H), 1.52 (s, 48H, CH2), 1.28 (s, 36H, CH3), 0.96 (s, 72H, CH3)",
+            "solvent": "CD3OD",
+            "temperature": "N/A"
+          },
+          "ElementalAnalysis": {
+            "weightPercentageCalculated": "C: 41.04; H: 6.59; N: 3.36",
+            "weightPercentageExperimental": "C: 40.70; H: 6.20; N: 3.57",
+            "chemicalFormula": "C342H654N24Cl8O152Zr24",
+            "measurementDevice": "Elementar Vario EL III"
+          },
+          "InfraredSpectroscopy": {
+            "material": "KBr pellets",
+            "bands": "3431, 2959, 1622, 1544, 1413, 1368, 1175, 1020, 811, 619, 508 cm-1"
+          }
+        }
+      ]
+    }
+  ]
+}

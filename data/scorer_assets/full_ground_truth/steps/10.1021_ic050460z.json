@@ -1,0 +1,458 @@
+{
+  "Synthesis": [
+    {
+      "productCCDCNumber": "27734 5",
+      "productNames": [
+        "[mo24(bbdc)24](py)12",
+        "[Mo24(C12H12O4)24](C5H5N)12"
+      ],
+      "steps": [
+        {
+          "Add": {
+            "usedVesselName": "tube 1",
+            "usedVesselType": "sealed pyrex tube",
+            "stepNumber": 1,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "add mo2(ac)4",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "mo2(oac)4",
+                  "mo2(ch3coo)4",
+                  "dimolybdenum tetraacetate",
+                  "mo2(ac)4"
+                ],
+                "chemicalAmount": "22 mg"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "tube 1",
+            "usedVesselType": "sealed pyrex tube",
+            "stepNumber": 2,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "add bbdc",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "bbdc",
+                  "5-tert-butylisophthalic acid",
+                  "5-tert-butyl-1,3-benzenedicarboxylic acid",
+                  "5-tbu-1,3-benzenedicarboxylic acid"
+                ],
+                "chemicalAmount": "n/a"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "tube 1",
+            "usedVesselType": "sealed pyrex tube",
+            "stepNumber": 3,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "add 1,2-dichlorobenzene",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "1,2-dichlorobenzene",
+                  "o-dichlorobenzene",
+                  "ortho-dichlorobenzene"
+                ],
+                "chemicalAmount": "2 ml"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "tube 1",
+            "usedVesselType": "sealed pyrex tube",
+            "stepNumber": 4,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "add pyridine",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "pyridine"
+                ],
+                "chemicalAmount": "0.1 ml"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "HeatChill": {
+            "usedVesselName": "tube 1",
+            "usedVesselType": "sealed pyrex tube",
+            "stepNumber": 5,
+            "atmosphere": "vacuum",
+            "targetPH": -1,
+            "comment": "heated under autogenous pressure; crystal formation during heating",
+            "duration": "2 d",
+            "usedDevice": "n/a",
+            "targetTemperature": "120 degree celsius",
+            "heatingCoolingRate": "6 degree celsius per hour",
+            "underVacuum": true,
+            "sealedVessel": true,
+            "stir": false
+          }
+        },
+        {
+          "HeatChill": {
+            "usedVesselName": "tube 1",
+            "usedVesselType": "sealed pyrex tube",
+            "stepNumber": 6,
+            "atmosphere": "vacuum",
+            "targetPH": -1,
+            "comment": "cooled to room temperature",
+            "duration": "n/a",
+            "usedDevice": "n/a",
+            "targetTemperature": "25 degree celsius",
+            "heatingCoolingRate": "-6.0 degree celsius per hour",
+            "underVacuum": true,
+            "sealedVessel": true,
+            "stir": false
+          }
+        },
+        {
+          "Filter": {
+            "usedVesselName": "tube 1",
+            "usedVesselType": "sealed pyrex tube",
+            "stepNumber": 7,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "Wash the collected crystal with ether.",
+            "washingSolvent": [
+              {
+                "chemicalName": [
+                  "ether",
+                  "diethyl ether"
+                ],
+                "chemicalAmount": "n/a"
+              }
+            ],
+            "vacuumFiltration": false,
+            "numberOfFiltrations": 1
+          }
+        },
+        {
+          "Evaporate": {
+            "usedVesselName": "tube 1",
+            "usedVesselType": "sealed pyrex tube",
+            "stepNumber": 8,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "evaporate solvent",
+            "duration": "n/a"
+          }
+        },
+        {
+          "Dry": {
+            "usedVesselName": "tube 1",
+            "usedVesselType": "sealed pyrex tube",
+            "stepNumber": 9,
+            "atmosphere": "vacuum",
+            "targetPH": -1,
+            "comment": "brief drying under vacuum",
+            "duration": "n/a"
+          }
+        }
+      ]
+    },
+    {
+      "productCCDCNumber": "27734 3",
+      "productNames": [
+        "mo24(bdc)24",
+        "mo24(c8h4o4)24",
+        "metalorganicpolyhedron for mo24(c8h4o4)24"
+      ],
+      "steps": [
+        {
+          "Add": {
+            "usedVesselName": "tube 2",
+            "usedVesselType": "sealed pyrex tube",
+            "stepNumber": 1,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "add mo2(ac)4",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "molybdenum(ii) acetate",
+                  "tetraacetatodimolybdenum",
+                  "mo2(oac)4",
+                  "dimolybdenum tetracetate",
+                  "mo2(ac)4"
+                ],
+                "chemicalAmount": "22 mg"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "tube 2",
+            "usedVesselType": "sealed pyrex tube",
+            "stepNumber": 2,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "add bdc",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "isophthalic acid",
+                  "bdc",
+                  "1,3-c6h4(cooh)2",
+                  "1,3-benzenedicarboxylic acid"
+                ],
+                "chemicalAmount": "17 mg"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "tube 2",
+            "usedVesselType": "sealed pyrex tube",
+            "stepNumber": 3,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "add dmf",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "n,n-dimethylformamide",
+                  "dimethylformamide",
+                  "dmf",
+                  "n, n'-dimethylformamide"
+                ],
+                "chemicalAmount": "2 ml"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "tube 2",
+            "usedVesselType": "sealed pyrex tube",
+            "stepNumber": 4,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "add pyridine",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "pyridine"
+                ],
+                "chemicalAmount": "0.1 ml"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "HeatChill": {
+            "usedVesselName": "tube 2",
+            "usedVesselType": "sealed pyrex tube",
+            "stepNumber": 5,
+            "atmosphere": "vacuum",
+            "targetPH": -1,
+            "comment": "heated under autogenous pressure",
+            "duration": "2 d",
+            "usedDevice": "n/a",
+            "targetTemperature": "160 degree celsius",
+            "heatingCoolingRate": "0.1 degree celsius per minute",
+            "underVacuum": true,
+            "sealedVessel": true,
+            "stir": false
+          }
+        },
+        {
+          "HeatChill": {
+            "usedVesselName": "tube 2",
+            "usedVesselType": "sealed pyrex tube",
+            "stepNumber": 6,
+            "atmosphere": "vacuum",
+            "targetPH": -1,
+            "comment": "cooled to room temperature",
+            "duration": "n/a",
+            "usedDevice": "n/a",
+            "targetTemperature": "25 degree celsius",
+            "heatingCoolingRate": "0.1 degree celsius per minute",
+            "underVacuum": true,
+            "sealedVessel": true,
+            "stir": false
+          }
+        }
+      ]
+    },
+    {
+      "productCCDCNumber": "277344",
+      "productNames": [
+        "cu24(bbdc)24",
+        "[Cu24(C12H12O4)24](C5H5N)12(CH3OH)12"
+      ],
+      "steps": [
+        {
+          "Add": {
+            "usedVesselName": "tube 3",
+            "usedVesselType": "culture tube",
+            "stepNumber": 1,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "Introduce bbdc.",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "bbdc",
+                  "5-tert-butylisophthalic acid",
+                  "5-tert-butyl-1,3-benzenedicarboxylic acid",
+                  "5-tbu-1,3-benzenedicarboxylic acid"
+                ],
+                "chemicalAmount": "1 mmol"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "tube 3",
+            "usedVesselType": "culture tube",
+            "stepNumber": 2,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "Introduce pyridine.",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "pyridine"
+                ],
+                "chemicalAmount": "0.1 ml"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "tube 3",
+            "usedVesselType": "culture tube",
+            "stepNumber": 3,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "Introduce nitrobenzene.",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "nitrobenzene"
+                ],
+                "chemicalAmount": "20 ml"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "tube 3",
+            "usedVesselType": "culture tube",
+            "stepNumber": 4,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "Introduce cu(no3)2.",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "cu(no3)2",
+                  "copper(ii) nitrate"
+                ],
+                "chemicalAmount": "1 mmol"
+              }
+            ],
+            "stir": false,
+            "isLayered": true
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "tube 3",
+            "usedVesselType": "culture tube",
+            "stepNumber": 5,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "Introduce methanol.",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "methanol",
+                  "meoh",
+                  "ch3oh",
+                  "methyl alcohol"
+                ],
+                "chemicalAmount": "20 ml"
+              }
+            ],
+            "stir": false,
+            "isLayered": true
+          }
+        },
+        {
+          "HeatChill": {
+            "usedVesselName": "tube 3",
+            "usedVesselType": "culture tube",
+            "stepNumber": 6,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "allow to stand; blue crystals grew within 3-5 days; crystal for x-ray diffraction obtained after two weeks",
+            "duration": "2 week",
+            "usedDevice": "n/a",
+            "targetTemperature": "25 degree celsius",
+            "heatingCoolingRate": "n/a",
+            "underVacuum": false,
+            "sealedVessel": false,
+            "stir": false
+          }
+        }
+      ]
+    }
+  ]
+}

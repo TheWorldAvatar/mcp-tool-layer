@@ -1,0 +1,248 @@
+{
+  "synthesisProcedures": [
+    {
+      "procedureName": "Synthesis of MOP-TO",
+      "steps": [
+        {
+          "inputChemicals": [
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "97 mg, 0.33 mmol",
+                  "chemicalFormula": "C15H18O6",
+                  "chemicalName": [
+                    "2,4,6-trimethylbenzene-1,3,5-triacetic acid",
+                    "TMBTA"
+                  ]
+                }
+              ],
+              "purity": "N/A",
+              "supplierName": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "241.6 mg, 1.00 mmol",
+                  "chemicalFormula": "Cu(NO3)2·3H2O",
+                  "chemicalName": [
+                    "copper(II) nitrate trihydrate"
+                  ]
+                }
+              ],
+              "purity": "N/A",
+              "supplierName": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "79 μL, 1.00 mmol",
+                  "chemicalFormula": "C5H5N",
+                  "chemicalName": [
+                    "pyridine"
+                  ]
+                }
+              ],
+              "purity": "N/A",
+              "supplierName": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "N/A",
+                  "chemicalFormula": "C4H9NO",
+                  "chemicalName": [
+                    "N,N-dimethylacetamide",
+                    "DMA"
+                  ]
+                }
+              ],
+              "purity": "N/A",
+              "supplierName": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "N/A",
+                  "chemicalFormula": "C2H6O",
+                  "chemicalName": [
+                    "ethanol"
+                  ]
+                }
+              ],
+              "purity": "N/A",
+              "supplierName": "N/A"
+            }
+          ],
+          "outputChemical": [
+            {
+              "CCDCNumber": "962728",
+              "chemicalFormula": "N/A",
+              "names": [
+                "MOP-TO"
+              ],
+              "yield": "32%"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "procedureName": "Synthesis of TMBTA-Co(II) coordination polymer",
+      "steps": [
+        {
+          "inputChemicals": [
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "97 mg, 0.33 mmol",
+                  "chemicalFormula": "C15H18O6",
+                  "chemicalName": [
+                    "2,4,6-trimethylbenzene-1,3,5-triacetic acid",
+                    "TMBTA"
+                  ]
+                }
+              ],
+              "purity": "N/A",
+              "supplierName": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "291 mg, 1.00 mmol",
+                  "chemicalFormula": "Co(NO3)2·6H2O",
+                  "chemicalName": [
+                    "cobalt(II) nitrate hexahydrate"
+                  ]
+                }
+              ],
+              "purity": "N/A",
+              "supplierName": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "79 μL, 1.00 mmol",
+                  "chemicalFormula": "C5H5N",
+                  "chemicalName": [
+                    "pyridine"
+                  ]
+                }
+              ],
+              "purity": "N/A",
+              "supplierName": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "N/A",
+                  "chemicalFormula": "C3H7NO",
+                  "chemicalName": [
+                    "N,N-dimethylformamide",
+                    "DMF"
+                  ]
+                }
+              ],
+              "purity": "N/A",
+              "supplierName": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "N/A",
+                  "chemicalFormula": "C2H6O",
+                  "chemicalName": [
+                    "ethanol"
+                  ]
+                }
+              ],
+              "purity": "N/A",
+              "supplierName": "N/A"
+            }
+          ],
+          "outputChemical": [
+            {
+              "CCDCNumber": "963230",
+              "chemicalFormula": "N/A",
+              "names": [
+                "TMBTA-Co(II)"
+              ],
+              "yield": "59%"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "procedureName": "Synthesis of TMBTA-Zn(II) coordination polymer",
+      "steps": [
+        {
+          "inputChemicals": [
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "60 mg, 0.1468 mmol",
+                  "chemicalFormula": "N/A",
+                  "chemicalName": [
+                    "potassium salt of TMBTA",
+                    "TMBTA-K"
+                  ]
+                }
+              ],
+              "purity": "N/A",
+              "supplierName": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "57 mg, 0.42 mmol",
+                  "chemicalFormula": "ZnCl2",
+                  "chemicalName": [
+                    "zinc(II) chloride"
+                  ]
+                }
+              ],
+              "purity": "N/A",
+              "supplierName": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "N/A",
+                  "chemicalFormula": "H2O",
+                  "chemicalName": [
+                    "water"
+                  ]
+                }
+              ],
+              "purity": "N/A",
+              "supplierName": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "N/A",
+                  "chemicalFormula": "C2H6O",
+                  "chemicalName": [
+                    "ethanol"
+                  ]
+                }
+              ],
+              "purity": "N/A",
+              "supplierName": "N/A"
+            }
+          ],
+          "outputChemical": [
+            {
+              "CCDCNumber": "963231",
+              "chemicalFormula": "N/A",
+              "names": [
+                "TMBTA-Zn(II)"
+              ],
+              "yield": "49%"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "synthesisProcedures": [
+    {
+      "mopCCDCNumber": "1576897",
+      "cbuFormula1": "[SO2(C6H4)2(CO2)2]",
+      "cbuSpeciesNames1": [
+        "4,4'-sulfonyldibenzoic acid",
+        "4,4\u2032-sulfonyldibenzoic acid",
+        "H2SDB",
+        "SDBA"
+      ],
+      "cbuFormula2": "[Zr3O(OH)3(C5H5)3]",
+      "cbuSpeciesNames2": [
+        "trinuclear zirconocene node",
+        "Bis(cyclopentadienyl)zirconium dichloride",
+        "Cp2ZrCl2",
+        "ZrCl2(C5H5)2",
+        "C10H10Cl2Zr"
+      ]
+    },
+    {
+      "mopCCDCNumber": "1576898",
+      "cbuFormula1": "[CH2(C6H4)2(CO2)2]",
+      "cbuSpeciesNames1": [
+        "4,4'-methylenebis(benzoic acid)",
+        "4,4'-methylenedibenzoic acid",
+        "H2MDB"
+      ],
+      "cbuFormula2": "[Zr3O(OH)3(C5H5)3]",
+      "cbuSpeciesNames2": [
+        "trinuclear zirconocene node",
+        "Bis(cyclopentadienyl)zirconium dichloride",
+        "Cp2ZrCl2",
+        "ZrCl2(C5H5)2",
+        "C10H10Cl2Zr"
+      ]
+    }
+  ]
+}

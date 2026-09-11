@@ -1,0 +1,78 @@
+{
+  "Devices": [
+    {
+      "Characterisation": [
+        {
+          "productNames": [
+            "CIAC-105"
+          ],
+          "productCCDCNumber": "869988",
+          "HNMR": {
+            "shifts": "N/A",
+            "solvent": "N/A",
+            "temperature": "N/A"
+          },
+          "ElementalAnalysis": {
+            "weightPercentageCalculated": "C 45.40, H 7.67, N 5.81",
+            "weightPercentageExperimental": "C 43.36, H 5.96, N 6.28",
+            "chemicalFormula": "[(C2H5)3NH]6 [Co24(OH)6(C40H44S4O12)6(C9H3O6)8] · 72 CH3OH · 48 DMF"
+          },
+          "InfraredSpectroscopy": {
+            "material": "N/A",
+            "bands": "N/A"
+          }
+        },
+        {
+          "productNames": [
+            "CIAC-106"
+          ],
+          "productCCDCNumber": "869989",
+          "HNMR": {
+            "shifts": "N/A",
+            "solvent": "N/A",
+            "temperature": "N/A"
+          },
+          "ElementalAnalysis": {
+            "weightPercentageCalculated": "C 55.21, H 8.04, N 9.84",
+            "weightPercentageExperimental": "C 45.75, H 6.96, N 9.13",
+            "chemicalFormula": "[(C2H5)3NH]6 [Co24(OH)6(C40H44S4O12)6(C27H15O6)8] · 178 DMA"
+          },
+          "InfraredSpectroscopy": {
+            "material": "N/A",
+            "bands": "N/A"
+          }
+        },
+        {
+          "productNames": [
+            "CIAC-107"
+          ],
+          "productCCDCNumber": "869990",
+          "HNMR": {
+            "shifts": "N/A",
+            "solvent": "N/A",
+            "temperature": "N/A"
+          },
+          "ElementalAnalysis": {
+            "weightPercentageCalculated": "C 56.38, H 7.34, N 8.37",
+            "weightPercentageExperimental": "C 47.79, H 6.48, N 9.76",
+            "chemicalFormula": "[(C2H5)3NH]6 [Co24(OH)6(C40H44S4O12)6(C33H15O6)8] · 128 DMA"
+          },
+          "InfraredSpectroscopy": {
+            "material": "N/A",
+            "bands": "N/A"
+          }
+        }
+      ],
+      "ElementalAnalysisDevice": {
+        "deviceName": "N/A"
+      },
+      "HNMRDevice": {
+        "deviceName": "N/A",
+        "frequency": "N/A"
+      },
+      "InfraredSpectroscopyDevice": {
+        "deviceName": "N/A"
+      }
+    }
+  ]
+}

@@ -1,0 +1,118 @@
+{
+    "Devices": [
+        {
+            "HNMRDevice": {
+                "deviceName": "N/A",
+                "frequency": "N/A"
+            },
+            "ElementalAnalysisDevice": {
+                "deviceName": "N/A"
+            },
+            "InfraredSpectroscopyDevice": {
+                "deviceName": "Nicolet FT-IR Impact 400"
+            },
+            "Characterisation": [
+                {
+                    "productNames": [
+                        "IRMOP-50"
+                    ],
+                    "productCCDCNumber": "273613",
+                    "HNMR": {
+                        "shifts": "N/A",
+                        "solvent": "N/A",
+                        "temperature": "N/A"
+                    },
+                    "ElementalAnalysis": {
+                        "weightPercentageCalculated": "N/A",
+                        "weightPercentageExperimental": "N/A",
+                        "chemicalFormula": "N/A"
+                    },
+                    "InfraredSpectroscopy": {
+                        "material": "KBr pellet",
+                        "bands": "3436 (m), 3068 (m), 2939 (m), 2815 (w), 1658 (s), 1582 (vs), 1505 (m), 1436 (s), 1407 (vs), 1222 (s), 1147 (vs), 1035 (s), 993 (s), 830 (w), 750 (m), 685 (m), 663 (m), 597 (m), 555 (s), 479 (w)"
+                    }
+                },
+                {
+                    "productNames": [
+                        "IRMOP-51"  
+                    ],
+                    "productCCDCNumber": "273616",
+                    "HNMR": {
+                        "shifts": "N/A",
+                        "solvent": "N/A",
+                        "temperature": "N/A"
+                    },
+                    "ElementalAnalysis": {
+                        "weightPercentageCalculated": "C, 40.09; H, 5.43; N, 8.05",
+                        "weightPercentageExperimental": "C, 39.86; H, 5.48; N, 8.22",
+                        "chemicalFormula": "C215H347N37O121Fe12S12"
+                    },
+                    "InfraredSpectroscopy": {
+                        "material": "KBr pellet",
+                        "bands": "3439 (s), 3068 (m), 2979 (m), 2941 (m), 2805 (m), 2737 (m), 2678 (m), 2491 (w), 1712 (w), 1655 (s), 1604 (s), 1592 (s), 1543 (m), 1494 (m), 1447 (m), 1418 (vs), 1226 (s), 1181 (m), 1143 (s), 1126 (vs), 1050 (s), 1037 (s), 983 (s), 860 (w), 845 (w), 795 (w), 774 (m), 702 (m), 681 (m), 661 (m), 601 (s), 476 (m)"
+                    }
+                },
+                {
+                    "productNames": [
+                        "IRMOP-52"
+                    ],
+                    "productCCDCNumber": "273620",
+                    "HNMR": {
+                        "shifts": "N/A",
+                        "solvent": "N/A",
+                        "temperature": "N/A"
+                    },
+                    "ElementalAnalysis": {
+                        "weightPercentageCalculated": "C, 41.16; H, 5.22; N, 6.60",
+                        "weightPercentageExperimental": "C, 41.15; H, 5.32; N, 6.86",
+                        "chemicalFormula": "C211H319O115N29S12Fe12"
+                    },
+                    "InfraredSpectroscopy": {
+                        "material": "KBr pellet",
+                        "bands": "3433 (s), 3070 (m), 2937 (m), 2894 (m), 2834 (m), 1643 (m), 1605 (s), 1584 (s), 1544 (s), 1486 (m), 1466 (s), 1433 (s), 1404 (vs), 1352 (m), 1225 (s), 1127 (vs), 1066 (s), 1039 (vs), 984 (s), 791 (w), 752 (m), 701 (m), 604 (s), 476 (m)"
+                    }
+                },
+                {
+                    "productNames": [
+                        "IRMOP-53"
+                    ],
+                    "productCCDCNumber": "273621",
+                    "HNMR": {
+                        "shifts": "N/A",
+                        "solvent": "N/A",
+                        "temperature": "N/A"
+                    },
+                    "ElementalAnalysis": {
+                        "weightPercentageCalculated": "C, 50.60; H, 4.62; N, 6.56",
+                        "weightPercentageExperimental": "C, 50.59; H, 4.39; N, 6.48",
+                        "chemicalFormula": "C252H274N28O77Fe12S12"
+                    },
+                    "InfraredSpectroscopy": {
+                        "material": "KBr pellet",
+                        "bands": "3427 (s), 3074 (m), 2983 (m), 2807 (m), 2499 (w), 1607 (vs), 1593 (vs), 1555 (s), 1422 (vs), 1226 (s), 1146 (vs), 1120 (vs), 1038 (s), 1009 (s), 985 (s), 844 (w), 786 (s), 708 (m), 603 (m), 547 (m)"
+                    }
+                },
+                {
+                    "productNames": [
+                        "MOP-54"
+                    ],
+                    "productCCDCNumber": "273623",
+                    "HNMR": {
+                        "shifts": "N/A",
+                        "solvent": "N/A",
+                        "temperature": "N/A"
+                    },
+                    "ElementalAnalysis": {
+                        "weightPercentageCalculated": "C, 44.19; H, 4.97; N, 7.63",
+                        "weightPercentageExperimental": "C, 44.15; H, 5.06; N, 7.63",
+                        "chemicalFormula": "C230H308N34O103Fe12S12"
+                    },
+                    "InfraredSpectroscopy": {
+                        "material": "KBr pellet",
+                        "bands": "3425 (vs), 2841 (s), 2809 (m), 2683 (m), 2490 (w), 1715 (m), 1661 (vs), 1611 (s), 1550 (m), 1535 (m), 1413 (vs), 1214 (s), 1125 (vs), 1067 (s), 1036 (s), 991 (s), 857 (m), 810 (m), 785 (s), 701 (m), 665 (m), 607 (s), 505 (s), 417 (m)"
+                    }
+                }
+            ]
+        }
+    ]
+}

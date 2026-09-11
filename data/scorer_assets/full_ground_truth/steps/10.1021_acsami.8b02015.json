@@ -1,0 +1,807 @@
+{
+  "Synthesis": [
+    {
+      "productCCDCNumber": "181508 3",
+      "productNames": [
+        "cu_opent-bdc_cage",
+        "cu_opent-bdc cage"
+      ],
+      "steps": [
+        {
+          "Add": {
+            "usedVesselName": "vial 2",
+            "usedVesselType": "scintillation vial",
+            "stepNumber": 1,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "add cu(no3)2·2.5h2o",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "cu(no3)2·2.5h2o",
+                  "copper(ii) nitrate hemipentahydrate"
+                ],
+                "chemicalAmount": "0.025 g, 0.108 mmol"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vial 2",
+            "usedVesselType": "scintillation vial",
+            "stepNumber": 2,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "add 5-opent-1,3-h2bdc",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "5-opent-1,3-h2bdc",
+                  "5-pentoxy-1,3-benzenedicarboxylic acid"
+                ],
+                "chemicalAmount": "0.023 g, 0.108 mmol"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vial 2",
+            "usedVesselType": "scintillation vial",
+            "stepNumber": 3,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "add ethanol",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "ethanol",
+                  "etoh",
+                  "ch3ch2oh"
+                ],
+                "chemicalAmount": "1.2 ml"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vial 2",
+            "usedVesselType": "scintillation vial",
+            "stepNumber": 4,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "add dmf",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "n, n-dimethylformamide",
+                  "dmf",
+                  "dimethylformamide",
+                  "n, n'-dimethylformamide"
+                ],
+                "chemicalAmount": "1.8 ml"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "HeatChill": {
+            "usedVesselName": "vial 2",
+            "usedVesselType": "scintillation vial",
+            "stepNumber": 5,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "heat under solvothermal conditions",
+            "duration": "12 h",
+            "usedDevice": "n/a",
+            "targetTemperature": "100 degree celsius",
+            "heatingCoolingRate": "n/a",
+            "underVacuum": false,
+            "sealedVessel": true,
+            "stir": false
+          }
+        },
+        {
+          "Separate": {
+            "usedVesselName": "4 mL scintillation vial",
+            "usedVesselType": "glass scintillation vial",
+            "stepNumber": 6,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "Centrifuge and decant solution to leave the product.",
+            "duration": "n/a"
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "4 mL scintillation vial",
+            "usedVesselType": "glass scintillation vial",
+            "stepNumber": 7,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "Introduce DMF for solvent exchange.",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "N,N-dimethylformamide",
+                  "DMF",
+                  "dimethylformamide"
+                ],
+                "chemicalAmount": "n/a"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "HeatChill": {
+            "usedVesselName": "4 mL scintillation vial",
+            "usedVesselType": "glass scintillation vial",
+            "stepNumber": 8,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "Exchange with DMF, replacing solvent every 10 hours.",
+            "duration": "2 days",
+            "usedDevice": "n/a",
+            "targetTemperature": "room temperature",
+            "heatingCoolingRate": "n/a",
+            "underVacuum": false,
+            "sealedVessel": false,
+            "stir": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "4 mL scintillation vial",
+            "usedVesselType": "glass scintillation vial",
+            "stepNumber": 9,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "Introduce diethyl ether for solvent exchange.",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "diethyl ether",
+                  "Et2O"
+                ],
+                "chemicalAmount": "n/a"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "HeatChill": {
+            "usedVesselName": "4 mL scintillation vial",
+            "usedVesselType": "glass scintillation vial",
+            "stepNumber": 10,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "Exchange with diethyl ether, replacing solvent every 12 hours.",
+            "duration": "5 days",
+            "usedDevice": "n/a",
+            "targetTemperature": "room temperature",
+            "heatingCoolingRate": "n/a",
+            "underVacuum": false,
+            "sealedVessel": false,
+            "stir": false
+          }
+        }
+      ]
+    },
+    {
+      "productCCDCNumber": "181507 5",
+      "productNames": [
+        "cu_oet-bdc cage"
+      ],
+      "steps": [
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "glass scintillation vial",
+            "stepNumber": 1,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "add cu(no3)2·2.5h2o to vessel 1",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "cu(no3)2·2.5h2o",
+                  "copper(ii) nitrate hemipentahydrate"
+                ],
+                "chemicalAmount": "0.025 g, 0.108 mmol"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "glass scintillation vial",
+            "stepNumber": 2,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "add 5-ethoxy-1,3-benzenedicarboxylic acid to vessel 1",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "5 -oet-1, 3 -h2bdc",
+                  "5 -ethoxy-1, 3 -benzenedicarboxylic acid"
+                ],
+                "chemicalAmount": "0.023 g, 0.108 mmol"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "glass scintillation vial",
+            "stepNumber": 3,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "add ethanol/n, n-dimethylformamide mixture to vessel 1",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "ethanol",
+                  "etoh",
+                  "ch3ch2oh"
+                ],
+                "chemicalAmount": "1.20 ml"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "glass scintillation vial",
+            "stepNumber": 4,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "add ethanol/n, n-dimethylformamide mixture to vessel 1",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "n, n-dimethylformamide",
+                  "dmf"
+                ],
+                "chemicalAmount": "1.80 ml"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "HeatChill": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "glass scintillation vial",
+            "stepNumber": 5,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "heat to 92 °c",
+            "duration": "12 h",
+            "usedDevice": "n/a",
+            "targetTemperature": "92 degree celsius",
+            "heatingCoolingRate": "n/a",
+            "underVacuum": false,
+            "sealedVessel": true,
+            "stir": false
+          }
+        },
+        {
+          "Separate": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "glass scintillation vial",
+            "stepNumber": 6,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "separate by decantation",
+            "duration": "n/a"
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "glass scintillation vial",
+            "stepNumber": 7,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "Introduce DMF for solvent exchange.",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "N,N-dimethylformamide",
+                  "DMF",
+                  "dimethylformamide"
+                ],
+                "chemicalAmount": "n/a"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "HeatChill": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "glass scintillation vial",
+            "stepNumber": 8,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "Exchange with DMF, replacing solvent every 10 hours.",
+            "duration": "2 days",
+            "usedDevice": "n/a",
+            "targetTemperature": "room temperature",
+            "heatingCoolingRate": "n/a",
+            "underVacuum": false,
+            "sealedVessel": false,
+            "stir": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "glass scintillation vial",
+            "stepNumber": 9,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "Introduce diethyl ether for solvent exchange.",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "diethyl ether",
+                  "Et2O"
+                ],
+                "chemicalAmount": "n/a"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "HeatChill": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "glass scintillation vial",
+            "stepNumber": 10,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "Exchange with diethyl ether, replacing solvent every 12 hours.",
+            "duration": "5 days",
+            "usedDevice": "n/a",
+            "targetTemperature": "room temperature",
+            "heatingCoolingRate": "n/a",
+            "underVacuum": false,
+            "sealedVessel": false,
+            "stir": false
+          }
+        }
+      ]
+    },
+    {
+      "productCCDCNumber": "181507 6",
+      "productNames": [
+        "cu_obu-bdc cage"
+      ],
+      "steps": [
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "glass scintillation vial",
+            "stepNumber": 1,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "add cu(oac)2·h2o to vessel 1",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "cu(oac)2·h2o",
+                  "copper(ii) acetate monohydrate"
+                ],
+                "chemicalAmount": "0.030 g, 0.150 mmol"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "glass scintillation vial",
+            "stepNumber": 2,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "add 5-butoxy-1,3-benzenedicarboxylic acid",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "5 -butoxy-1, 3 -benzenedicarboxylic acid",
+                  "5 -obut-1, 3 -h2bdc",
+                  "5 -butoxyisophthalic acid"
+                ],
+                "chemicalAmount": "0.036 g, 0.150 mmol"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "glass scintillation vial",
+            "stepNumber": 3,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "add n, n-dimethylformamide",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "n, n'-dimethylformamide",
+                  "dmf",
+                  "dimethylformamide",
+                  "n, n-dimethylformamide"
+                ],
+                "chemicalAmount": "3 ml"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "HeatChill": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "glass scintillation vial",
+            "stepNumber": 4,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "stand at room temperature",
+            "duration": "13.5 h",
+            "usedDevice": "n/a",
+            "targetTemperature": "25 degree celsius",
+            "heatingCoolingRate": "n/a",
+            "underVacuum": false,
+            "sealedVessel": true,
+            "stir": false
+          }
+        },
+        {
+          "Separate": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "glass scintillation vial",
+            "stepNumber": 5,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "separate by decantation",
+            "duration": "n/a"
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "glass scintillation vial",
+            "stepNumber": 6,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "Introduce DMF for solvent exchange.",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "N,N-dimethylformamide",
+                  "DMF",
+                  "dimethylformamide"
+                ],
+                "chemicalAmount": "n/a"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "HeatChill": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "glass scintillation vial",
+            "stepNumber": 7,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "Exchange with DMF, replacing solvent every 10 hours.",
+            "duration": "2 days",
+            "usedDevice": "n/a",
+            "targetTemperature": "room temperature",
+            "heatingCoolingRate": "n/a",
+            "underVacuum": false,
+            "sealedVessel": false,
+            "stir": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "glass scintillation vial",
+            "stepNumber": 8,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "Introduce diethyl ether for solvent exchange.",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "diethyl ether",
+                  "Et2O"
+                ],
+                "chemicalAmount": "n/a"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "HeatChill": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "glass scintillation vial",
+            "stepNumber": 9,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "Exchange with diethyl ether, replacing solvent every 12 hours.",
+            "duration": "5 days",
+            "usedDevice": "n/a",
+            "targetTemperature": "room temperature",
+            "heatingCoolingRate": "n/a",
+            "underVacuum": false,
+            "sealedVessel": false,
+            "stir": false
+          }
+        }
+      ]
+    },
+    {
+      "productCCDCNumber": "181507 9",
+      "productNames": [
+        "cu_opr-bdc_cage",
+        "cu_opr-bdc cage"
+      ],
+      "steps": [
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "glass scintillation vial",
+            "stepNumber": 1,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "add cu(no3)2·2.5h2o to vessel 1",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "cu(no3)2·2.5h2o",
+                  "copper(ii) nitrate hemipentahydrate"
+                ],
+                "chemicalAmount": "0.025 g, 0.108 mmol"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "glass scintillation vial",
+            "stepNumber": 2,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "add 5-propoxy-1,3-benzenedicarboxylic acid",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "5 -propoxy-1, 3 -benzenedicarboxylic acid",
+                  "5 -opr-1, 3 -h2bdc",
+                  "5 -propoxyisophthalic acid"
+                ],
+                "chemicalAmount": "0.023 g, 0.108 mmol"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "glass scintillation vial",
+            "stepNumber": 3,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "add ethanol",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "ethanol",
+                  "etoh",
+                  "ch3ch2oh"
+                ],
+                "chemicalAmount": "0.6 ml"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "glass scintillation vial",
+            "stepNumber": 4,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "add n, n-dimethylacetamide",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "n, n-dimethylacetamide",
+                  "dimethylacetamide",
+                  "dma",
+                  "n, n'-dimethylacetamide"
+                ],
+                "chemicalAmount": "2.4 ml"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "HeatChill": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "glass scintillation vial",
+            "stepNumber": 5,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "heat to 100 °c",
+            "duration": "12 h",
+            "usedDevice": "n/a",
+            "targetTemperature": "100 degree celsius",
+            "heatingCoolingRate": "n/a",
+            "underVacuum": false,
+            "sealedVessel": true,
+            "stir": false
+          }
+        },
+        {
+          "Separate": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "glass scintillation vial",
+            "stepNumber": 6,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "separate by decantation",
+            "duration": "n/a"
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "glass scintillation vial",
+            "stepNumber": 7,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "Introduce DMF for solvent exchange.",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "N,N-dimethylformamide",
+                  "DMF",
+                  "dimethylformamide"
+                ],
+                "chemicalAmount": "n/a"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "HeatChill": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "glass scintillation vial",
+            "stepNumber": 8,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "Exchange with DMF, replacing solvent every 10 hours.",
+            "duration": "2 days",
+            "usedDevice": "n/a",
+            "targetTemperature": "room temperature",
+            "heatingCoolingRate": "n/a",
+            "underVacuum": false,
+            "sealedVessel": false,
+            "stir": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "glass scintillation vial",
+            "stepNumber": 9,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "Introduce diethyl ether for solvent exchange.",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "diethyl ether",
+                  "Et2O"
+                ],
+                "chemicalAmount": "n/a"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "HeatChill": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "glass scintillation vial",
+            "stepNumber": 10,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "Exchange with diethyl ether, replacing solvent every 12 hours.",
+            "duration": "5 days",
+            "usedDevice": "n/a",
+            "targetTemperature": "room temperature",
+            "heatingCoolingRate": "n/a",
+            "underVacuum": false,
+            "sealedVessel": false,
+            "stir": false
+          }
+        }
+      ]
+    }
+  ]
+}

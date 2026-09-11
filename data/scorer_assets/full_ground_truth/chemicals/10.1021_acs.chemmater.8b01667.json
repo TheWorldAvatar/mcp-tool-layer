@@ -1,0 +1,168 @@
+{
+  "synthesisProcedures": [
+    {
+      "procedureName": "Synthesis of Cu24(tBu-amide-bdc)24",
+      "steps": [
+        {
+          "inputChemicals": [
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "0.1561 g, 0.7821 mmol",
+                  "chemicalFormula": "Cu(OAc)2·H2O",
+                  "chemicalName": [
+                    "copper(II) acetate monohydrate"
+                  ]
+                }
+              ]
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "0.2427 g, 0.9150 mmol",
+                  "chemicalFormula": "C12H14O4",
+                  "chemicalName": [
+                    "5-tert-butylamide-1,3-benzenedicarboxylic acid"
+                  ]
+                }
+              ]
+            }
+          ],
+          "outputChemical": [
+            {
+              "CCDCNumber": "1835131",
+              "chemicalFormula": "N/A",
+              "names": [
+                "Cu24(tBu-amide-bdc)24 cage"
+              ],
+              "yield": "N/A"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "procedureName": "Synthesis of Cu(OPent-bdc) hexagonal sheet",
+      "steps": [
+        {
+          "inputChemicals": [
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "0.210 g, 1.05 mmol",
+                  "chemicalFormula": "Cu(OAc)2·H2O",
+                  "chemicalName": [
+                    "copper(II) acetate monohydrate"
+                  ]
+                }
+              ]
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "0.296 g, 1.16 mmol",
+                  "chemicalFormula": "C13H16O5",
+                  "chemicalName": [
+                    "5-pentoxy-1,3-benzenedicarboxylic acid"
+                  ]
+                }
+              ]
+            }
+          ],
+          "outputChemical": [
+            {
+              "CCDCNumber": "N/A",
+              "chemicalFormula": "N/A",
+              "names": [
+                "Cu(OPent-bdc) hexagonal sheet"
+              ],
+              "yield": "N/A"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "procedureName": "Synthesis of Cu24(H-bdc)24",
+      "steps": [
+        {
+          "inputChemicals": [
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "0.160 g, 0.081 mmol",
+                  "chemicalFormula": "Cu(OAc)2·H2O",
+                  "chemicalName": [
+                    "copper(II) acetate monohydrate"
+                  ]
+                }
+              ]
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "0.146 g, 8.79 mmol",
+                  "chemicalFormula": "C8H6O4",
+                  "chemicalName": [
+                    "1,3-benzenedicarboxylic acid"
+                  ]
+                }
+              ]
+            }
+          ],
+          "outputChemical": [
+            {
+              "CCDCNumber": "N/A",
+              "chemicalFormula": "N/A",
+              "names": [
+                "Cu24(H-bdc)24 cage"
+              ],
+              "yield": "N/A"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "procedureName": "Synthesis of Cu(NH2-bdc) material",
+      "steps": [
+        {
+          "inputChemicals": [
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "0.250 g, 1.25 mmol",
+                  "chemicalFormula": "Cu(OAc)2·H2O",
+                  "chemicalName": [
+                    "copper(II) acetate monohydrate"
+                  ]
+                }
+              ]
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "0.250 g, 1.37 mmol",
+                  "chemicalFormula": "C8H7NO4",
+                  "chemicalName": [
+                    "5-amino-1,3-benzenedicarboxylic acid"
+                  ]
+                }
+              ]
+            }
+          ],
+          "outputChemical": [
+            {
+              "CCDCNumber": "N/A",
+              "chemicalFormula": "N/A",
+              "names": [
+                "Cu(NH2-bdc) material"
+              ],
+              "yield": "N/A"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

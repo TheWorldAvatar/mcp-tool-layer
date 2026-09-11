@@ -1,0 +1,41 @@
+{
+  "synthesisProcedures": [
+        {
+            "mopCCDCNumber": "998116",
+            "cbuFormula1": "[(C5NH3)2(CO2)2]",
+            "cbuSpeciesNames1": [
+                "2,2′-Bipyridine-4,4′-dicarboxylic acid",
+                "2,2'-bipyridine-4,4'-dicarboxylic acid",
+                "H2bpdc",
+                "C12H8N2O4"
+            ],
+            "cbuFormula2": "[Co4C40H44O4S4]",
+            "cbuSpeciesNames2": [
+                "CoCl2·6H2O",
+                "CoSO4·7H2O",
+                "cobalt(II) chloride hexahydrate",
+                "cobalt(II) sulfate heptahydrate",
+                "p-tert-butylthiacalix[4]arene",
+                "H4TC4A",
+                "C44H56O4S4"
+            ]
+        },
+        {
+            "mopCCDCNumber": "998115",
+            "cbuFormula1": "[(C5NH3)2(CO2)2]",
+            "cbuSpeciesNames1": [
+                "2,2′-Bipyridine-4,4′-dicarboxylic acid",
+                "2,2'-bipyridine-4,4'-dicarboxylic acid",
+                "H2bpdc",
+                "C12H8N2O4"
+            ],
+            "cbuFormula2": "[Fe4C40H44S4O4]",
+            "cbuSpeciesNames2": [
+                "FeCl2·4H2O",
+                "FeSO4·7H2O",
+                "iron(II) chloride tetrahydrate",
+                "iron(II) sulfate heptahydrate"
+            ]
+        }
+  ]
+}

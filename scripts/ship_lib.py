@@ -12,7 +12,13 @@ from typing import Any
 
 from models.generated_layout import read_current_pointer, resolve_generated_package_root
 from models.locations import repository_root
-from src.kg_building.experiment_protocol import DEFAULT_SCORER_REPO
+from src.kg_building.scorer_repo import (
+    MEDICAL_GOLD,
+    MEDICAL_SCHEMA,
+    ensure_scorer_repo,
+    find_scorer_repo,
+    scorer_looks_valid,
+)
 
 CAMPAIGN_PATH_NAME = "ship_campaign.json"
 GENERATION_TAG = "gpt5"
@@ -27,17 +33,6 @@ MAIN_PAPERS = Path("src/kg_building/ontologx/papers_eval30.json")
 ONTOMED_PAPERS = Path("src/kg_building/ontologx/papers_medical.json")
 MAIN_PDF_DIR = Path("scenarios/mops/datasets/eval30")
 ONTOMED_PDF_DIR = Path("scenarios/medical/datasets/eval30")
-
-MEDICAL_GOLD = Path("evaluation/medical/medical_cases_new_20260710_all30_corrected.csv")
-MEDICAL_SCHEMA = Path("medical_case/medical_case_schema_de_non_flat_v3.ttl")
-SCORER_MARKERS = (
-    Path("evaluation/scoring_steps.py"),
-    Path("scripts/merge_and_conversion_main.py"),
-    Path("scripts/medical_ttl_to_csv_sparql.py"),
-    Path("scripts/medical_score_predicted_vs_gold.py"),
-    MEDICAL_GOLD,
-    MEDICAL_SCHEMA,
-)
 
 WINDOWS_ACCESS_VIOLATION = {3221225477, -1073741819}
 FINE_GRAINED_RE = re.compile(
@@ -121,42 +116,6 @@ def parse_step(value: str | int) -> int:
     if number not in {1, 2, 3, 4, 5}:
         raise ValueError("step must be 1-5")
     return number
-
-
-def scorer_looks_valid(path: Path) -> bool:
-    return path.is_dir() and all((path / marker).is_file() for marker in SCORER_MARKERS)
-
-
-def find_scorer_repo(explicit: str | Path | None = None, *, root: Path | None = None) -> Path | None:
-    root = root or repo_root()
-    candidates: list[Path] = []
-    if explicit:
-        candidates.append(Path(explicit).expanduser())
-    env = str(os.environ.get("SCORER_REPO") or "").strip()
-    if env:
-        candidates.append(Path(env).expanduser())
-    candidates.extend(
-        [
-            DEFAULT_SCORER_REPO,
-            root.parent / "MCP-enhanced-MOPs-Extraction_Reproduction",
-            root.parent / "mcp-tool-layer",
-            Path(r"D:\MCP-enhanced-MOPs-Extraction_Reproduction"),
-        ]
-    )
-    seen: set[str] = set()
-    for candidate in candidates:
-        resolved = candidate.expanduser()
-        if not resolved.is_absolute():
-            resolved = (root / resolved).resolve()
-        else:
-            resolved = resolved.resolve()
-        key = str(resolved).casefold()
-        if key in seen:
-            continue
-        seen.add(key)
-        if scorer_looks_valid(resolved):
-            return resolved
-    return None
 
 
 def missing_pdfs(cases: list[dict[str, str]], pdf_dir: Path) -> list[str]:

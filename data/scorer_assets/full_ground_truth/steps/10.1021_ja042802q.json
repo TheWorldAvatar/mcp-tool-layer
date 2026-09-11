@@ -1,0 +1,1297 @@
+{
+  "Synthesis": [
+    {
+      "productNames": [
+        "IRMOP-50"
+      ],
+      "productCCDCNumber": "273613",
+      "steps": [
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "round bottom flask",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "Iron(III) sulfate hydrate"
+                ],
+                "chemicalAmount": "0.20 g, 0.50 mmol"
+              }
+            ],
+            "stepNumber": 1,
+            "stir": false,
+            "isLayered": false,
+            "atmosphere": "Air",
+            "duration": "N/A",
+            "targetPH": -1,
+            "comment": "N/A"
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "round bottom flask",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "1,4-benzenedicarboxylic acid",
+                  "H2BDC"
+                ],
+                "chemicalAmount": "0.083 g, 0.50 mmol"
+              }
+            ],
+            "stepNumber": 2,
+            "stir": false,
+            "isLayered": false,
+            "atmosphere": "Air",
+            "duration": "N/A",
+            "targetPH": -1,
+            "comment": "N/A"
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "round bottom flask",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "N,N-dimethylformamide",
+                  "dimethylformamide",
+                  "dmf",
+                  "n, n'-dimethylformamide"
+                ],
+                "chemicalAmount": "50 mL"
+              }
+            ],
+            "stepNumber": 3,
+            "stir": false,
+            "isLayered": false,
+            "atmosphere": "Air",
+            "duration": "N/A",
+            "targetPH": -1,
+            "comment": "N/A"
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "round bottom flask",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "triethylamine"
+                ],
+                "chemicalAmount": "130 µL"
+              }
+            ],
+            "stepNumber": 4,
+            "stir": false,
+            "isLayered": false,
+            "atmosphere": "Air",
+            "duration": "N/A",
+            "targetPH": -1,
+            "comment": "N/A"
+          }
+        },
+        {
+          "Stir": {
+            "duration": "24 hours",
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "round bottom flask",
+            "stepNumber": 5,
+            "atmosphere": "Air",
+            "temperature": "room temperature",
+            "wait": false
+          }
+        },
+        {
+          "Transfer": {
+            "duration": "N/A",
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "round bottom flask",
+            "targetVesselName": "vessel 2",
+            "targetVesselType": "glass scintillation vial",
+            "stepNumber": 6,
+            "isLayered": false,
+            "transferedAmount": "6 mL",
+            "comment": "N/A",
+            "atmosphere": "Air"
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 2",
+            "usedVesselType": "glass scintillation vial",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "pyridine"
+                ],
+                "chemicalAmount": "4 mL"
+              }
+            ],
+            "stepNumber": 7,
+            "stir": false,
+            "isLayered": false,
+            "atmosphere": "Air",
+            "duration": "N/A",
+            "targetPH": -1,
+            "comment": "N/A"
+          }
+        },
+        {
+          "HeatChill": {
+            "duration": "48 hours",
+            "usedDevice": "N/A",
+            "targetTemperature": "100 °C",
+            "heatingCoolingRate": "N/A",
+            "comment": "N/A",
+            "underVacuum": false,
+            "usedVesselType": "glass scintillation vial",
+            "usedVesselName": "vessel 2",
+            "sealedVessel": true,
+            "stir": false,
+            "stepNumber": 8,
+            "atmosphere": "Air"
+          }
+        },
+        {
+          "HeatChill": {
+            "duration": "N/A",
+            "usedDevice": "N/A",
+            "targetTemperature": "room temperature",
+            "heatingCoolingRate": "N/A",
+            "comment": "N/A",
+            "underVacuum": false,
+            "usedVesselType": "glass scintillation vial",
+            "usedVesselName": "vessel 2",
+            "sealedVessel": true,
+            "stir": false,
+            "stepNumber": 9,
+            "atmosphere": "Air"
+          }
+        }
+      ]
+    },
+    {
+      "productNames": [
+        "IRMOP-51_cubic"
+      ],
+      "productCCDCNumber": "273616",
+      "steps": [
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "round bottom flask",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "Iron(III) sulfate hydrate"
+                ],
+                "chemicalAmount": "0.20 g, 0.50 mmol"
+              }
+            ],
+            "stepNumber": 1,
+            "stir": false,
+            "isLayered": false,
+            "atmosphere": "Air",
+            "duration": "N/A",
+            "targetPH": -1,
+            "comment": "N/A"
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "round bottom flask",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "4,4'-biphenyldicarboxylic acid",
+                  "H2BPDC"
+                ],
+                "chemicalAmount": "0.12 g, 0.50 mmol"
+              }
+            ],
+            "stepNumber": 2,
+            "stir": false,
+            "isLayered": false,
+            "atmosphere": "Air",
+            "duration": "N/A",
+            "targetPH": -1,
+            "comment": "N/A"
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "round bottom flask",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "N,N-dimethylformamide",
+                  "dimethylformamide",
+                  "dmf",
+                  "n, n'-dimethylformamide"
+                ],
+                "chemicalAmount": "50 mL"
+              }
+            ],
+            "stepNumber": 3,
+            "stir": false,
+            "isLayered": false,
+            "atmosphere": "Air",
+            "duration": "N/A",
+            "targetPH": -1,
+            "comment": "N/A"
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "round bottom flask",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "triethylamine"
+                ],
+                "chemicalAmount": "130 µL"
+              }
+            ],
+            "stepNumber": 4,
+            "stir": false,
+            "isLayered": false,
+            "atmosphere": "Air",
+            "duration": "N/A",
+            "targetPH": -1,
+            "comment": "N/A"
+          }
+        },
+        {
+          "Stir": {
+            "duration": "24 hours",
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "round bottom flask",
+            "stepNumber": 5,
+            "atmosphere": "Air",
+            "temperature": "room temperature",
+            "wait": false
+          }
+        },
+        {
+          "Transfer": {
+            "duration": "N/A",
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "round bottom flask",
+            "targetVesselName": "vessel 2",
+            "targetVesselType": "glass scintillation vial",
+            "stepNumber": 6,
+            "isLayered": false,
+            "transferedAmount": "2.4 mL",
+            "comment": "For the cubic phase",
+            "atmosphere": "Air"
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 2",
+            "usedVesselType": "glass scintillation vial",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "pyridine"
+                ],
+                "chemicalAmount": "3.6 mL"
+              }
+            ],
+            "stepNumber": 7,
+            "stir": false,
+            "isLayered": false,
+            "atmosphere": "Air",
+            "duration": "N/A",
+            "targetPH": -1,
+            "comment": "N/A"
+          }
+        },
+        {
+          "HeatChill": {
+            "duration": "48 hours",
+            "usedDevice": "N/A",
+            "targetTemperature": "100 °C",
+            "heatingCoolingRate": "N/A",
+            "comment": "N/A",
+            "underVacuum": false,
+            "usedVesselType": "glass scintillation vial",
+            "usedVesselName": "vessel 2",
+            "sealedVessel": true,
+            "stir": false,
+            "stepNumber": 8,
+            "atmosphere": "Air"
+          }
+        },
+        {
+          "HeatChill": {
+            "duration": "N/A",
+            "usedDevice": "N/A",
+            "targetTemperature": "room temperature",
+            "heatingCoolingRate": "N/A",
+            "comment": "N/A",
+            "underVacuum": false,
+            "usedVesselType": "glass scintillation vial",
+            "usedVesselName": "vessel 2",
+            "sealedVessel": true,
+            "stir": false,
+            "stepNumber": 9,
+            "atmosphere": "Air"
+          }
+        }
+      ]
+    },
+    {
+      "productNames": [
+        "IRMOP-51_triclinic"
+      ],
+      "productCCDCNumber": "273616",
+      "steps": [
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "round bottom flask",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "Iron(III) sulfate hydrate"
+                ],
+                "chemicalAmount": "0.20 g, 0.50 mmol"
+              }
+            ],
+            "stepNumber": 1,
+            "stir": false,
+            "isLayered": false,
+            "atmosphere": "Air",
+            "duration": "N/A",
+            "targetPH": -1,
+            "comment": "N/A"
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "round bottom flask",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "4,4'-biphenyldicarboxylic acid",
+                  "H2BPDC"
+                ],
+                "chemicalAmount": "0.12 g, 0.50 mmol"
+              }
+            ],
+            "stepNumber": 2,
+            "stir": false,
+            "isLayered": false,
+            "atmosphere": "Air",
+            "duration": "N/A",
+            "targetPH": -1,
+            "comment": "N/A"
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "round bottom flask",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "N,N-dimethylformamide",
+                  "dimethylformamide",
+                  "dmf",
+                  "n, n'-dimethylformamide"
+                ],
+                "chemicalAmount": "50 mL"
+              }
+            ],
+            "stepNumber": 3,
+            "stir": false,
+            "isLayered": false,
+            "atmosphere": "Air",
+            "duration": "N/A",
+            "targetPH": -1,
+            "comment": "N/A"
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "round bottom flask",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "triethylamine"
+                ],
+                "chemicalAmount": "130 µL"
+              }
+            ],
+            "stepNumber": 4,
+            "stir": false,
+            "isLayered": false,
+            "atmosphere": "Air",
+            "duration": "N/A",
+            "targetPH": -1,
+            "comment": "N/A"
+          }
+        },
+        {
+          "Stir": {
+            "duration": "24 hours",
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "round bottom flask",
+            "stepNumber": 5,
+            "atmosphere": "Air",
+            "temperature": "room temperature",
+            "wait": false
+          }
+        },
+        {
+          "Transfer": {
+            "duration": "N/A",
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "round bottom flask",
+            "targetVesselName": "vessel 3",
+            "targetVesselType": "pyrex tube",
+            "stepNumber": 6,
+            "isLayered": false,
+            "transferedAmount": "1.5 mL",
+            "comment": "For the triclinic phase",
+            "atmosphere": "Air"
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 3",
+            "usedVesselType": "pyrex tube",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "pyridine"
+                ],
+                "chemicalAmount": "1.5 mL"
+              }
+            ],
+            "stepNumber": 7,
+            "stir": false,
+            "isLayered": false,
+            "atmosphere": "Air",
+            "duration": "N/A",
+            "targetPH": -1,
+            "comment": "N/A"
+          }
+        },
+        {
+          "HeatChill": {
+            "usedVesselName": "vessel 3",
+            "usedVesselType": "pyrex tube",
+            "stepNumber": 8,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Flash-freeze the tube before evacuation and flame sealing.",
+            "duration": "N/A",
+            "usedDevice": "n/a",
+            "targetTemperature": "N/A",
+            "heatingCoolingRate": "n/a",
+            "underVacuum": false,
+            "sealedVessel": false,
+            "stir": false
+          }
+        },
+        {
+          "HeatChill": {
+            "duration": "40 hours",
+            "usedDevice": "N/A",
+            "targetTemperature": "115 °C",
+            "heatingCoolingRate": "5 °C/min",
+            "comment": "Evacuate, flame-seal, then heat the tube.",
+            "underVacuum": true,
+            "usedVesselType": "pyrex tube",
+            "usedVesselName": "vessel 3",
+            "sealedVessel": true,
+            "stir": false,
+            "stepNumber": 9,
+            "atmosphere": "Vacuum"
+          }
+        },
+        {
+          "HeatChill": {
+            "duration": "N/A",
+            "usedDevice": "N/A",
+            "targetTemperature": "room temperature",
+            "heatingCoolingRate": "0.5 °C/min",
+            "comment": "N/A",
+            "underVacuum": true,
+            "usedVesselType": "pyrex tube",
+            "usedVesselName": "vessel 3",
+            "sealedVessel": true,
+            "stir": false,
+            "stepNumber": 10,
+            "atmosphere": "Vacuum"
+          }
+        },
+        {
+          "Filter": {
+            "washingSolvent": [
+              {
+                "chemicalName": [
+                  "N,N-dimethylformamide",
+                  "dimethylformamide",
+                  "dmf",
+                  "n, n'-dimethylformamide"
+                ],
+                "chemicalAmount": "5 mL"
+              },
+              {
+                "chemicalName": [
+                  "cyclohexane"
+                ],
+                "chemicalAmount": "5 mL"
+              }
+            ],
+            "vacuumFiltration": false,
+            "numberOfFiltrations": 1,
+            "usedVesselName": "vessel 3",
+            "usedVesselType": "pyrex tube",
+            "stepNumber": 11,
+            "comment": "Wash the isolated product with all stated solvents.",
+            "atmosphere": "Air"
+          }
+        }
+      ]
+    },
+    {
+      "productNames": [
+        "IRMOP-52"
+      ],
+      "productCCDCNumber": "273620",
+      "steps": [
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "round bottom flask",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "Iron(III) sulfate hydrate"
+                ],
+                "chemicalAmount": "0.05 g, 0.13 mmol"
+              }
+            ],
+            "stepNumber": 1,
+            "stir": false,
+            "isLayered": false,
+            "atmosphere": "Air",
+            "duration": "N/A",
+            "targetPH": -1,
+            "comment": "N/A"
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "round bottom flask",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "tetrahydropyrene-2,7-dicarboxylic acid",
+                  "H2HPDC"
+                ],
+                "chemicalAmount": "0.04 g, 0.13 mmol"
+              }
+            ],
+            "stepNumber": 2,
+            "stir": false,
+            "isLayered": false,
+            "atmosphere": "Air",
+            "duration": "N/A",
+            "targetPH": -1,
+            "comment": "N/A"
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "round bottom flask",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "N,N-dimethylformamide",
+                  "dimethylformamide",
+                  "dmf",
+                  "n, n'-dimethylformamide"
+                ],
+                "chemicalAmount": "20 mL"
+              }
+            ],
+            "stepNumber": 3,
+            "stir": false,
+            "isLayered": false,
+            "atmosphere": "Air",
+            "duration": "N/A",
+            "targetPH": -1,
+            "comment": "N/A"
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "round bottom flask",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "pyridine"
+                ],
+                "chemicalAmount": "20 mL"
+              }
+            ],
+            "stepNumber": 4,
+            "stir": false,
+            "isLayered": false,
+            "atmosphere": "Air",
+            "duration": "N/A",
+            "targetPH": -1,
+            "comment": "N/A"
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "round bottom flask",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "triethylamine"
+                ],
+                "chemicalAmount": "50 µL"
+              }
+            ],
+            "stepNumber": 5,
+            "stir": false,
+            "isLayered": false,
+            "atmosphere": "Air",
+            "duration": "N/A",
+            "targetPH": -1,
+            "comment": "N/A"
+          }
+        },
+        {
+          "Stir": {
+            "duration": "72 hours",
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "round bottom flask",
+            "stepNumber": 6,
+            "atmosphere": "Air",
+            "temperature": "room temperature",
+            "wait": false
+          }
+        },
+        {
+          "Transfer": {
+            "duration": "N/A",
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "round bottom flask",
+            "targetVesselName": "vessel 2",
+            "targetVesselType": "pyrex tube",
+            "stepNumber": 7,
+            "isLayered": false,
+            "transferedAmount": "1.2 mL",
+            "comment": "N/A",
+            "atmosphere": "Air"
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 2",
+            "usedVesselType": "pyrex tube",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "pyridine"
+                ],
+                "chemicalAmount": "1.8 mL"
+              }
+            ],
+            "stepNumber": 8,
+            "stir": false,
+            "isLayered": false,
+            "atmosphere": "Air",
+            "duration": "N/A",
+            "targetPH": -1,
+            "comment": "N/A"
+          }
+        },
+        {
+          "HeatChill": {
+            "usedVesselName": "vessel 2",
+            "usedVesselType": "pyrex tube",
+            "stepNumber": 9,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Flash-freeze the tube before evacuation and flame sealing.",
+            "duration": "N/A",
+            "usedDevice": "n/a",
+            "targetTemperature": "N/A",
+            "heatingCoolingRate": "n/a",
+            "underVacuum": false,
+            "sealedVessel": false,
+            "stir": false
+          }
+        },
+        {
+          "HeatChill": {
+            "duration": "32 hours",
+            "usedDevice": "N/A",
+            "targetTemperature": "115 °C",
+            "heatingCoolingRate": "5 °C/min",
+            "comment": "Evacuate, flame-seal, then heat the tube.",
+            "underVacuum": true,
+            "usedVesselType": "pyrex tube",
+            "usedVesselName": "vessel 2",
+            "sealedVessel": true,
+            "stir": false,
+            "stepNumber": 10,
+            "atmosphere": "Vacuum"
+          }
+        },
+        {
+          "HeatChill": {
+            "duration": "N/A",
+            "usedDevice": "N/A",
+            "targetTemperature": "room temperature",
+            "heatingCoolingRate": "0.5 °C/min",
+            "comment": "N/A",
+            "underVacuum": true,
+            "usedVesselType": "pyrex tube",
+            "usedVesselName": "vessel 2",
+            "sealedVessel": true,
+            "stir": false,
+            "stepNumber": 11,
+            "atmosphere": "Vacuum"
+          }
+        },
+        {
+          "Separate": {
+            "duration": "N/A",
+            "usedVesselName": "vessel 2",
+            "usedVesselType": "pyrex tube",
+            "solvent": [
+              {
+                "chemicalName": [
+                  "bromoform"
+                ],
+                "chemicalAmount": "N/A"
+              },
+              {
+                "chemicalName": [
+                  "CH2Cl2"
+                ],
+                "chemicalAmount": "N/A"
+              }
+            ],
+            "stepNumber": 12,
+            "separationType": "extraction",
+            "atmosphere": "Air",
+            "comment": "Purify the crystalline IRMOP-52 product by density separation (bromoform/CH2Cl2)"
+          }
+        },
+        {
+          "Filter": {
+            "washingSolvent": [
+              {
+                "chemicalName": [
+                  "N,N-dimethylformamide",
+                  "dimethylformamide",
+                  "dmf",
+                  "n, n'-dimethylformamide"
+                ],
+                "chemicalAmount": "5 mL"
+              },
+              {
+                "chemicalName": [
+                  "cyclohexane"
+                ],
+                "chemicalAmount": "5 mL"
+              }
+            ],
+            "vacuumFiltration": false,
+            "numberOfFiltrations": 1,
+            "usedVesselName": "vessel 2",
+            "usedVesselType": "pyrex tube",
+            "stepNumber": 13,
+            "comment": "Wash the isolated product with all stated solvents.",
+            "atmosphere": "Air"
+          }
+        }
+      ]
+    },
+    {
+      "productNames": [
+        "IRMOP-53"
+      ],
+      "productCCDCNumber": "273621",
+      "steps": [
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "round bottom flask",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "Iron(III) sulfate hydrate"
+                ],
+                "chemicalAmount": "0.19 g, 0.47 mmol"
+              }
+            ],
+            "stepNumber": 1,
+            "stir": false,
+            "isLayered": false,
+            "atmosphere": "Air",
+            "duration": "N/A",
+            "targetPH": -1,
+            "comment": "N/A"
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "round bottom flask",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "4,4''-terphenyldicarboxylic acid",
+                  "H2TPDC"
+                ],
+                "chemicalAmount": "0.15 g, 0.47 mmol"
+              }
+            ],
+            "stepNumber": 2,
+            "stir": false,
+            "isLayered": false,
+            "atmosphere": "Air",
+            "duration": "N/A",
+            "targetPH": -1,
+            "comment": "N/A"
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "round bottom flask",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "N,N-dimethylformamide",
+                  "dimethylformamide",
+                  "dmf",
+                  "n, n'-dimethylformamide"
+                ],
+                "chemicalAmount": "15 mL"
+              }
+            ],
+            "stepNumber": 3,
+            "stir": false,
+            "isLayered": false,
+            "atmosphere": "Air",
+            "duration": "N/A",
+            "targetPH": -1,
+            "comment": "N/A"
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "round bottom flask",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "pyridine"
+                ],
+                "chemicalAmount": "15 mL"
+              }
+            ],
+            "stepNumber": 4,
+            "stir": false,
+            "isLayered": false,
+            "atmosphere": "Air",
+            "duration": "N/A",
+            "targetPH": -1,
+            "comment": "N/A"
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "round bottom flask",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "triethylamine"
+                ],
+                "chemicalAmount": "130 µL"
+              }
+            ],
+            "stepNumber": 5,
+            "stir": false,
+            "isLayered": false,
+            "atmosphere": "Air",
+            "duration": "N/A",
+            "targetPH": -1,
+            "comment": "N/A"
+          }
+        },
+        {
+          "Stir": {
+            "duration": "24 hours",
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "round bottom flask",
+            "stepNumber": 6,
+            "atmosphere": "Air",
+            "temperature": "room temperature",
+            "wait": false
+          }
+        },
+        {
+          "Transfer": {
+            "duration": "N/A",
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "round bottom flask",
+            "targetVesselName": "vessel 2",
+            "targetVesselType": "glass scintillation vial",
+            "stepNumber": 7,
+            "isLayered": false,
+            "transferedAmount": "6 mL",
+            "comment": "N/A",
+            "atmosphere": "Air"
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 2",
+            "usedVesselType": "glass scintillation vial",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "pyridine"
+                ],
+                "chemicalAmount": "4 mL"
+              }
+            ],
+            "stepNumber": 8,
+            "stir": false,
+            "isLayered": false,
+            "atmosphere": "Air",
+            "duration": "N/A",
+            "targetPH": -1,
+            "comment": "N/A"
+          }
+        },
+        {
+          "HeatChill": {
+            "duration": "24 hours",
+            "usedDevice": "N/A",
+            "targetTemperature": "105 °C",
+            "heatingCoolingRate": "5 °C/min",
+            "comment": "N/A",
+            "underVacuum": false,
+            "usedVesselType": "glass scintillation vial",
+            "usedVesselName": "vessel 2",
+            "sealedVessel": true,
+            "stir": false,
+            "stepNumber": 9,
+            "atmosphere": "Air"
+          }
+        },
+        {
+          "HeatChill": {
+            "duration": "N/A",
+            "usedDevice": "N/A",
+            "targetTemperature": "room temperature",
+            "heatingCoolingRate": "0.5 °C/min",
+            "comment": "N/A",
+            "underVacuum": false,
+            "usedVesselType": "glass scintillation vial",
+            "usedVesselName": "vessel 2",
+            "sealedVessel": true,
+            "stir": false,
+            "stepNumber": 10,
+            "atmosphere": "Air"
+          }
+        },
+        {
+          "Filter": {
+            "washingSolvent": [
+              {
+                "chemicalName": [
+                  "pyridine"
+                ],
+                "chemicalAmount": "10 mL"
+              },
+              {
+                "chemicalName": [
+                  "cyclohexane"
+                ],
+                "chemicalAmount": "10 mL"
+              }
+            ],
+            "vacuumFiltration": false,
+            "numberOfFiltrations": 1,
+            "usedVesselName": "vessel 2",
+            "usedVesselType": "glass scintillation vial",
+            "stepNumber": 11,
+            "comment": "Wash the isolated product with all stated solvents.",
+            "atmosphere": "Air"
+          }
+        }
+      ]
+    },
+    {
+      "productNames": [
+        "MOP-54"
+      ],
+      "productCCDCNumber": "273623",
+      "steps": [
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "round bottom flask",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "Iron(III) sulfate hydrate"
+                ],
+                "chemicalAmount": "0.06 g, 0.15 mmol"
+              }
+            ],
+            "stepNumber": 1,
+            "stir": false,
+            "isLayered": false,
+            "atmosphere": "Air",
+            "duration": "N/A",
+            "targetPH": -1,
+            "comment": "N/A"
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "round bottom flask",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "1,3,5-tris(4-carboxyphenyl)benzene",
+                  "H3BTB"
+                ],
+                "chemicalAmount": "0.044 g, 0.10 mmol"
+              }
+            ],
+            "stepNumber": 2,
+            "stir": false,
+            "isLayered": false,
+            "atmosphere": "Air",
+            "duration": "N/A",
+            "targetPH": -1,
+            "comment": "N/A"
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "round bottom flask",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "N,N-dimethylformamide",
+                  "dimethylformamide",
+                  "dmf",
+                  "n, n'-dimethylformamide"
+                ],
+                "chemicalAmount": "10 mL"
+              }
+            ],
+            "stepNumber": 3,
+            "stir": false,
+            "isLayered": false,
+            "atmosphere": "Air",
+            "duration": "N/A",
+            "targetPH": -1,
+            "comment": "add n,n-dimethylformamide"
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "round bottom flask",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "pyridine"
+                ],
+                "chemicalAmount": "10 mL"
+              }
+            ],
+            "stepNumber": 4,
+            "stir": false,
+            "isLayered": false,
+            "atmosphere": "Air",
+            "duration": "N/A",
+            "targetPH": -1,
+            "comment": "add pyridine"
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "round bottom flask",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "triethylamine"
+                ],
+                "chemicalAmount": "150 µL"
+              }
+            ],
+            "stepNumber": 5,
+            "stir": false,
+            "isLayered": false,
+            "atmosphere": "Air",
+            "duration": "N/A",
+            "targetPH": -1,
+            "comment": "N/A"
+          }
+        },
+        {
+          "Stir": {
+            "duration": "72 hours",
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "round bottom flask",
+            "stepNumber": 6,
+            "atmosphere": "Air",
+            "temperature": "room temperature",
+            "wait": false
+          }
+        },
+        {
+          "Transfer": {
+            "duration": "N/A",
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "round bottom flask",
+            "targetVesselName": "vessel 2",
+            "targetVesselType": "pyrex tube",
+            "stepNumber": 7,
+            "isLayered": false,
+            "transferedAmount": "3 mL",
+            "comment": "N/A",
+            "atmosphere": "Air"
+          }
+        },
+        {
+          "HeatChill": {
+            "usedVesselName": "vessel 2",
+            "usedVesselType": "pyrex tube",
+            "stepNumber": 8,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Flash-freeze the tube before evacuation and flame sealing.",
+            "duration": "N/A",
+            "usedDevice": "n/a",
+            "targetTemperature": "N/A",
+            "heatingCoolingRate": "n/a",
+            "underVacuum": false,
+            "sealedVessel": false,
+            "stir": false
+          }
+        },
+        {
+          "HeatChill": {
+            "duration": "42 hours",
+            "usedDevice": "N/A",
+            "targetTemperature": "115 °C",
+            "heatingCoolingRate": "5 °C/min",
+            "comment": "Evacuate, flame-seal, then heat the tube.",
+            "underVacuum": true,
+            "usedVesselType": "pyrex tube",
+            "usedVesselName": "vessel 2",
+            "sealedVessel": true,
+            "stir": false,
+            "stepNumber": 9,
+            "atmosphere": "Vacuum"
+          }
+        },
+        {
+          "HeatChill": {
+            "duration": "N/A",
+            "usedDevice": "N/A",
+            "targetTemperature": "room temperature",
+            "heatingCoolingRate": "0.5 °C/min",
+            "comment": "N/A",
+            "underVacuum": true,
+            "usedVesselType": "pyrex tube",
+            "usedVesselName": "vessel 2",
+            "sealedVessel": true,
+            "stir": false,
+            "stepNumber": 10,
+            "atmosphere": "Vacuum"
+          }
+        },
+        {
+          "Separate": {
+            "duration": "N/A",
+            "usedVesselName": "vessel 2",
+            "usedVesselType": "pyrex tube",
+            "solvent": [
+              {
+                "chemicalName": [
+                  "bromoform"
+                ],
+                "chemicalAmount": "N/A"
+              },
+              {
+                "chemicalName": [
+                  "pyridine"
+                ],
+                "chemicalAmount": "N/A"
+              }
+            ],
+            "stepNumber": 11,
+            "separationType": "extraction",
+            "atmosphere": "Air",
+            "comment": "Purify the crystals by density separation (bromoform/pyridine)"
+          }
+        },
+        {
+          "Filter": {
+            "washingSolvent": [
+              {
+                "chemicalName": [
+                  "pyridine"
+                ],
+                "chemicalAmount": "5 mL"
+              },
+              {
+                "chemicalName": [
+                  "cyclohexane"
+                ],
+                "chemicalAmount": "5 mL"
+              }
+            ],
+            "vacuumFiltration": false,
+            "numberOfFiltrations": 1,
+            "usedVesselName": "vessel 2",
+            "usedVesselType": "pyrex tube",
+            "stepNumber": 12,
+            "comment": "Wash the isolated product with all stated solvents.",
+            "atmosphere": "Air"
+          }
+        }
+      ]
+    }
+  ]
+}

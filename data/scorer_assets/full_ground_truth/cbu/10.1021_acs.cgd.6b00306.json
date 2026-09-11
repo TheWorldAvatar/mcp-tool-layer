@@ -1,0 +1,18 @@
+{
+  "synthesisProcedures": [
+    {
+      "mopCCDCNumber": "1424706",
+      "cbuFormula1": "[(CHC6HO3)4(C5H11)4]",
+      "cbuSpeciesNames1": [
+        "C-pentylpyrogallol[4]arene",
+        "PgC5",
+        "C45H58O12"
+      ],
+      "cbuFormula2": "[Co3]",
+      "cbuSpeciesNames2": [
+        "cobalt(II) chloride hexahydrate",
+        "CoCl2\u00b76H2O"
+      ]
+    }
+  ]
+}

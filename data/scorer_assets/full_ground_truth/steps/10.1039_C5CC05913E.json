@@ -1,0 +1,176 @@
+{
+  "Synthesis": [
+    {
+      "steps": [
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 1,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add VCl3 to Teflon liner.",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "[V3O2(OH)2(HCO2)3]",
+                  "VCl3",
+                  "vanadium(iii) chloride"
+                ],
+                "chemicalAmount": "200 mg, 1.27 mmol"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 2,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add 1,4-bi(1H-pyrazol-4-yl)benzene to Teflon liner.",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "[(C6H4)(C3H2N2)2]",
+                  "1,4-bis(1H-pyrazol-4-yl)benzene",
+                  "benzene-1,4-bipyrazolate",
+                  "H2BDP",
+                  "1,4-bi(1H-pyrazol-4-yl)benzene"
+                ],
+                "chemicalAmount": "134 mg, 0.64 mmol"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 3,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add DMF to Teflon liner.",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "DMF",
+                  "dimethylformamide",
+                  "n, n'-dimethylformamide",
+                  "n, n-dimethylformamide"
+                ],
+                "chemicalAmount": "10 mL"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "HeatChill": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 4,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Heat to 150°C for 24 hours.",
+            "duration": "24.0 hour",
+            "usedDevice": "N/A",
+            "targetTemperature": "150.0 degree celsius",
+            "heatingCoolingRate": "N/A",
+            "underVacuum": false,
+            "sealedVessel": true,
+            "stir": false
+          }
+        },
+        {
+          "HeatChill": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 5,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Slowly cool to obtain crystals.",
+            "duration": "N/A",
+            "usedDevice": "N/A",
+            "targetTemperature": "N/A",
+            "heatingCoolingRate": "N/A",
+            "underVacuum": false,
+            "sealedVessel": true,
+            "stir": false
+          }
+        },
+        {
+          "Filter": {
+            "usedVesselName": "N/A",
+            "usedVesselType": "N/A",
+            "stepNumber": 6,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Filter to collect product, wash with DMF.",
+            "washingSolvent": [
+              {
+                "chemicalName": [
+                  "DMF",
+                  "dimethylformamide",
+                  "n, n'-dimethylformamide",
+                  "n, n-dimethylformamide"
+                ],
+                "chemicalAmount": "10 mL"
+              }
+            ],
+            "vacuumFiltration": false,
+            "numberOfFiltrations": 1
+          }
+        },
+        {
+          "Filter": {
+            "usedVesselName": "N/A",
+            "usedVesselType": "N/A",
+            "stepNumber": 7,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Second wash with DMF.",
+            "washingSolvent": [
+              {
+                "chemicalName": [
+                  "DMF",
+                  "dimethylformamide",
+                  "n, n'-dimethylformamide",
+                  "n, n-dimethylformamide"
+                ],
+                "chemicalAmount": "10 mL"
+              }
+            ],
+            "vacuumFiltration": false,
+            "numberOfFiltrations": 2
+          }
+        },
+        {
+          "Dry": {
+            "usedVesselName": "N/A",
+            "usedVesselType": "N/A",
+            "stepNumber": 8,
+            "atmosphere": "Air",
+            "targetPH": -1,
+            "comment": "Dry in ambient air.",
+            "duration": "N/A"
+          }
+        }
+      ],
+      "productNames": [
+        "Synthesis_of_[V3(μ3-O)O(OH)2(BPD)1.5(HCOO)3]_1",
+        "[V3(μ3-O)O(OH)2(BPD)1.5(HCOO)3] 1"
+      ],
+      "productCCDCNumber": "1412183"
+    }
+  ]
+}

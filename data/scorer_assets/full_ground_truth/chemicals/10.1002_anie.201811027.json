@@ -1,0 +1,244 @@
+{
+    "synthesisProcedures" : [
+        {
+            "procedureName": "Synthesis of [Me2NH2]5[V6O6(OCH3)9(SO4)4]",
+            "steps": [
+                {
+                    "inputChemicals": [
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "VOSO4·xH2O",
+                                    "chemicalName": ["VOSO4·xH2O"],
+                                    "chemicalAmount": "0.05 g, 0.3 mmol"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        }
+                    ],
+                    "outputChemical": [
+                        {
+                            "chemicalFormula": "[Me2NH2]5[V6O6(OCH3)9(SO4)4]",
+                            "names": [
+                                "[Me2NH2]5[V6O6(OCH3)9(SO4)4]",
+                                "[V6O6(OCH3)9(SO4)4]5-"
+                            ],
+                            "yield": "60%",
+                            "CCDCNumber": "1590347"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "procedureName": "Synthesis of VMOP-α",
+            "steps": [
+                {
+                    "inputChemicals": [
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "[Me2NH2]5[V6O6(OCH3)9(SO4)4]",
+                                    "chemicalName": [
+                                        "[Me2NH2]5[V6O6(OCH3)9(SO4)4]",
+                                        "[V6O6(OCH3)9(SO4)4]5-"
+                                    ],
+                                    "chemicalAmount": "0.05 g, 0.004 mmol"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "C16H10O4",
+                                    "chemicalName": [
+                                        "H2edb",
+                                        "4,4’-(ethyne-1,2-diyl)dibenzoic acid"
+                                    ],
+                                    "chemicalAmount": "0.01 g, 0.038 mmol"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        }
+                    ],
+                    "outputChemical": [
+                        {
+                            "chemicalFormula": "[V6O6(OCH3)9(SO4)]4[(C6H4C)2(CO2)2]6",
+                            "names": [
+                                "VMOP-α",
+                                "VMOP-alpha",
+                                "VMOP-alpha from [Me2NH2]5[V6O6(OCH3)9(SO4)4] and H2edb at 120 degC",
+                                "{[V6O6(OCH3)9(SO4)4]4(edb)6}8-"
+                            ],
+                            "yield": "56%",
+                            "CCDCNumber": "1590349"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "procedureName": "Synthesis of VMOP-α from VOSO4-xH2O",
+            "steps": [
+                {
+                    "inputChemicals": [
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "VOSO4·xH2O",
+                                    "chemicalName": [
+                                        "VOSO4-xH2O",
+                                        "VOSO4·xH2O"
+                                    ],
+                                    "chemicalAmount": "0.05 g, 0.3 mmol"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "C16H10O4",
+                                    "chemicalName": [
+                                        "H2edb",
+                                        "4,4’-(ethyne-1,2-diyl)dibenzoic acid"
+                                    ],
+                                    "chemicalAmount": "0.01 g, 0.038 mmol"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        }
+                    ],
+                    "outputChemical": [
+                        {
+                            "chemicalFormula": "[V6O6(OCH3)9(SO4)]4[(C6H4C)2(CO2)2]6",
+                            "names": [
+                                "VMOP-α (VOSO4 one-pot)",
+                                "VMOP-alpha from VOSO4-xH2O and H2edb at 120 degC",
+                                "VMOP-α",
+                                "{[V6O6(OCH3)9(SO4)4]4(edb)6}8-"
+                            ],
+                            "yield": "56%",
+                            "CCDCNumber": "1590349"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "procedureName": "Synthesis of VMOP-β",
+            "steps": [
+                {
+                    "inputChemicals": [
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "[Me2NH2]5[V6O6(OCH3)9(SO4)4]",
+                                    "chemicalName": [
+                                        "[Me2NH2]5[V6O6(OCH3)9(SO4)4]",
+                                        "[V6O6(OCH3)9(SO4)4]5-"
+                                    ],
+                                    "chemicalAmount": "0.05 g, 0.004 mmol"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "C16H10O4",
+                                    "chemicalName": [
+                                        "H2edb",
+                                        "4,4’-(ethyne-1,2-diyl)dibenzoic acid"
+                                    ],
+                                    "chemicalAmount": "0.01 g, 0.038 mmol"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        }
+                    ],
+                    "outputChemical": [
+                        {
+                            "chemicalFormula": "[V6O6(OCH3)9(SO4)]4[(C6H4C)2(CO2)2]6",
+                            "names": ["VMOP-β"],
+                            "yield": "50%",
+                            "CCDCNumber": "1590348"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "procedureName": "Structural transformation from VMOP-α to VMOP-β",
+            "steps": [
+                {
+                    "inputChemicals": [
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "[V6O6(OCH3)9(SO4)]4[(C6H4C)2(CO2)2]6",
+                                    "chemicalName": [
+                                        "VMOP-α"
+                                    ],
+                                    "chemicalAmount": "0.05 g"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        }
+                    ],
+                    "outputChemical": [
+                        {
+                            "chemicalFormula": "[V6O6(OCH3)9(SO4)]4[(C6H4C)2(CO2)2]6",
+                            "names": [
+                                "VMOP-β"
+                            ],
+                            "yield": "N/A",
+                            "CCDCNumber": "1590348"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "procedureName": "Structural transformation from VMOP-β to VMOP-α",
+            "steps": [
+                {
+                    "inputChemicals": [
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "[V6O6(OCH3)9(SO4)]4[(C6H4C)2(CO2)2]6",
+                                    "chemicalName": [
+                                        "VMOP-β"
+                                    ],
+                                    "chemicalAmount": "0.05 g"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        }
+                    ],
+                    "outputChemical": [
+                        {
+                            "chemicalFormula": "[V6O6(OCH3)9(SO4)]4[(C6H4C)2(CO2)2]6",
+                            "names": [
+                                "VMOP-α"
+                            ],
+                            "yield": "N/A",
+                            "CCDCNumber": "1590349"
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

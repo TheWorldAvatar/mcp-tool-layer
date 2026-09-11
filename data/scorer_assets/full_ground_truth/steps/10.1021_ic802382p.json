@@ -1,0 +1,235 @@
+{
+  "Synthesis": [
+    {
+      "steps": [
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "glass vial",
+            "stepNumber": 1,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add H3L to the vessel.",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "[(C6H3)(CONHC6H4)3(CO2)3]",
+                  "H3L"
+                ],
+                "chemicalAmount": "56.7 mg (0.100 mmol)"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "glass vial",
+            "stepNumber": 2,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add Cu(NO3)2·3H2O to the vessel.",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "[Cu2]",
+                  "Copper(II) nitrate trihydrate",
+                  "cu(no3)2·3h2o"
+                ],
+                "chemicalAmount": "40.0 mg (0.166 mmol)"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Transfer": {
+            "usedVesselName": "solution preparation vessel",
+            "usedVesselType": "N/A",
+            "targetVesselName": "30-cm-long glass tube",
+            "targetVesselType": "glass tube",
+            "stepNumber": 3,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Place the prepared solution in a distinct glass tube.",
+            "duration": "N/A",
+            "transferedAmount": "N/A",
+            "isLayered": false
+          }
+        },
+        {
+          "HeatChill": {
+            "usedVesselName": "30-cm-long glass tube",
+            "usedVesselType": "glass tube",
+            "stepNumber": 4,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Seal and heat to 85°C in an oven.",
+            "duration": "5.0 day",
+            "usedDevice": "oven",
+            "targetTemperature": "85.0 degree celsius",
+            "heatingCoolingRate": "N/A",
+            "underVacuum": false,
+            "sealedVessel": true,
+            "stir": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "30-cm-long glass tube",
+            "usedVesselType": "glass tube",
+            "stepNumber": 5,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add DMA for soaking overnight.",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "N,N'-dimethylacetamide",
+                  "dimethylacetamide",
+                  "dma",
+                  "n, n-dimethylacetamide"
+                ],
+                "chemicalAmount": "-1"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "HeatChill": {
+            "usedVesselName": "30-cm-long glass tube",
+            "usedVesselType": "glass tube",
+            "stepNumber": 6,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Soak in DMA overnight at room temperature.",
+            "duration": "1.0 day",
+            "usedDevice": "N/A",
+            "targetTemperature": "25.0 degree celsius",
+            "heatingCoolingRate": "N/A",
+            "underVacuum": false,
+            "sealedVessel": true,
+            "stir": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "30-cm-long glass tube",
+            "usedVesselType": "glass tube",
+            "stepNumber": 7,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add methanol for soaking for 1 day.",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "Methanol",
+                  "ch3oh",
+                  "meoh",
+                  "methyl alcohol"
+                ],
+                "chemicalAmount": "-1"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "HeatChill": {
+            "usedVesselName": "30-cm-long glass tube",
+            "usedVesselType": "glass tube",
+            "stepNumber": 8,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Soak in methanol for 1 day at room temperature.",
+            "duration": "1.0 day",
+            "usedDevice": "N/A",
+            "targetTemperature": "25.0 degree celsius",
+            "heatingCoolingRate": "N/A",
+            "underVacuum": false,
+            "sealedVessel": true,
+            "stir": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "30-cm-long glass tube",
+            "usedVesselType": "glass tube",
+            "stepNumber": 9,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add MC for soaking for 2 days.",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "Methylene chloride"
+                ],
+                "chemicalAmount": "-1"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "HeatChill": {
+            "usedVesselName": "30-cm-long glass tube",
+            "usedVesselType": "glass tube",
+            "stepNumber": 10,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Soak in MC for 2 days at room temperature.",
+            "duration": "2.0 day",
+            "usedDevice": "N/A",
+            "targetTemperature": "25.0 degree celsius",
+            "heatingCoolingRate": "N/A",
+            "underVacuum": false,
+            "sealedVessel": true,
+            "stir": false
+          }
+        },
+        {
+          "Filter": {
+            "usedVesselName": "30-cm-long glass tube",
+            "usedVesselType": "glass tube",
+            "stepNumber": 11,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Filter the mixture.",
+            "washingSolvent": [],
+            "vacuumFiltration": false,
+            "numberOfFiltrations": 1
+          }
+        },
+        {
+          "Dry": {
+            "usedVesselName": "30-cm-long glass tube",
+            "usedVesselType": "glass tube",
+            "stepNumber": 12,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Dry under vacuum at ambient temperature.",
+            "duration": "N/A"
+          }
+        }
+      ],
+      "productNames": [
+        "Synthesis_Procedure_1",
+        "1; [Cu12L8(DMA)3(H2O)9]·18H2O",
+        "Cage 1"
+      ],
+      "productCCDCNumber": "707887"
+    }
+  ]
+}

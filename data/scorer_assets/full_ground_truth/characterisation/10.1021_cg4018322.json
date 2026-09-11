@@ -1,0 +1,39 @@
+{
+    "Devices": [
+        {
+            "Characterisation": [
+                {
+                    "ElementalAnalysis": {
+                        "chemicalFormula": "C136H188Cu12N4O68",
+                        "measurementDevice": "N/A",
+                        "weightPercentageCalculated": "N/A",
+                        "weightPercentageExperimental": "N/A"
+                    },
+                    "HNMR": {
+                        "shifts": "N/A",
+                        "solvent": "N/A",
+                        "temperature": "N/A"
+                    },
+                    "InfraredSpectroscopy": {
+                        "bands": "3412, 1633, 1616, 1402, 2933, 1284, 1201, 1022, 835, 756, 713, 642, 590 cm−1",
+                        "material": "KBr pellet"
+                    },
+                    "productCCDCNumber": "962728",
+                    "productNames": [
+                        "MOP-TO"
+                    ]
+                }
+            ],
+            "ElementalAnalysisDevice": {
+                "deviceName": "Perkin-Elmer 2400 Series-II CHN analyzer"
+            },
+            "HNMRDevice": {
+                "deviceName": "Bruker Avance DPX300",
+                "frequency": "300 MHz"
+            },
+            "InfraredSpectroscopyDevice": {
+                "deviceName": "Perkin-Elmer Spectrum GX"
+            }
+        }
+    ]
+}

@@ -1,0 +1,37 @@
+{
+  "synthesisProcedures": [
+    {
+      "mopCCDCNumber": "1434668",
+      "cbuFormula1": "[(C6H4)(CO2)2]",
+      "cbuSpeciesNames1": [
+        "H2BDC"
+      ],
+      "cbuFormula2": "[V5O9]",
+      "cbuSpeciesNames2": [
+        "vanadium(iii) chloride"
+      ]
+    },
+    {
+      "mopCCDCNumber": "1434669",
+      "cbuFormula1": "[(C6H3NH2)(CO2)2]",
+      "cbuSpeciesNames1": [
+        "2-aminoterephthalic acid"
+      ],
+      "cbuFormula2": "[V5O9]",
+      "cbuSpeciesNames2": [
+        "vanadium(iii) chloride"
+      ]
+    },
+    {
+      "mopCCDCNumber": "1434670",
+      "cbuFormula1": "[(C6H3Br)(CO2)2]",
+      "cbuSpeciesNames1": [
+        "H2BDC-Br"
+      ],
+      "cbuFormula2": "[V5O9]",
+      "cbuSpeciesNames2": [
+        "vanadium(iii) chloride"
+      ]
+    }
+  ]
+}

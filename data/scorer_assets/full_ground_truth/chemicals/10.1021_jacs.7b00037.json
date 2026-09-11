@@ -1,0 +1,205 @@
+{
+  "synthesisProcedures": [
+    {
+      "procedureName": "Synthesis of I",
+      "steps": [
+        {
+          "inputChemicals": [
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "C-propan-3-ol pyrogallol[4]arene"
+                  ],
+                  "chemicalAmount": "0.1 mmol, 78.4 mg"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "Nickel(II) nitrate hexahydrate",
+                    "[Ni(NO3)6H2O]"
+                  ],
+                  "chemicalAmount": "0.4 mmol, 116.4 mg"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "N,N-dimethylformamide",
+                    "dimethylformamide",
+                    "dmf",
+                    "n, n'-dimethylformamide"
+                  ],
+                  "chemicalAmount": "1.5 mL"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "Acetonitrile",
+                    "mecn"
+                  ],
+                  "chemicalAmount": "1.5 mL"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "Water",
+                    "h2o"
+                  ],
+                  "chemicalAmount": "100 μL"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "Arginine"
+                  ],
+                  "chemicalAmount": "0.2 mmol, 34.9 mg"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            }
+          ],
+          "outputChemical": [
+            {
+              "names": [
+                "I",
+                "MetalOrganicPolyhedron for I",
+                "Nanocapsule_I_[Ni24(C40H35O16)6(DMF)2(H2O)40]",
+                "Nanocapsule I [Ni24(C40H35O16)6(DMF)2(H2O)40]"
+              ],
+              "yield": "N/A",
+              "CCDCNumber": "1521975"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "procedureName": "Synthesis of II",
+      "steps": [
+        {
+          "inputChemicals": [
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "C-propan-3-olpyrogallol[4]arene",
+                    "PgC3OH",
+                    "[(CHC6HO3)4(C3H6OH)4]"
+                  ],
+                  "chemicalAmount": "0.1 mmol, 78.4 mg"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "[Ni3]",
+                    "Nickel(II) nitrate hexahydrate",
+                    "Ni(NO3)2·6H2O"
+                  ],
+                  "chemicalAmount": "0.4 mmol, 116.4 mg"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "N,N-dimethylformamide",
+                    "DMF",
+                    "dimethylformamide",
+                    "n, n'-dimethylformamide"
+                  ],
+                  "chemicalAmount": "1.5 mL"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "acetonitrile",
+                    "MeCN"
+                  ],
+                  "chemicalAmount": "1.5 mL"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "water",
+                    "h2o"
+                  ],
+                  "chemicalAmount": "100 μL"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "pyridine"
+                  ],
+                  "chemicalAmount": "100 μL, 1.2 mmol"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            }
+          ],
+          "outputChemical": [
+            {
+              "names": [
+                "II",
+                "[Ni24(C40H36O16)6(DMF)4(H2O)24(py)20]",
+                "Nanocapsule_II_[Ni24(C40H36O16)6(DMF)4(H2O)24(py)20]",
+                "Nanocapsule II [Ni24(C40H36O16)6(DMF)4(H2O)24(py)20]"
+              ],
+              "yield": "N/A",
+              "CCDCNumber": "1521976"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

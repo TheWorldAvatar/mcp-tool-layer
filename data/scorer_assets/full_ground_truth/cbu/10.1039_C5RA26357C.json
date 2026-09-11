@@ -1,0 +1,15 @@
+{
+  "synthesisProcedures": [
+    {
+      "mopCCDCNumber": "1439771",
+      "cbuFormula1": "[C6H3(CONHCHCH3)3(CO2)3]",
+      "cbuSpeciesNames1": [
+        "Trimesoyltri(L-alanine)"
+      ],
+      "cbuFormula2": "[Cu2]",
+      "cbuSpeciesNames2": [
+        "Copper(II) chloride dihydrate"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,103 @@
+{
+  "synthesisProcedures": [
+    {
+      "procedureName": "Synthesis of 0768aff1da45eafbbf33f508d0c44aea21d829ab",
+      "steps": [
+        {
+          "inputChemicals": [
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "[PW9O37Ni6NH2C4H3]",
+                    "Na9[A-α-PW9O34]·nH2O"
+                  ],
+                  "chemicalAmount": "0.30 g"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "Sodium acetate"
+                  ],
+                  "chemicalAmount": "10 mL of 0.5 M sodium acetate buffer (pH 4.8)"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "Tris(hydroxymethyl)aminomethane",
+                    "2-amino-2-(hydroxymethyl)propane-1,3-diol",
+                    "Tris",
+                    "Tromethamine"
+                  ],
+                  "chemicalAmount": "0.40 g"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "NiCl2·6H2O"
+                  ],
+                  "chemicalAmount": "0.80 g"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "Ethylenediamine"
+                  ],
+                  "chemicalAmount": "0.30 mL"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "[(C6H3)(CO2)3]",
+                    "Sodium 1,3,5-benzenetricarboxylate"
+                  ],
+                  "chemicalAmount": "0.25 g"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            }
+          ],
+          "outputChemical": [
+            {
+              "names": [
+                "0768aff1da45eafbbf33f508d0c44aea21d829ab",
+                "[Ni(en)2(H2O)2]6{Ni6(Tris)(en)3 (BTC)1.5(B-R-PW9O34)}8·12en·54H2O",
+                "1",
+                "Cage_1",
+                "MetalOrganicPolyhedron for 1"
+              ],
+              "yield": "N/A",
+              "CCDCNumber": "759738"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

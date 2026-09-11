@@ -1,0 +1,100 @@
+{
+  "Devices": [
+    {
+      "Characterisation": [
+        {
+          "productNames": [
+            "MOP-1"
+          ],
+          "productCCDCNumber": "1552945",
+          "HNMR": {
+            "shifts": "N/A",
+            "solvent": "N/A",
+            "temperature": "N/A"
+          },
+          "ElementalAnalysis": {
+            "weightPercentageCalculated": "C, 23.72; H, 2.90; N, 3.77",
+            "weightPercentageExperimental": "C, 23.56; H, 2.64; N, 3.92",
+            "chemicalFormula": "C330H480N45O323.5S12V65W15"
+          },
+          "InfraredSpectroscopy": {
+            "material": "N/A",
+            "bands": "N/A"
+          }
+        },
+        {
+          "productNames": [
+            "MOP-2"
+          ],
+          "productCCDCNumber": "1552946",
+          "HNMR": {
+            "shifts": "N/A",
+            "solvent": "N/A",
+            "temperature": "N/A"
+          },
+          "ElementalAnalysis": {
+            "weightPercentageCalculated": "C, 29.68; H, 2.99; N, 3.46",
+            "weightPercentageExperimental": "C, 29.34; H, 2.76; N, 3.62",
+            "chemicalFormula": "C450H540O323.5N45S12V65W15"
+          },
+          "InfraredSpectroscopy": {
+            "material": "N/A",
+            "bands": "N/A"
+          }
+        },
+        {
+          "productNames": [
+            "MOP-3",
+            "MetalOrganicPolyhedron for MOP-3"
+          ],
+          "productCCDCNumber": "1552953",
+          "HNMR": {
+            "shifts": "N/A",
+            "solvent": "N/A",
+            "temperature": "N/A"
+          },
+          "ElementalAnalysis": {
+            "weightPercentageCalculated": "C, 21.34; H, 2.75; N, 4.09",
+            "weightPercentageExperimental": "C, 21.06; H, 2.52; N, 3.82",
+            "chemicalFormula": "C268H412N44O316S16V60W12"
+          },
+          "InfraredSpectroscopy": {
+            "material": "N/A",
+            "bands": "N/A"
+          }
+        },
+        {
+          "productNames": [
+            "MOP-4",
+            "Goldberg MOP-4"
+          ],
+          "productCCDCNumber": "1552951",
+          "HNMR": {
+            "shifts": "N/A",
+            "solvent": "N/A",
+            "temperature": "N/A"
+          },
+          "ElementalAnalysis": {
+            "weightPercentageCalculated": "C, 33.80; H, 1.89; N, 5.63",
+            "weightPercentageExperimental": "C, 34.16; H, 2.12; N, 5.86",
+            "chemicalFormula": "C504H336N72O304S12V60W12"
+          },
+          "InfraredSpectroscopy": {
+            "material": "N/A",
+            "bands": "N/A"
+          }
+        }
+      ],
+      "ElementalAnalysisDevice": {
+        "deviceName": "N/A"
+      },
+      "HNMRDevice": {
+        "deviceName": "N/A",
+        "frequency": "N/A"
+      },
+      "InfraredSpectroscopyDevice": {
+        "deviceName": "N/A"
+      }
+    }
+  ]
+}

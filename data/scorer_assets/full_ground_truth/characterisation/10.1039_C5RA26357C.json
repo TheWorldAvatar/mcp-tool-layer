@@ -1,0 +1,41 @@
+{
+  "Devices": [
+    {
+      "Characterisation": [
+        {
+          "productNames": [
+            "Synthesis_of_[Cu12(TMTA)8(H2O)12]·8CH3CH2OH·40H2O_(1)",
+            "[Cu12(TMTA)8(H2O)12]·8CH3CH2OH·40H2O",
+            "MetalOrganicPolyhedron for [Cu12(TMTA)8(H2O)12]·8CH3CH2OH·40H2O",
+            "Cage 1"
+          ],
+          "productCCDCNumber": "1439771",
+          "HNMR": {
+            "shifts": "N/A",
+            "solvent": "N/A",
+            "temperature": "N/A"
+          },
+          "ElementalAnalysis": {
+            "weightPercentageCalculated": "C, 35.39; H, 5.49; N, 6.19",
+            "weightPercentageExperimental": "C, 35.70; H, 5.29; N, 6.42",
+            "chemicalFormula": "C160H296Cu12N24O132"
+          },
+          "InfraredSpectroscopy": {
+            "material": "KBr pellet",
+            "bands": "3402 (m), 1646 (s), 1535 (m), 1453 (m), 1414 (m), 1393 (m), 1378 (m), 1344 (w), 1327 (w), 1289 (m), 1207 (w), 1151 (w), 1124 (w), 1106 (w), 1074 (w), 1053 (w), 695 (w)"
+          }
+        }
+      ],
+      "ElementalAnalysisDevice": {
+        "deviceName": "N/A"
+      },
+      "HNMRDevice": {
+        "deviceName": "N/A",
+        "frequency": "N/A"
+      },
+      "InfraredSpectroscopyDevice": {
+        "deviceName": "N/A"
+      }
+    }
+  ]
+}

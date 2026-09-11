@@ -1,0 +1,15 @@
+{
+  "synthesisProcedures": [
+    {
+      "mopCCDCNumber": "707887",
+      "cbuFormula1": "[(C6H3)(CONHC6H4)3(CO2)3]",
+      "cbuSpeciesNames1": [
+        "H3L"
+      ],
+      "cbuFormula2": "[Cu2]",
+      "cbuSpeciesNames2": [
+        "Copper(II) nitrate trihydrate"
+      ]
+    }
+  ]
+}

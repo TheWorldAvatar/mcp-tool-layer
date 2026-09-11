@@ -1,0 +1,39 @@
+{
+  "Devices": [
+    {
+      "Characterisation": [
+        {
+          "productNames": [
+            "Synthesis_of_[V3(μ3-O)O(OH)2(BPD)1.5(HCOO)3]_1",
+            "[V3(μ3-O)O(OH)2(BPD)1.5(HCOO)3] 1"
+          ],
+          "productCCDCNumber": "1412183",
+          "HNMR": {
+            "shifts": "N/A",
+            "solvent": "N/A",
+            "temperature": "N/A"
+          },
+          "ElementalAnalysis": {
+            "weightPercentageCalculated": "C 37.72, H 3.91, N 12.93",
+            "weightPercentageExperimental": "C 37.72, H 3.78, N 12.97",
+            "chemicalFormula": "V3O2(OH)2(C12H8N4)1.5(HCOO)3(H2O)2(C3NH7O)1.5"
+          },
+          "InfraredSpectroscopy": {
+            "material": "ATR",
+            "bands": "1647 (s), 1596 (vs), 1577 (vs), 1488 (w), 1429 (w), 1361 (vs), 1242 (m), 1173 (w), 1115 (m), 1038 (s), 1003 (w), 952 (m), 838 (s), 761 (m), 694 (m), 645 (m), 602 (m), 539 (m), 510 (vs), 423 (s) cm–1"
+          }
+        }
+      ],
+      "ElementalAnalysisDevice": {
+        "deviceName": "N/A"
+      },
+      "HNMRDevice": {
+        "deviceName": "N/A",
+        "frequency": "N/A"
+      },
+      "InfraredSpectroscopyDevice": {
+        "deviceName": "N/A"
+      }
+    }
+  ]
+}

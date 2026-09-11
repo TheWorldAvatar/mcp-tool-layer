@@ -1,0 +1,61 @@
+{
+    "Devices": [
+        {
+            "HNMRDevice": {
+                "deviceName": "N/A",
+                "frequency": "N/A"
+            },
+            "ElementalAnalysisDevice": {
+                "deviceName": "N/A"
+            },
+            "InfraredSpectroscopyDevice": {
+                "deviceName": "N/A"
+            },
+            "Characterisation": [
+                {
+                    "productNames": [
+                        "VMOP-α",
+                        "VMOP-alpha",
+                        "VMOP-α (VOSO4 one-pot)",
+                        "VMOP-alpha from VOSO4-xH2O and H2edb at 120 degC"
+                    ],
+                    "productCCDCNumber": "1590349",
+                    "HNMR": {
+                        "shifts": "N/A",
+                        "solvent": "N/A",
+                        "temperature": "N/A"
+                    },
+                    "ElementalAnalysis": {
+                        "weightPercentageCalculated": "N/A",
+                        "weightPercentageExperimental": "N/A",
+                        "chemicalFormula": "N/A"
+                    },
+                    "InfraredSpectroscopy": {
+                        "material": "KBr",
+                        "bands": "3749 (w), 3673 (w), 2927 (w), 2819 (w), 1700 (w), 1592 (s), 1545 (s), 1418 (vs), 1200 (w), 1070 (w), 950 (s), 864 (w), 780 (m), 541(w)"
+                    }
+                },
+                {
+                    "productNames": [
+                        "VMOP-β"
+                    ],
+                    "productCCDCNumber": "1590348",
+                    "HNMR": {
+                        "shifts": "N/A",
+                        "solvent": "N/A",
+                        "temperature": "N/A"
+                    },
+                    "ElementalAnalysis": {
+                        "weightPercentageCalculated": "N/A",
+                        "weightPercentageExperimental": "N/A",
+                        "chemicalFormula": "N/A"
+                    },
+                    "InfraredSpectroscopy": {
+                        "material": "KBr",
+                        "bands": "3423 (w), 2924 (w), 2816 (w), 1595 (vs), 1549 (m), 1487 (w), 1420 (vs), 1228 (w), 1038 (m),947 (s), 867 (w), 782(m), 650(m), 579(w), 498(w)"
+                    }
+                }
+            ]
+        }
+    ]
+}

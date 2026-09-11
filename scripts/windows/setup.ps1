@@ -114,29 +114,11 @@ if ($mopsCount -lt 10 -or $medCount -lt 10) {
     Write-Host "[WARN] Default run.cmd uses 10 cases. Copy eval30 PDFs into those folders (chemistry names use underscores in the DOI, e.g. 10.1002_anie.201811027.pdf)." -ForegroundColor Yellow
 }
 
-Write-Step "Scorer checkout"
-$scorerCandidates = @()
-if ($env:SCORER_REPO) { $scorerCandidates += $env:SCORER_REPO }
-$scorerCandidates += @(
-    "C:\Users\$env:USERNAME\Documents\GitHub\MCP-enhanced-MOPs-Extraction_Reproduction",
-    (Join-Path (Split-Path $RepoRoot -Parent) "MCP-enhanced-MOPs-Extraction_Reproduction"),
-    (Join-Path (Split-Path $RepoRoot -Parent) "mcp-tool-layer"),
-    "D:\MCP-enhanced-MOPs-Extraction_Reproduction"
-)
-$scorerFound = $null
-foreach ($candidate in $scorerCandidates) {
-    $steps = Join-Path $candidate "evaluation\scoring_steps.py"
-    $medical = Join-Path $candidate "scripts\medical_score_predicted_vs_gold.py"
-    if ((Test-Path $steps) -and (Test-Path $medical)) {
-        $scorerFound = $candidate
-        break
-    }
-}
-if ($scorerFound) {
-    Write-Host "[OK] Scorer: $scorerFound"
-} else {
-    Write-Host "[WARN] Scorer repo not found. Scoring needs MCP-enhanced-MOPs-Extraction_Reproduction." -ForegroundColor Yellow
-    Write-Host "      Set SCORER_REPO to that checkout (read-only). Gold CSV and merge_and_conversion_main.py live there."
+Write-Step "Scorer engines"
+$env:PYTHONPATH = $RepoRoot
+& $venvPython -m src.kg_building.scorer_repo
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "[WARN] Scoring engines were not cloned. run.cmd will retry. Gold files live in data\scorer_assets." -ForegroundColor Yellow
 }
 
 Write-Host ""

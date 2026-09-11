@@ -1,0 +1,172 @@
+{
+  "Synthesis": [
+    {
+      "productCCDCNumber": "152835 2",
+      "productNames": [
+        "hccf-1"
+      ],
+      "steps": [
+        {
+          "Add": {
+            "usedVesselName": "glass vial",
+            "usedVesselType": "glass vial",
+            "stepNumber": 1,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "add d-camphoric acid",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "d-camphoric acid",
+                  "h2d-cam"
+                ],
+                "chemicalAmount": "14 mg"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "glass vial",
+            "usedVesselType": "glass vial",
+            "stepNumber": 2,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "add bis(cyclopentadienyl)zirconium dichloride",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "bis(cyclopentadienyl)zirconium dichloride",
+                  "cp2zrcl2",
+                  "zirconocene dichloride"
+                ],
+                "chemicalAmount": "50 mg"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "glass vial",
+            "usedVesselType": "glass vial",
+            "stepNumber": 3,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "add n,n'-dimethylacetamide",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "n,n'-dimethylacetamide",
+                  "dma",
+                  "dimethylacetamide",
+                  "n, n-dimethylacetamide"
+                ],
+                "chemicalAmount": "n/a"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "glass vial",
+            "usedVesselType": "glass vial",
+            "stepNumber": 4,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "add methanol",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "methanol",
+                  "meoh",
+                  "ch3oh",
+                  "methyl alcohol"
+                ],
+                "chemicalAmount": "n/a"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "glass vial",
+            "usedVesselType": "glass vial",
+            "stepNumber": 5,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "add water",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "water",
+                  "h2o"
+                ],
+                "chemicalAmount": "8 drops"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "HeatChill": {
+            "usedVesselName": "glass vial",
+            "usedVesselType": "glass vial",
+            "stepNumber": 6,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "sealed and heated",
+            "duration": "48 h",
+            "usedDevice": "n/a",
+            "targetTemperature": "65 degree celsius",
+            "heatingCoolingRate": "n/a",
+            "underVacuum": false,
+            "sealedVessel": true,
+            "stir": false
+          }
+        },
+        {
+          "HeatChill": {
+            "usedVesselName": "glass vial",
+            "usedVesselType": "glass vial",
+            "stepNumber": 7,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "cooled to room temperature; colorless crystals obtained",
+            "duration": "n/a",
+            "usedDevice": "n/a",
+            "targetTemperature": "room temperature",
+            "heatingCoolingRate": "n/a",
+            "underVacuum": false,
+            "sealedVessel": true,
+            "stir": false
+          }
+        },
+        {
+          "Dry": {
+            "usedVesselName": "glass vial",
+            "usedVesselType": "glass vial",
+            "stepNumber": 8,
+            "atmosphere": "air",
+            "targetPH": -1,
+            "comment": "dried in air",
+            "duration": "n/a"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,60 @@
+{
+    "Devices": [
+        {
+            "HNMRDevice": {
+                "deviceName": "Bruker Avance",
+                "frequency": "500 MHz"
+            },
+            "ElementalAnalysisDevice": {
+                "deviceName": "Perkin Elmer 2400 CHN elemental analyzer"
+            },
+            "InfraredSpectroscopyDevice": {
+                "deviceName": "Alpha Centaurt FT/IR spectrophotometer"
+            },
+            "Characterisation": [
+                {
+                    "productNames": [
+                        "[(C16H8N2)(C6H4CO2)4]6[V6O6(OCH3)9(SO4)]8",
+                        "VMOC-6"
+                    ],
+                    "productCCDCNumber": "2278526",
+                    "HNMR": {
+                        "shifts": "N/A",
+                        "solvent": "N/A",
+                        "temperature": "N/A"
+                    },
+                    "ElementalAnalysis": {
+                        "weightPercentageCalculated": "C, 39.44; H, 4.41; N, 3.50",
+                        "weightPercentageExperimental": "C, 39.18; H, 4.56; N, 3.25",
+                        "chemicalFormula": "C368H490N28O200S8V48"
+                    },
+                    "InfraredSpectroscopy": {
+                        "material": "KBr pellet",
+                        "bands": "3511 (br), 3441 (m), 3385 (m), 3035 (m), 2930 (m), 2810 (m), 1711 (m), 1655 (vs), 1600 (s), 1550 (s), 1480 (s), 1403 (vs), 1242 (m),1172 (m), 1095 (m), 1067 (m), 955 (vs), 864 (m), 829 (m), 780 (m), 696 (m), 668 (m), 577 (s), 542 (s)"
+                    }
+                },
+                {
+                    "productNames": [
+                        "[(C16H8N2)(C6H4CO2)4]6[V7O10(OCH3)9]8",
+                        "VMOC-7"
+                    ],
+                    "productCCDCNumber": "2278527",
+                    "HNMR": {
+                        "shifts": "N/A",
+                        "solvent": "N/A",
+                        "temperature": "N/A"
+                    },
+                    "ElementalAnalysis": {
+                        "weightPercentageCalculated": "C, 39.36; H, 4.68; N, 4.30",
+                        "weightPercentageExperimental": "C, 39.18; H, 4.46; N, 4.54",
+                        "chemicalFormula": "C384H544N36O200V56"
+                    },
+                    "InfraredSpectroscopy": {
+                        "material": "KBr pellet",
+                        "bands": "3595 (br), 3518 (m), 3441 (m), 3363 (m), 3028 (m), 2915 (m), 2818 (m), 1711 (m), 1663 (s), 1600 (vs), 1550 (s), 1487 (s), 1403 (vs), 1312 (m), 1249 (s), 1179 (m), 1060 (s), 1018 (s), 984 (s), 948 (vs), 871 (s), 836 (s), 780 (s), 745 (m), 703 (m), 668 (s), 535 (s)"
+                    }
+                }
+            ]
+        }
+    ]
+}

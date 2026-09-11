@@ -1,0 +1,249 @@
+{
+  "Synthesis": [
+    {
+      "steps": [
+        {
+          "Add": {
+            "usedVesselName": "N/A",
+            "usedVesselType": "N/A",
+            "stepNumber": 1,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add reagent to flask.",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "[PW9O37Ni6NH2C4H3]",
+                  "Na9[A-α-PW9O34]·nH2O"
+                ],
+                "chemicalAmount": "0.30 g"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "N/A",
+            "usedVesselType": "N/A",
+            "stepNumber": 2,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add reagent to flask.",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "Sodium acetate"
+                ],
+                "chemicalAmount": "10 mL of 0.5 M sodium acetate buffer (pH 4.8)"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Stir": {
+            "usedVesselName": "N/A",
+            "usedVesselType": "N/A",
+            "stepNumber": 3,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Stir the mixture.",
+            "duration": "N/A",
+            "temperature": "N/A",
+            "wait": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "N/A",
+            "usedVesselType": "N/A",
+            "stepNumber": 4,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add reagent to flask.",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "Tris(hydroxymethyl)aminomethane",
+                  "2-amino-2-(hydroxymethyl)propane-1,3-diol",
+                  "Tris",
+                  "Tromethamine"
+                ],
+                "chemicalAmount": "0.40 g"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Stir": {
+            "usedVesselName": "N/A",
+            "usedVesselType": "N/A",
+            "stepNumber": 5,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Stir the mixture.",
+            "duration": "5.0 min",
+            "temperature": "N/A",
+            "wait": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "N/A",
+            "usedVesselType": "N/A",
+            "stepNumber": 6,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add reagent to flask.",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "NiCl2·6H2O"
+                ],
+                "chemicalAmount": "0.80 g"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Stir": {
+            "usedVesselName": "N/A",
+            "usedVesselType": "N/A",
+            "stepNumber": 7,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Stir the mixture.",
+            "duration": "N/A",
+            "temperature": "N/A",
+            "wait": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "N/A",
+            "usedVesselType": "N/A",
+            "stepNumber": 8,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add reagent to flask.",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "Ethylenediamine"
+                ],
+                "chemicalAmount": "0.30 mL"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "N/A",
+            "usedVesselType": "N/A",
+            "stepNumber": 9,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add reagent to flask.",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "[(C6H3)(CO2)3]",
+                  "Sodium 1,3,5-benzenetricarboxylate"
+                ],
+                "chemicalAmount": "0.25 g"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Stir": {
+            "usedVesselName": "N/A",
+            "usedVesselType": "N/A",
+            "stepNumber": 10,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Stir the mixture.",
+            "duration": "45.0 min",
+            "temperature": "N/A",
+            "wait": false
+          }
+        },
+        {
+          "Transfer": {
+            "usedVesselName": "N/A",
+            "usedVesselType": "N/A",
+            "stepNumber": 11,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Transfer solution to another vessel.",
+            "duration": "N/A",
+            "targetVesselName": "vessel 1",
+            "targetVesselType": "Teflon-lined stainless-steel vessel",
+            "transferedAmount": "N/A",
+            "isLayered": false
+          }
+        },
+        {
+          "HeatChill": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 12,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Heat to 160°C.",
+            "duration": "25.0 hour",
+            "usedDevice": "N/A",
+            "targetTemperature": "160.0 degree celsius",
+            "heatingCoolingRate": "N/A",
+            "underVacuum": false,
+            "sealedVessel": true,
+            "stir": false
+          }
+        },
+        {
+          "HeatChill": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 13,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Cool to room temperature.",
+            "duration": "N/A",
+            "usedDevice": "N/A",
+            "targetTemperature": "25.0 degree celsius",
+            "heatingCoolingRate": "N/A",
+            "underVacuum": false,
+            "sealedVessel": true,
+            "stir": false
+          }
+        }
+      ],
+      "productNames": [
+        "0768aff1da45eafbbf33f508d0c44aea21d829ab",
+        "[Ni(en)2(H2O)2]6{Ni6(Tris)(en)3 (BTC)1.5(B-R-PW9O34)}8·12en·54H2O",
+        "1",
+        "Cage_1",
+        "MetalOrganicPolyhedron for 1"
+      ],
+      "productCCDCNumber": "759738"
+    }
+  ]
+}
+

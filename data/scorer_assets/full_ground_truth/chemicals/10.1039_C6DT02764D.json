@@ -1,0 +1,178 @@
+{
+    "synthesisProcedures": [
+        {
+            "procedureName": "Synthesis of VMOP-16",
+            "steps": [
+                {
+                    "inputChemicals": [
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "VCl3",
+                                    "chemicalName": [
+                                        "VCl3"
+                                    ],
+                                    "chemicalAmount": "0.05 g"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "C8H6O4",
+                                    "chemicalName": [
+                                        "H2BDC",
+                                        "1,4-benzenedicarboxylate"
+                                    ],
+                                    "chemicalAmount": "0.02 g"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "C5H11NO",
+                                    "chemicalName": [
+                                        "DEF",
+                                        "N,N-Diethylformamide"
+                                    ],
+                                    "chemicalAmount": "2 mL"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "CH4O",
+                                    "chemicalName": [
+                                        "CH3OH",
+                                        "methanol"
+                                    ],
+                                    "chemicalAmount": "0.5 mL"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "H2O",
+                                    "chemicalName": [
+                                        "water"
+                                    ],
+                                    "chemicalAmount": "0.05 mL"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        }
+                    ],
+                    "outputChemical": [
+                        {
+                            "chemicalFormula": "[V7O10(OCH3)9]4[(C6H4)(CO2)2]6",
+                            "names": [
+                                "VMOP-16"
+                            ],
+                            "yield": "35%",
+                            "CCDCNumber": "1490971"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "procedureName": "Synthesis of VMOP-17",
+            "steps": [
+                {
+                    "inputChemicals": [
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "VCl3",
+                                    "chemicalName": [
+                                        "VCl3"
+                                    ],
+                                    "chemicalAmount": "0.05 g"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "C8H7NO4",
+                                    "chemicalName": [
+                                        "H2BDC-NH2",
+                                        "2-amino-1,4-benzenedicarboxylate"
+                                    ],
+                                    "chemicalAmount": "0.025 g"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "C5H11NO",
+                                    "chemicalName": [
+                                        "DEF",
+                                        "N,N-Diethylformamide"
+                                    ],
+                                    "chemicalAmount": "2 mL"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "CH4O",
+                                    "chemicalName": [
+                                        "CH3OH",
+                                        "methanol"
+                                    ],
+                                    "chemicalAmount": "0.5 mL"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "H2O",
+                                    "chemicalName": [
+                                        "water"
+                                    ],
+                                    "chemicalAmount": "0.05 mL"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        }
+                    ],
+                    "outputChemical": [
+                        {
+                            "chemicalFormula": "[V7O10(OCH3)9]4[(C6H3NH2)(CO2)2]6",
+                            "names": [
+                                "VMOP-17"
+                            ],
+                            "yield": "22%",
+                            "CCDCNumber": "1490972"
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

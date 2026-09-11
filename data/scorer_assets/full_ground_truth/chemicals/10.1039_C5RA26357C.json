@@ -1,0 +1,96 @@
+{
+  "synthesisProcedures": [
+    {
+      "procedureName": "Synthesis of Synthesis_of_[Cu12(TMTA)8(H2O)12]·8CH3CH2OH·40H2O_(1)",
+      "steps": [
+        {
+          "inputChemicals": [
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "Trimesoyltri(L-alanine)",
+                    "[C6H3(CONHCHCH3)3(CO2)3]"
+                  ],
+                  "chemicalAmount": "0.1 mmol, 0.0423 g"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "[Cu2]",
+                    "Copper(II) chloride dihydrate",
+                    "cucl2·2h2o"
+                  ],
+                  "chemicalAmount": "0.3 mmol, 0.0519 g"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "N,N-Dimethylformamide",
+                    "dimethylformamide",
+                    "dmf",
+                    "n, n'-dimethylformamide"
+                  ],
+                  "chemicalAmount": "2 mL"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "Ethanol",
+                    "ch3ch2oh",
+                    "etoh"
+                  ],
+                  "chemicalAmount": "8 mL"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "Potassium hydroxide, 1 mol/L aqueous",
+                    "KOH",
+                    "1 mol L−1 KOH",
+                    "potassium hydroxide"
+                  ],
+                  "chemicalAmount": "0.2 mL of 1 mol/L KOH"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            }
+          ],
+          "outputChemical": [
+            {
+              "names": [
+                "Synthesis_of_[Cu12(TMTA)8(H2O)12]·8CH3CH2OH·40H2O_(1)",
+                "[Cu12(TMTA)8(H2O)12]·8CH3CH2OH·40H2O",
+                "MetalOrganicPolyhedron for [Cu12(TMTA)8(H2O)12]·8CH3CH2OH·40H2O",
+                "Cage 1"
+              ],
+              "yield": "N/A",
+              "CCDCNumber": "1439771"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

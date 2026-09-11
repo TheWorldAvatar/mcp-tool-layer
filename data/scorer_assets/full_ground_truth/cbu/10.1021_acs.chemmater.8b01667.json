@@ -1,0 +1,54 @@
+{
+  "synthesisProcedures": [
+    {
+      "mopCCDCNumber": "1835131",
+      "cbuFormula1": "[(C6H3)NHCOC(CH3)3(CO2)2]",
+      "cbuSpeciesNames1": [
+        "5-HN(CO)tBu-1,3-H2bdc",
+        "5-HN(CO)tBu-1,3-benzenedicarboxylic acid",
+        "5-tBu-amide-bdc",
+        "5-tert-butylamide-1,3-benzenedicarboxylic acid",
+        "H2 tBu-amide-bdc",
+        "C13H15NO5"
+      ],
+      "cbuFormula2": "[Cu2]",
+      "cbuSpeciesNames2": [
+        "dicopper paddlewheel",
+        "copper(II) acetate monohydrate",
+        "Cu(OAc)2·H2O"
+      ]
+    },
+    {
+      "mopCCDCNumber": "N/A",
+      "cbuFormula1": "[(C6H4)(CO2)2]",
+      "cbuSpeciesNames1": [
+        "1,3-benzenedicarboxylic acid",
+        "1,3-H2bdc",
+        "isophthalic acid",
+        "C8H6O4"
+      ],
+      "cbuFormula2": "[Cu2]",
+      "cbuSpeciesNames2": [
+        "dicopper paddlewheel",
+        "copper(II) acetate monohydrate",
+        "Cu(OAc)2·H2O"
+      ]
+    },
+    {
+      "mopCCDCNumber": "N/A",
+      "cbuFormula1": "[(C6H3NH2)(CO2)2]",
+      "cbuSpeciesNames1": [
+        "5-NH2-1,3-benzenedicarboxylic acid",
+        "5-NH2-1,3-H2bdc",
+        "5-aminoisophthalic acid",
+        "C8H7NO4"
+      ],
+      "cbuFormula2": "[Cu2]",
+      "cbuSpeciesNames2": [
+        "dicopper paddlewheel",
+        "copper(II) acetate monohydrate",
+        "Cu(OAc)2·H2O"
+      ]
+    }
+  ]
+}

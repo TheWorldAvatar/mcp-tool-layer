@@ -1,0 +1,51 @@
+{
+  "Devices": [
+    {
+      "Characterisation": [
+        {
+          "ElementalAnalysis": {
+            "chemicalFormula": "Mo24C348H348N12O96",
+            "weightPercentageCalculated": "N/A",
+            "weightPercentageExperimental": "N/A"
+          },
+          "productCCDCNumber": "277345",
+          "productNames": [
+            "[Mo24(BBDC)24](py)12"
+          ]
+        },
+        {
+          "ElementalAnalysis": {
+            "chemicalFormula": "Mo24C192H96O96",
+            "weightPercentageCalculated": "N/A",
+            "weightPercentageExperimental": "N/A"
+          },
+          "productCCDCNumber": "277343",
+          "productNames": [
+            "Mo24(BDC)24"
+          ]
+        },
+        {
+          "ElementalAnalysis": {
+            "chemicalFormula": "Cu24C348H348N12O108",
+            "weightPercentageCalculated": "N/A",
+            "weightPercentageExperimental": "N/A"
+          },
+          "productCCDCNumber": "277344",
+          "productNames": [
+            "[Cu24(BBDC)24](py)12(MeOH)12"
+          ]
+        }
+      ],
+      "ElementalAnalysisDevice": {
+        "deviceName": "N/A"
+      },
+      "HNMRDevice": {
+        "deviceName": "N/A",
+        "frequency": "N/A"
+      },
+      "InfraredSpectroscopyDevice": {
+        "deviceName": "N/A"
+      }
+    }
+  ]
+}

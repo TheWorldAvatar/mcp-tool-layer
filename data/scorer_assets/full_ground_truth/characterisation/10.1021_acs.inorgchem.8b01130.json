@@ -1,0 +1,78 @@
+{
+    "Devices": [
+        {
+            "Characterisation": [
+                {
+                    "ElementalAnalysis": {
+                        "chemicalFormula": "Ni24(OH-bdc)24",
+                        "weightPercentageCalculated": "N/A",
+                        "weightPercentageExperimental": "N/A"
+                    },
+                    "HNMR": {
+                        "shifts": "N/A",
+                        "solvent": "N/A",
+                        "temperature": "N/A"
+                    },
+                    "InfraredSpectroscopy": {
+                        "bands": "N/A",
+                        "material": "N/A"
+                    },
+                    "productCCDCNumber": "1833900",
+                    "productNames": [
+                        "Ni24(OH-bdc)24"
+                    ]
+                },
+                {
+                    "ElementalAnalysis": {
+                        "chemicalFormula": "Ni12(iPr-cdc)12",
+                        "weightPercentageCalculated": "N/A",
+                        "weightPercentageExperimental": "N/A"
+                    },
+                    "HNMR": {
+                        "shifts": "N/A",
+                        "solvent": "N/A",
+                        "temperature": "N/A"
+                    },
+                    "InfraredSpectroscopy": {
+                        "bands": "N/A",
+                        "material": "N/A"
+                    },
+                    "productCCDCNumber": "1833901",
+                    "productNames": [
+                        "Ni12(iPr-cdc)12"
+                    ]
+                },
+                {
+                    "ElementalAnalysis": {
+                        "chemicalFormula": "Co12(iPr-cdc)12",
+                        "weightPercentageCalculated": "N/A",
+                        "weightPercentageExperimental": "N/A"
+                    },
+                    "HNMR": {
+                        "shifts": "N/A",
+                        "solvent": "N/A",
+                        "temperature": "N/A"
+                    },
+                    "InfraredSpectroscopy": {
+                        "bands": "N/A",
+                        "material": "N/A"
+                    },
+                    "productCCDCNumber": "1833899",
+                    "productNames": [
+                        "Co12(iPr-cdc)12"
+                    ]
+                }
+            ],
+            "ElementalAnalysisDevice": {
+                "deviceName": "N/A"
+            },
+            "HNMRDevice": {
+                "deviceName": "N/A",
+                "frequency": "N/A"
+            },
+            "InfraredSpectroscopyDevice": {
+                "deviceName": "N/A"
+            }
+        }
+    ]
+}

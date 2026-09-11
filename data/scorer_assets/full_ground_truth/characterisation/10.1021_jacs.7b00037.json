@@ -1,0 +1,64 @@
+{
+  "Devices": [
+    {
+      "Characterisation": [
+        {
+          "productNames": [
+            "I",
+            "MetalOrganicPolyhedron for I",
+            "Nanocapsule_I_[Ni24(C40H35O16)6(DMF)2(H2O)40]",
+            "Nanocapsule I [Ni24(C40H35O16)6(DMF)2(H2O)40]"
+          ],
+          "productCCDCNumber": "1521975",
+          "HNMR": {
+            "shifts": "N/A",
+            "solvent": "N/A",
+            "temperature": "N/A"
+          },
+          "ElementalAnalysis": {
+            "weightPercentageCalculated": "N/A",
+            "weightPercentageExperimental": "N/A",
+            "chemicalFormula": "N/A"
+          },
+          "InfraredSpectroscopy": {
+            "material": "N/A",
+            "bands": "N/A"
+          }
+        },
+        {
+          "productNames": [
+            "II",
+            "[Ni24(C40H36O16)6(DMF)4(H2O)24(py)20]",
+            "Nanocapsule_II_[Ni24(C40H36O16)6(DMF)4(H2O)24(py)20]",
+            "Nanocapsule II [Ni24(C40H36O16)6(DMF)4(H2O)24(py)20]"
+          ],
+          "productCCDCNumber": "1521976",
+          "HNMR": {
+            "shifts": "N/A",
+            "solvent": "N/A",
+            "temperature": "N/A"
+          },
+          "ElementalAnalysis": {
+            "weightPercentageCalculated": "N/A",
+            "weightPercentageExperimental": "N/A",
+            "chemicalFormula": "N/A"
+          },
+          "InfraredSpectroscopy": {
+            "material": "N/A",
+            "bands": "N/A"
+          }
+        }
+      ],
+      "ElementalAnalysisDevice": {
+        "deviceName": "N/A"
+      },
+      "HNMRDevice": {
+        "deviceName": "N/A",
+        "frequency": "N/A"
+      },
+      "InfraredSpectroscopyDevice": {
+        "deviceName": "N/A"
+      }
+    }
+  ]
+}

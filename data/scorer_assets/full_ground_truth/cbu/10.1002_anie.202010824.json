@@ -1,0 +1,64 @@
+{
+    "synthesisProcedures": [
+        {
+            "mopCCDCNumber": "1583722",
+            "cbuFormula1": "[(C12H6)(CO2)4]",
+            "cbuSpeciesNames1": [
+                "[1,1'-biphenyl]-3,3',5,5'-tetracarboxylic acid",
+                "H4BPTC"
+            ],
+            "cbuFormula2": "[V6O6(OCH3)9(SO4)]",
+            "cbuSpeciesNames2": [
+                "VOSO4"
+            ]
+        },
+        {
+            "mopCCDCNumber": "1985926",
+            "cbuFormula1": "[(C12H6N2)2(CO2)4]",
+            "cbuSpeciesNames1": [
+                "azobenzene-3,3',5,5'-tetracarboxylic acid",
+                "H4ABTC"
+            ],
+            "cbuFormula2": "[V6O6(OCH3)9(SO4)]",
+            "cbuSpeciesNames2": [
+                "VOSO4"
+            ]
+        },
+        {
+            "mopCCDCNumber": "1985927",
+            "cbuFormula1": "[(C14H6)2(CO2)4]",
+            "cbuSpeciesNames1": [
+                "1,1'-ethynebenzene-3,3',5,5'-tetracarboxylic acid",
+                "H4EBTC"
+            ],
+            "cbuFormula2": "[V6O6(OCH3)9(SO4)]",
+            "cbuSpeciesNames2": [
+                "VOSO4"
+            ]
+        },
+        {
+            "mopCCDCNumber": "1985928",
+            "cbuFormula1": "[(C18H10)(CO2)4]",
+            "cbuSpeciesNames1": [
+                "[1,1²:4²,1³]-terphenyl-3,3³,5,5³-tetracarboxylic acid",
+                "H4TPTC"
+            ],
+            "cbuFormula2": "[V6O6(OCH3)9(SO4)]",
+            "cbuSpeciesNames2": [
+                "VOSO4"
+            ]
+        },
+        {
+            "mopCCDCNumber": "1985929",
+            "cbuFormula1": "[(C26H14)(CO2)4]",
+            "chemicalName": [
+                "5,5′-(anthracene-9,10-diyl)diisophthalic acid",
+                "H4ADIP"
+            ],
+            "cbuFormula2": "[V6O6(OCH3)9(SO4)]",
+            "cbuSpeciesNames2": [
+                "VOSO4"
+            ]
+        }
+    ]
+}

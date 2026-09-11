@@ -1,0 +1,222 @@
+{
+  "synthesisProcedures": [
+    {
+      "procedureName": "Synthesis of VMOP-1",
+      "steps": [
+        {
+          "inputChemicals": [
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "H2BDC"
+                  ],
+                  "chemicalAmount": "0.032 g, 0.19 mmol"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "VCl3",
+                    "vanadium(iii) chloride"
+                  ],
+                  "chemicalAmount": "0.030 g, 0.19 mmol"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "DMF",
+                    "dimethylformamide",
+                    "n, n'-dimethylformamide",
+                    "n, n-dimethylformamide"
+                  ],
+                  "chemicalAmount": "2 mL"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "CH3CH2OH",
+                    "ethanol",
+                    "etoh"
+                  ],
+                  "chemicalAmount": "0.5 mL"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            }
+          ],
+          "outputChemical": [
+            {
+              "names": [
+                "VMOP-1"
+              ],
+              "yield": "N/A",
+              "CCDCNumber": "1434668"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "procedureName": "Synthesis of VMOP-2",
+      "steps": [
+        {
+          "inputChemicals": [
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "H2BDC-NH2",
+                    "2-aminoterephthalic acid",
+                    "2-amino-1,4-benzenedicarboxylate"
+                  ],
+                  "chemicalAmount": "0.020 g, 0.11 mmol"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "VCl3",
+                    "vanadium(iii) chloride"
+                  ],
+                  "chemicalAmount": "0.030 g, 0.19 mmol"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "DMF",
+                    "dimethylformamide",
+                    "n, n'-dimethylformamide",
+                    "n, n-dimethylformamide"
+                  ],
+                  "chemicalAmount": "2 mL"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "CH3CH2OH",
+                    "ethanol",
+                    "etoh"
+                  ],
+                  "chemicalAmount": "0.5 mL"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            }
+          ],
+          "outputChemical": [
+            {
+              "names": [
+                "VMOP-2"
+              ],
+              "yield": "N/A",
+              "CCDCNumber": "1434669"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "procedureName": "Synthesis of VMOP-3",
+      "steps": [
+        {
+          "inputChemicals": [
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "H2BDC-Br"
+                  ],
+                  "chemicalAmount": "0.030 g, 0.123 mmol"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "VCl3",
+                    "vanadium(iii) chloride"
+                  ],
+                  "chemicalAmount": "0.030 g, 0.19 mmol"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "DMF",
+                    "dimethylformamide",
+                    "n, n'-dimethylformamide",
+                    "n, n-dimethylformamide"
+                  ],
+                  "chemicalAmount": "2 mL"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalName": [
+                    "CH3CH2OH",
+                    "ethanol",
+                    "etoh"
+                  ],
+                  "chemicalAmount": "0.5 mL"
+                }
+              ],
+              "supplierName": "N/A",
+              "purity": "N/A"
+            }
+          ],
+          "outputChemical": [
+            {
+              "names": [
+                "VMOP-3"
+              ],
+              "yield": "N/A",
+              "CCDCNumber": "1434670"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

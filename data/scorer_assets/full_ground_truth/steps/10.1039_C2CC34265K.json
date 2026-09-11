@@ -1,0 +1,590 @@
+{
+  "Synthesis": [
+    {
+      "steps": [
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 1,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add p-tert-butylsulfonylcalix[4]arene to the vessel.",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "p-tert-butylsulfonylcalix[4]arene"
+                ],
+                "chemicalAmount": "0.075 g, 0.09 mmol"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 2,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add CoCl₂·6H₂O to the vessel.",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "[Co4(OH)(C40H44O12S4)]",
+                  "Cobalt(II) chloride hexahydrate"
+                ],
+                "chemicalAmount": "0.1 g, 0.4 mmol"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 3,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add 1,3,5-benzenetricarboxylic acid (H₃BTC) to the vessel.",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "1,3,5-benzenetricarboxylic acid",
+                  "[(C6H3)(CO2)3]"
+                ],
+                "chemicalAmount": "0.02 g, 0.1 mmol"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 4,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add triethylamine to the vessel.",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "Triethylamine"
+                ],
+                "chemicalAmount": "2 drops"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 5,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add CH₃OH to the vessel.",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "Methanol",
+                  "ch3oh",
+                  "meoh",
+                  "methyl alcohol"
+                ],
+                "chemicalAmount": "5 ml"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 6,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add N,N-dimethylformamide (DMF) to the vessel.",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "N,N-dimethylformamide",
+                  "dimethylformamide",
+                  "dmf",
+                  "n, n'-dimethylformamide"
+                ],
+                "chemicalAmount": "3 ml"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "HeatChill": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 7,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Heat the mixture at 130 °C for 3 days.",
+            "duration": "3.0 day",
+            "usedDevice": "N/A",
+            "targetTemperature": "130.0 degree celsius",
+            "heatingCoolingRate": "N/A",
+            "underVacuum": false,
+            "sealedVessel": true,
+            "stir": false
+          }
+        },
+        {
+          "HeatChill": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 8,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Cool the mixture to 20 °C at about 4 °C/h.",
+            "duration": "N/A",
+            "usedDevice": "N/A",
+            "targetTemperature": "20.0 degree celsius",
+            "heatingCoolingRate": "4.0 degree celsius per hour",
+            "underVacuum": false,
+            "sealedVessel": true,
+            "stir": false
+          }
+        },
+        {
+          "Filter": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 9,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Filter the crystals.",
+            "washingSolvent": [],
+            "vacuumFiltration": false,
+            "numberOfFiltrations": 1
+          }
+        },
+        {
+          "Filter": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 10,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Wash with methanol.",
+            "washingSolvent": [
+              {
+                "chemicalName": [
+                  "Methanol",
+                  "ch3oh",
+                  "meoh",
+                  "methyl alcohol"
+                ],
+                "chemicalAmount": "N/A"
+              }
+            ],
+            "vacuumFiltration": false,
+            "numberOfFiltrations": 1
+          }
+        }
+      ],
+      "productNames": [
+        "CIAC-105"
+      ],
+      "productCCDCNumber": "869988"
+    },
+    {
+      "steps": [
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 1,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add p-tert-butylsulfonylcalix[4]arene to vessel.",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "p-tert-butylsulfonylcalix[4]arene"
+                ],
+                "chemicalAmount": "0.075 g, 0.09 mmol"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 2,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add CoCl2·6H2O to vessel.",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "cobalt(II) chloride hexahydrate",
+                  "[Co4O]"
+                ],
+                "chemicalAmount": "0.1 g, 0.4 mmol"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 3,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add 4,4',4''-benzene-1,3,5-triyl-tribenzoic acid to vessel.",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "4,4',4''-benzene-1,3,5-triyl-tribenzoic acid"
+                ],
+                "chemicalAmount": "0.044 g, 0.1 mmol"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 4,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add triethylamine to vessel.",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "triethylamine"
+                ],
+                "chemicalAmount": "2 drops"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 5,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add N,N-dimethylacetamide to vessel.",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "N,N-dimethylacetamide",
+                  "dimethylacetamide",
+                  "dma",
+                  "n, n'-dimethylacetamide"
+                ],
+                "chemicalAmount": "3.0 ml"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "HeatChill": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 6,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Heat to 130°C for 3 days.",
+            "duration": "3.0 day",
+            "usedDevice": "N/A",
+            "targetTemperature": "130.0 degree celsius",
+            "heatingCoolingRate": "N/A",
+            "underVacuum": false,
+            "sealedVessel": true,
+            "stir": false
+          }
+        },
+        {
+          "HeatChill": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 7,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Cool to 20°C at 4°C/h.",
+            "duration": "N/A",
+            "usedDevice": "N/A",
+            "targetTemperature": "20.0 degree celsius",
+            "heatingCoolingRate": "4.0 degree celsius per hour",
+            "underVacuum": false,
+            "sealedVessel": true,
+            "stir": false
+          }
+        },
+        {
+          "Filter": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 8,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Filter the crystals.",
+            "washingSolvent": [],
+            "vacuumFiltration": false,
+            "numberOfFiltrations": 1
+          }
+        },
+        {
+          "Filter": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 9,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Wash with methanol.",
+            "washingSolvent": [
+              {
+                "chemicalName": [
+                  "Methanol",
+                  "ch3oh",
+                  "meoh",
+                  "methyl alcohol"
+                ],
+                "chemicalAmount": "N/A"
+              }
+            ],
+            "vacuumFiltration": false,
+            "numberOfFiltrations": 1
+          }
+        }
+      ],
+      "productNames": [
+        "CIAC-106"
+      ],
+      "productCCDCNumber": "869989"
+    },
+    {
+      "steps": [
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 1,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add p-tert-butylsulfonylcalix[4]arene to the vessel.",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "p-tert-Butylsulfonylcalix[4]arene"
+                ],
+                "chemicalAmount": "0.075 g, 0.09 mmol"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 2,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add CoCl2·6H2O to the vessel.",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "Cobalt(II) chloride hexahydrate",
+                  "[Co4C40H44O12S4]"
+                ],
+                "chemicalAmount": "0.1 g, 0.4 mmol"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 3,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add H3BTE to the vessel.",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "4,4',4''-(benzene-1,3,5-triyltris(ethyne-2,1-diyl))tribenzoic acid"
+                ],
+                "chemicalAmount": "0.051 g, 0.1 mmol"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 4,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add triethylamine to the vessel.",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "Triethylamine"
+                ],
+                "chemicalAmount": "2 drops"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 5,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add N,N-dimethylacetamide (DMA) to the vessel.",
+            "duration": "N/A",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "N,N-Dimethylacetamide",
+                  "dimethylacetamide",
+                  "dma",
+                  "n, n'-dimethylacetamide"
+                ],
+                "chemicalAmount": "3.0 ml"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "HeatChill": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 6,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Heat the mixture to 130 °C.",
+            "duration": "3.0 day",
+            "usedDevice": "N/A",
+            "targetTemperature": "130.0 degree celsius",
+            "heatingCoolingRate": "N/A",
+            "underVacuum": false,
+            "sealedVessel": true,
+            "stir": false
+          }
+        },
+        {
+          "HeatChill": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 7,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Cool the mixture to 20 °C at a rate of 4 °C/h.",
+            "duration": "N/A",
+            "usedDevice": "N/A",
+            "targetTemperature": "20.0 degree celsius",
+            "heatingCoolingRate": "4.0 degree celsius per hour",
+            "underVacuum": false,
+            "sealedVessel": true,
+            "stir": false
+          }
+        },
+        {
+          "Filter": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 8,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Filter the crystals.",
+            "washingSolvent": [],
+            "vacuumFiltration": false,
+            "numberOfFiltrations": 1
+          }
+        },
+        {
+          "Filter": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 9,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Wash with methanol.",
+            "washingSolvent": [
+              {
+                "chemicalName": [
+                  "Methanol",
+                  "ch3oh",
+                  "meoh",
+                  "methyl alcohol"
+                ],
+                "chemicalAmount": "N/A"
+              }
+            ],
+            "vacuumFiltration": false,
+            "numberOfFiltrations": 1
+          }
+        }
+      ],
+      "productNames": [
+        "CIAC-107"
+      ],
+      "productCCDCNumber": "869990"
+    }
+  ]
+}

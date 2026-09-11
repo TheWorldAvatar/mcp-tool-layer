@@ -1,0 +1,76 @@
+{
+  "synthesisProcedures": [
+    {
+      "mopCCDCNumber": "1469173",
+      "cbuFormula1": "[(C5H3N)2(CO2)2]",
+      "cbuSpeciesNames1": [
+        "2,2-bipyridine-5,5-dicarboxylic acid",
+        "2,2'-bipyridine-5,5'-dicarboxylic acid",
+        "H2bpydc"
+      ],
+      "cbuFormula2": "[Zr3O(OH)3(C5H5)3]",
+      "cbuSpeciesNames2": [
+        "Cp2ZrCl2",
+        "bis(cyclopentadienyl)zirconium dichloride",
+        "zirconocene dichloride"
+      ]
+    },
+    {
+      "mopCCDCNumber": "1469174",
+      "cbuFormula1": "[(C5H3N)2(CO2)2]",
+      "cbuSpeciesNames1": [
+        "2,2-bipyridine-5,5-dicarboxylic acid",
+        "2,2'-bipyridine-5,5'-dicarboxylic acid",
+        "H2bpydc"
+      ],
+      "cbuFormula2": "[Zr3O(OH)3(C5H5)3]",
+      "cbuSpeciesNames2": [
+        "Cp2ZrCl2",
+        "bis(cyclopentadienyl)zirconium dichloride",
+        "zirconocene dichloride",
+        "copper(II) nitrate trihydrate",
+        "Cu(NO3)2·3H2O"
+      ]
+    },
+    {
+      "mopCCDCNumber": "1469174",
+      "cbuFormula1": "[CuCl2(C5H3N)2(CO2)2]",
+      "cbuSpeciesNames1": [
+        "H2bpydc-CuCl2",
+        "copper(II) complex of 2,2'-bipyridine-5,5'-dicarboxylic acid"
+      ],
+      "cbuFormula2": "[Zr3O(OH)3(C5H5)3]",
+      "cbuSpeciesNames2": [
+        "Cp2ZrCl2",
+        "bis(cyclopentadienyl)zirconium dichloride",
+        "zirconocene dichloride"
+      ]
+    },
+    {
+      "mopCCDCNumber": "1469174",
+      "cbuFormula1": "[(C5H3N)2(CO2)2]",
+      "cbuSpeciesNames1": [
+        "Zr-bpydc",
+        "pre-formed Zr-bpydc cage"
+      ],
+      "cbuFormula2": "[Zr3O(OH)3(C5H5)3]",
+      "cbuSpeciesNames2": [
+        "copper(II) chloride dihydrate",
+        "CuCl2·2H2O"
+      ]
+    },
+    {
+      "mopCCDCNumber": "1469175",
+      "cbuFormula1": "[(C5H3N)2(CO2)2]",
+      "cbuSpeciesNames1": [
+        "2,2'-Bipyridine-5,5'-dicarboxylic acid",
+        "2,2-bipyridine-5,5-dicarboxylic acid",
+        "H2bpydc"
+      ],
+      "cbuFormula2": "[PdCl2(C5H3N)2(CO2)2]",
+      "cbuSpeciesNames2": [
+        "Palladium(II) chloride complex"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "synthesisProcedures": [
+    {
+      "mopCCDCNumber": "759738",
+      "cbuFormula1": "[(C6H3)(CO2)3]",
+      "cbuSpeciesNames1": [
+        "Sodium 1,3,5-benzenetricarboxylate"
+      ],
+      "cbuFormula2": "[PW9O37Ni6NH2C4H3]",
+      "cbuSpeciesNames2": [
+        "NiCl2·6H2O",
+        "Na9[A-α-PW9O34]·nH2O"
+      ]
+    }
+  ]
+}

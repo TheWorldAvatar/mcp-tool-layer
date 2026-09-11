@@ -1,0 +1,330 @@
+{
+  "Synthesis": [
+    {
+      "productCCDCNumber": "183513 1",
+      "productNames": [
+        "Cu24(tBu-amide-bdc)24 via mechanochemical method",
+        "Cu24(tBu-amide-bdc)24"
+      ],
+      "steps": [
+        {
+          "Add": {
+            "usedVesselName": "65 mL steel vial",
+            "usedVesselType": "steel vial",
+            "stepNumber": 1,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "add cu(oac)2·h2o",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "Cu(OAc)2·H2O",
+                  "copper(II) acetate monohydrate",
+                  "cu(oac)2·h2o",
+                  "cu(oac)2•h2o"
+                ],
+                "chemicalAmount": "0.1561 g, 0.7821 mmol"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "65 mL steel vial",
+            "usedVesselType": "steel vial",
+            "stepNumber": 2,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "add 5-hn(co)tbu-1,3-h2bdc",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "5-HN(CO)tBu-1,3-H2bdc",
+                  "5-HN(CO)tBu-1,3-benzenedicarboxylic acid",
+                  "5-tertbutylamide-1,3-benzenedicarboxylic acid",
+                  "5 -hn(co)tbu-1, 3 -h2bdc",
+                  "5 -tertbutylamide-1, 3 -benzenedicarboxylic acid"
+                ],
+                "chemicalAmount": "0.2427 g, 0.9150 mmol"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Stir": {
+            "usedVesselName": "65 mL steel vial",
+            "usedVesselType": "steel vial",
+            "stepNumber": 3,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "Mill the mixture",
+            "duration": "90 min"
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "65 mL steel vial",
+            "usedVesselType": "steel vial",
+            "stepNumber": 4,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "Add methanol to milled product",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "MeOH",
+                  "meoh",
+                  "methanol",
+                  "ch3oh",
+                  "methyl alcohol"
+                ],
+                "chemicalAmount": "10-15 mL"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Transfer": {
+            "usedVesselName": "65 mL steel vial",
+            "usedVesselType": "steel vial",
+            "stepNumber": 5,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "Transfer to scintillation vial",
+            "duration": "n/a",
+            "targetVesselName": "20 mL scintillation vial",
+            "targetVesselType": "glass scintillation vial",
+            "transferedAmount": "n/a",
+            "isLayered": false
+          }
+        },
+        {
+          "Separate": {
+            "usedVesselName": "20 mL scintillation vial",
+            "usedVesselType": "glass scintillation vial",
+            "stepNumber": 6,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "Centrifuge and decant solvent",
+            "duration": "n/a"
+          }
+        }
+      ]
+    },
+    {
+      "productCCDCNumber": "183513 1",
+      "productNames": [
+        "Cu24(tBu-amide-bdc)24 via solvothermal method",
+        "Cu24(tBu-amide-bdc)24"
+      ],
+      "steps": [
+        {
+          "Add": {
+            "usedVesselName": "20 mL scintillation vial",
+            "usedVesselType": "glass scintillation vial",
+            "stepNumber": 1,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "Add copper acetate monohydrate.",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "Cu(OAc)2·H2O",
+                  "copper(II) acetate monohydrate"
+                ],
+                "chemicalAmount": "0.1007 g, 0.5045 mmol"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "20 mL scintillation vial",
+            "usedVesselType": "glass scintillation vial",
+            "stepNumber": 2,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "Add the tBu-amide ligand.",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "5-HN(CO)tBu-1,3-H2bdc",
+                  "5-tertbutylamide-1,3-benzenedicarboxylic acid"
+                ],
+                "chemicalAmount": "0.1548 g, 0.5836 mmol"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "20 mL scintillation vial",
+            "usedVesselType": "glass scintillation vial",
+            "stepNumber": 3,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "Add dimethylformamide.",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "N,N-dimethylformamide",
+                  "DMF",
+                  "dimethylformamide"
+                ],
+                "chemicalAmount": "19.8141 mL"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Evaporate": {
+            "usedVesselName": "20 mL scintillation vial",
+            "usedVesselType": "glass scintillation vial",
+            "stepNumber": 4,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "Leave uncapped for slow solvent evaporation.",
+            "duration": "7 days"
+          }
+        }
+      ]
+    },
+    {
+      "productCCDCNumber": "183513 1",
+      "productNames": [
+        "cu24(h-bdc)24",
+        "cu24(h-bdc)24 cage",
+        "metalorganicpolyhedron for cu24(h-bdc)24 cage"
+      ],
+      "steps": [
+        {
+          "Add": {
+            "usedVesselName": "65 mL steel vial",
+            "usedVesselType": "steel vial",
+            "stepNumber": 1,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "add cu(oac)2·h2o",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "Cu(OAc)2·H2O",
+                  "copper(II) acetate monohydrate",
+                  "cu(oac)2·h2o",
+                  "cu(oac)2•h2o"
+                ],
+                "chemicalAmount": "0.160 g, 0.081 mmol"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "65 mL steel vial",
+            "usedVesselType": "steel vial",
+            "stepNumber": 2,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "add 1,3-benzenedicarboxylic acid",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "1,3-benzenedicarboxylic acid",
+                  "1,3-H2bdc",
+                  "1 , 3-benzenedicarboxylic acid",
+                  "1 , 3-h2bdc"
+                ],
+                "chemicalAmount": "0.146 g, 0.879 mmol"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Stir": {
+            "usedVesselName": "65 mL steel vial",
+            "usedVesselType": "steel vial",
+            "stepNumber": 3,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "Mill the mixture",
+            "duration": "78 min"
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "65 mL steel vial",
+            "usedVesselType": "steel vial",
+            "stepNumber": 4,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "Add ethanol to milled product",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "EtOH",
+                  "etoh",
+                  "ch3ch2oh",
+                  "ethanol"
+                ],
+                "chemicalAmount": "10-15 mL"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Transfer": {
+            "usedVesselName": "65 mL steel vial",
+            "usedVesselType": "steel vial",
+            "stepNumber": 5,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "Transfer to scintillation vial",
+            "duration": "n/a",
+            "targetVesselName": "20 mL scintillation vial",
+            "targetVesselType": "glass scintillation vial",
+            "transferedAmount": "n/a",
+            "isLayered": false
+          }
+        },
+        {
+          "Separate": {
+            "usedVesselName": "20 mL scintillation vial",
+            "usedVesselType": "glass scintillation vial",
+            "stepNumber": 6,
+            "atmosphere": "n/a",
+            "targetPH": -1,
+            "comment": "Centrifuge and decant solvent",
+            "duration": "n/a"
+          }
+        }
+      ]
+    }
+  ]
+}

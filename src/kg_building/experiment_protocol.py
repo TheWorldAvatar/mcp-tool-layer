@@ -39,6 +39,7 @@ from src.extraction_runtime.locked_mechanisms import (
     extraction_revision_enabled,
 )
 from src.kg_building.revision_lock import apply_kg_revision_lock
+from src.kg_building.scorer_repo import ensure_scorer_repo
 
 PROTOCOL_NAMES = ("generic-noprompt", "generic-strict", "with-prompt", "full-prompt")
 OX_OVERLAY_PROTOCOLS = ("with-prompt-qty", "with-prompt-hops")
@@ -71,9 +72,7 @@ PROTOCOL_ENV = {
     "TWA_SEMANTIC_OPERATION_SURFACE": "1",
 }
 
-DEFAULT_SCORER_REPO = Path(
-    r"C:\Users\xz378\Documents\GitHub\MCP-enhanced-MOPs-Extraction_Reproduction"
-)
+DEFAULT_SCORER_REPO = Path.home() / "Documents" / "GitHub" / "MCP-enhanced-MOPs-Extraction_Reproduction"
 
 
 @dataclass(frozen=True)
@@ -175,9 +174,4 @@ def ox_summary_fields(spec: ExperimentProtocol) -> dict[str, Any]:
 
 
 def resolve_scorer_repo(explicit: str | Path | None = None) -> Path | None:
-    if explicit is not None:
-        path = Path(explicit)
-        return path if path.is_dir() else path
-    if DEFAULT_SCORER_REPO.is_dir():
-        return DEFAULT_SCORER_REPO
-    return None
+    return ensure_scorer_repo(explicit)

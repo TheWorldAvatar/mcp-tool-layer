@@ -22,8 +22,7 @@ directory. You can run the CLI from any folder.
 
 ## Windows quick start
 
-See [SETUP.md](SETUP.md) for `.env`, PDFs, the scorer checkout, `setup.cmd`,
-and `run.cmd`.
+See [SETUP.md](SETUP.md) for `.env`, PDFs, `setup.cmd`, and `run.cmd`.
 
 ## Prerequisites
 

@@ -1,0 +1,26 @@
+{
+  "synthesisProcedures": [
+    {
+      "mopCCDCNumber": "1525508",
+      "cbuFormula1": "[(C6HO3)4(C4H8)4]",
+      "cbuSpeciesNames1": [
+        "C-propylpyrogallol[4]arene"
+      ],
+      "cbuFormula2": "[Mg3]",
+      "cbuSpeciesNames2": [
+        "Magnesium nitrate hexahydrate"
+      ]
+    },
+    {
+      "mopCCDCNumber": "1525509",
+      "cbuFormula1": "[(C6HO3)4(C4H8)4]",
+      "cbuSpeciesNames1": [
+        "C-propylpyrogallol[4]arene"
+      ],
+      "cbuFormula2": "[Mg3]",
+      "cbuSpeciesNames2": [
+        "Magnesium nitrate hexahydrate"
+      ]
+    }
+  ]
+}

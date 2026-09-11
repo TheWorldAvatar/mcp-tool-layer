@@ -1,0 +1,308 @@
+{
+  "Synthesis": [
+    {
+      "productNames": [
+        "[(C16H8N2)(C6H4CO2)4]6[V6O6(OCH3)9(SO4)]8",
+        "VMOC-6"
+      ],
+      "productCCDCNumber": "2278526",
+      "steps": [
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "glass vial",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "VOSO4·xH2O",
+                  "vanadyl sulfate hydrate"
+                ],
+                "chemicalAmount": "0.02 g, 0.12 mmol"
+              }
+            ],
+            "stepNumber": 1,
+            "stir": false,
+            "isLayered": false,
+            "atmosphere": "Ar",
+            "duration": "N/A",
+            "targetPH": -1,
+            "comment": "N/A"
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "glass vial",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "H4PBPTA"
+                ],
+                "chemicalAmount": "0.01 g, 0.03 mmol"
+              }
+            ],
+            "stepNumber": 2,
+            "stir": false,
+            "isLayered": false,
+            "atmosphere": "Ar",
+            "duration": "N/A",
+            "targetPH": -1,
+            "comment": "N/A"
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "glass vial",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "N,N-dimethylformamide",
+                  "dimethylformamide",
+                  "dmf",
+                  "n, n'-dimethylformamide"
+                ],
+                "chemicalAmount": "0.5 mL"
+              }
+            ],
+            "stepNumber": 3,
+            "stir": false,
+            "isLayered": false,
+            "atmosphere": "Ar",
+            "duration": "N/A",
+            "targetPH": -1,
+            "comment": "N/A"
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "glass vial",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "methanol",
+                  "ch3oh",
+                  "meoh",
+                  "methyl alcohol"
+                ],
+                "chemicalAmount": "2.5 mL"
+              }
+            ],
+            "stepNumber": 4,
+            "stir": false,
+            "isLayered": false,
+            "atmosphere": "Ar",
+            "duration": "N/A",
+            "targetPH": -1,
+            "comment": "N/A"
+          }
+        },
+        {
+          "Transfer": {
+            "duration": "N/A",
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "glass vial",
+            "targetVesselName": "vessel 2",
+            "targetVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 5,
+            "isLayered": false,
+            "transferedAmount": "N/A",
+            "comment": "N/A",
+            "atmosphere": "Ar"
+          }
+        },
+        {
+          "HeatChill": {
+            "duration": "48 hours",
+            "usedDevice": "N/A",
+            "targetTemperature": "160 °C",
+            "heatingCoolingRate": "N/A",
+            "comment": "N/A",
+            "underVacuum": false,
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "usedVesselName": "vessel 2",
+            "sealedVessel": true,
+            "stir": false,
+            "stepNumber": 6,
+            "atmosphere": "Ar"
+          }
+        },
+        {
+          "HeatChill": {
+            "duration": "N/A",
+            "usedDevice": "N/A",
+            "targetTemperature": "room temperature",
+            "heatingCoolingRate": "N/A",
+            "comment": "N/A",
+            "underVacuum": false,
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "usedVesselName": "vessel 2",
+            "sealedVessel": true,
+            "stir": false,
+            "stepNumber": 7,
+            "atmosphere": "Ar"
+          }
+        },
+        {
+          "Filter": {
+            "washingSolvent": [],
+            "vacuumFiltration": false,
+            "numberOfFiltrations": 1,
+            "usedVesselName": "vessel 2",
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 8,
+            "comment": "Obtain green rectangular crystals",
+            "atmosphere": "Ar"
+          }
+        }
+      ]
+    },
+    {
+      "productNames": [
+        "[(C16H8N2)(C6H4CO2)4]6[V7O10(OCH3)9]8",
+        "VMOC-7"
+      ],
+      "productCCDCNumber": "2278527",
+      "steps": [
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "glass vial",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "vanadyl acetylacetonate",
+                  "VO(acac)2"
+                ],
+                "chemicalAmount": "0.02 g, 0.07 mmol"
+              }
+            ],
+            "stepNumber": 1,
+            "stir": false,
+            "isLayered": false,
+            "atmosphere": "Ar",
+            "duration": "N/A",
+            "targetPH": -1,
+            "comment": "N/A"
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "glass vial",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "H4PBPTA"
+                ],
+                "chemicalAmount": "0.01 g, 0.03 mmol"
+              }
+            ],
+            "stepNumber": 2,
+            "stir": false,
+            "isLayered": false,
+            "atmosphere": "Ar",
+            "duration": "N/A",
+            "targetPH": -1,
+            "comment": "N/A"
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "glass vial",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "N,N-dimethylformamide",
+                  "dimethylformamide",
+                  "dmf",
+                  "n, n'-dimethylformamide"
+                ],
+                "chemicalAmount": "0.5 mL"
+              }
+            ],
+            "stepNumber": 3,
+            "stir": false,
+            "isLayered": false,
+            "atmosphere": "Ar",
+            "duration": "N/A",
+            "targetPH": -1,
+            "comment": "N/A"
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "glass vial",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "methanol",
+                  "ch3oh",
+                  "meoh",
+                  "methyl alcohol"
+                ],
+                "chemicalAmount": "2.5 mL"
+              }
+            ],
+            "stepNumber": 4,
+            "stir": false,
+            "isLayered": false,
+            "atmosphere": "Ar",
+            "duration": "N/A",
+            "targetPH": -1,
+            "comment": "N/A"
+          }
+        },
+        {
+          "Transfer": {
+            "duration": "N/A",
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "glass vial",
+            "targetVesselName": "vessel 2",
+            "targetVesselType": "Teflon-lined stainless-steel vessel",
+            "stepNumber": 5,
+            "isLayered": false,
+            "transferedAmount": "N/A",
+            "comment": "N/A",
+            "atmosphere": "Ar"
+          }
+        },
+        {
+          "HeatChill": {
+            "duration": "48 hours",
+            "usedDevice": "N/A",
+            "targetTemperature": "160 °C",
+            "heatingCoolingRate": "N/A",
+            "comment": "N/A",
+            "underVacuum": false,
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "usedVesselName": "vessel 2",
+            "sealedVessel": true,
+            "stir": false,
+            "stepNumber": 6,
+            "atmosphere": "Ar"
+          }
+        },
+        {
+          "HeatChill": {
+            "duration": "N/A",
+            "usedDevice": "N/A",
+            "targetTemperature": "room temperature",
+            "heatingCoolingRate": "N/A",
+            "comment": "N/A",
+            "underVacuum": false,
+            "usedVesselType": "Teflon-lined stainless-steel vessel",
+            "usedVesselName": "vessel 2",
+            "sealedVessel": true,
+            "stir": false,
+            "stepNumber": 7,
+            "atmosphere": "Ar"
+          }
+        }
+      ]
+    }
+  ]
+}

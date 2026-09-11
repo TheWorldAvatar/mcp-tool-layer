@@ -1,0 +1,637 @@
+{
+  "Synthesis": [
+    {
+      "productNames": [
+        "[Zr3O(OH)3(C5H5)3]4[(C6H4)(CO2)2]6",
+        "ZrT-1"
+      ],
+      "productCCDCNumber": "950330",
+      "steps": [
+        {
+          "Add": {
+            "usedVesselName": "vessel 1",
+            "usedVesselType": "glass vial",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "zirconocene dichloride",
+                  "bis(cyclopentadienyl)zirconium dichloride",
+                  "cp2zrcl2"
+                ],
+                "chemicalAmount": "0.0175 g, 0.06 mmol"
+              }
+            ],
+            "stepNumber": 1,
+            "stir": false,
+            "isLayered": false,
+            "atmosphere": "N/A",
+            "duration": "N/A",
+            "targetPH": -1,
+            "comment": "N/A"
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 2",
+            "usedVesselType": "glass vial",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "1,4-benzenedicarboxylic acid",
+                  "H2BDC"
+                ],
+                "chemicalAmount": "0.005 g, 0.03 mmol"
+              }
+            ],
+            "stepNumber": 2,
+            "stir": false,
+            "isLayered": false,
+            "atmosphere": "N/A",
+            "duration": "N/A",
+            "targetPH": -1,
+            "comment": "N/A"
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 2",
+            "usedVesselType": "glass vial",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "DMF",
+                  "dimethylformamide",
+                  "n, n'-dimethylformamide",
+                  "n, n-dimethylformamide"
+                ],
+                "chemicalAmount": "0.5 mL"
+              }
+            ],
+            "stepNumber": 3,
+            "stir": false,
+            "isLayered": false,
+            "atmosphere": "N/A",
+            "duration": "N/A",
+            "targetPH": -1,
+            "comment": "N/A"
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 2",
+            "usedVesselType": "glass vial",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "distilled water"
+                ],
+                "chemicalAmount": "6 drops"
+              }
+            ],
+            "stepNumber": 4,
+            "stir": false,
+            "isLayered": false,
+            "atmosphere": "N/A",
+            "duration": "N/A",
+            "targetPH": -1,
+            "comment": "N/A"
+          }
+        },
+        {
+          "HeatChill": {
+            "duration": "8 hours",
+            "usedDevice": "N/A",
+            "targetTemperature": "60 °C",
+            "heatingCoolingRate": "N/A",
+            "comment": "N/A",
+            "underVacuum": false,
+            "usedVesselType": "glass vial",
+            "usedVesselName": "vessel 2",
+            "sealedVessel": true,
+            "stir": false,
+            "stepNumber": 5,
+            "atmosphere": "N/A"
+          }
+        },
+        {
+          "HeatChill": {
+            "duration": "N/A",
+            "usedDevice": "N/A",
+            "targetTemperature": "room temperature",
+            "heatingCoolingRate": "N/A",
+            "comment": "After cooling in air to room temperature",
+            "underVacuum": false,
+            "usedVesselType": "glass vial",
+            "usedVesselName": "vessel 2",
+            "sealedVessel": true,
+            "stir": false,
+            "stepNumber": 6,
+            "atmosphere": "N/A"
+          }
+        },
+        {
+          "Filter": {
+            "washingSolvent": [
+              {
+                "chemicalName": [
+                  "DMF",
+                  "dimethylformamide",
+                  "n, n'-dimethylformamide",
+                  "n, n-dimethylformamide"
+                ],
+                "chemicalAmount": "N/A"
+              }
+            ],
+            "vacuumFiltration": false,
+            "numberOfFiltrations": 1,
+            "usedVesselName": "vessel 2",
+            "usedVesselType": "glass vial",
+            "stepNumber": 7,
+            "comment": "Wash the crystals.",
+            "atmosphere": "N/A"
+          }
+        }
+      ]
+    },
+    {
+      "productNames": [
+        "[Zr3O(OH)3(C5H5)3]4[(C6H3)(CO2)3]4",
+        "ZrT-2"
+      ],
+      "productCCDCNumber": "950331",
+      "steps": [
+        {
+          "Add": {
+            "usedVesselName": "vessel 3",
+            "usedVesselType": "glass vial",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "zirconocene dichloride",
+                  "bis(cyclopentadienyl)zirconium dichloride",
+                  "cp2zrcl2"
+                ],
+                "chemicalAmount": "0.042 g, 0.144 mmol"
+              }
+            ],
+            "stepNumber": 1,
+            "stir": false,
+            "isLayered": false,
+            "atmosphere": "N/A",
+            "duration": "N/A",
+            "targetPH": -1,
+            "comment": "N/A"
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 3",
+            "usedVesselType": "glass vial",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "1,3,5-Benzenetricarboxylic acid",
+                  "H3BTC"
+                ],
+                "chemicalAmount": "0.020 g, 0.095 mmol"
+              }
+            ],
+            "stepNumber": 2,
+            "stir": false,
+            "isLayered": false,
+            "atmosphere": "N/A",
+            "duration": "N/A",
+            "targetPH": -1,
+            "comment": "N/A"
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 3",
+            "usedVesselType": "glass vial",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "DMF",
+                  "dimethylformamide",
+                  "n, n'-dimethylformamide",
+                  "n, n-dimethylformamide"
+                ],
+                "chemicalAmount": "2.0 mL"
+              }
+            ],
+            "stepNumber": 3,
+            "stir": false,
+            "isLayered": false,
+            "atmosphere": "N/A",
+            "duration": "N/A",
+            "targetPH": -1,
+            "comment": "N/A"
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 3",
+            "usedVesselType": "glass vial",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "distilled water"
+                ],
+                "chemicalAmount": "5 drops"
+              }
+            ],
+            "stepNumber": 4,
+            "stir": false,
+            "isLayered": false,
+            "atmosphere": "N/A",
+            "duration": "N/A",
+            "targetPH": -1,
+            "comment": "N/A"
+          }
+        },
+        {
+          "HeatChill": {
+            "duration": "10 hours",
+            "usedDevice": "N/A",
+            "targetTemperature": "65 °C",
+            "heatingCoolingRate": "N/A",
+            "comment": "N/A",
+            "underVacuum": false,
+            "usedVesselType": "glass vial",
+            "usedVesselName": "vessel 3",
+            "sealedVessel": true,
+            "stir": false,
+            "stepNumber": 5,
+            "atmosphere": "N/A"
+          }
+        },
+        {
+          "HeatChill": {
+            "duration": "N/A",
+            "usedDevice": "N/A",
+            "targetTemperature": "room temperature",
+            "heatingCoolingRate": "N/A",
+            "comment": "After cooling in air to room temperature",
+            "underVacuum": false,
+            "usedVesselType": "glass vial",
+            "usedVesselName": "vessel 3",
+            "sealedVessel": true,
+            "stir": false,
+            "stepNumber": 6,
+            "atmosphere": "N/A"
+          }
+        },
+        {
+          "Filter": {
+            "washingSolvent": [
+              {
+                "chemicalName": [
+                  "DMF",
+                  "dimethylformamide",
+                  "n, n'-dimethylformamide",
+                  "n, n-dimethylformamide"
+                ],
+                "chemicalAmount": "N/A"
+              }
+            ],
+            "vacuumFiltration": false,
+            "numberOfFiltrations": 1,
+            "usedVesselName": "vessel 3",
+            "usedVesselType": "glass vial",
+            "stepNumber": 7,
+            "comment": "Wash the crystals.",
+            "atmosphere": "N/A"
+          }
+        }
+      ]
+    },
+    {
+      "productNames": [
+        "[Zr3O(OH)3(C5H5)3]4[(C6H4)2(CO2)2]6",
+        "ZrT-3"
+      ],
+      "productCCDCNumber": "950332",
+      "steps": [
+        {
+          "Add": {
+            "usedVesselName": "vessel 4",
+            "usedVesselType": "glass vial",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "zirconocene dichloride",
+                  "bis(cyclopentadienyl)zirconium dichloride",
+                  "cp2zrcl2"
+                ],
+                "chemicalAmount": "0.020 g, 0.069 mmol"
+              }
+            ],
+            "stepNumber": 1,
+            "stir": false,
+            "isLayered": false,
+            "atmosphere": "N/A",
+            "duration": "N/A",
+            "targetPH": -1,
+            "comment": "N/A"
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 4",
+            "usedVesselType": "glass vial",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "4,4’-biphenyldicarboxylic acid",
+                  "H2BPDC"
+                ],
+                "chemicalAmount": "0.010 g, 0.041 mmol"
+              }
+            ],
+            "stepNumber": 2,
+            "stir": false,
+            "isLayered": false,
+            "atmosphere": "N/A",
+            "duration": "N/A",
+            "targetPH": -1,
+            "comment": "N/A"
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 4",
+            "usedVesselType": "glass vial",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "DMA",
+                  "dimethylacetamide",
+                  "n, n'-dimethylacetamide",
+                  "n, n-dimethylacetamide"
+                ],
+                "chemicalAmount": "1.0 mL"
+              }
+            ],
+            "stepNumber": 3,
+            "stir": false,
+            "isLayered": false,
+            "atmosphere": "N/A",
+            "duration": "N/A",
+            "targetPH": -1,
+            "comment": "N/A"
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 4",
+            "usedVesselType": "glass vial",
+            "stepNumber": 4,
+            "atmosphere": "N/A",
+            "targetPH": -1,
+            "comment": "Add 1,3,5-triphenylbenzene for the successful crystal-growth branch.",
+            "duration": "n/a",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "1,3,5-triphenylbenzene"
+                ],
+                "chemicalAmount": "0.020 g, 0.065 mmol"
+              }
+            ],
+            "stir": false,
+            "isLayered": false
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 4",
+            "usedVesselType": "glass vial",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "distilled water"
+                ],
+                "chemicalAmount": "3 drops"
+              }
+            ],
+            "stepNumber": 5,
+            "stir": false,
+            "isLayered": false,
+            "atmosphere": "N/A",
+            "duration": "N/A",
+            "targetPH": -1,
+            "comment": "N/A"
+          }
+        },
+        {
+          "HeatChill": {
+            "duration": "12 hours",
+            "usedDevice": "N/A",
+            "targetTemperature": "50 °C",
+            "heatingCoolingRate": "N/A",
+            "comment": "N/A",
+            "underVacuum": false,
+            "usedVesselType": "glass vial",
+            "usedVesselName": "vessel 4",
+            "sealedVessel": true,
+            "stir": false,
+            "stepNumber": 6,
+            "atmosphere": "N/A"
+          }
+        },
+        {
+          "HeatChill": {
+            "duration": "N/A",
+            "usedDevice": "N/A",
+            "targetTemperature": "room temperature",
+            "heatingCoolingRate": "N/A",
+            "comment": "After cooling in air to room temperature",
+            "underVacuum": false,
+            "usedVesselType": "glass vial",
+            "usedVesselName": "vessel 4",
+            "sealedVessel": true,
+            "stir": false,
+            "stepNumber": 7,
+            "atmosphere": "N/A"
+          }
+        },
+        {
+          "Filter": {
+            "washingSolvent": [
+              {
+                "chemicalName": [
+                  "DMA",
+                  "dimethylacetamide",
+                  "n, n'-dimethylacetamide",
+                  "n, n-dimethylacetamide"
+                ],
+                "chemicalAmount": "N/A"
+              }
+            ],
+            "vacuumFiltration": false,
+            "numberOfFiltrations": 1,
+            "usedVesselName": "vessel 4",
+            "usedVesselType": "glass vial",
+            "stepNumber": 8,
+            "comment": "Wash the crystals.",
+            "atmosphere": "N/A"
+          }
+        }
+      ]
+    },
+    {
+      "productNames": [
+        "[Zr3O(OH)3(C5H5)3]4[(C6H3)(C6H4)3(CO2)3]4",
+        "ZrT-4"
+      ],
+      "productCCDCNumber": "950333",
+      "steps": [
+        {
+          "Add": {
+            "usedVesselName": "vessel 5",
+            "usedVesselType": "glass vial",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "zirconocene dichloride",
+                  "bis(cyclopentadienyl)zirconium dichloride",
+                  "cp2zrcl2"
+                ],
+                "chemicalAmount": "0.030 g, 0.103 mmol"
+              }
+            ],
+            "stepNumber": 1,
+            "stir": false,
+            "isLayered": false,
+            "atmosphere": "N/A",
+            "duration": "N/A",
+            "targetPH": -1,
+            "comment": "N/A"
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 5",
+            "usedVesselType": "glass vial",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "1,3,5-tris(4-carboxyphenyl)-benzene",
+                  "H2BTB"
+                ],
+                "chemicalAmount": "0.030 g, 0.068 mmol"
+              }
+            ],
+            "stepNumber": 2,
+            "stir": false,
+            "isLayered": false,
+            "atmosphere": "N/A",
+            "duration": "N/A",
+            "targetPH": -1,
+            "comment": "N/A"
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 5",
+            "usedVesselType": "glass vial",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "DMA",
+                  "dimethylacetamide",
+                  "n, n'-dimethylacetamide",
+                  "n, n-dimethylacetamide"
+                ],
+                "chemicalAmount": "3.0 mL"
+              }
+            ],
+            "stepNumber": 3,
+            "stir": false,
+            "isLayered": false,
+            "atmosphere": "N/A",
+            "duration": "N/A",
+            "targetPH": -1,
+            "comment": "N/A"
+          }
+        },
+        {
+          "Add": {
+            "usedVesselName": "vessel 5",
+            "usedVesselType": "glass vial",
+            "addedChemical": [
+              {
+                "chemicalName": [
+                  "distilled water"
+                ],
+                "chemicalAmount": "6 drops"
+              }
+            ],
+            "stepNumber": 4,
+            "stir": false,
+            "isLayered": false,
+            "atmosphere": "N/A",
+            "duration": "N/A",
+            "targetPH": -1,
+            "comment": "N/A"
+          }
+        },
+        {
+          "HeatChill": {
+            "duration": "8 hours",
+            "usedDevice": "N/A",
+            "targetTemperature": "60 °C",
+            "heatingCoolingRate": "N/A",
+            "comment": "N/A",
+            "underVacuum": false,
+            "usedVesselType": "glass vial",
+            "usedVesselName": "vessel 5",
+            "sealedVessel": true,
+            "stir": false,
+            "stepNumber": 5,
+            "atmosphere": "N/A"
+          }
+        },
+        {
+          "HeatChill": {
+            "duration": "N/A",
+            "usedDevice": "N/A",
+            "targetTemperature": "room temperature",
+            "heatingCoolingRate": "N/A",
+            "comment": "After cooling in air to room temperature",
+            "underVacuum": false,
+            "usedVesselType": "glass vial",
+            "usedVesselName": "vessel 5",
+            "sealedVessel": true,
+            "stir": false,
+            "stepNumber": 6,
+            "atmosphere": "N/A"
+          }
+        },
+        {
+          "Filter": {
+            "washingSolvent": [
+              {
+                "chemicalName": [
+                  "DMA",
+                  "dimethylacetamide",
+                  "n, n'-dimethylacetamide",
+                  "n, n-dimethylacetamide"
+                ],
+                "chemicalAmount": "N/A"
+              }
+            ],
+            "vacuumFiltration": false,
+            "numberOfFiltrations": 1,
+            "usedVesselName": "vessel 5",
+            "usedVesselType": "glass vial",
+            "stepNumber": 7,
+            "comment": "Wash the crystals.",
+            "atmosphere": "N/A"
+          }
+        }
+      ]
+    }
+  ]
+}

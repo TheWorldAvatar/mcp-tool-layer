@@ -1,0 +1,78 @@
+{
+  "Devices": [
+    {
+      "Characterisation": [
+        {
+          "productNames": [
+            "VMOP-1"
+          ],
+          "productCCDCNumber": "1434668",
+          "HNMR": {
+            "shifts": "N/A",
+            "solvent": "N/A",
+            "temperature": "N/A"
+          },
+          "ElementalAnalysis": {
+            "weightPercentageCalculated": "C, 32.24; H, 4.16; N, 6.38",
+            "weightPercentageExperimental": "C, 31.98; H, 3.95; N, 6.26",
+            "chemicalFormula": "[V5O9]6[(C6H4)(CO2)2]12"
+          },
+          "InfraredSpectroscopy": {
+            "material": "KBr pellet",
+            "bands": "3440 (br), 2969 (br), 2732 (br), 2472 (w), 1666 (s), 1562 (s), 1400 (vs), 990 (s), 887 (w), 827 (w), 744 (s), 640 (w), 574 (s)"
+          }
+        },
+        {
+          "productNames": [
+            "VMOP-2"
+          ],
+          "productCCDCNumber": "1434669",
+          "HNMR": {
+            "shifts": "N/A",
+            "solvent": "N/A",
+            "temperature": "N/A"
+          },
+          "ElementalAnalysis": {
+            "weightPercentageCalculated": "C, 30.73; H, 4.04; N, 8.41",
+            "weightPercentageExperimental": "C, 30.81; H, 3.95; N, 8.32",
+            "chemicalFormula": "[V5O9]6[(C6H3NH2)(CO2)2]12"
+          },
+          "InfraredSpectroscopy": {
+            "material": "KBr pellet",
+            "bands": "3446 (w), 2998 (br), 2763 (br), 2472 (w), 1621 (w), 1542 (s), 1421 (s), 1382 (s), 1253 (s), 979 (s), 836 (w), 761 (m), 600 (m)"
+          }
+        },
+        {
+          "productNames": [
+            "VMOP-3"
+          ],
+          "productCCDCNumber": "1434670",
+          "HNMR": {
+            "shifts": "N/A",
+            "solvent": "N/A",
+            "temperature": "N/A"
+          },
+          "ElementalAnalysis": {
+            "weightPercentageCalculated": "C, 25.97; H, 2.86; N, 4.21",
+            "weightPercentageExperimental": "C, 25.88; H, 2.95; N, 4.16",
+            "chemicalFormula": "[V5O9]6[(C6H3Br)(CO2)2]12"
+          },
+          "InfraredSpectroscopy": {
+            "material": "KBr pellet",
+            "bands": "3405 (br), 2962 (br), 2742 (br), 2480 (w), 1666 (m), 1565 (s), 1403 (vs), 1278 (w), 981 (s), 883 (w), 761 (m), 632 (w), 590 (s)"
+          }
+        }
+      ],
+      "ElementalAnalysisDevice": {
+        "deviceName": "N/A"
+      },
+      "HNMRDevice": {
+        "deviceName": "N/A",
+        "frequency": "N/A"
+      },
+      "InfraredSpectroscopyDevice": {
+        "deviceName": "N/A"
+      }
+    }
+  ]
+}

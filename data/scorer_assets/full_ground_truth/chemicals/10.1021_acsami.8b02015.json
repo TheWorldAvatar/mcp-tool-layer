@@ -1,0 +1,133 @@
+{
+  "synthesisProcedures": [
+    {
+      "procedureName": "Synthesis of Cu_OEt-bdc tetragonal sheet",
+      "steps": [
+        {
+          "inputChemicals": [
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "0.025 g, 0.125 mmol",
+                  "chemicalFormula": "Cu(OAc)2·H2O",
+                  "chemicalName": [
+                    "copper(II) acetate monohydrate"
+                  ]
+                }
+              ]
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "0.026 g, 0.125 mmol",
+                  "chemicalFormula": "C10H10O5",
+                  "chemicalName": [
+                    "5-ethoxy-1,3-benzenedicarboxylic acid",
+                    "5-OEt-1,3-H2bdc"
+                  ]
+                }
+              ]
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "1.5 mL",
+                  "chemicalFormula": "C2H6O",
+                  "chemicalName": [
+                    "ethanol"
+                  ]
+                }
+              ]
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "1.5 mL",
+                  "chemicalFormula": "CH3NO",
+                  "chemicalName": [
+                    "formamide"
+                  ]
+                }
+              ]
+            }
+          ],
+          "outputChemical": [
+            {
+              "CCDCNumber": "1815075",
+              "chemicalFormula": "N/A",
+              "names": [
+                "Cu_OEt-bdc sheet (tetragonal)"
+              ],
+              "yield": "N/A"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "procedureName": "Synthesis of Cu_OPr-bdc cage",
+      "steps": [
+        {
+          "inputChemicals": [
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "0.025 g, 0.108 mmol",
+                  "chemicalFormula": "Cu(NO3)2·2.5H2O",
+                  "chemicalName": [
+                    "copper(II) nitrate hydrate"
+                  ]
+                }
+              ]
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "0.023 g, 0.108 mmol",
+                  "chemicalFormula": "C11H12O5",
+                  "chemicalName": [
+                    "5-propoxy-1,3-benzenedicarboxylic acid",
+                    "5-OPr-1,3-H2bdc"
+                  ]
+                }
+              ]
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "0.6 mL",
+                  "chemicalFormula": "C2H6O",
+                  "chemicalName": [
+                    "ethanol"
+                  ]
+                }
+              ]
+            },
+            {
+              "chemical": [
+                {
+                  "chemicalAmount": "2.4 mL",
+                  "chemicalFormula": "C4H9NO",
+                  "chemicalName": [
+                    "N,N-dimethylacetamide",
+                    "DMA"
+                  ]
+                }
+              ]
+            }
+          ],
+          "outputChemical": [
+            {
+              "CCDCNumber": "1815084",
+              "chemicalFormula": "N/A",
+              "names": [
+                "Cu_OPr-bdc cuboctahedral cage"
+              ],
+              "yield": "N/A"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

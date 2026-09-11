@@ -1,0 +1,374 @@
+{
+    "synthesisProcedures": [
+        {
+            "procedureName": "Synthesis of VMOP-11",
+            "steps": [
+                {
+                    "inputChemicals": [
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "VOSO4·xH2O",
+                                    "chemicalName": [
+                                        "VOSO4·xH2O"
+                                    ],
+                                    "chemicalAmount": "0.08 g"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "C8H6O4",
+                                    "chemicalName": [
+                                        "1,4-benzenedicarboxylate",
+                                        "H2BDC"
+                                    ],
+                                    "chemicalAmount": "0.02 g"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "C5H11NO",
+                                    "chemicalName": [
+                                        "N,N-Diethylformamide",
+                                        "DEF"
+                                    ],
+                                    "chemicalAmount": "2 ml"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "CH4O",
+                                    "chemicalName": [
+                                        "methanol",
+                                        "CH3OH"
+                                    ],
+                                    "chemicalAmount": "1 ml"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        }
+                    ],
+                    "outputChemical": [
+                        {
+                            "chemicalFormula": "[V6O6(OCH3)9(SO4)]4[(C6H4)(CO2)2]6",
+                            "names": [
+                                "VMOP-11"
+                            ],
+                            "yield": "70%",
+                            "CCDCNumber": "1479717"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "procedureName": "Synthesis of VMOP-12",
+            "steps": [
+                {
+                    "inputChemicals": [
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "VOSO4·xH2O",
+                                    "chemicalName": [
+                                        "VOSO4·xH2O"
+                                    ],
+                                    "chemicalAmount": "0.08 g"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "C8H7NO4",
+                                    "chemicalName": [
+                                        "2-amino-1,4-benzenedicarboxylate",
+                                        "H2BDC-NH2"
+                                    ],
+                                    "chemicalAmount": "0.03 g"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "C5H11NO",
+                                    "chemicalName": [
+                                        "N,N-Diethylformamide",
+                                        "DEF"
+                                    ],
+                                    "chemicalAmount": "2 ml"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "CH4O",
+                                    "chemicalName": [
+                                        "methanol",
+                                        "CH3OH"
+                                    ],
+                                    "chemicalAmount": "1 ml"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        }
+                    ],
+                    "outputChemical": [
+                        {
+                            "chemicalFormula": "[V6O6(OCH3)9(SO4)]4[(C6H3NH2)(CO2)2]6",
+                            "names": [
+                                "VMOP-12"
+                            ],
+                            "yield": "65%",
+                            "CCDCNumber": "1479718"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "procedureName": "Synthesis of VMOP-13",
+            "steps": [
+                {
+                    "inputChemicals": [
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "VOSO4·xH2O",
+                                    "chemicalName": [
+                                        "VOSO4·xH2O"
+                                    ],
+                                    "chemicalAmount": "0.08 g"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "C8H5BrO4",
+                                    "chemicalName": [
+                                        "2-bromo-1,4-benzenedicarboxylate",
+                                        "H2BDC-Br"
+                                    ],
+                                    "chemicalAmount": "0.035 g"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "C5H11NO",
+                                    "chemicalName": [
+                                        "N,N-Diethylformamide",
+                                        "DEF"
+                                    ],
+                                    "chemicalAmount": "2 ml"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "CH4O",
+                                    "chemicalName": [
+                                        "methanol",
+                                        "CH3OH"
+                                    ],
+                                    "chemicalAmount": "1 ml"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        }
+                    ],
+                    "outputChemical": [
+                        {
+                            "chemicalFormula": "[V6O6(OCH3)9(SO4)]4[(C6H3Br)(CO2)2]6",
+                            "names": [
+                                "VMOP-13"
+                            ],
+                            "yield": "42%",
+                            "CCDCNumber": "1479719"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "procedureName": "Synthesis of VMOP-14",
+            "steps": [
+                {
+                    "inputChemicals": [
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "VOSO4·xH2O",
+                                    "chemicalName": [
+                                        "VOSO4·xH2O"
+                                    ],
+                                    "chemicalAmount": "0.08 g"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "C9H6O6",
+                                    "chemicalName": [
+                                        "1,3,5-benzenetricarboxylate",
+                                        "H3BTC"
+                                    ],
+                                    "chemicalAmount": "0.015 g"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "C5H11NO",
+                                    "chemicalName": [
+                                        "N,N-Diethylformamide",
+                                        "DEF"
+                                    ],
+                                    "chemicalAmount": "2 ml"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "CH4O",
+                                    "chemicalName": [
+                                        "methanol",
+                                        "CH3OH"
+                                    ],
+                                    "chemicalAmount": "1 ml"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        }
+                    ],
+                    "outputChemical": [
+                        {
+                            "chemicalFormula": "[V6O6(OCH3)9(SO4)]4[(C6H3)(CO2)3]4",
+                            "names": [
+                                "VMOP-14"
+                            ],
+                            "yield": "35%",
+                            "CCDCNumber": "1479720"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "procedureName": "Synthesis of VMOP-15",
+            "steps": [
+                {
+                    "inputChemicals": [
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "VOSO4·xH2O",
+                                    "chemicalName": [
+                                        "VOSO4·xH2O"
+                                    ],
+                                    "chemicalAmount": "0.08 g"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "C27H18O6",
+                                    "chemicalName": [
+                                        "1,3,5-tris(4-carboxyphenyl)benzene",
+                                        "H3BTB"
+                                    ],
+                                    "chemicalAmount": "0.03 g"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "C5H11NO",
+                                    "chemicalName": [
+                                        "N,N-Diethylformamide",
+                                        "DEF"
+                                    ],
+                                    "chemicalAmount": "2 ml"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        },
+                        {
+                            "chemical": [
+                                {
+                                    "chemicalFormula": "CH4O",
+                                    "chemicalName": [
+                                        "methanol",
+                                        "CH3OH"
+                                    ],
+                                    "chemicalAmount": "1 ml"
+                                }
+                            ],
+                            "supplierName": "N/A",
+                            "purity": "N/A"
+                        }
+                    ],
+                    "outputChemical": [
+                        {
+                            "chemicalFormula": "[V6O6(OCH3)9(SO4)]4[(C6H3)(C6H4)3(CO2)3]4",
+                            "names": [
+                                "VMOP-15"
+                            ],
+                            "yield": "28%",
+                            "CCDCNumber": "1479721"
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

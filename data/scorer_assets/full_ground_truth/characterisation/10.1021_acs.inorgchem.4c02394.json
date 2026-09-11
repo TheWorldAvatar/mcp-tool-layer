@@ -1,0 +1,123 @@
+{
+    "Devices": [
+        {
+            "HNMRDevice": {
+                "deviceName": "Bruker Avance III",
+                "frequency": "400 MHz"
+            },
+            "ElementalAnalysisDevice": {
+                "deviceName": "Perkin-Elmer 240C elemental analyzer"
+            },
+            "InfraredSpectroscopyDevice": {
+                "deviceName": "Shimadzu IRSpirit-T spectrometer"
+            },
+            "Characterisation": [
+                {
+                    "productNames": [
+                        "TMA-VMOT-2",
+                        "[V6O6(OCH3)9(SO4)]4[(C10H6)(C6H4)2(CO2)2]6"
+                    ],
+                    "productCCDCNumber": "2359340",
+                    "HNMR": {
+                        "shifts": "N/A",
+                        "solvent": "N/A",
+                        "temperature": "N/A"
+                    },
+                    "ElementalAnalysis": {
+                        "weightPercentageCalculated": "C 30.43, H 6.36, N 4.51, S 2.58, V 24.59",
+                        "weightPercentageExperimental": "C 30.16, H 6.01, N 4.76, S 2.71, V 24.56",
+                        "chemicalFormula": "N/A"
+                    },
+                    "InfraredSpectroscopy": {
+                        "material": "2% KBr pellet",
+                        "bands": "2927 (br), 2819 (w), 1594 (s), 1547 (s), 1487 (m), 1417 (s), 1229 (m), 1070 (s), 1039 (s), 948 (s), 845 (w), 785 (m), 719 (w), 647 (m), 577 (m), 538 (s)"
+                    }
+                },
+                {
+                    "productNames": [
+                        "TMA-VMOT-3",
+                        "[V6O6(OCH3)9(SO4)]4[(C14H8)(C6H4)2(CO2)2]6"
+                    ],
+                    "productCCDCNumber": "2359341",
+                    "HNMR": {
+                        "shifts": "N/A",
+                        "solvent": "N/A",
+                        "temperature": "N/A"
+                    },
+                    "ElementalAnalysis": {
+                        "weightPercentageCalculated": "C 32.28, H 6.73, N 5.09, S 2.33, V 20.20",
+                        "weightPercentageExperimental": "C 32.45, H 6.29, N 5.36, S 2.54, V 21.61",
+                        "chemicalFormula": "N/A"
+                    },
+                    "InfraredSpectroscopy": {
+                        "material": "2% KBr pellet",
+                        "bands": "3469 (br), 2929 (w), 2822 (w), 1596 (s), 1551 (s), 1498 (m), 1421(s), 1392 (w), 1229 (m), 1074 (s), 1039 (s), 946 (s), 851 (w), 785 (m), 715 (w), 672 (m), 651 (m), 583 (s), 538 (s)"
+                    }
+                },
+                {
+                    "productNames": [
+                        "TMA-VMOC-P-2",
+                        "[V6O6(OCH3)9(PhPO3)]2[(C10H6)(C6H4)2(CO2)2]3"
+                    ],
+                    "productCCDCNumber": "2359342",
+                    "HNMR": {
+                        "shifts": "N/A",
+                        "solvent": "N/A",
+                        "temperature": "N/A"
+                    },
+                    "ElementalAnalysis": {
+                        "weightPercentageCalculated": "C 37.14, H 6.27, N 3.57, P 2.25, V 22.24",
+                        "weightPercentageExperimental": "C 38.51, H 6.34, N 3.38, P 2.40, V 22.43",
+                        "chemicalFormula": "N/A"
+                    },
+                    "InfraredSpectroscopy": {
+                        "material": "2% KBr pellet",
+                        "bands": "3453 (br), 2927 (w), 2813 (w), 1590 (s), 1547 (s), 1577 (s), 1491 (m), 1408 (s), 1138 (w), 1076 (s), 948 (s), 785 (m), 723 (m), 562 (s), 524 (m), 509 (w)"
+                    }
+                },
+                {
+                    "productNames": [
+                        "TMA-VMOC-P-3",
+                        "[V6O6(OCH3)9(PhPO3)]2[(C14H8)(C6H4)2(CO2)2]3"
+                    ],
+                    "productCCDCNumber": "2359351",
+                    "HNMR": {
+                        "shifts": "N/A",
+                        "solvent": "N/A",
+                        "temperature": "N/A"
+                    },
+                    "ElementalAnalysis": {
+                        "weightPercentageCalculated": "C 37.91, H 5.90, N 3.20, P 2.36, V 23.25",
+                        "weightPercentageExperimental": "C 38.03, H 6.05, N 3.23, P 2.45, V 23.59",
+                        "chemicalFormula": "N/A"
+                    },
+                    "InfraredSpectroscopy": {
+                        "material": "2% KBr pellet",
+                        "bands": "3463 (br), 2921 (w), 2817 (w), 1668 (w), 1592 (s), 1547 (s), 1438 (m), 1415 (s), 1072 (s), 944 (s), 948 (s), 785 (m), 670 (m), 567 (s), 529 (s), 494 (w)"
+                    }
+                },
+                {
+                    "productNames": [
+                        "TMA-VMOC-P-4",
+                        "[V6O6(OCH3)9(PhPO3)]2[(C20H12N4)(C6H4)2(CO2)2]3"
+                    ],
+                    "productCCDCNumber": "2359343",
+                    "HNMR": {
+                        "shifts": "N/A",
+                        "solvent": "N/A",
+                        "temperature": "N/A"
+                    },
+                    "ElementalAnalysis": {
+                        "weightPercentageCalculated": "C 38.69, H 5.85, N 5.01, P 2.22, V 21.88",
+                        "weightPercentageExperimental": "C 38.60, H 5.51, N 5.41, P 1.97, V 22.04",
+                        "chemicalFormula": "N/A"
+                    },
+                    "InfraredSpectroscopy": {
+                        "material": "2% KBr pellet",
+                        "bands": "3451 (br), 2925 (w), 2813 (w), 1670 (s), 1592 (s), 1544 (s), 1491 (m), 1408 (s), 1239 (w), 1138 (m), 1066 (s), 959 (s), 857 (w), 796 (m), 695 (w), 565 (s), 529 (s)"
+                    }
+                }
+            ]
+        }
+    ]
+}

@@ -1,0 +1,48 @@
+{
+  "Devices": [
+    {
+      "Characterisation": [
+        {
+          "HNMR": {
+            "shifts": "δ = 13.33 (s, 2H, OH), 8.07 (s, 1H, Ar-H), 7.63 (s, 2H, Ar-H), 4.16 (q, 2H, CH2), 1.37 (t, 3H, CH3)",
+            "solvent": "DMSO-d6",
+            "temperature": "N/A"
+          },
+          "InfraredSpectroscopy": {
+            "bands": "N/A",
+            "material": "N/A"
+          },
+          "productCCDCNumber": "1815080",
+          "productNames": [
+            "Cu_OEt-bdc cage"
+          ]
+        },
+        {
+          "HNMR": {
+            "shifts": "δ = 13.30 (s, 2H, OH), 8.05 (s, 1H, Ar-H), 7.61 (s, 2H, Ar-H), 4.05 (q, 2H, CH2), 1.72 (m, 2H), 1.36 (m, 4H), 0.88 (t, 3H, CH3)",
+            "solvent": "DMSO-d6",
+            "temperature": "N/A"
+          },
+          "InfraredSpectroscopy": {
+            "bands": "N/A",
+            "material": "N/A"
+          },
+          "productCCDCNumber": "1815083",
+          "productNames": [
+            "Cu_OPent-bdc cage"
+          ]
+        }
+      ],
+      "ElementalAnalysisDevice": {
+        "deviceName": "N/A"
+      },
+      "HNMRDevice": {
+        "deviceName": "400 MHz NMR",
+        "frequency": "400 MHz"
+      },
+      "InfraredSpectroscopyDevice": {
+        "deviceName": "N/A"
+      }
+    }
+  ]
+}
