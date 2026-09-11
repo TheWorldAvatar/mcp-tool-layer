@@ -1,0 +1,5 @@
+{
+  "schema_version": "namespace-config.v1",
+  "instance_base_iri": "https://www.theworldavatar.com/kg/instance/generated/",
+  "generated_graph_iri": "https://www.theworldavatar.com/kg/generated/"
+}

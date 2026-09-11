@@ -1,0 +1,54 @@
+{
+  "_mcp_set_policy": {
+    "extraction_validation": {
+      "required_executed_tool_groups": [
+        {
+          "name": "chemical_identity_lookup",
+          "any_of": [
+            "search_pubchem_by_name",
+            "search_pubchem_by_smiles",
+            "search_pubchem_advanced",
+            "get_pubchem_compound_by_cid"
+          ]
+        }
+      ]
+    },
+    "tool_purposes": {
+      "pubchem": "Resolve source-supported molecular substance identities; verify exact names, synonyms, formulae, structures, and PubChem identifiers without changing hydrate, charge, stoichiometry, counterion, or stereochemistry.",
+      "ccdc": "Resolve source-supported crystallographic identities and explicit CCDC identifiers; never infer a crystal identity from a similar name or structure.",
+      "enhanced_websearch": "Perform targeted evidence lookup for a source-supported identity when primary specialist services are insufficient; external pages may enrich identity fields but must never prove participation in the source procedure."
+    }
+  },
+  "chemistry": {
+    "command": "python",
+    "args": ["-m", "src.mcp_servers.chemistry.main"],
+    "transport": "stdio",
+    "env": {
+      "PYTHONIOENCODING": "utf-8"
+    }
+  },
+  "pubchem": {
+    "command": "python",
+    "args": ["-m", "src.mcp_servers.pubchem.main"],
+    "transport": "stdio",
+    "env": {
+      "PYTHONIOENCODING": "utf-8"
+    }
+  },
+  "ccdc": {
+    "command": "python",
+    "args": ["-m", "src.mcp_servers.ccdc.main"],
+    "transport": "stdio",
+    "env": {
+      "PYTHONIOENCODING": "utf-8"
+    }
+  },
+  "enhanced_websearch": {
+    "command": "python",
+    "args": ["-m", "src.mcp_servers.enhanced_websearch.main"],
+    "transport": "stdio",
+    "env": {
+      "PYTHONIOENCODING": "utf-8"
+    }
+  }
+}

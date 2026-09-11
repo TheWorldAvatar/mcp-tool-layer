@@ -1,0 +1,397 @@
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix ontospecies: <http://www.theworldavatar.com/ontology/ontospecies/OntoSpecies.owl#> .
+@prefix periodic: <http://www.daml.org/2003/01/periodictable/PeriodicTable#> .
+
+# OntoSpecies Subgraph
+# Redesigned to match actual characterization data structure from JSON files
+#
+# CROSS-ONTOLOGY CONNECTION:
+# Species instances are linked to OntoSyn ChemicalSynthesis via:
+#   ontosyn:hasChemicalOutput rdfs:domain ontosyn:ChemicalSynthesis ;
+#                             rdfs:range ontospecies:Species .
+# This allows characterization data to be associated with synthesis products.
+
+# =============================================================================
+# MAIN CLASSES
+# =============================================================================
+
+# Chemical Species/Product
+ontospecies:Species a owl:Class ;
+    rdfs:comment "A chemical species representing a molecule or compound with characterization data. When created in the context of a ChemicalSynthesis, it is automatically linked as a chemical output." ;
+    rdfs:isDefinedBy ontospecies: .
+
+# Characterization Session
+ontospecies:CharacterizationSession a owl:Class ;
+    rdfs:comment "A complete characterization session involving multiple analytical techniques" ;
+    rdfs:isDefinedBy ontospecies: .
+
+# Device/Instrument
+ontospecies:Device a owl:Class ;
+    rdfs:comment "An analytical instrument used for characterization" ;
+    rdfs:isDefinedBy ontospecies: .
+
+# HNMR Device
+ontospecies:HNMRDevice a owl:Class ;
+    rdfs:subClassOf ontospecies:Device ;
+    rdfs:comment "Hydrogen Nuclear Magnetic Resonance spectrometer" ;
+    rdfs:isDefinedBy ontospecies: .
+
+# Elemental Analysis Device
+ontospecies:ElementalAnalysisDevice a owl:Class ;
+    rdfs:subClassOf ontospecies:Device ;
+    rdfs:comment "Device for elemental analysis (e.g., CHN analyzer)" ;
+    rdfs:isDefinedBy ontospecies: .
+
+# Infrared Spectroscopy Device
+ontospecies:InfraredSpectroscopyDevice a owl:Class ;
+    rdfs:subClassOf ontospecies:Device ;
+    rdfs:comment "Fourier Transform Infrared (FT-IR) spectrometer" ;
+    rdfs:isDefinedBy ontospecies: .
+
+# =============================================================================
+# SPECTROSCOPIC DATA CLASSES
+# =============================================================================
+
+# HNMR Data
+ontospecies:HNMRData a owl:Class ;
+    rdfs:comment "Hydrogen NMR spectroscopic data including shifts, solvent, and temperature" ;
+    rdfs:isDefinedBy ontospecies: .
+
+# Elemental Analysis Data
+ontospecies:ElementalAnalysisData a owl:Class ;
+    rdfs:comment "Elemental analysis data including calculated and experimental weight percentages" ;
+    rdfs:isDefinedBy ontospecies: .
+
+# Infrared Spectroscopy Data
+ontospecies:InfraredSpectroscopyData a owl:Class ;
+    rdfs:comment "Infrared spectroscopy data including bands and material" ;
+    rdfs:isDefinedBy ontospecies: .
+
+# Chemical Shift
+ontospecies:ChemicalShift a owl:Class ;
+    rdfs:comment "A specific chemical shift value in NMR spectroscopy" ;
+    rdfs:isDefinedBy ontospecies: .
+
+# Infrared Band
+ontospecies:InfraredBand a owl:Class ;
+    rdfs:comment "An infrared absorption band with wavenumber and intensity" ;
+    rdfs:isDefinedBy ontospecies: .
+
+# Solvent
+ontospecies:Solvent a owl:Class ;
+    rdfs:comment "Solvent used in spectroscopic analysis" ;
+    rdfs:isDefinedBy ontospecies: .
+
+# Material (for IR analysis)
+ontospecies:Material a owl:Class ;
+    rdfs:comment "Material used for sample preparation in IR analysis (e.g., KBr pellet)" ;
+    rdfs:isDefinedBy ontospecies: .
+
+# =============================================================================
+# MOLECULAR PROPERTIES
+# =============================================================================
+
+# Molecular Formula
+ontospecies:MolecularFormula a owl:Class ;
+    rdfs:comment "A molecular formula identifying constituent elements and their counts" ;
+    rdfs:isDefinedBy ontospecies: .
+
+# Chemical Formula (extended formula with additional information)
+ontospecies:ChemicalFormula a owl:Class ;
+    rdfs:comment "Extended chemical formula including structural information and solvates" ;
+    rdfs:isDefinedBy ontospecies: .
+
+# Weight Percentage
+ontospecies:WeightPercentage a owl:Class ;
+    rdfs:comment "Weight percentage of an element in a compound" ;
+    rdfs:isDefinedBy ontospecies: .
+
+# CCDC Number
+ontospecies:CCDCNumber a owl:Class ;
+    rdfs:comment "Cambridge Crystallographic Data Centre reference number" ;
+    rdfs:isDefinedBy ontospecies: .
+
+# =============================================================================
+# ELEMENT AND ATOMIC DATA
+# =============================================================================
+
+# Element
+periodic:Element a owl:Class ;
+    rdfs:comment "A chemical element from the periodic table" ;
+    rdfs:isDefinedBy periodic: .
+
+# Atomic Weight
+ontospecies:AtomicWeight a owl:Class ;
+    rdfs:comment "Atomic weight of an element" ;
+    rdfs:isDefinedBy ontospecies: .
+
+# =============================================================================
+# OBJECT PROPERTIES
+# =============================================================================
+
+# Characterization relationships
+ontospecies:hasCharacterizationSession a owl:ObjectProperty ;
+    rdfs:domain ontospecies:Species ;
+    rdfs:range ontospecies:CharacterizationSession ;
+    rdfs:comment "A species has a characterization session" ;
+    rdfs:isDefinedBy ontospecies: .
+
+ontospecies:usesDevice a owl:ObjectProperty ;
+    rdfs:domain ontospecies:CharacterizationSession ;
+    rdfs:range ontospecies:Device ;
+    rdfs:comment "A characterization session uses specific devices" ;
+    rdfs:isDefinedBy ontospecies: .
+
+# Device-specific properties
+ontospecies:hasHNMRDevice a owl:ObjectProperty ;
+    rdfs:domain ontospecies:CharacterizationSession ;
+    rdfs:range ontospecies:HNMRDevice ;
+    rdfs:comment "A characterization session uses an HNMR device" ;
+    rdfs:isDefinedBy ontospecies: .
+
+ontospecies:hasElementalAnalysisDevice a owl:ObjectProperty ;
+    rdfs:domain ontospecies:CharacterizationSession ;
+    rdfs:range ontospecies:ElementalAnalysisDevice ;
+    rdfs:comment "A characterization session uses an elemental analysis device" ;
+    rdfs:isDefinedBy ontospecies: .
+
+ontospecies:hasInfraredSpectroscopyDevice a owl:ObjectProperty ;
+    rdfs:domain ontospecies:CharacterizationSession ;
+    rdfs:range ontospecies:InfraredSpectroscopyDevice ;
+    rdfs:comment "A characterization session uses an infrared spectroscopy device" ;
+    rdfs:isDefinedBy ontospecies: .
+
+# Spectroscopic data relationships
+ontospecies:hasHNMRData a owl:ObjectProperty ;
+    rdfs:domain ontospecies:Species ;
+    rdfs:range ontospecies:HNMRData ;
+    rdfs:comment "A species has HNMR data" ;
+    rdfs:isDefinedBy ontospecies: .
+
+ontospecies:hasElementalAnalysisData a owl:ObjectProperty ;
+    rdfs:domain ontospecies:Species ;
+    rdfs:range ontospecies:ElementalAnalysisData ;
+    rdfs:comment "A species has elemental analysis data" ;
+    rdfs:isDefinedBy ontospecies: .
+
+ontospecies:hasInfraredSpectroscopyData a owl:ObjectProperty ;
+    rdfs:domain ontospecies:Species ;
+    rdfs:range ontospecies:InfraredSpectroscopyData ;
+    rdfs:comment "A species has infrared spectroscopy data" ;
+    rdfs:isDefinedBy ontospecies: .
+
+# Molecular formula relationships
+ontospecies:hasMolecularFormula a owl:ObjectProperty ;
+    rdfs:domain ontospecies:Species ;
+    rdfs:range ontospecies:MolecularFormula ;
+    rdfs:comment "A species has a molecular formula" ;
+    rdfs:isDefinedBy ontospecies: .
+
+ontospecies:hasChemicalFormula a owl:ObjectProperty ;
+    rdfs:domain ontospecies:Species ;
+    rdfs:range ontospecies:ChemicalFormula ;
+    rdfs:comment "A species has a chemical formula" ;
+    rdfs:isDefinedBy ontospecies: .
+
+ontospecies:hasCCDCNumber a owl:ObjectProperty ;
+    rdfs:domain ontospecies:Species ;
+    rdfs:range ontospecies:CCDCNumber ;
+    rdfs:comment "A species has a CCDC number" ;
+    rdfs:isDefinedBy ontospecies: .
+
+# HNMR data relationships
+ontospecies:hasChemicalShift a owl:ObjectProperty ;
+    rdfs:domain ontospecies:HNMRData ;
+    rdfs:range ontospecies:ChemicalShift ;
+    rdfs:comment "HNMR data contains chemical shifts" ;
+    rdfs:isDefinedBy ontospecies: .
+
+ontospecies:usesSolvent a owl:ObjectProperty ;
+    rdfs:domain ontospecies:HNMRData ;
+    rdfs:range ontospecies:Solvent ;
+    rdfs:comment "HNMR data specifies the solvent used" ;
+    rdfs:isDefinedBy ontospecies: .
+
+# Elemental analysis relationships
+ontospecies:hasWeightPercentageCalculated a owl:ObjectProperty ;
+    rdfs:domain ontospecies:ElementalAnalysisData ;
+    rdfs:range ontospecies:WeightPercentage ;
+    rdfs:comment "Elemental analysis data has calculated weight percentages" ;
+    rdfs:isDefinedBy ontospecies: .
+
+ontospecies:hasWeightPercentageExperimental a owl:ObjectProperty ;
+    rdfs:domain ontospecies:ElementalAnalysisData ;
+    rdfs:range ontospecies:WeightPercentage ;
+    rdfs:comment "Elemental analysis data has experimental weight percentages" ;
+    rdfs:isDefinedBy ontospecies: .
+
+# Infrared spectroscopy relationships
+ontospecies:hasInfraredBand a owl:ObjectProperty ;
+    rdfs:domain ontospecies:InfraredSpectroscopyData ;
+    rdfs:range ontospecies:InfraredBand ;
+    rdfs:comment "Infrared spectroscopy data contains bands" ;
+    rdfs:isDefinedBy ontospecies: .
+
+ontospecies:usesMaterial a owl:ObjectProperty ;
+    rdfs:domain ontospecies:InfraredSpectroscopyData ;
+    rdfs:range ontospecies:Material ;
+    rdfs:comment "Infrared spectroscopy data specifies the material used" ;
+    rdfs:isDefinedBy ontospecies: .
+
+# Element relationships
+ontospecies:hasAtomicWeight a owl:ObjectProperty ;
+    rdfs:domain periodic:Element ;
+    rdfs:range ontospecies:AtomicWeight ;
+    rdfs:comment "An element has an atomic weight" ;
+    rdfs:isDefinedBy ontospecies: .
+
+# =============================================================================
+# DATATYPE PROPERTIES
+# =============================================================================
+
+# Device properties
+ontospecies:hasDeviceName a owl:DatatypeProperty ;
+    rdfs:domain ontospecies:Device ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Name of the analytical device" ;
+    rdfs:isDefinedBy ontospecies: .
+
+ontospecies:hasFrequency a owl:DatatypeProperty ;
+    rdfs:domain ontospecies:HNMRDevice ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Operating frequency of the NMR device (e.g., 400.1 MHz)" ;
+    rdfs:isDefinedBy ontospecies: .
+
+# Species properties
+ontospecies:hasProductName a owl:DatatypeProperty ;
+    rdfs:domain ontospecies:Species ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Name of the chemical product/species" ;
+    rdfs:isDefinedBy ontospecies: .
+
+# HNMR data properties
+ontospecies:hasShifts a owl:DatatypeProperty ;
+    rdfs:domain ontospecies:HNMRData ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Chemical shifts in NMR spectrum (e.g., '10.58 (s, 12H, O-H)')" ;
+    rdfs:isDefinedBy ontospecies: .
+
+ontospecies:hasSolventName a owl:DatatypeProperty ;
+    rdfs:domain ontospecies:Solvent ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Name of the solvent (e.g., DMSO-d6, MeOH-d4)" ;
+    rdfs:isDefinedBy ontospecies: .
+
+ontospecies:hasTemperature a owl:DatatypeProperty ;
+    rdfs:domain ontospecies:HNMRData ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Temperature of NMR analysis (e.g., '295 K')" ;
+    rdfs:isDefinedBy ontospecies: .
+
+# Elemental analysis properties
+ontospecies:hasWeightPercentageCalculatedValue a owl:DatatypeProperty ;
+    rdfs:domain ontospecies:WeightPercentage ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Calculated weight percentage values (e.g., 'C 37.94, H 4.96, N 3.63')" ;
+    rdfs:isDefinedBy ontospecies: .
+
+ontospecies:hasWeightPercentageExperimentalValue a owl:DatatypeProperty ;
+    rdfs:domain ontospecies:WeightPercentage ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Experimental weight percentage values (e.g., 'C 37.93, H 4.76, N 3.62')" ;
+    rdfs:isDefinedBy ontospecies: .
+
+ontospecies:hasChemicalFormulaValue a owl:DatatypeProperty ;
+    rdfs:domain ontospecies:ChemicalFormula ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Chemical formula string (e.g., '{[Cp3Zr3µ3-O(µ2-OH)3]4(BDC)6}4⋅Cl16⋅47DMF⋅90H2O')" ;
+    rdfs:isDefinedBy ontospecies: .
+
+# Infrared spectroscopy properties
+ontospecies:hasBands a owl:DatatypeProperty ;
+    rdfs:domain ontospecies:InfraredSpectroscopyData ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Infrared absorption bands (e.g., '3231 (s), 2932 (m), 1661 (s)')" ;
+    rdfs:isDefinedBy ontospecies: .
+
+ontospecies:hasMaterialName a owl:DatatypeProperty ;
+    rdfs:domain ontospecies:Material ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Name of the material used (e.g., 'KBr pellet', 'KBr')" ;
+    rdfs:isDefinedBy ontospecies: .
+
+# CCDC number property
+ontospecies:hasCCDCNumberValue a owl:DatatypeProperty ;
+    rdfs:domain ontospecies:CCDCNumber ;
+    rdfs:range xsd:string ;
+    rdfs:comment "CCDC number value (e.g., '950330')" ;
+    rdfs:isDefinedBy ontospecies: .
+
+# Molecular formula property
+ontospecies:hasMolecularFormulaValue a owl:DatatypeProperty ;
+    rdfs:domain ontospecies:MolecularFormula ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Molecular formula string (e.g., 'C12H8O4')" ;
+    rdfs:isDefinedBy ontospecies: .
+
+# Atomic weight property
+ontospecies:hasAtomicWeightValue a owl:DatatypeProperty ;
+    rdfs:domain ontospecies:AtomicWeight ;
+    rdfs:range xsd:float ;
+    rdfs:comment "Atomic weight value in atomic mass units" ;
+    rdfs:isDefinedBy ontospecies: .
+
+# =============================================================================
+# ADDITIONAL USEFUL PROPERTIES
+# =============================================================================
+
+# Element properties
+ontospecies:hasElementName a owl:DatatypeProperty ;
+    rdfs:domain periodic:Element ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Name of an element (e.g., 'Carbon', 'Hydrogen')" ;
+    rdfs:isDefinedBy ontospecies: .
+
+ontospecies:hasElementSymbol a owl:DatatypeProperty ;
+    rdfs:domain periodic:Element ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Chemical symbol of an element (e.g., 'C', 'H', 'O')" ;
+    rdfs:isDefinedBy ontospecies: .
+
+# Weight percentage element-specific properties
+ontospecies:hasElement a owl:ObjectProperty ;
+    rdfs:domain ontospecies:WeightPercentage ;
+    rdfs:range periodic:Element ;
+    rdfs:comment "A weight percentage is for a specific element" ;
+    rdfs:isDefinedBy ontospecies: .
+
+ontospecies:hasPercentageValue a owl:DatatypeProperty ;
+    rdfs:domain ontospecies:WeightPercentage ;
+    rdfs:range xsd:float ;
+    rdfs:comment "The actual percentage value" ;
+    rdfs:isDefinedBy ontospecies: .
+
+# =============================================================================
+# RDFS PROPERTIES (Standard)
+# =============================================================================
+
+# rdfs:label property
+rdfs:label a rdf:Property ;
+    rdfs:domain rdfs:Resource ;
+    rdfs:range rdfs:Literal ;
+    rdfs:comment "Provides a human-readable version of a resource's name" .
+
+# rdfs:comment property
+rdfs:comment a rdf:Property ;
+    rdfs:domain rdfs:Resource ;
+    rdfs:range rdfs:Literal ;
+    rdfs:comment "A human-readable description of a resource" .
+
+# rdfs:subClassOf property
+rdfs:subClassOf a rdf:Property ;
+    rdfs:domain rdfs:Class ;
+    rdfs:range rdfs:Class ;
+    rdfs:comment "The subject is a subclass of a class" .

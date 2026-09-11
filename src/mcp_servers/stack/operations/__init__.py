@@ -1,1 +1,0 @@
-# Operations package for stack MCP server functions 

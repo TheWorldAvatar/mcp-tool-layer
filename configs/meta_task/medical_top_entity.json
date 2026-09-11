@@ -1,0 +1,7 @@
+{
+  "status": "known",
+  "class_local": "MedicalCase",
+  "class_iri": "https://www.theworldavatar.com/kg/medical/MedicalCase",
+  "rationale": "Pinned OntoMed root: one operative episode / hospital stay is one MedicalCase.",
+  "evidence": ["MedicalCase", "hasPatientInfo"]
+}

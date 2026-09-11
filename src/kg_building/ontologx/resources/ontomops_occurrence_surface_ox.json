@@ -1,0 +1,70 @@
+{
+  "schema_version": "ox-strict-noprompt-surface.v1",
+  "source_artifact": "ai_generated_contents_occurrence_surface_20260904_from_human_domain",
+  "domain": "ontomops",
+  "bound_root": "ontosyn:ChemicalSynthesis",
+  "note": "Compiled from the Pipeline occurrence MCP ownership map and parent-link writers. No TBox comments.",
+  "owner_occurrences": [
+    {
+      "owner_class": "ChemicalBuildingUnit",
+      "parent_predicate": "hasChemicalBuildingUnit",
+      "parent_is_bound_root": false,
+      "ordered": false,
+      "allowed_arguments": [
+        "label",
+        "parent_iri",
+        "hasCBUFormula",
+        "sameAs_label"
+      ],
+      "self_facets": [
+        "hasCBUFormula"
+      ],
+      "nested_ownership": [
+        {
+          "argument": "sameAs_label",
+          "owner_path": "self.sameAs",
+          "property": "sameAs",
+          "role": "fresh_dependent_label",
+          "requires": []
+        }
+      ]
+    },
+    {
+      "owner_class": "MetalOrganicPolyhedron",
+      "parent_predicate": "",
+      "parent_is_bound_root": false,
+      "ordered": false,
+      "allowed_arguments": [
+        "label",
+        "hasCCDCNumber",
+        "hasMOPFormula",
+        "hasChemicalBuildingUnit_label",
+        "hasChemicalBuildingUnit_hasCBUFormula"
+      ],
+      "self_facets": [
+        "hasCCDCNumber",
+        "hasMOPFormula"
+      ],
+      "nested_ownership": [
+        {
+          "argument": "hasChemicalBuildingUnit_hasCBUFormula",
+          "owner_path": "self.hasChemicalBuildingUnit",
+          "property": "hasCBUFormula",
+          "role": "nested_datatype",
+          "requires": [
+            "hasChemicalBuildingUnit_label"
+          ]
+        },
+        {
+          "argument": "hasChemicalBuildingUnit_label",
+          "owner_path": "self.hasChemicalBuildingUnit",
+          "property": "hasChemicalBuildingUnit",
+          "role": "fresh_dependent_label",
+          "requires": []
+        }
+      ]
+    }
+  ],
+  "root_linkers": [],
+  "reusable_classes": []
+}

@@ -1,0 +1,149 @@
+{
+  "schema_version": "domain-generation-config.v1",
+  "domain_id": "ontosynthesis",
+  "ontology_name": "ontosynthesis",
+  "execution_profile": "complex_main",
+  "workflow_profile": "complex",
+  "tbox": {
+    "primary": "data/ontologies/ontosynthesis.ttl",
+    "supporting": [
+      "data/ontologies/ontomops-subgraph.ttl",
+      "data/ontologies/ontospecies-subgraph.ttl",
+      "data/ontologies/om2.ttl"
+    ]
+  },
+  "models": {
+    "top_entity_planning": "gpt-5-2025-08-07",
+    "iteration_planning": "gpt-5-2025-08-07",
+    "script_generation": "gpt-5-2025-08-07",
+    "prompt_generation": "gpt-5-2025-08-07",
+    "reuse_judgment": "gpt-5-2025-08-07",
+    "semantic_review": "gpt-5-2025-08-07",
+    "repair": "gpt-5-2025-08-07",
+    "runtime_extraction": "gpt-4.1-2025-04-14",
+    "runtime_kg_building": "gpt-4o",
+    "semantic_scoring": "gpt-5-2025-08-07"
+  },
+  "mcp_capabilities": {
+    "kg_building": {
+      "set_name": "run_created_mcp.json",
+      "tools": [
+        "llm_created_mcp"
+      ]
+    },
+    "external_enrichment": {
+      "set_name": "chemistry.json",
+      "tools": [
+        "pubchem",
+        "enhanced_websearch",
+        "ccdc"
+      ]
+    },
+    "extensions": {
+      "set_name": "extension.json",
+      "tools": [
+        "mops_extension",
+        "ontospecies_extension",
+        "ccdc"
+      ]
+    }
+  },
+  "runtime": {
+    "scenario_domain": "mops",
+    "vision_required": false,
+    "extra_steps": ["mop_derivation"],
+    "output": {
+      "dir": "ontosynthesis_output",
+      "top_ttl_name": "top.ttl",
+      "entity_ttl_pattern": "{entity_safe}.ttl"
+    },
+    "external_identity_bindings": [
+      {
+        "identity_slot": "{doi}",
+        "target_class_locals": ["Document", "BibliographicResource"],
+        "materialization_iteration": 1
+      }
+    ],
+    "extensions": [
+      {
+        "name": "ontomops",
+        "description": "The ontology for describing metal-organic polyhedra.",
+        "bridge_class_iri": "https://www.theworldavatar.com/kg/ontomops/MetalOrganicPolyhedron",
+        "ttl_file": "data/ontologies/ontomops-subgraph.ttl",
+        "complex_pipeline": false,
+        "output": {
+          "dir": "{ontology_name}_output",
+          "entity_ttl_pattern": "{ontology_name}_extension_{entity_name}.ttl"
+        },
+        "mcp_set_name": "extension.json",
+        "mcp_list": [
+          "mops_extension",
+          "ccdc"
+        ],
+        "agent_model": "gpt-4o"
+      },
+      {
+        "name": "ontospecies",
+        "description": "The ontology for describing chemical species.",
+        "bridge_class_iri": "http://www.theworldavatar.com/ontology/ontospecies/OntoSpecies.owl#Species",
+        "ttl_file": "data/ontologies/ontospecies-subgraph.ttl",
+        "complex_pipeline": false,
+        "output": {
+          "dir": "{ontology_name}_output",
+          "entity_ttl_pattern": "{entity_slugified}.ttl"
+        },
+        "mcp_set_name": "extension.json",
+        "mcp_list": [
+          "ontospecies_extension",
+          "ccdc"
+        ],
+        "agent_model": "gpt-4o"
+      }
+    ],
+    "workflow": {
+      "iterations": [
+        {
+          "model_config_key": "iter2_hints",
+          "use_agent": true,
+          "hint_representation": "semantic-text.v1",
+          "inputs": {
+            "source": "stitched_paper"
+          },
+          "enrichment": []
+        },
+        {
+          "model_config_key": "iter3_hints",
+          "pre_extraction_model_key": "advanced_model",
+          "hint_representation": "semantic-text.v1",
+          "pre_extraction_validation": {
+            "closed_ledger": {
+              "enabled": true,
+              "audit_format_retries": 3,
+              "fail_open_on_audit_format_error": true,
+              "nonblocking_after_semantic_exhaustion": true
+            }
+          },
+          "use_agent": true,
+          "enrichment": []
+        },
+        {
+          "model_config_key": "iter4_hints",
+          "use_agent": false,
+          "hint_representation": "semantic-text.v1",
+          "inputs": {
+            "source": "stitched_paper"
+          },
+          "enrichment": []
+        }
+      ]
+    }
+  },
+  "agents": {
+    "top_entity_extraction": true,
+    "iteration_extraction": true,
+    "external_enrichment": true,
+    "kg_building": true,
+    "prompt_repair": true,
+    "semantic_adjudication": true
+  }
+}

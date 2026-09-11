@@ -3,9 +3,20 @@ requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "mcp_tool_layer"
-version = "0.0.1"
+name = "extraction-prompt-generation"
+version = "0.1.0"
+description = "GPT-5 thick-prompt generation from T-Box plus domain config"
+readme = "README.md"
+requires-python = ">=3.11"
 dependencies = []
+
+[project.scripts]
+extraction-prompt-generation = "src.extraction_prompt_generation.cli:main"
+extraction-runtime = "src.extraction_runtime.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
+include = ["src*", "models*"]
+
+[tool.setuptools.package-data]
+"src.extraction_prompt_generation.compile" = ["*.md"]

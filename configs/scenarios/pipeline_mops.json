@@ -1,0 +1,18 @@
+{
+  "mode": "per_doi",
+  "description": "Chemistry topology only. Tools, top class, iterations, and SPARQL come from configs/domains plus generated/.",
+  "domain": "ontosynthesis",
+  "input_dir": "scenarios/mops/datasets/eval30",
+  "data_dir": "scenarios/mops/runs/_PLACEHOLDER_/runtime",
+  "steps": [
+    "pdf_conversion",
+    "tbox_slim",
+    "top_entity_extraction",
+    "top_entity_kg_building",
+    "main_ontology_extractions",
+    "main_kg_building",
+    "extensions_extractions",
+    "extensions_kg_building",
+    "mop_derivation"
+  ]
+}

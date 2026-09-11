@@ -1,0 +1,273 @@
+{
+  "schema_version": "ox-strict-noprompt-surface.v1",
+  "source_artifact": "mcp-s1",
+  "domain": "medical",
+  "bound_root": "medical:MedicalCase",
+  "note": "Compiled from the Pipeline occurrence MCP ownership map and parent-link writers. No TBox comments.",
+  "owner_occurrences": [
+    {
+      "owner_class": "CaseTimeline",
+      "parent_predicate": "hasTimeline",
+      "parent_is_bound_root": true,
+      "ordered": false,
+      "allowed_arguments": [
+        "label",
+        "parent_iri",
+        "Dauer_d_zwischen_TuKo_und_OP",
+        "Entlassdatum",
+        "OP_Datum",
+        "Same_Day_Surgery",
+        "Verweildauer",
+        "praeop_TuKo"
+      ],
+      "self_facets": [
+        "Dauer_d_zwischen_TuKo_und_OP",
+        "Entlassdatum",
+        "OP_Datum",
+        "Same_Day_Surgery",
+        "Verweildauer",
+        "praeop_TuKo"
+      ],
+      "nested_ownership": []
+    },
+    {
+      "owner_class": "Complication",
+      "parent_predicate": "hasComplication",
+      "parent_is_bound_root": true,
+      "ordered": false,
+      "allowed_arguments": [
+        "label",
+        "parent_iri",
+        "Bronchusstumpf_Anastomoseninsuffizienz",
+        "Clavien_Dindo",
+        "Drainage_Punktion",
+        "Empyem_Komplikation",
+        "Endoskopie",
+        "Fistel",
+        "Haematothorax",
+        "Kommentar",
+        "Komplikation_j_n",
+        "Niereninsuffizienz",
+        "Pneumonie",
+        "Pneumothorax_Komplikation",
+        "Reintubation",
+        "Reoperation",
+        "Tod",
+        "Transfusion",
+        "Wundheilungsstoerung",
+        "andere_nosokomiale_Infektionen",
+        "kardiovaskulaer",
+        "medikamentoese_Therapie",
+        "resp_Insuffizienz"
+      ],
+      "self_facets": [
+        "Bronchusstumpf_Anastomoseninsuffizienz",
+        "Clavien_Dindo",
+        "Drainage_Punktion",
+        "Empyem_Komplikation",
+        "Endoskopie",
+        "Fistel",
+        "Haematothorax",
+        "Kommentar",
+        "Komplikation_j_n",
+        "Niereninsuffizienz",
+        "Pneumonie",
+        "Pneumothorax_Komplikation",
+        "Reintubation",
+        "Reoperation",
+        "Tod",
+        "Transfusion",
+        "Wundheilungsstoerung",
+        "andere_nosokomiale_Infektionen",
+        "kardiovaskulaer",
+        "medikamentoese_Therapie",
+        "resp_Insuffizienz"
+      ],
+      "nested_ownership": []
+    },
+    {
+      "owner_class": "Diagnosis",
+      "parent_predicate": "hasDiagnosis",
+      "parent_is_bound_root": true,
+      "ordered": false,
+      "allowed_arguments": [
+        "label",
+        "parent_iri",
+        "Art_der_Metastasen",
+        "Art_des_Mediastinaltumors",
+        "Destroyed_Lung",
+        "Empyem_Diagnose",
+        "MG",
+        "Mesotheliom",
+        "Metastasen",
+        "NET",
+        "NSCLC",
+        "Pleuraerguss",
+        "Pneumothorax_Diagnose",
+        "SCLC",
+        "Thoraxtrauma_Haematothorax_Rippenfraktur",
+        "Thymom",
+        "Thymus_Ca",
+        "andere_Mediastinaltumoren",
+        "interstitielle_Lungenerkrankung",
+        "sonst_Diagnose"
+      ],
+      "self_facets": [
+        "Art_der_Metastasen",
+        "Art_des_Mediastinaltumors",
+        "Destroyed_Lung",
+        "Empyem_Diagnose",
+        "MG",
+        "Mesotheliom",
+        "Metastasen",
+        "NET",
+        "NSCLC",
+        "Pleuraerguss",
+        "Pneumothorax_Diagnose",
+        "SCLC",
+        "Thoraxtrauma_Haematothorax_Rippenfraktur",
+        "Thymom",
+        "Thymus_Ca",
+        "andere_Mediastinaltumoren",
+        "interstitielle_Lungenerkrankung",
+        "sonst_Diagnose"
+      ],
+      "nested_ownership": []
+    },
+    {
+      "owner_class": "PathologyOutcome",
+      "parent_predicate": "hasPathologyOutcome",
+      "parent_is_bound_root": true,
+      "ordered": false,
+      "allowed_arguments": [
+        "label",
+        "parent_iri",
+        "R0",
+        "R1",
+        "R2",
+        "Stadium"
+      ],
+      "self_facets": [
+        "R0",
+        "R1",
+        "R2",
+        "Stadium"
+      ],
+      "nested_ownership": []
+    },
+    {
+      "owner_class": "PatientInfo",
+      "parent_predicate": "hasPatientInfo",
+      "parent_is_bound_root": true,
+      "ordered": false,
+      "allowed_arguments": [
+        "label",
+        "parent_iri",
+        "Alter",
+        "Fall_Nr",
+        "Geburtsdatum",
+        "Name"
+      ],
+      "self_facets": [
+        "Alter",
+        "Fall_Nr",
+        "Geburtsdatum",
+        "Name"
+      ],
+      "nested_ownership": []
+    },
+    {
+      "owner_class": "Procedure",
+      "parent_predicate": "hasProcedure",
+      "parent_is_bound_root": true,
+      "ordered": false,
+      "allowed_arguments": [
+        "label",
+        "parent_iri",
+        "Angio_Bronchoplastik",
+        "Haematomausraeumung",
+        "ICMB",
+        "Lobektomie_Bilobektomie_5_324_5_325",
+        "Mediastinaltumorresektion_5_342",
+        "Mediastinoskopie_1_586_3_1_691_1_5_401_7_5_402_d",
+        "Pleurektomie_5_344_1_2_u_4_5",
+        "Pleurodese_5_345_ohne_5_345_1_und_ohne_5_345_4",
+        "Pneumonektomie_5_327",
+        "Segmenresektion_5_323_4_7",
+        "Thoraxdrainageneinlage_8_144_0_und_5_340_0",
+        "Thymektomie",
+        "Trachearesektion_und_andere_Eingriffe_an_der_Trachea_5_314_5_316_5_319",
+        "VAMLA_5_404_8",
+        "VATS_Dekortikation_5_344_3_5_345_4",
+        "atypische_Resektion_5_322",
+        "erw_Pneumonektomie_5_328",
+        "expl_Thorakotomie",
+        "offene_Dekortikation_5_344_0_5_344_11_5_344_13_5_345_1",
+        "plast_Rekonstruktion_der_Brustwand_5_346",
+        "sonst_Eingriff"
+      ],
+      "self_facets": [
+        "Angio_Bronchoplastik",
+        "Haematomausraeumung",
+        "ICMB",
+        "Lobektomie_Bilobektomie_5_324_5_325",
+        "Mediastinaltumorresektion_5_342",
+        "Mediastinoskopie_1_586_3_1_691_1_5_401_7_5_402_d",
+        "Pleurektomie_5_344_1_2_u_4_5",
+        "Pleurodese_5_345_ohne_5_345_1_und_ohne_5_345_4",
+        "Pneumonektomie_5_327",
+        "Segmenresektion_5_323_4_7",
+        "Thoraxdrainageneinlage_8_144_0_und_5_340_0",
+        "Thymektomie",
+        "Trachearesektion_und_andere_Eingriffe_an_der_Trachea_5_314_5_316_5_319",
+        "VAMLA_5_404_8",
+        "VATS_Dekortikation_5_344_3_5_345_4",
+        "atypische_Resektion_5_322",
+        "erw_Pneumonektomie_5_328",
+        "expl_Thorakotomie",
+        "offene_Dekortikation_5_344_0_5_344_11_5_344_13_5_345_1",
+        "plast_Rekonstruktion_der_Brustwand_5_346",
+        "sonst_Eingriff"
+      ],
+      "nested_ownership": []
+    },
+    {
+      "owner_class": "SurgicalApproach",
+      "parent_predicate": "hasSurgicalApproach",
+      "parent_is_bound_root": true,
+      "ordered": false,
+      "allowed_arguments": [
+        "label",
+        "parent_iri",
+        "RATS",
+        "VATS",
+        "offen"
+      ],
+      "self_facets": [
+        "RATS",
+        "VATS",
+        "offen"
+      ],
+      "nested_ownership": []
+    },
+    {
+      "owner_class": "SurgicalTeam",
+      "parent_predicate": "hasSurgicalTeam",
+      "parent_is_bound_root": true,
+      "ordered": false,
+      "allowed_arguments": [
+        "label",
+        "parent_iri",
+        "Assistent_in",
+        "Operateur_in"
+      ],
+      "self_facets": [
+        "Assistent_in",
+        "Operateur_in"
+      ],
+      "nested_ownership": []
+    }
+  ],
+  "root_linkers": [],
+  "reusable_classes": []
+}

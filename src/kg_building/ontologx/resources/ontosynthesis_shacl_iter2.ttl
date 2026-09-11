@@ -1,0 +1,162 @@
+@prefix ontosyn: <https://www.theworldavatar.com/kg/OntoSyn/> .
+@prefix om-2: <http://www.ontology-of-units-of-measure.org/resource/om-2/> .
+@prefix ontomops: <https://www.theworldavatar.com/kg/ontomops/> .
+@prefix bibo: <http://purl.org/ontology/bibo/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# OntoSynthesis SHACL for Pipeline iter2 owned surface only.
+# Parallel to resources/iteration_surfaces.json. Not the full-graph oracle.
+# Generated from data/ontologies/ontosynthesis.ttl plus data/ontologies/om2.ttl.
+# slot_kind: foundation
+
+bibo:DocumentShape a sh:NodeShape ;
+  sh:targetClass bibo:Document ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:datatype xsd:string ;
+    sh:minCount 1 ;
+    sh:maxCount 1
+  ] .
+
+ontosyn:ChemicalInputShape a sh:NodeShape ;
+  sh:targetClass ontosyn:ChemicalInput ;
+  sh:property [
+    sh:path ontosyn:isSuppliedBy ;
+    sh:class ontosyn:Supplier ;
+    sh:nodeKind sh:IRI
+  ] ;
+  sh:property [
+    sh:path ontosyn:referencesMaterial ;
+    sh:class <http://www.theworldavatar.com/ontology/ontocape/material/material.owl#Material> ;
+    sh:nodeKind sh:IRI
+  ] ;
+  sh:property [
+    sh:path ontosyn:hasAmount ;
+    sh:datatype xsd:string ;
+    sh:minCount 0 ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path ontosyn:hasPurity ;
+    sh:datatype xsd:string
+  ] ;
+  sh:property [
+    sh:path ontosyn:hasAlternativeNames ;
+    sh:datatype xsd:string
+  ] ;
+  sh:property [
+    sh:path ontosyn:hasChemicalFormula ;
+    sh:datatype xsd:string
+  ] ;
+  sh:property [
+    sh:path ontosyn:hasChemicalDescription ;
+    sh:datatype xsd:string
+  ] ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:datatype xsd:string ;
+    sh:minCount 1 ;
+    sh:maxCount 1
+  ] .
+
+ontosyn:ChemicalOutputShape a sh:NodeShape ;
+  sh:targetClass ontosyn:ChemicalOutput ;
+  sh:property [
+    sh:path ontosyn:isRepresentedBy ;
+    sh:class ontomops:MetalOrganicPolyhedron ;
+    sh:nodeKind sh:IRI
+  ] ;
+  sh:property [
+    sh:path ontosyn:hasAlternativeNames ;
+    sh:datatype xsd:string
+  ] ;
+  sh:property [
+    sh:path ontosyn:hasChemicalFormula ;
+    sh:datatype xsd:string
+  ] ;
+  sh:property [
+    sh:path ontosyn:hasChemicalDescription ;
+    sh:datatype xsd:string
+  ] ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:datatype xsd:string ;
+    sh:minCount 1 ;
+    sh:maxCount 1
+  ] .
+
+ontosyn:ChemicalSynthesisShape a sh:NodeShape ;
+  sh:targetClass ontosyn:ChemicalSynthesis ;
+  sh:property [
+    sh:path ontosyn:hasDocumentContext ;
+    sh:class ontosyn:DocumentContext ;
+    sh:nodeKind sh:IRI ;
+    sh:minCount 0 ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path ontosyn:hasChemicalInput ;
+    sh:class ontosyn:ChemicalInput ;
+    sh:nodeKind sh:IRI
+  ] ;
+  sh:property [
+    sh:path ontosyn:hasChemicalOutput ;
+    sh:class ontosyn:ChemicalOutput ;
+    sh:nodeKind sh:IRI ;
+    sh:minCount 1 ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path ontosyn:retrievedFrom ;
+    sh:class bibo:Document ;
+    sh:nodeKind sh:IRI ;
+    sh:minCount 1
+  ] ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:datatype xsd:string ;
+    sh:minCount 1 ;
+    sh:maxCount 1
+  ] .
+
+ontosyn:DocumentContextShape a sh:NodeShape ;
+  sh:targetClass ontosyn:DocumentContext ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:datatype xsd:string ;
+    sh:minCount 1 ;
+    sh:maxCount 1
+  ] .
+
+ontosyn:EquipmentShape a sh:NodeShape ;
+  sh:targetClass ontosyn:Equipment ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:datatype xsd:string ;
+    sh:minCount 1 ;
+    sh:maxCount 1
+  ] .
+
+ontosyn:SupplierShape a sh:NodeShape ;
+  sh:targetClass ontosyn:Supplier ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:datatype xsd:string ;
+    sh:minCount 1 ;
+    sh:maxCount 1
+  ] .
+
+ontomops:MetalOrganicPolyhedronShape a sh:NodeShape ;
+  sh:targetClass ontomops:MetalOrganicPolyhedron ;
+  sh:property [
+    sh:path ontomops:hasCCDCNumber ;
+    sh:datatype xsd:string
+  ] ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:datatype xsd:string
+  ] .
+

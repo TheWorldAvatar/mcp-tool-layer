@@ -1,293 +1,149 @@
-# MCP-enhanced MOPs Extraction
+# Extraction prompt generation
 
-A multi-stage pipeline for extracting Metal-Organic Polyhedra (MOPs) information from scientific papers using MCP-enhanced LLM agents, producing structured knowledge graphs (TTL).
+Generate extraction prompts and SPARQL from **T-Box + one human domain
+config**. The default model is `gpt-5`; domain config `models.*` can name
+other models. The configured model writes the full (thick) prompt text.
+Companion `*.materializable.inc` files and SPARQL are compiled, not
+authored by the model. MCP scripts are produced by a separate generation
+chain.
 
-## Setup (detailed)
+This repository keeps only that path for:
 
-### Prerequisites
+- OntoSynthesis (`complex_main`)
+- OntoMOPs / OntoSpecies (`simple_extension`)
+- OntoMed / medical (`simple_main`)
 
-- Python **3.11+**
-- (Recommended) **WSL** on Windows for a smoother Linux-like environment
-- Docker (only if you use MCP tools that require it; some tools are stdio-only)
+Do not commit anything under `generated/`. That directory is created by the
+generator and must stay untracked.
 
-### 1) Create a Python environment
+Paths are resolved from the repository root (the directory that contains
+`pyproject.toml` and `configs/domains/`), not from the current working
+directory. You can run the CLI from any folder.
 
-```bash
-# venv
-python -m venv .venv
-source .venv/bin/activate  # Windows PowerShell: .venv\Scripts\Activate.ps1
+## Windows quick start
 
-# or conda
-conda create -n mcp_layer python=3.11
-conda activate mcp_layer
+See [SETUP.md](SETUP.md) for `.env`, PDFs, the scorer checkout, `setup.cmd`,
+and `run.cmd`.
+
+## Prerequisites
+
+1. Python 3.11+
+2. Install generation dependencies from this repository:
+
+```powershell
+pip install -r requirements-generation.txt
+pip install -e .
 ```
 
-### 2) Install dependencies
+After `pip install -e .` you can also run `extraction-prompt-generation ontosynthesis`
+from any directory. Without the editable install, use
+`python -m src.extraction_prompt_generation` with this repository on `PYTHONPATH`
+(the usual way is to start the command from the clone root).
 
-```bash
-pip install -r requirements.txt
+3. Copy `.env.example` to `.env` and set `REMOTE_BASE_URL` plus `REMOTE_API_KEY`.
+   Do not set `ROOT_DIR` unless you need to override the automatic clone
+   discovery.
+
+## Generate one domain
+
+The only required argument is the ontology name. Domain config, T-Boxes,
+and `generated/` are inferred from the repository:
+
+```powershell
+python -m src.extraction_prompt_generation ontosynthesis
+python -m src.extraction_prompt_generation ontomops
+python -m src.extraction_prompt_generation ontospecies
+python -m src.extraction_prompt_generation medical
 ```
 
-### 3) Bootstrap required runtime folders (important)
+Each campaign writes a separate package under
+`generated/runs/<YYYYMMDD_HHMMSS>_<tag>/`. Do not write two models or two
+retries into the same tree. Extensions inherit the parent top entity from
+**that same batch**; generate OntoSyn first, then ontomops / ontospecies.
 
-This repo **git-ignores** many runtime folders (caches, logs, generated prompts/scripts).  
-Some modules (notably `models/locations.py`) **require directories to exist at import time**.
-
-Run:
-
-```bash
-python scripts/bootstrap_repo.py
+```powershell
+python -m src.extraction_prompt_generation --all-domains --tag gpt5_r1 --model gpt-5
+python -m src.extraction_prompt_generation ontomops --tag gpt5_r1
 ```
 
-If you plan to run grounding/lookup agents, also create grounding-cache folders:
+`--tag` reuses the unique existing run with that suffix, or mints a new one.
+`generated/current.json` points at the active batch. Parallel campaigns should
+pass `--no-current`. The extraction runtime reads `current.json`, or
+`--generation-run` / `--generated-root`.
 
-```bash
-python scripts/bootstrap_repo.py --with-grounding-cache ontospecies
+Optional overrides:
+
+| Flag | Default | When to set |
+| --- | --- | --- |
+| `--domain-config` | `configs/domains/<ontology>.json` | The config is not in the conventional place |
+| `--tag` | mint `*_gen` or reuse `current.json` | Separate one model / retry from another |
+| `--model` | domain `models.*` (usually `gpt-5`) | Override planning + authoring + repair |
+| `--output-root` | `generated/runs/<stamp>_<tag>/` | Continue a known package path |
+| `--generation-run` | unset | Existing run id, tag, `current`, or `legacy` |
+| `--all-domains` | off | OntoSyn, then extensions, then medical |
+| `--stage` | `all` | `prompts` = extraction prompts; `context` = planning |
+| `--workers` | `5` | Change concurrent model authoring calls |
+| `--json` | off | Print a machine-readable summary |
+
+```powershell
+python -m src.extraction_prompt_generation ontosynthesis --stage context
+python -m src.extraction_prompt_generation --domain-config configs/domains/medical.json
 ```
 
-### 4) Configure MCP settings
+Each run:
 
-```bash
-cp configs/mcp_configs.json.example configs/mcp_configs.json
+1. Plans the top class or extension focus (default `gpt-5`) and assigns iteration ownership.
+2. The configured model judges which primary-T-Box classes are reusable and at what scope.
+3. Creates empty `.md` slots, then the configured model writes the extraction prompts.
+4. Compiles `*.materializable.inc`, `sparqls/<ontology>/`, and `iterations/<ontology>/iterations.json`.
+
+Inspect `generated/runs/<id>/reports/<ontology>/generation_report.json`.
+
+### Stage shortcuts
+
+| `--stage` | Writes |
+| --- | --- |
+| `all` | Context, then extraction prompts + SPARQL |
+| `prompts` | Extraction prompts + SPARQL + iterations |
+| `context` | Planning / contracts only (model calls for top-class / focus planning and class-reuse judgment) |
+
+See `src/extraction_prompt_generation/generate/extraction_prompts/README.md`.
+KG-building prompts and ONEPASS fragments are not generated.
+
+## What each domain writes
+
+| Domain | Profile | Prompts | SPARQL |
+| --- | --- | --- | --- |
+| ontosynthesis | `complex_main` | `EXTRACTION_ITER_{1,2,3,4}`, `PRE_EXTRACTION_ITER_3` | `top_entity_parsing.sparql` for `ChemicalSynthesis` |
+| ontomops | `simple_extension` | `EXTRACTION_ITER_1` | inherited-root list SPARQL + `enrichment_target.sparql` |
+| ontospecies | `simple_extension` | `EXTRACTION_ITER_2` | same + `enrichment_target.sparql` |
+| medical | `simple_main` | `EXTRACTION_ITER_1`, `EXTRACTION_ITER_2` | `top_entity_parsing.sparql` for `MedicalCase` |
+
+`*.materializable.inc` is compiled next to extraction / pre-extraction prompts
+(except main-ontology ITER 1). Do not edit `.inc` files by hand.
+
+## Class reuse policy
+
+Default generation starts from domain config + T-Box only. After
+deterministic iteration ownership, the compiler asks GPT-5 for a class-reuse
+policy and uses the first valid trial. `reuse_policy.path` remains an
+optional override, not a required input. Do not check generated policy
+files in.
+
+## Config field reference
+
+See [docs/CONFIGS.md](docs/CONFIGS.md) for every human field and which
+files the generator writes.
+
+## Layout
+
+```
+configs/domains/     human domain configs
+configs/mcp/         human MCP set JSON (tool purposes + launch stubs)
+data/ontologies/     human T-Boxes
+src/extraction_prompt_generation/   generator (see that folder's README.md)
+generated/           untracked home: current.json + runs/<batch>/ packages
 ```
 
-Then edit `configs/mcp_configs.json` to reflect your local environment (paths, server commands).
-
-### 5) Configure LLM credentials (if you run LLM agents)
-
-This repo does **not** ship a committed `.env.example`. Create `.env` in the repo root with what your environment expects.
-At minimum, many agents expect something like:
-
-```bash
-API_KEY=...
-BASE_URL=...
-```
-
-Exact keys depend on your `models/ModelConfig.py` / `models/LLMCreator.py` configuration.
-
-### Optional tooling and reproducibility
-
-Several MCP-backed capabilities used during extraction are **optional** and require **separate configuration** beyond the steps above:
-
-- **CCDC** (Cambridge Crystallographic Data Centre): integrating CCDC-backed tooling requires its **own setup and a valid CCDC license**. Without it, parts of crystallographic workflows may be degraded or unavailable.
-- **Web search** (for example `enhanced_websearch` listed in generated iteration configs): typically depends on API keys and MCP server wiring in `configs/mcp_configs.json` (start from `configs/mcp_configs.json.example`).
-
-You can run the pipeline **without** these integrations, but **you should not expect to reproduce the same benchmark-quality scores** we reported when those tools were enabled and correctly configured.
-
-## Common folder layout (fresh clone)
-
-After `python scripts/bootstrap_repo.py`, you should have (among others):
-
-- `data/` (runtime data, cached results; **gitignored**)
-  - `data/log/` (required; some modules error if missing)
-  - `data/ontologies/` (place ontology T-Box TTLs here)
-  - `data/grounding_cache/<ontology>/labels` (optional; for Script C fuzzy lookup)
-- `raw_data/` (PDF inputs; **gitignored**)
-- `sandbox/` (scratch scripts; **gitignored**)
-- `ai_generated_contents*/` (LLM-generated artifacts; **gitignored**)
-
-## Grounding (overview)
-
-There are two “layers”:
-
-1) **Ontology-specific MCP lookup server** (generated for a given ontology)
-2) **Grounding consumer agent** that applies mappings to TTLs
-
-### OntoSpecies lookup MCP server
-
-This repo includes `configs/grounding.json` to run the OntoSpecies lookup server via stdio.
-
-### Ground TTLs (single or batch)
-
-The grounding agent lives at `src/agents/grounding/grounding_agent.py`.
-
-- Single file:
-
-```bash
-python -m src.agents.grounding.grounding_agent --ttl path/to/file.ttl --write-grounded-ttl
-```
-
-- Batch folder (recursively processes `*.ttl`, skipping `*_grounded.ttl` and `*link.ttl`):
-
-```bash
-python -m src.agents.grounding.grounding_agent --batch-dir evaluation/data/merged_tll --write-grounded-ttl
-```
-
-Notes:
-- Internal merge (deduplicating identical nodes across TTLs) runs by default in batch mode; disable with `--no-internal-merge`.
-- Default grounding materialization mode is `replace` (replaces `source_iri` with `grounded_iri`). You can switch to `sameas` with `--grounding-mode sameas`.
-
-## Main extraction entrypoint
-
-The main pipeline entrypoint is `mop_main.py` (see its CLI help):
-
-```bash
-python mop_main.py --help
-```
-
-## Prompt + MCP script generation
-
-Canonical regeneration uses **`agentic_generation_main`**, which writes deterministic MCP modules plus prompts and `iterations.json` under your chosen output root (often `ai_generated_contents_candidate/` when using `scripts/rebuild_pipeline_artifacts.sh`).
-
-### OntoSynthesis + extension ontologies (default meta-task config)
-
-```bash
-python -m src.agents.scripts_and_prompts_generation.agentic_generation_main \
-  --ontology ontosynthesis \
-  --stage all \
-  --output-root ai_generated_contents_candidate \
-  --json
-
-python -m src.agents.scripts_and_prompts_generation.agentic_generation_main \
-  --extensions \
-  --stage all \
-  --output-root ai_generated_contents_candidate \
-  --json
-```
-
-### Medical ontology (example meta-task override)
-
-```bash
-python -m src.agents.scripts_and_prompts_generation.agentic_generation_main \
-  --ontology medical \
-  --meta-task-config configs/meta_task/meta_task_config_medical_non_flat_v3_one_iter.json \
-  --output-root ai_generated_contents_agent_candidate_json_medical_nonflat_one_iter_20260510 \
-  --stage all \
-  --json
-```
-
-### Pointing the runtime pipeline at generated artifacts
-
-Set **`TWA_GENERATED_ARTIFACT_ROOT`** to the directory that contains `iterations/`, `prompts/`, and `scripts/` for the ontology you are running (absolute path recommended on Windows):
-
-```bash
-# POSIX-style shells
-export TWA_GENERATED_ARTIFACT_ROOT="$PWD/ai_generated_contents_agent_candidate_json_medical_nonflat_one_iter_20260510"
-
-# PowerShell
-$env:TWA_GENERATED_ARTIFACT_ROOT = "$(Resolve-Path ai_generated_contents_agent_candidate_json_medical_nonflat_one_iter_20260510)"
-```
-
-Then run `python mop_main.py ...` with your pipeline config as usual.
-
-More detail: [src/agents/scripts_and_prompts_generation/README.md](src/agents/scripts_and_prompts_generation/README.md).
-
-### JSON-patch helpers (optional)
-
-Specialized flows (for example one-shot script compaction) live in `json_patch_*.py` modules next to `agentic_generation_main.py`; see the technical README above.
-
-## Repo maintenance scripts (`scripts/`)
-
-These convenience wrappers help you (a) regenerate the full “pipeline artefacts” and (b) reset the workspace back to a clean state.
-
-### 1) Regenerate *all* pipeline artefacts + promote to production
-
-- Generates **candidate** artefacts via `agentic_generation_main` (iterations, prompts, deterministic MCP scripts)
-- Generates **top-entity parsing SPARQL** (writes into `ai_generated_contents/`; uses `--model` when provided)
-- Promotes candidate prompts + iterations into `ai_generated_contents/` (what the runtime pipeline reads by default)
-- Rewires runtime MCP configs to use the newly generated MCP servers
-
-```bash
-bash scripts/rebuild_pipeline_artifacts.sh
-```
-
-Optional flags:
-
-```bash
-bash scripts/rebuild_pipeline_artifacts.sh --model gpt-5
-bash scripts/rebuild_pipeline_artifacts.sh --direct --model gpt-4o
-bash scripts/rebuild_pipeline_artifacts.sh --model gpt-5.2 --test
-bash scripts/rebuild_pipeline_artifacts.sh --no-promote
-bash scripts/rebuild_pipeline_artifacts.sh --no-rewire-mcp
-```
-
-Main-only (reuse existing candidate scripts, regenerate only `main.py`):
-
-```bash
-bash scripts/rebuild_pipeline_artifacts.sh --test --ontology ontosynthesis --model gpt-4.1 --main-only
-```
-
-Notes:
-- `--direct` is accepted for backwards compatibility but ignored; artifact regeneration is deterministic via `agentic_generation_main`.
-- Optional **`--llm-agent-generation`** on `agentic_generation_main` enables LLM-driven repair passes (not used by this shell wrapper by default).
-
-### 1.5) Rewire which MCP the pipeline uses (NO regeneration; cheap)
-
-If you already have a generated MCP server and want the KG construction pipeline to use it **without rerunning any LLM generation**, use:
-
-```bash
-# Use the already-generated *candidate* MCP server for ontosynthesis
-python scripts/rewire_pipeline_mcp.py \
-  --ontology ontosynthesis \
-  --tree candidate \
-  --mcp-set run_created_mcp.json \
-  --update-meta-task
-```
-
-To switch back to the **production** tree (`ai_generated_contents/`):
-
-```bash
-python scripts/rewire_pipeline_mcp.py \
-  --ontology ontosynthesis \
-  --tree production \
-  --mcp-set run_created_mcp.json \
-  --update-meta-task
-```
-
-Notes:
-- This updates `configs/run_created_mcp.json` (and optionally `configs/meta_task/meta_task_config.json`) and writes timestamped `.bak.*` backups.
-- This does **not** generate or modify any MCP code; it only changes which module is launched for `llm_created_mcp`.
-
-### 2) Clean run outputs + prune `raw_data/` (and clean evaluation artefacts)
-
-- **Dry-run first** (prints what would be deleted):
-
-```bash
-bash scripts/cleanup_results_and_raw_data.sh
-```
-
-- Actually delete (**irreversible**):
-
-```bash
-bash scripts/cleanup_results_and_raw_data.sh --real
-```
-
-By default it keeps only the DOI mapped to hash `0c57bac8` in `raw_data/`. You can override:
-
-```bash
-bash scripts/cleanup_results_and_raw_data.sh --keep-hash 0c57bac8 --real
-```
-
-### 3) Cheap “unit tests” for generation pipeline setup (no LLM calls)
-
-This is the recommended **pre-flight check** before running any expensive generation.
-
-```bash
-bash scripts/test_generation_pipeline.sh
-```
-
-### 4) Real LLM smoke test (1 cheap call)
-
-This makes **one** small LLM call to generate a tiny Python file and verifies it compiles.
-
-```bash
-bash scripts/test_llm_smoke.sh gpt-5.2
-```
-
-## Documentation index
-
-- [docs/Overall.md](docs/Overall.md)
-- [docs/ttl_to_csv_conversion.md](docs/ttl_to_csv_conversion.md)
-- [docs/ocr_fallback_guide.md](docs/ocr_fallback_guide.md)
-- [docs/medical_pdf_extraction_integration.md](docs/medical_pdf_extraction_integration.md)
-- [docs/medical_error_analysis_latest.md](docs/medical_error_analysis_latest.md)
-- [docs/medical_expert_boundary_clarification_request.md](docs/medical_expert_boundary_clarification_request.md)
-- [docs/mcp_generation_checklist.md](docs/mcp_generation_checklist.md)
-- [docs/detailed_mcp_generation_checklist.md](docs/detailed_mcp_generation_checklist.md)
-- [docs/Pre-existing-artifact-inventory.md](docs/Pre-existing-artifact-inventory.md)
-- [docs/ArtefactInventory.md](docs/ArtefactInventory.md)
-- [docs/workspace_cleanup_20260511_MANIFEST.txt](docs/workspace_cleanup_20260511_MANIFEST.txt) (paths moved during workspace archival)
-- [src/agents/scripts_and_prompts_generation/README.md](src/agents/scripts_and_prompts_generation/README.md)
-- [src/agents/grounding/README.md](src/agents/grounding/README.md)
-- [ape_generated_contents/README.md](ape_generated_contents/README.md)
-
+Package layout and per-folder roles:
+[`src/extraction_prompt_generation/README.md`](src/extraction_prompt_generation/README.md).

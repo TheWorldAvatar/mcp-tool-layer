@@ -1,0 +1,60 @@
+@prefix kg: <https://www.theworldavatar.com/kg/> .
+@prefix ontomops: <https://www.theworldavatar.com/kg/ontomops/> .
+
+@prefix dc: <http://purl.org/dc/elements/1.1/> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# Classes
+ontomops:ChemicalBuildingUnit a owl:Class ;
+ rdfs:isDefinedBy kg:ontomops ;
+ rdfs:comment """A Chemical Building Unit is what is used to build a Metal-Organic Polyhedron. Usually, a Metal-Organic Polyhedron has multiple Chemical Building Units,
+metal atoms and ligands. As a result, in most of the cases, there are two Chemical Building Units, one metal and one organic.
+Usually, the input of the synthesis of a Metal-Organic Polyhedron gives some ideas about the Chemical Building Units.
+When the source gives a cage or MOP formula with repeated metal-cluster and linker fragments, create one ChemicalBuildingUnit for each distinct repeated fragment and link all of them to the MetalOrganicPolyhedron.
+When source text names the reagent, precursor, linker, abbreviation, or alias that forms a ChemicalBuildingUnit, connect the ChemicalBuildingUnit to those source species labels using the ontology-declared source-species link.""" .
+
+ontomops:MetalOrganicPolyhedron a owl:Class ;
+ rdfs:isDefinedBy kg:ontomops ;
+ rdfs:subClassOf ontomops:CoordinationCage,
+ ontomops:MolecularCage ;
+ rdfs:comment "A Metal-Organic Polyhedron is a coordination cage or molecular cage that contains a metal ion." .
+
+# Properties
+ontomops:hasCCDCNumber a owl:DatatypeProperty ;
+ rdfs:domain ontomops:MetalOrganicPolyhedron ;
+ rdfs:isDefinedBy kg:ontomops ;
+ rdfs:range xsd:string ;
+ rdfs:comment "The CCDC number of the Metal-Organic Polyhedron. This is an identifying scalar for the MetalOrganicPolyhedron and should be extracted whenever the source states it. If the source gives a list of CCDC numbers for multiple named Metal-Organic Polyhedra, extract the number paired with the current target MetalOrganicPolyhedron label and do not omit it because other CBU fields are present." .
+
+ontomops:hasMOPFormula a owl:DatatypeProperty ;
+ rdfs:domain ontomops:MetalOrganicPolyhedron ;
+ rdfs:isDefinedBy kg:ontomops ;
+ rdfs:range xsd:string ;
+ rdfs:comment "The MOP formula of the Metal-Organic Polyhedron." .
+
+ontomops:hasChemicalBuildingUnit a owl:ObjectProperty ;
+ rdfs:domain ontomops:MetalOrganicPolyhedron ;
+ rdfs:isDefinedBy kg:ontomops ;
+ rdfs:range ontomops:ChemicalBuildingUnit ;
+ rdfs:comment "Links a Metal-Organic Polyhedron to the Chemical Building Units used to construct it. Usually this includes metal-based and organic building units inferred from the MOP formula, reported cage formula, ligand description, metal cluster description, or synthesis inputs. If a paper describes comparable MOPs with different linkers or cages, extract the building units for the current target MOP label from its own formula/context, not only from the first described MOP." .
+
+ontomops:hasCBUFormula a owl:DatatypeProperty ;
+ rdfs:domain ontomops:ChemicalBuildingUnit ;
+ rdfs:isDefinedBy kg:ontomops ;
+ rdfs:range xsd:string ;
+ rdfs:comment "The formula of a Chemical Building Unit. Prefer bracketed building-unit formulae when the source states or implies repeated metal-cluster and organic-linker units in the MOP formula. Do not replace a coordinated building-unit formula with only the neutral reagent molecular formula if the cage formula supports a bracketed fragment. Preserve the fragment formula as a concise bracketed expression enclosed in square brackets. When a cage formula contains repeated grouped fragments, remove only the outer repeat count for the CBU formula and preserve the full repeated group content, including oxo, methoxy, sulfate, carboxylate, and aromatic subgroups that belong to that fragment. Do not simplify a repeated fragment to an empirical formula or to an abbreviation if the source formula supports a structural fragment. If a ChemicalBuildingUnit label is itself a formula-like expression, also record a normalized source-supported expression as hasCBUFormula so the linked target is complete. For source-defined abbreviations inside a cage formula, use the nearby source definition to expand the abbreviation into the coordinated building-unit fragment rather than storing only the abbreviation. For organic carboxylate linkers, record the deprotonated coordinated fragment with carboxylate groups as CO2 units when the source definition supports it; for example, ethyne-linked dibenzoate, sulfonyldibenzoate, and methylenedibenzoate fragments should be represented as bracketed structural fragments [(C6H4C)2(CO2)2], [SO2(C6H4)2(CO2)2], or [CH2(C6H4)2(CO2)2] rather than neutral empirical acid formulae. For tetracarboxylate linkers, keep the aromatic backbone grouped separately from four carboxylate groups when supported by the source formula, for example [(C12H6)(CO2)4], [(C12H6N2)2(CO2)4], [(C14H6)2(CO2)4], [(C18H10)(CO2)4], or [(C26H14)(CO2)4]. For vanadium oxide sulfate cluster fragments, preserve the full oxo/methoxy/sulfate cluster such as [V6O6(OCH3)9(SO4)] rather than a shortened [V6(SO4)3] or a fragment that absorbs linker carboxylates. For metal-cluster fragments, expand source-defined shorthand groups such as cyclopentadienyl into C5H5 units, normalize bridging hydroxide notation to OH, and place the metal/oxo/hydroxo core before ligand groups in the formula value; for example, [Cp3Zr3O(mu2-OH)3] should be normalized as [Zr3O(OH)3(C5H5)3] while preserving the source label separately." .
+
+owl:sameAs a owl:ObjectProperty ;
+ rdfs:domain ontomops:ChemicalBuildingUnit ;
+ rdfs:isDefinedBy kg:ontomops ;
+ rdfs:range owl:Thing ;
+ rdfs:comment "Links a Chemical Building Unit to source-supported chemical species, reagents, abbreviations, aliases, or formulas that denote the species forming that building unit. Use this link to connect each CBU to the paper species that forms it, such as the metal precursor or organic linker named in the synthesis text and materials section. Include all source-supported names and abbreviations for the same source species as separate linked target labels when available. When the source writes a full material name followed by an abbreviation in parentheses, including when line wrapping separates the full name and abbreviation, emit both the full name and abbreviation as separate linked target labels. If the synthesis section gives only an abbreviation, inspect the materials or source-definition section for the corresponding full name and include both when source-supported. For every extracted ChemicalBuildingUnit, if the source states a reagent, precursor, linker, material, abbreviation, or alias that corresponds to that building unit, emit this link; do not omit it for later or comparable MetalOrganicPolyhedron targets." .
+
+# Ontology metadata
+kg:ontomops a owl:Ontology ;
+ dc:date "2024-12-07T19:03:28.517090" ;
+ rdfs:comment "An ontology developed for representing Metal-Organic Polyhedra (MOPs). This is object graph mapper (OGM) version." ;
+ owl:versionInfo "1.1-ogm" .

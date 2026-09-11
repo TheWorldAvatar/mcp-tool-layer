@@ -8,6 +8,15 @@ import os
 from pathlib import Path
 from typing import Optional
 
+from src.mcp_servers.enhanced_websearch.operations.timeout import (
+    call_with_retry,
+    env_float,
+    env_int,
+)
+
+_DEFAULT_TIMEOUT_SEC = 15.0
+_DEFAULT_ATTEMPTS = 3
+
 _DOTENV_LOADED = False
 
 
@@ -105,6 +114,14 @@ def google_search(query: str, page: int = 1) -> str:
         })
 
 
+def _timeout_seconds() -> float:
+    return env_float("SERPER_TIMEOUT_SEC", _DEFAULT_TIMEOUT_SEC)
+
+
+def _attempts() -> int:
+    return env_int("SERPER_ATTEMPTS", _DEFAULT_ATTEMPTS)
+
+
 def _single_search(query: str, api_key: str, page: int) -> str:
     """
     Perform a single page search using Serper API.
@@ -117,34 +134,37 @@ def _single_search(query: str, api_key: str, page: int) -> str:
     Returns:
         JSON string containing the search results for this page
     """
+    timeout_seconds = _timeout_seconds()
+    attempts = _attempts()
+
+    def _do() -> str:
+        conn = http.client.HTTPSConnection("google.serper.dev", timeout=timeout_seconds)
+        try:
+            payload = json.dumps({
+                "q": query,
+                "num": 10,
+                "page": page,
+            })
+            headers = {
+                "X-API-KEY": api_key,
+                "Content-Type": "application/json",
+            }
+            conn.request("POST", "/search", payload, headers)
+            res = conn.getresponse()
+            data = res.read()
+            if res.status >= 500:
+                raise RuntimeError(f"Serper HTTP {res.status}")
+            return data.decode("utf-8")
+        finally:
+            conn.close()
+
     try:
-        # Establish connection to Serper API
-        conn = http.client.HTTPSConnection("google.serper.dev")
-        
-        # Prepare payload
-        payload = json.dumps({
-            "q": query,
-            "num": 10,  # Fixed at 10 results per page
-            "page": page
-        })
-        
-        # Prepare headers
-        headers = {
-            'X-API-KEY': api_key,
-            'Content-Type': 'application/json'
-        }
-        
-        # Make the request
-        conn.request("POST", "/search", payload, headers)
-        res = conn.getresponse()
-        data = res.read()
-        
-        # Close connection
-        conn.close()
-        
-        # Return the response data
-        return data.decode("utf-8")
-        
+        return call_with_retry(
+            f"serper({query!r}, page={page})",
+            _do,
+            timeout_seconds=timeout_seconds,
+            attempts=attempts,
+        )
     except Exception as e:
         return json.dumps({
             "error": f"Error performing single page search: {str(e)}"

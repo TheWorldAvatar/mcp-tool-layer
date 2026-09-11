@@ -1,0 +1,1 @@
+"""Main-ontology hint extraction."""

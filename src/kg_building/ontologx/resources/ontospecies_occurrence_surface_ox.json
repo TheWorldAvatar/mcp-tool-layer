@@ -1,0 +1,671 @@
+{
+  "schema_version": "ox-strict-noprompt-surface.v1",
+  "source_artifact": "ai_generated_contents_occurrence_surface_20260904_from_human_domain",
+  "domain": "ontospecies",
+  "bound_root": "ontosyn:ChemicalSynthesis",
+  "note": "Compiled from the Pipeline occurrence MCP ownership map and parent-link writers. No TBox comments.",
+  "owner_occurrences": [
+    {
+      "owner_class": "AtomicWeight",
+      "parent_predicate": "hasAtomicWeight",
+      "parent_is_bound_root": false,
+      "ordered": false,
+      "allowed_arguments": [
+        "label",
+        "parent_iri",
+        "hasAtomicWeightValue"
+      ],
+      "self_facets": [
+        "hasAtomicWeightValue"
+      ],
+      "nested_ownership": []
+    },
+    {
+      "owner_class": "CCDCNumber",
+      "parent_predicate": "hasCCDCNumber",
+      "parent_is_bound_root": false,
+      "ordered": false,
+      "allowed_arguments": [
+        "label",
+        "parent_iri",
+        "hasCCDCNumberValue"
+      ],
+      "self_facets": [
+        "hasCCDCNumberValue"
+      ],
+      "nested_ownership": []
+    },
+    {
+      "owner_class": "CharacterizationSession",
+      "parent_predicate": "hasCharacterizationSession",
+      "parent_is_bound_root": false,
+      "ordered": false,
+      "allowed_arguments": [
+        "label",
+        "parent_iri",
+        "hasElementalAnalysisDevice_label",
+        "hasElementalAnalysisDevice_hasDeviceName",
+        "hasHNMRDevice_label",
+        "hasHNMRDevice_hasDeviceName",
+        "hasHNMRDevice_hasFrequency",
+        "hasInfraredSpectroscopyDevice_label",
+        "hasInfraredSpectroscopyDevice_hasDeviceName",
+        "usesDevice_label",
+        "usesDevice_hasDeviceName"
+      ],
+      "self_facets": [],
+      "nested_ownership": [
+        {
+          "argument": "hasElementalAnalysisDevice_hasDeviceName",
+          "owner_path": "self.hasElementalAnalysisDevice",
+          "property": "hasDeviceName",
+          "role": "nested_datatype",
+          "requires": [
+            "hasElementalAnalysisDevice_label"
+          ]
+        },
+        {
+          "argument": "hasElementalAnalysisDevice_label",
+          "owner_path": "self.hasElementalAnalysisDevice",
+          "property": "hasElementalAnalysisDevice",
+          "role": "fresh_dependent_label",
+          "requires": []
+        },
+        {
+          "argument": "hasHNMRDevice_hasDeviceName",
+          "owner_path": "self.hasHNMRDevice",
+          "property": "hasDeviceName",
+          "role": "nested_datatype",
+          "requires": [
+            "hasHNMRDevice_label"
+          ]
+        },
+        {
+          "argument": "hasHNMRDevice_hasFrequency",
+          "owner_path": "self.hasHNMRDevice",
+          "property": "hasFrequency",
+          "role": "nested_datatype",
+          "requires": [
+            "hasHNMRDevice_label"
+          ]
+        },
+        {
+          "argument": "hasHNMRDevice_label",
+          "owner_path": "self.hasHNMRDevice",
+          "property": "hasHNMRDevice",
+          "role": "fresh_dependent_label",
+          "requires": []
+        },
+        {
+          "argument": "hasInfraredSpectroscopyDevice_hasDeviceName",
+          "owner_path": "self.hasInfraredSpectroscopyDevice",
+          "property": "hasDeviceName",
+          "role": "nested_datatype",
+          "requires": [
+            "hasInfraredSpectroscopyDevice_label"
+          ]
+        },
+        {
+          "argument": "hasInfraredSpectroscopyDevice_label",
+          "owner_path": "self.hasInfraredSpectroscopyDevice",
+          "property": "hasInfraredSpectroscopyDevice",
+          "role": "fresh_dependent_label",
+          "requires": []
+        },
+        {
+          "argument": "usesDevice_hasDeviceName",
+          "owner_path": "self.usesDevice",
+          "property": "hasDeviceName",
+          "role": "nested_datatype",
+          "requires": [
+            "usesDevice_label"
+          ]
+        },
+        {
+          "argument": "usesDevice_label",
+          "owner_path": "self.usesDevice",
+          "property": "usesDevice",
+          "role": "fresh_dependent_label",
+          "requires": []
+        }
+      ]
+    },
+    {
+      "owner_class": "ChemicalFormula",
+      "parent_predicate": "hasChemicalFormula",
+      "parent_is_bound_root": false,
+      "ordered": false,
+      "allowed_arguments": [
+        "label",
+        "parent_iri",
+        "hasChemicalFormulaValue"
+      ],
+      "self_facets": [
+        "hasChemicalFormulaValue"
+      ],
+      "nested_ownership": []
+    },
+    {
+      "owner_class": "ChemicalShift",
+      "parent_predicate": "hasChemicalShift",
+      "parent_is_bound_root": false,
+      "ordered": false,
+      "allowed_arguments": [
+        "label",
+        "parent_iri"
+      ],
+      "self_facets": [],
+      "nested_ownership": []
+    },
+    {
+      "owner_class": "Device",
+      "parent_predicate": "usesDevice",
+      "parent_is_bound_root": false,
+      "ordered": false,
+      "allowed_arguments": [
+        "label",
+        "parent_iri",
+        "hasDeviceName"
+      ],
+      "self_facets": [
+        "hasDeviceName"
+      ],
+      "nested_ownership": []
+    },
+    {
+      "owner_class": "Element",
+      "parent_predicate": "hasElement",
+      "parent_is_bound_root": false,
+      "ordered": false,
+      "allowed_arguments": [
+        "label",
+        "parent_iri",
+        "hasElementName",
+        "hasElementSymbol",
+        "hasAtomicWeight_label",
+        "hasAtomicWeight_hasAtomicWeightValue"
+      ],
+      "self_facets": [
+        "hasElementName",
+        "hasElementSymbol"
+      ],
+      "nested_ownership": [
+        {
+          "argument": "hasAtomicWeight_hasAtomicWeightValue",
+          "owner_path": "self.hasAtomicWeight",
+          "property": "hasAtomicWeightValue",
+          "role": "nested_datatype",
+          "requires": [
+            "hasAtomicWeight_label"
+          ]
+        },
+        {
+          "argument": "hasAtomicWeight_label",
+          "owner_path": "self.hasAtomicWeight",
+          "property": "hasAtomicWeight",
+          "role": "fresh_dependent_label",
+          "requires": []
+        }
+      ]
+    },
+    {
+      "owner_class": "ElementalAnalysisData",
+      "parent_predicate": "hasElementalAnalysisData",
+      "parent_is_bound_root": false,
+      "ordered": false,
+      "allowed_arguments": [
+        "label",
+        "parent_iri",
+        "hasWeightPercentageCalculated_label",
+        "hasWeightPercentageCalculated_hasPercentageValue",
+        "hasWeightPercentageCalculated_hasWeightPercentageCalculatedValue",
+        "hasWeightPercentageCalculated_hasWeightPercentageExperimentalValue",
+        "hasWeightPercentageExperimental_label",
+        "hasWeightPercentageExperimental_hasPercentageValue",
+        "hasWeightPercentageExperimental_hasWeightPercentageCalculatedValue",
+        "hasWeightPercentageExperimental_hasWeightPercentageExperimentalValue"
+      ],
+      "self_facets": [],
+      "nested_ownership": [
+        {
+          "argument": "hasWeightPercentageCalculated_hasPercentageValue",
+          "owner_path": "self.hasWeightPercentageCalculated",
+          "property": "hasPercentageValue",
+          "role": "nested_datatype",
+          "requires": [
+            "hasWeightPercentageCalculated_label"
+          ]
+        },
+        {
+          "argument": "hasWeightPercentageCalculated_hasWeightPercentageCalculatedValue",
+          "owner_path": "self.hasWeightPercentageCalculated",
+          "property": "hasWeightPercentageCalculatedValue",
+          "role": "nested_datatype",
+          "requires": [
+            "hasWeightPercentageCalculated_label"
+          ]
+        },
+        {
+          "argument": "hasWeightPercentageCalculated_hasWeightPercentageExperimentalValue",
+          "owner_path": "self.hasWeightPercentageCalculated",
+          "property": "hasWeightPercentageExperimentalValue",
+          "role": "nested_datatype",
+          "requires": [
+            "hasWeightPercentageCalculated_label"
+          ]
+        },
+        {
+          "argument": "hasWeightPercentageCalculated_label",
+          "owner_path": "self.hasWeightPercentageCalculated",
+          "property": "hasWeightPercentageCalculated",
+          "role": "fresh_dependent_label",
+          "requires": []
+        },
+        {
+          "argument": "hasWeightPercentageExperimental_hasPercentageValue",
+          "owner_path": "self.hasWeightPercentageExperimental",
+          "property": "hasPercentageValue",
+          "role": "nested_datatype",
+          "requires": [
+            "hasWeightPercentageExperimental_label"
+          ]
+        },
+        {
+          "argument": "hasWeightPercentageExperimental_hasWeightPercentageCalculatedValue",
+          "owner_path": "self.hasWeightPercentageExperimental",
+          "property": "hasWeightPercentageCalculatedValue",
+          "role": "nested_datatype",
+          "requires": [
+            "hasWeightPercentageExperimental_label"
+          ]
+        },
+        {
+          "argument": "hasWeightPercentageExperimental_hasWeightPercentageExperimentalValue",
+          "owner_path": "self.hasWeightPercentageExperimental",
+          "property": "hasWeightPercentageExperimentalValue",
+          "role": "nested_datatype",
+          "requires": [
+            "hasWeightPercentageExperimental_label"
+          ]
+        },
+        {
+          "argument": "hasWeightPercentageExperimental_label",
+          "owner_path": "self.hasWeightPercentageExperimental",
+          "property": "hasWeightPercentageExperimental",
+          "role": "fresh_dependent_label",
+          "requires": []
+        }
+      ]
+    },
+    {
+      "owner_class": "ElementalAnalysisDevice",
+      "parent_predicate": "hasElementalAnalysisDevice",
+      "parent_is_bound_root": false,
+      "ordered": false,
+      "allowed_arguments": [
+        "label",
+        "parent_iri",
+        "hasDeviceName"
+      ],
+      "self_facets": [
+        "hasDeviceName"
+      ],
+      "nested_ownership": []
+    },
+    {
+      "owner_class": "HNMRData",
+      "parent_predicate": "hasHNMRData",
+      "parent_is_bound_root": false,
+      "ordered": false,
+      "allowed_arguments": [
+        "label",
+        "parent_iri",
+        "hasShifts",
+        "hasTemperature",
+        "hasChemicalShift_label",
+        "usesSolvent_label",
+        "usesSolvent_hasSolventName"
+      ],
+      "self_facets": [
+        "hasShifts",
+        "hasTemperature"
+      ],
+      "nested_ownership": [
+        {
+          "argument": "hasChemicalShift_label",
+          "owner_path": "self.hasChemicalShift",
+          "property": "hasChemicalShift",
+          "role": "fresh_dependent_label",
+          "requires": []
+        },
+        {
+          "argument": "usesSolvent_hasSolventName",
+          "owner_path": "self.usesSolvent",
+          "property": "hasSolventName",
+          "role": "nested_datatype",
+          "requires": [
+            "usesSolvent_label"
+          ]
+        },
+        {
+          "argument": "usesSolvent_label",
+          "owner_path": "self.usesSolvent",
+          "property": "usesSolvent",
+          "role": "fresh_dependent_label",
+          "requires": []
+        }
+      ]
+    },
+    {
+      "owner_class": "HNMRDevice",
+      "parent_predicate": "hasHNMRDevice",
+      "parent_is_bound_root": false,
+      "ordered": false,
+      "allowed_arguments": [
+        "label",
+        "parent_iri",
+        "hasDeviceName",
+        "hasFrequency"
+      ],
+      "self_facets": [
+        "hasDeviceName",
+        "hasFrequency"
+      ],
+      "nested_ownership": []
+    },
+    {
+      "owner_class": "InfraredBand",
+      "parent_predicate": "hasInfraredBand",
+      "parent_is_bound_root": false,
+      "ordered": false,
+      "allowed_arguments": [
+        "label",
+        "parent_iri"
+      ],
+      "self_facets": [],
+      "nested_ownership": []
+    },
+    {
+      "owner_class": "InfraredSpectroscopyData",
+      "parent_predicate": "hasInfraredSpectroscopyData",
+      "parent_is_bound_root": false,
+      "ordered": false,
+      "allowed_arguments": [
+        "label",
+        "parent_iri",
+        "hasBands",
+        "hasInfraredBand_label",
+        "usesMaterial_label",
+        "usesMaterial_hasMaterialName"
+      ],
+      "self_facets": [
+        "hasBands"
+      ],
+      "nested_ownership": [
+        {
+          "argument": "hasInfraredBand_label",
+          "owner_path": "self.hasInfraredBand",
+          "property": "hasInfraredBand",
+          "role": "fresh_dependent_label",
+          "requires": []
+        },
+        {
+          "argument": "usesMaterial_hasMaterialName",
+          "owner_path": "self.usesMaterial",
+          "property": "hasMaterialName",
+          "role": "nested_datatype",
+          "requires": [
+            "usesMaterial_label"
+          ]
+        },
+        {
+          "argument": "usesMaterial_label",
+          "owner_path": "self.usesMaterial",
+          "property": "usesMaterial",
+          "role": "fresh_dependent_label",
+          "requires": []
+        }
+      ]
+    },
+    {
+      "owner_class": "InfraredSpectroscopyDevice",
+      "parent_predicate": "hasInfraredSpectroscopyDevice",
+      "parent_is_bound_root": false,
+      "ordered": false,
+      "allowed_arguments": [
+        "label",
+        "parent_iri",
+        "hasDeviceName"
+      ],
+      "self_facets": [
+        "hasDeviceName"
+      ],
+      "nested_ownership": []
+    },
+    {
+      "owner_class": "Material",
+      "parent_predicate": "usesMaterial",
+      "parent_is_bound_root": false,
+      "ordered": false,
+      "allowed_arguments": [
+        "label",
+        "parent_iri",
+        "hasMaterialName"
+      ],
+      "self_facets": [
+        "hasMaterialName"
+      ],
+      "nested_ownership": []
+    },
+    {
+      "owner_class": "MolecularFormula",
+      "parent_predicate": "hasMolecularFormula",
+      "parent_is_bound_root": false,
+      "ordered": false,
+      "allowed_arguments": [
+        "label",
+        "parent_iri",
+        "hasMolecularFormulaValue"
+      ],
+      "self_facets": [
+        "hasMolecularFormulaValue"
+      ],
+      "nested_ownership": []
+    },
+    {
+      "owner_class": "Solvent",
+      "parent_predicate": "usesSolvent",
+      "parent_is_bound_root": false,
+      "ordered": false,
+      "allowed_arguments": [
+        "label",
+        "parent_iri",
+        "hasSolventName"
+      ],
+      "self_facets": [
+        "hasSolventName"
+      ],
+      "nested_ownership": []
+    },
+    {
+      "owner_class": "Species",
+      "parent_predicate": "",
+      "parent_is_bound_root": false,
+      "ordered": false,
+      "allowed_arguments": [
+        "label",
+        "hasProductName",
+        "hasCCDCNumber_label",
+        "hasCCDCNumber_hasCCDCNumberValue",
+        "hasCharacterizationSession_label",
+        "hasChemicalFormula_label",
+        "hasChemicalFormula_hasChemicalFormulaValue",
+        "hasElementalAnalysisData_label",
+        "hasHNMRData_label",
+        "hasHNMRData_hasShifts",
+        "hasHNMRData_hasTemperature",
+        "hasInfraredSpectroscopyData_label",
+        "hasInfraredSpectroscopyData_hasBands",
+        "hasMolecularFormula_label",
+        "hasMolecularFormula_hasMolecularFormulaValue"
+      ],
+      "self_facets": [
+        "hasProductName"
+      ],
+      "nested_ownership": [
+        {
+          "argument": "hasCCDCNumber_hasCCDCNumberValue",
+          "owner_path": "self.hasCCDCNumber",
+          "property": "hasCCDCNumberValue",
+          "role": "nested_datatype",
+          "requires": [
+            "hasCCDCNumber_label"
+          ]
+        },
+        {
+          "argument": "hasCCDCNumber_label",
+          "owner_path": "self.hasCCDCNumber",
+          "property": "hasCCDCNumber",
+          "role": "fresh_dependent_label",
+          "requires": []
+        },
+        {
+          "argument": "hasCharacterizationSession_label",
+          "owner_path": "self.hasCharacterizationSession",
+          "property": "hasCharacterizationSession",
+          "role": "fresh_dependent_label",
+          "requires": []
+        },
+        {
+          "argument": "hasChemicalFormula_hasChemicalFormulaValue",
+          "owner_path": "self.hasChemicalFormula",
+          "property": "hasChemicalFormulaValue",
+          "role": "nested_datatype",
+          "requires": [
+            "hasChemicalFormula_label"
+          ]
+        },
+        {
+          "argument": "hasChemicalFormula_label",
+          "owner_path": "self.hasChemicalFormula",
+          "property": "hasChemicalFormula",
+          "role": "fresh_dependent_label",
+          "requires": []
+        },
+        {
+          "argument": "hasElementalAnalysisData_label",
+          "owner_path": "self.hasElementalAnalysisData",
+          "property": "hasElementalAnalysisData",
+          "role": "fresh_dependent_label",
+          "requires": []
+        },
+        {
+          "argument": "hasHNMRData_hasShifts",
+          "owner_path": "self.hasHNMRData",
+          "property": "hasShifts",
+          "role": "nested_datatype",
+          "requires": [
+            "hasHNMRData_label"
+          ]
+        },
+        {
+          "argument": "hasHNMRData_hasTemperature",
+          "owner_path": "self.hasHNMRData",
+          "property": "hasTemperature",
+          "role": "nested_datatype",
+          "requires": [
+            "hasHNMRData_label"
+          ]
+        },
+        {
+          "argument": "hasHNMRData_label",
+          "owner_path": "self.hasHNMRData",
+          "property": "hasHNMRData",
+          "role": "fresh_dependent_label",
+          "requires": []
+        },
+        {
+          "argument": "hasInfraredSpectroscopyData_hasBands",
+          "owner_path": "self.hasInfraredSpectroscopyData",
+          "property": "hasBands",
+          "role": "nested_datatype",
+          "requires": [
+            "hasInfraredSpectroscopyData_label"
+          ]
+        },
+        {
+          "argument": "hasInfraredSpectroscopyData_label",
+          "owner_path": "self.hasInfraredSpectroscopyData",
+          "property": "hasInfraredSpectroscopyData",
+          "role": "fresh_dependent_label",
+          "requires": []
+        },
+        {
+          "argument": "hasMolecularFormula_hasMolecularFormulaValue",
+          "owner_path": "self.hasMolecularFormula",
+          "property": "hasMolecularFormulaValue",
+          "role": "nested_datatype",
+          "requires": [
+            "hasMolecularFormula_label"
+          ]
+        },
+        {
+          "argument": "hasMolecularFormula_label",
+          "owner_path": "self.hasMolecularFormula",
+          "property": "hasMolecularFormula",
+          "role": "fresh_dependent_label",
+          "requires": []
+        }
+      ]
+    },
+    {
+      "owner_class": "WeightPercentage",
+      "parent_predicate": "",
+      "parent_is_bound_root": false,
+      "ordered": false,
+      "allowed_arguments": [
+        "label",
+        "hasPercentageValue",
+        "hasWeightPercentageCalculatedValue",
+        "hasWeightPercentageExperimentalValue",
+        "hasElement_label",
+        "hasElement_hasElementName",
+        "hasElement_hasElementSymbol"
+      ],
+      "self_facets": [
+        "hasPercentageValue",
+        "hasWeightPercentageCalculatedValue",
+        "hasWeightPercentageExperimentalValue"
+      ],
+      "nested_ownership": [
+        {
+          "argument": "hasElement_hasElementName",
+          "owner_path": "self.hasElement",
+          "property": "hasElementName",
+          "role": "nested_datatype",
+          "requires": [
+            "hasElement_label"
+          ]
+        },
+        {
+          "argument": "hasElement_hasElementSymbol",
+          "owner_path": "self.hasElement",
+          "property": "hasElementSymbol",
+          "role": "nested_datatype",
+          "requires": [
+            "hasElement_label"
+          ]
+        },
+        {
+          "argument": "hasElement_label",
+          "owner_path": "self.hasElement",
+          "property": "hasElement",
+          "role": "fresh_dependent_label",
+          "requires": []
+        }
+      ]
+    }
+  ],
+  "root_linkers": [],
+  "reusable_classes": []
+}

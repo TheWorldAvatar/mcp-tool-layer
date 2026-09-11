@@ -1,0 +1,37 @@
+{
+  "_mcp_set_policy": {
+    "tool_purposes": {
+      "ccdc": "Resolve source-supported crystallographic identities and explicit CCDC identifiers; never infer a crystal identity from a similar name or structure."
+    }
+  },
+  "mops_extension": {
+    "command": "python",
+    "args": [
+      "-m",
+      "generated.scripts.ontomops.main"
+    ],
+    "env": {
+      "TWA_AGENTIC_DATA_DIR": "${TWA_AGENTIC_DATA_DIR}"
+    },
+    "transport": "stdio"
+  },
+  "ontospecies_extension": {
+    "command": "python",
+    "args": [
+      "-m",
+      "generated.scripts.ontospecies.main"
+    ],
+    "env": {
+      "TWA_AGENTIC_DATA_DIR": "${TWA_AGENTIC_DATA_DIR}"
+    },
+    "transport": "stdio"
+  },
+  "ccdc": {
+    "command": "python",
+    "args": [
+      "-m",
+      "src.mcp_servers.ccdc.main"
+    ],
+    "transport": "stdio"
+  }
+}

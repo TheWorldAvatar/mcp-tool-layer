@@ -1,0 +1,331 @@
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix om2:  <http://www.ontology-of-units-of-measure.org/resource/om-2/> .
+
+
+
+om2:Quantity a owl:Class ;
+  rdfs:label "Quantity" .
+
+om2:Temperature a owl:Class ;
+  rdfs:subClassOf om2:Quantity ;
+  rdfs:label "Temperature" .
+
+om2:Pressure a owl:Class ;
+  rdfs:subClassOf om2:Quantity ;
+  rdfs:label "Pressure" .
+
+om2:Duration a owl:Class ;
+  rdfs:subClassOf om2:Quantity ;
+  rdfs:label "Duration" .
+
+om2:Volume a owl:Class ;
+  rdfs:subClassOf om2:Quantity ;
+  rdfs:label "Volume" .
+
+om2:TemperatureRate a owl:Class ;
+  rdfs:subClassOf om2:Quantity ;
+  rdfs:label "TemperatureRate" .
+
+om2:AmountOfSubstanceFraction a owl:Class ;
+  rdfs:subClassOf om2:Quantity ;
+  rdfs:label "AmountOfSubstanceFraction" .
+
+om2:Mass a owl:Class ;
+  rdfs:subClassOf om2:Quantity ;
+  rdfs:label "Mass" .
+
+om2:AmountOfSubstance a owl:Class ;
+  rdfs:subClassOf om2:Quantity ;
+  rdfs:label "AmountOfSubstance" .
+
+om2:AmountOfSubstanceConcentration a owl:Class ;
+  rdfs:subClassOf om2:Quantity ;
+  rdfs:label "AmountOfSubstanceConcentration" .
+
+om2:MassConcentration a owl:Class ;
+  rdfs:subClassOf om2:Quantity ;
+  rdfs:label "MassConcentration" .
+
+om2:Density a owl:Class ;
+  rdfs:subClassOf om2:Quantity ;
+  rdfs:label "Density" .
+
+om2:Length a owl:Class ;
+  rdfs:subClassOf om2:Quantity ;
+  rdfs:label "Length" .
+
+om2:Frequency a owl:Class ;
+  rdfs:subClassOf om2:Quantity ;
+  rdfs:label "Frequency" .
+
+om2:Energy a owl:Class ;
+  rdfs:subClassOf om2:Quantity ;
+  rdfs:label "Energy" .
+
+om2:Power a owl:Class ;
+  rdfs:subClassOf om2:Quantity ;
+  rdfs:label "Power" .
+
+om2:VolumetricFlowRate a owl:Class ;
+  rdfs:subClassOf om2:Quantity ;
+  rdfs:label "VolumetricFlowRate" .
+
+om2:MolarMass a owl:Class ;
+  rdfs:subClassOf om2:Quantity ;
+  rdfs:label "MolarMass" .
+
+om2:Wavenumber a owl:Class ;
+  rdfs:subClassOf om2:Quantity ;
+  rdfs:label "Wavenumber" .
+
+om2:Area a owl:Class ;
+  rdfs:subClassOf om2:Quantity ;
+  rdfs:label "Area" .
+
+om2:SpecificSurfaceArea a owl:Class ;
+  rdfs:subClassOf om2:Quantity ;
+  rdfs:label "SpecificSurfaceArea" .
+
+#################################################################
+# Core properties used by our generated scripts
+#################################################################
+
+om2:hasNumericalValue a owl:DatatypeProperty ;
+  rdfs:label "hasNumericalValue" ;
+  rdfs:domain om2:Quantity ;
+  rdfs:range xsd:double .
+
+om2:hasUnit a owl:ObjectProperty ;
+  rdfs:label "hasUnit" ;
+  rdfs:domain om2:Quantity ;
+  rdfs:range om2:Unit .
+
+#################################################################
+# Unit classes (mock categories for deterministic extraction)
+#################################################################
+
+om2:Unit a owl:Class ;
+  rdfs:label "Unit" .
+
+om2:TemperatureUnit a owl:Class ;
+  rdfs:subClassOf om2:Unit ;
+  rdfs:label "TemperatureUnit" .
+
+om2:PressureUnit a owl:Class ;
+  rdfs:subClassOf om2:Unit ;
+  rdfs:label "PressureUnit" .
+
+om2:DurationUnit a owl:Class ;
+  rdfs:subClassOf om2:Unit ;
+  rdfs:label "DurationUnit" .
+
+om2:VolumeUnit a owl:Class ;
+  rdfs:subClassOf om2:Unit ;
+  rdfs:label "VolumeUnit" .
+
+om2:TemperatureRateUnit a owl:Class ;
+  rdfs:subClassOf om2:Unit ;
+  rdfs:label "TemperatureRateUnit" .
+
+om2:AmountFractionUnit a owl:Class ;
+  rdfs:subClassOf om2:Unit ;
+  rdfs:label "AmountFractionUnit" .
+
+om2:MassUnit a owl:Class ;
+  rdfs:subClassOf om2:Unit ;
+  rdfs:label "MassUnit" .
+
+om2:AmountOfSubstanceUnit a owl:Class ;
+  rdfs:subClassOf om2:Unit ;
+  rdfs:label "AmountOfSubstanceUnit" .
+
+om2:AmountOfSubstanceConcentrationUnit a owl:Class ;
+  rdfs:subClassOf om2:Unit ;
+  rdfs:label "AmountOfSubstanceConcentrationUnit" .
+
+om2:MassConcentrationUnit a owl:Class ;
+  rdfs:subClassOf om2:Unit ;
+  rdfs:label "MassConcentrationUnit" .
+
+om2:DensityUnit a owl:Class ;
+  rdfs:subClassOf om2:Unit ;
+  rdfs:label "DensityUnit" .
+
+om2:LengthUnit a owl:Class ;
+  rdfs:subClassOf om2:Unit ;
+  rdfs:label "LengthUnit" .
+
+om2:FrequencyUnit a owl:Class ;
+  rdfs:subClassOf om2:Unit ;
+  rdfs:label "FrequencyUnit" .
+
+om2:EnergyUnit a owl:Class ;
+  rdfs:subClassOf om2:Unit ;
+  rdfs:label "EnergyUnit" .
+
+om2:PowerUnit a owl:Class ;
+  rdfs:subClassOf om2:Unit ;
+  rdfs:label "PowerUnit" .
+
+om2:VolumetricFlowRateUnit a owl:Class ;
+  rdfs:subClassOf om2:Unit ;
+  rdfs:label "VolumetricFlowRateUnit" .
+
+om2:MolarMassUnit a owl:Class ;
+  rdfs:subClassOf om2:Unit ;
+  rdfs:label "MolarMassUnit" .
+
+om2:WavenumberUnit a owl:Class ;
+  rdfs:subClassOf om2:Unit ;
+  rdfs:label "WavenumberUnit" .
+
+om2:AreaUnit a owl:Class ;
+  rdfs:subClassOf om2:Unit ;
+  rdfs:label "AreaUnit" .
+
+om2:SpecificSurfaceAreaUnit a owl:Class ;
+  rdfs:subClassOf om2:Unit ;
+  rdfs:label "SpecificSurfaceAreaUnit" .
+
+#################################################################
+# Unit individuals (minimal set; labels are the stable API)
+#################################################################
+
+# Temperature
+om2:kelvin a om2:TemperatureUnit ; rdfs:label "kelvin" .
+om2:degreeCelsius a om2:TemperatureUnit ; rdfs:label "degree celsius" .
+om2:degreeFahrenheit a om2:TemperatureUnit ; rdfs:label "degree fahrenheit" .
+
+# Pressure
+om2:pascal a om2:PressureUnit ; rdfs:label "pascal" .
+om2:kilopascal a om2:PressureUnit ; rdfs:label "kilopascal" .
+om2:megapascal a om2:PressureUnit ; rdfs:label "megapascal" .
+om2:bar a om2:PressureUnit ; rdfs:label "bar" .
+om2:standardAtmosphere a om2:PressureUnit ; rdfs:label "atmosphere" .
+om2:torr a om2:PressureUnit ; rdfs:label "torr" .
+om2:millibar a om2:PressureUnit ; rdfs:label "millibar" .
+om2:millimetreOfMercury a om2:PressureUnit ; rdfs:label "millimetre of mercury" .
+om2:poundForcePerSquareInch a om2:PressureUnit ; rdfs:label "pound-force per square inch" .
+om2:gigapascal a om2:PressureUnit ; rdfs:label "gigapascal" .
+om2:hectopascal a om2:PressureUnit ; rdfs:label "hectopascal" .
+om2:kilobar a om2:PressureUnit ; rdfs:label "kilobar" .
+
+# Duration
+om2:second a om2:DurationUnit ; rdfs:label "second" .
+om2:millisecond a om2:DurationUnit ; rdfs:label "millisecond" .
+om2:microsecond a om2:DurationUnit ; rdfs:label "microsecond" .
+om2:nanosecond a om2:DurationUnit ; rdfs:label "nanosecond" .
+om2:picosecond a om2:DurationUnit ; rdfs:label "picosecond" .
+om2:minute a om2:DurationUnit ; rdfs:label "minute" .
+om2:hour a om2:DurationUnit ; rdfs:label "hour" .
+om2:day a om2:DurationUnit ; rdfs:label "day" .
+om2:week a om2:DurationUnit ; rdfs:label "week" .
+om2:month a om2:DurationUnit ; rdfs:label "month" .
+om2:year a om2:DurationUnit ; rdfs:label "year" .
+
+# Temperature rate
+om2:degreeCelsiusPerMinute a om2:TemperatureRateUnit ; rdfs:label "degree celsius per minute" .
+om2:degreeCelsiusPerHour a om2:TemperatureRateUnit ; rdfs:label "degree celsius per hour" .
+om2:kelvinPerMinute a om2:TemperatureRateUnit ; rdfs:label "kelvin per minute" .
+om2:kelvinPerHour a om2:TemperatureRateUnit ; rdfs:label "kelvin per hour" .
+om2:degreeCelsiusPerSecond a om2:TemperatureRateUnit ; rdfs:label "degree celsius per second" .
+om2:kelvinPerSecond a om2:TemperatureRateUnit ; rdfs:label "kelvin per second" .
+
+# Volume
+om2:litre a om2:VolumeUnit ; rdfs:label "liter" .
+om2:millilitre a om2:VolumeUnit ; rdfs:label "milliliter" .
+om2:microlitre a om2:VolumeUnit ; rdfs:label "microliter" .
+om2:nanolitre a om2:VolumeUnit ; rdfs:label "nanoliter" .
+om2:cubicCentimetre a om2:VolumeUnit ; rdfs:label "cubic centimetre" .
+om2:cubicMetre a om2:VolumeUnit ; rdfs:label "cubic metre" .
+om2:picolitre a om2:VolumeUnit ; rdfs:label "picoliter" .
+
+# Amount fraction
+om2:percent a om2:AmountFractionUnit ; rdfs:label "percent" .
+om2:partsPerMillion a om2:AmountFractionUnit ; rdfs:label "parts per million" .
+om2:partsPerBillion a om2:AmountFractionUnit ; rdfs:label "parts per billion" .
+om2:partsPerTrillion a om2:AmountFractionUnit ; rdfs:label "parts per trillion" .
+om2:permille a om2:AmountFractionUnit ; rdfs:label "permille" .
+
+# Mass
+om2:kilogram a om2:MassUnit ; rdfs:label "kilogram" .
+om2:gram a om2:MassUnit ; rdfs:label "gram" .
+om2:milligram a om2:MassUnit ; rdfs:label "milligram" .
+om2:microgram a om2:MassUnit ; rdfs:label "microgram" .
+om2:nanogram a om2:MassUnit ; rdfs:label "nanogram" .
+om2:picogram a om2:MassUnit ; rdfs:label "picogram" .
+
+# Amount of substance
+om2:mole a om2:AmountOfSubstanceUnit ; rdfs:label "mole" .
+om2:millimole a om2:AmountOfSubstanceUnit ; rdfs:label "millimole" .
+om2:micromole a om2:AmountOfSubstanceUnit ; rdfs:label "micromole" .
+om2:nanomole a om2:AmountOfSubstanceUnit ; rdfs:label "nanomole" .
+om2:picomole a om2:AmountOfSubstanceUnit ; rdfs:label "picomole" .
+om2:equivalent a om2:AmountOfSubstanceUnit ; rdfs:label "equivalent" .
+
+# Concentration
+om2:molePerLitre a om2:AmountOfSubstanceConcentrationUnit ; rdfs:label "mole per litre" .
+om2:millimolePerLitre a om2:AmountOfSubstanceConcentrationUnit ; rdfs:label "millimole per litre" .
+om2:micromolePerLitre a om2:AmountOfSubstanceConcentrationUnit ; rdfs:label "micromole per litre" .
+om2:nanomolePerLitre a om2:AmountOfSubstanceConcentrationUnit ; rdfs:label "nanomole per litre" .
+om2:picomolePerLitre a om2:AmountOfSubstanceConcentrationUnit ; rdfs:label "picomole per litre" .
+om2:normal a om2:AmountOfSubstanceConcentrationUnit ; rdfs:label "normal" .
+
+# Mass concentration / density
+om2:gramPerLitre a om2:MassConcentrationUnit ; rdfs:label "gram per litre" .
+om2:milligramPerLitre a om2:MassConcentrationUnit ; rdfs:label "milligram per litre" .
+om2:milligramPerMillilitre a om2:MassConcentrationUnit ; rdfs:label "milligram per millilitre" .
+om2:microgramPerMillilitre a om2:MassConcentrationUnit ; rdfs:label "microgram per millilitre" .
+om2:nanogramPerMillilitre a om2:MassConcentrationUnit ; rdfs:label "nanogram per millilitre" .
+om2:gramPerCubicCentimetre a om2:DensityUnit ; rdfs:label "gram per cubic centimetre" .
+om2:gramPerMillilitre a om2:DensityUnit ; rdfs:label "gram per millilitre" .
+
+# Length
+om2:metre a om2:LengthUnit ; rdfs:label "metre" .
+om2:centimetre a om2:LengthUnit ; rdfs:label "centimetre" .
+om2:millimetre a om2:LengthUnit ; rdfs:label "millimetre" .
+om2:micrometre a om2:LengthUnit ; rdfs:label "micrometre" .
+om2:nanometre a om2:LengthUnit ; rdfs:label "nanometre" .
+om2:angstrom a om2:LengthUnit ; rdfs:label "angstrom" .
+
+# Frequency / rotation
+om2:hertz a om2:FrequencyUnit ; rdfs:label "hertz" .
+om2:kilohertz a om2:FrequencyUnit ; rdfs:label "kilohertz" .
+om2:megahertz a om2:FrequencyUnit ; rdfs:label "megahertz" .
+om2:gigahertz a om2:FrequencyUnit ; rdfs:label "gigahertz" .
+om2:revolutionPerMinute a om2:FrequencyUnit ; rdfs:label "revolution per minute" .
+
+# Energy / power
+om2:joule a om2:EnergyUnit ; rdfs:label "joule" .
+om2:kilojoule a om2:EnergyUnit ; rdfs:label "kilojoule" .
+om2:calorie a om2:EnergyUnit ; rdfs:label "calorie" .
+om2:kilocalorie a om2:EnergyUnit ; rdfs:label "kilocalorie" .
+om2:electronvolt a om2:EnergyUnit ; rdfs:label "electronvolt" .
+om2:joulePerMole a om2:EnergyUnit ; rdfs:label "joule per mole" .
+om2:kilojoulePerMole a om2:EnergyUnit ; rdfs:label "kilojoule per mole" .
+om2:kilocaloriePerMole a om2:EnergyUnit ; rdfs:label "kilocalorie per mole" .
+om2:watt a om2:PowerUnit ; rdfs:label "watt" .
+om2:milliwatt a om2:PowerUnit ; rdfs:label "milliwatt" .
+om2:kilowatt a om2:PowerUnit ; rdfs:label "kilowatt" .
+
+# Flow
+om2:millilitrePerMinute a om2:VolumetricFlowRateUnit ; rdfs:label "millilitre per minute" .
+om2:millilitrePerHour a om2:VolumetricFlowRateUnit ; rdfs:label "millilitre per hour" .
+om2:litrePerMinute a om2:VolumetricFlowRateUnit ; rdfs:label "litre per minute" .
+om2:litrePerHour a om2:VolumetricFlowRateUnit ; rdfs:label "litre per hour" .
+om2:cubicCentimetrePerMinute a om2:VolumetricFlowRateUnit ; rdfs:label "cubic centimetre per minute" .
+om2:microlitrePerMinute a om2:VolumetricFlowRateUnit ; rdfs:label "microlitre per minute" .
+
+# Molar mass / wavenumber / area
+om2:gramPerMole a om2:MolarMassUnit ; rdfs:label "gram per mole" .
+om2:dalton a om2:MolarMassUnit ; rdfs:label "dalton" .
+om2:kilodalton a om2:MolarMassUnit ; rdfs:label "kilodalton" .
+om2:reciprocalCentimetre a om2:WavenumberUnit ; rdfs:label "reciprocal centimetre" .
+om2:squareMetre a om2:AreaUnit ; rdfs:label "square metre" .
+om2:squareCentimetre a om2:AreaUnit ; rdfs:label "square centimetre" .
+om2:squareMetrePerGram a om2:SpecificSurfaceAreaUnit ; rdfs:label "square metre per gram" .
+
+

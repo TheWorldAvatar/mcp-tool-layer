@@ -5,6 +5,16 @@ from src.mcp_servers.enhanced_websearch.operations.docling_fetch import url_to_m
 
 mcp = FastMCP(name="enhanced_websearch")
 
+
+@mcp.prompt(name="instruction")
+def instruction_prompt() -> str:
+    """Provide concise guidance for agents using the search tools."""
+    return (
+        "Use these tools only when external web evidence is needed. "
+        "Search first, fetch only relevant URLs, and preserve source URLs in the result."
+    )
+
+
 @mcp.tool(name="google_search", description="""
 Search Google using Serper API.
 
@@ -18,7 +28,10 @@ def google_search_tool(query: str, page: int = 1) -> str:
     return google_search(query, page)
 
 @mcp.tool(name="url_to_markdown", description="""
-Convert URL content to markdown format using Docling.
+Convert URL content to markdown.
+
+PubChem compound pages return a compact REST summary (CID, formula, SMILES, CAS).
+ACS DOI pages return a Crossref title/abstract card, not the paywalled HTML.
 
 Parameters:
 - url: The URL to fetch and convert to markdown

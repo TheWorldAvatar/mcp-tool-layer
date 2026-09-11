@@ -1,0 +1,10 @@
+{
+  "llm_created_mcp": {
+    "command": "python",
+    "args": [
+      "-m",
+      "generated.scripts.ontosynthesis.main"
+    ],
+    "transport": "stdio"
+  }
+}

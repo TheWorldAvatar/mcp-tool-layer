@@ -1,0 +1,7 @@
+{
+  "status": "known",
+  "class_local": "ChemicalSynthesis",
+  "class_iri": "https://www.theworldavatar.com/kg/OntoSyn/ChemicalSynthesis",
+  "rationale": "Pinned from official occurrence_surface_20260902_indep10.",
+  "evidence": ["ChemicalSynthesis"]
+}

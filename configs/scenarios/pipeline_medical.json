@@ -1,0 +1,17 @@
+{
+  "mode": "per_doi",
+  "description": "OntoMed topology only. Vision PDF conversion is required. No extensions.",
+  "domain": "medical",
+  "input_dir": "scenarios/medical/datasets/eval30",
+  "data_dir": "scenarios/medical/runs/_PLACEHOLDER_/runtime",
+  "vision_pdf_conversion": true,
+  "vision_model": "gpt-4o",
+  "vision_dpi": 150,
+  "steps": [
+    "pdf_conversion",
+    "top_entity_extraction",
+    "top_entity_kg_building",
+    "main_ontology_extractions",
+    "main_kg_building"
+  ]
+}

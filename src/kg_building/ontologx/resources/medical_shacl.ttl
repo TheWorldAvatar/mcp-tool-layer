@@ -1,0 +1,11 @@
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix medical: <https://www.theworldavatar.com/kg/medical/> .
+
+medical:MedicalCaseShape a sh:NodeShape ;
+  sh:targetClass medical:MedicalCase ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:minCount 1 ;
+    sh:message "MedicalCase must have rdfs:label" ;
+  ] .
