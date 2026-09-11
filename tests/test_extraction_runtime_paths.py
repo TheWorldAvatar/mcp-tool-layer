@@ -68,6 +68,7 @@ class ExtractionRuntimeImportTests(unittest.TestCase):
         args = parser.parse_args(["ontosynthesis", "--test"])
         self.assertEqual(args.ontology, "ontosynthesis")
         self.assertTrue(args.test)
+        self.assertEqual(args.workers, 5)
 
     def test_step_modules_import(self) -> None:
         for name in STEP_MODULES:
@@ -538,6 +539,45 @@ class ArtifactAndPaperTests(unittest.TestCase):
             self.assertTrue(
                 (Path(tmp) / "abcd1234" / ".main_ontology_extractions_done").is_file()
             )
+
+    def test_process_hashes_uses_multiple_workers(self) -> None:
+        import threading
+        import time
+
+        from src.extraction_runtime.runner import process_hashes
+
+        current = 0
+        peak = 0
+        lock = threading.Lock()
+
+        def fake_process_doi(**kwargs: object) -> None:
+            nonlocal current, peak
+            with lock:
+                current += 1
+                peak = max(peak, current)
+            time.sleep(0.2)
+            with lock:
+                current -= 1
+
+        domain = load_runtime_domain("ontosynthesis")
+        with tempfile.TemporaryDirectory() as tmp, patch(
+            "src.extraction_runtime.runner.process_doi",
+            side_effect=lambda **kwargs: fake_process_doi(**kwargs),
+        ), patch(
+            "src.extraction_runtime.runner.extraction_steps_complete",
+            return_value=True,
+        ):
+            missing = process_hashes(
+                ["aaaa1111", "bbbb2222", "cccc3333"],
+                steps=["main_ontology_extractions"],
+                config={},
+                data_dir=tmp,
+                domain=domain,
+                test_mcp_config_name=None,
+                max_workers=3,
+            )
+            self.assertEqual(missing, [])
+            self.assertGreaterEqual(peak, 2)
 
     def test_pubchem_filters_catalog_and_registry_junk(self) -> None:
         self.assertTrue(is_redundant_name("Eye Wash Station"))

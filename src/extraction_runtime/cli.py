@@ -14,7 +14,7 @@ from models.generated_layout import resolve_generated_package_root
 from models.locations import repository_root, resolve_under_repository
 from src.extraction_runtime.domain_binding import load_runtime_domain
 from src.extraction_runtime.locked_mechanisms import ONE_SHOT_ENV
-from src.extraction_runtime.runner import run_pipeline
+from src.extraction_runtime.runner import DEFAULT_WORKERS, run_pipeline
 from src.extraction_runtime.slim_extract_defaults import (
     apply_slim_ontosynthesis_extract_defaults,
 )
@@ -111,6 +111,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--input-dir", help="Directory of {doi}.pdf files")
     parser.add_argument("--data-dir", help="Override minted scenario runtime path")
     parser.add_argument("--hash", action="append", dest="hashes", help="Process only this hash")
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=DEFAULT_WORKERS,
+        help=f"Max papers to extract/KG in parallel (default: {DEFAULT_WORKERS}).",
+    )
     parser.add_argument("--test", action="store_true", help="Launch generated MCP from mcp_capabilities")
     parser.add_argument("--resume", action="store_true", help="Keep the existing runtime")
     parser.add_argument("--vision", action="store_true", help="Force vision PDF conversion")
@@ -230,6 +236,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.protocol or args.until or args.compare_one_shot:
         if not args.config or args.protocol or args.compare_one_shot:
             _write_run_config(config_path, config)
+    if args.workers < 1:
+        print("[FAIL] --workers must be at least 1")
+        return 1
     ok = run_pipeline(
         config=config,
         config_path=config_path,
@@ -239,6 +248,7 @@ def main(argv: list[str] | None = None) -> int:
         use_test_mcp=args.test,
         resume_existing_runtime=args.resume,
         vision_override=vision_override,
+        max_workers=args.workers,
     )
     if ok and args.score:
         scorer = resolve_scorer_repo(args.scorer_repo)
@@ -250,6 +260,7 @@ def main(argv: list[str] | None = None) -> int:
             config_path=config_path,
             hashes=args.hashes,
             scorer_repo=scorer,
+            max_workers=args.workers,
         )
     return 0 if ok else 1
 
@@ -260,6 +271,7 @@ def _score_pipeline_run(
     config_path: Path,
     hashes: list[str] | None,
     scorer_repo: Path,
+    max_workers: int = DEFAULT_WORKERS,
 ) -> None:
     import sys
 
@@ -275,7 +287,7 @@ def _score_pipeline_run(
     ox = Path(__file__).resolve().parents[1] / "kg_building" / "ontologx"
     if str(ox) not in sys.path:
         sys.path.insert(0, str(ox))
-    from score_four import convert_runtime, score_four
+    from score_four import convert_runtime_many, score_four
 
     runtime = Path(config["data_dir"])
     if not runtime.is_absolute():
@@ -288,17 +300,18 @@ def _score_pipeline_run(
         paper_hashes = sorted(
             path.name for path in runtime.iterdir() if path.is_dir() and len(path.name) == 8
         )
-    for paper_hash in paper_hashes:
-        convert_runtime(
-            data_dir=runtime,
-            output_dir=merged,
-            paper_hash=paper_hash,
-            converter_repo=scorer_repo,
-        )
-        score_four(
-            pred_root=merged,
-            out_root=scores,
-            paper_hash=paper_hash,
-            scorer_repo=scorer_repo,
-        )
+    convert_runtime_many(
+        data_dir=runtime,
+        output_dir=merged,
+        paper_hashes=paper_hashes,
+        converter_repo=scorer_repo,
+        max_workers=max_workers,
+    )
+    score_four(
+        pred_root=merged,
+        out_root=scores,
+        paper_hashes=paper_hashes,
+        scorer_repo=scorer_repo,
+        max_workers=max_workers,
+    )
 

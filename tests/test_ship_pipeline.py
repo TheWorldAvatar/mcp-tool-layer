@@ -14,6 +14,8 @@ if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
 from ship_lib import (  # noqa: E402
+    DEFAULT_WORKERS,
+    bounded_workers,
     chemistry_score_table,
     find_scorer_repo,
     format_score_report,
@@ -74,6 +76,12 @@ class ShipLibTests(unittest.TestCase):
         self.assertEqual(parse_step(5), 5)
         with self.assertRaises(ValueError):
             parse_step("0")
+
+    def test_bounded_workers(self) -> None:
+        self.assertEqual(bounded_workers(5, 10), 5)
+        self.assertEqual(bounded_workers(5, 2), 2)
+        self.assertEqual(bounded_workers(0, 10), 1)
+        self.assertEqual(DEFAULT_WORKERS, 5)
 
     def test_parse_fine_grained_f1(self) -> None:
         markdown = (
@@ -154,6 +162,9 @@ class ShipCliTests(unittest.TestCase):
         self.assertEqual(args.cases_positional, 10)
         self.assertEqual(args.from_step, "score")
         self.assertTrue(args.dry_run)
+        self.assertEqual(args.workers, 5)
+        args = build_parser().parse_args(["--workers", "3"])
+        self.assertEqual(args.workers, 3)
 
 
 if __name__ == "__main__":

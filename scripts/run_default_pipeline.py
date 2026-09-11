@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -16,6 +17,7 @@ if str(Path(__file__).resolve().parent) not in sys.path:
     sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from ship_lib import (
+    DEFAULT_WORKERS,
     GENERATION_TAG,
     MAIN_PDF_DIR,
     MAIN_RUN_TAG,
@@ -25,6 +27,7 @@ from ship_lib import (
     ONTOMED_RUN_TAG,
     PROTOCOL,
     active_generation_root,
+    bounded_workers,
     campaign_path,
     chemistry_score_table,
     child_env,
@@ -80,6 +83,15 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--generation-tag", default=GENERATION_TAG)
     parser.add_argument("--scorer-repo", default=None)
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=DEFAULT_WORKERS,
+        help=(
+            f"Parallelism for every step (default: {DEFAULT_WORKERS}): "
+            "prompt authoring, MCP compile waves, paper extract/KG, and scoring."
+        ),
+    )
     parser.add_argument("--dry-run", action="store_true")
     return parser
 
@@ -118,6 +130,41 @@ def _module_cmd(module: str, *args: str) -> list[str]:
     return [_python(), "-m", module, *args]
 
 
+def _worker_flags(args: argparse.Namespace) -> list[str]:
+    return ["--workers", str(args.workers)]
+
+
+def _run_jobs_parallel(
+    jobs: list[tuple[str, list[str]]],
+    *,
+    env: dict[str, str],
+    dry_run: bool,
+    workers: int,
+) -> None:
+    if not jobs:
+        return
+
+    def _one(label: str, argv: list[str]) -> tuple[str, int]:
+        return label, run_logged(argv, env=env, dry_run=dry_run)
+
+    pool_n = bounded_workers(workers, len(jobs))
+    if pool_n == 1 or len(jobs) == 1:
+        for label, argv in jobs:
+            rc = run_logged(argv, env=env, dry_run=dry_run)
+            if not command_succeeded(rc):
+                raise SystemExit(f"{label} failed (exit {rc})")
+        return
+    with ThreadPoolExecutor(max_workers=pool_n) as pool:
+        futures = [pool.submit(_one, label, argv) for label, argv in jobs]
+        failures: list[str] = []
+        for future in futures:
+            label, rc = future.result()
+            if not command_succeeded(rc):
+                failures.append(f"{label} (exit {rc})")
+        if failures:
+            raise SystemExit("failed: " + "; ".join(failures))
+
+
 def step_generate(args: argparse.Namespace, env: dict[str, str]) -> Path:
     root = repo_root()
     print("\n=== STEP 1 / 5  GPT-5 extraction prompt generation ===", flush=True)
@@ -133,6 +180,7 @@ def step_generate(args: argparse.Namespace, env: dict[str, str]) -> Path:
                 ontology,
                 "--tag",
                 args.generation_tag,
+                *_worker_flags(args),
             ),
             env=env,
             dry_run=args.dry_run,
@@ -146,26 +194,35 @@ def step_generate(args: argparse.Namespace, env: dict[str, str]) -> Path:
 
 def step_mcp(args: argparse.Namespace, env: dict[str, str], generated_root: Path) -> None:
     print("\n=== STEP 2 / 5  MCP generation (main + OntoMed) ===", flush=True)
-    ontologies: list[str] = []
+    first: list[str] = []
+    second: list[str] = []
     if _want(args.domain, "main"):
         # OntoSyn --test still launches extension MCP servers from domain
         # mcp_capabilities, even when the step list stops at main extraction.
-        ontologies.extend(["ontosynthesis", "ontomops", "ontospecies"])
+        # Extensions need OntoSynthesis compiled first in the same package.
+        first.append("ontosynthesis")
+        second.extend(["ontomops", "ontospecies"])
     if _want(args.domain, "ontomed"):
-        ontologies.append("medical")
-    for ontology in ontologies:
-        rc = run_logged(
-            _module_cmd(
-                "src.kg_building_mcp_generation",
-                ontology,
-                "--output-root",
-                str(generated_root),
-            ),
+        first.append("medical")
+    for wave in (first, second):
+        jobs = [
+            (
+                f"MCP {name}",
+                _module_cmd(
+                    "src.kg_building_mcp_generation",
+                    name,
+                    "--output-root",
+                    str(generated_root),
+                ),
+            )
+            for name in wave
+        ]
+        _run_jobs_parallel(
+            jobs,
             env=env,
             dry_run=args.dry_run,
+            workers=args.workers,
         )
-        if not command_succeeded(rc):
-            raise SystemExit(f"MCP generation failed for {ontology} (exit {rc})")
 
 
 def _mint_extract(
@@ -176,6 +233,7 @@ def _mint_extract(
     generated_root: Path,
     env: dict[str, str],
     dry_run: bool,
+    workers: int,
 ) -> int:
     return run_logged(
         _module_cmd(
@@ -188,6 +246,8 @@ def _mint_extract(
             "--test",
             "--tag",
             tag,
+            "--workers",
+            str(workers),
             *hash_cli(hashes),
         ),
         env=env,
@@ -214,6 +274,7 @@ def step_extract(
             generated_root=generated_root,
             env=env,
             dry_run=args.dry_run,
+            workers=args.workers,
         )
         run_dir = latest_scenario_run("mops", MAIN_RUN_TAG, root=root)
         if args.dry_run:
@@ -253,6 +314,7 @@ def step_extract(
             generated_root=generated_root,
             env=env,
             dry_run=args.dry_run,
+            workers=args.workers,
         )
         run_dir = latest_scenario_run("medical", ONTOMED_RUN_TAG, root=root)
         if args.dry_run:
@@ -296,6 +358,7 @@ def _kg_one(
     hashes: list[str],
     env: dict[str, str],
     dry_run: bool,
+    workers: int,
 ) -> int:
     return run_logged(
         _module_cmd(
@@ -307,6 +370,8 @@ def _kg_one(
             "--protocol",
             PROTOCOL,
             "--test",
+            "--workers",
+            str(workers),
             *hash_cli(hashes),
         ),
         env=env,
@@ -334,6 +399,7 @@ def step_kg(
             hashes=hashes,
             env=env,
             dry_run=args.dry_run,
+            workers=args.workers,
         )
         if not args.dry_run:
             runtime = (root / str(block["run_dir"])) / "runtime"
@@ -356,6 +422,7 @@ def step_kg(
             hashes=hashes,
             env=env,
             dry_run=args.dry_run,
+            workers=args.workers,
         )
         if not args.dry_run:
             runtime = (root / str(block["run_dir"])) / "runtime"
@@ -376,30 +443,32 @@ def _score_chemistry(
     hashes: list[str],
     scorer: Path,
     dry_run: bool,
+    workers: int,
 ) -> dict[str, float | None]:
     ox = ROOT / "src" / "kg_building" / "ontologx"
     if str(ox) not in sys.path:
         sys.path.insert(0, str(ox))
-    from score_four import convert_runtime, score_four
+    from score_four import convert_runtime_many, score_four
 
     runtime = run_dir / "runtime"
     merged = run_dir / "merged"
     scores = run_dir / "scores"
     if dry_run:
-        print(f"[dry-run] convert+score_four → {scores}", flush=True)
+        print(f"[dry-run] convert+score_four workers={workers} → {scores}", flush=True)
         return {name: None for name in ("scoring_chemicals", "scoring_steps", "scoring_characterisation", "scoring_cbu")}
-    for paper_hash in hashes:
-        convert_runtime(
-            data_dir=runtime,
-            output_dir=merged,
-            paper_hash=paper_hash,
-            converter_repo=scorer,
-        )
+    convert_runtime_many(
+        data_dir=runtime,
+        output_dir=merged,
+        paper_hashes=hashes,
+        converter_repo=scorer,
+        max_workers=workers,
+    )
     score_four(
         pred_root=merged,
         out_root=scores,
         paper_hashes=hashes,
         scorer_repo=scorer,
+        max_workers=workers,
     )
     return chemistry_score_table(scores)
 
@@ -489,6 +558,7 @@ def step_score(
             hashes=hashes,
             scorer=scorer,
             dry_run=args.dry_run,
+            workers=args.workers,
         )
     if _want(args.domain, "ontomed"):
         block = campaign.get("ontomed") or {}
@@ -554,6 +624,9 @@ def main(argv: list[str] | None = None) -> int:
     except ValueError as exc:
         print(f"[FAIL] {exc}")
         return 2
+    if args.workers < 1:
+        print("[FAIL] --workers must be at least 1")
+        return 2
     try:
         main_cases = select_eval_cases(cases_count, kind="main")
         medical_cases = select_eval_cases(cases_count, kind="ontomed")
@@ -598,6 +671,7 @@ def main(argv: list[str] | None = None) -> int:
             "cases": cases_count,
             "protocol": PROTOCOL,
             "domain": args.domain,
+            "workers": args.workers,
             "updated_at": datetime.now().isoformat(timespec="seconds"),
         }
     )
@@ -618,6 +692,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"From step: {from_step}")
     print(f"Domain: {args.domain}")
     print(f"Protocol: {PROTOCOL}")
+    print(f"Workers: {args.workers}")
     if _want(args.domain, "main"):
         print("Main hashes: " + ", ".join(_hashes(main_cases)))
     if _want(args.domain, "ontomed"):

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import os
+import traceback
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
@@ -24,6 +26,16 @@ from src.extraction_runtime.slim_extract_defaults import (
     apply_slim_ontosynthesis_extract_defaults,
 )
 from src.extraction_runtime.tolerate import extraction_steps_complete
+
+
+DEFAULT_WORKERS = 5
+
+
+def bounded_workers(requested: int, n_items: int) -> int:
+    count = max(1, int(requested or 1))
+    if n_items <= 0:
+        return 1
+    return min(count, n_items)
 
 
 PIPELINE_ONLY_KEYS = {
@@ -174,6 +186,54 @@ def process_doi(
     return True
 
 
+def process_hashes(
+    doi_hashes: list[str],
+    *,
+    steps: list[str],
+    config: dict[str, Any],
+    data_dir: str,
+    domain: RuntimeDomain,
+    test_mcp_config_name: str | None,
+    max_workers: int,
+) -> list[str]:
+    """Run papers with up to ``max_workers`` threads. Returns incomplete hashes in input order."""
+    workers = bounded_workers(max_workers, len(doi_hashes))
+    print(f"[INFO] Paper workers: {workers} (of {len(doi_hashes)} hashes)\n")
+
+    def _one(doi_hash: str) -> tuple[str, bool]:
+        print(f"\n{'=' * 60}")
+        print(f"Processing: {doi_hash}")
+        print(f"{'=' * 60}")
+        try:
+            process_doi(
+                doi_hash=doi_hash,
+                steps=steps,
+                config=config,
+                data_dir=data_dir,
+                domain=domain,
+                test_mcp_config_name=test_mcp_config_name,
+            )
+        except Exception as exc:
+            print(f"[WARN] {doi_hash} raised; keeping partial artifacts: {exc}")
+            traceback.print_exc()
+        complete = extraction_steps_complete(Path(data_dir) / doi_hash, steps)
+        print(f"\nCompleted: {doi_hash}")
+        return doi_hash, complete
+
+    complete_by_hash: dict[str, bool] = {}
+    if workers == 1:
+        for doi_hash in doi_hashes:
+            paper, ok = _one(doi_hash)
+            complete_by_hash[paper] = ok
+    else:
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            futures = [pool.submit(_one, doi_hash) for doi_hash in doi_hashes]
+            for doi_hash, future in zip(doi_hashes, futures):
+                paper, ok = future.result()
+                complete_by_hash[paper] = ok
+    return [doi_hash for doi_hash in doi_hashes if not complete_by_hash.get(doi_hash)]
+
+
 def run_pipeline(
     *,
     config: dict[str, Any],
@@ -184,6 +244,7 @@ def run_pipeline(
     use_test_mcp: bool = False,
     resume_existing_runtime: bool = False,
     vision_override: bool | None = None,
+    max_workers: int = DEFAULT_WORKERS,
 ) -> bool:
     apply_slim_ontosynthesis_extract_defaults(config, steps_were_explicit=True)
     config["execution_profile"] = domain.execution_profile
@@ -304,22 +365,15 @@ def run_pipeline(
         copy_pdfs_to_data_dir(doi, doi_hash, input_dir, data_dir)
     print()
 
-    incomplete: list[str] = []
-    for doi_hash in doi_hashes:
-        print(f"\n{'=' * 60}")
-        print(f"Processing: {doi_hash}")
-        print(f"{'=' * 60}")
-        process_doi(
-            doi_hash=doi_hash,
-            steps=steps,
-            config=config,
-            data_dir=data_dir,
-            domain=domain,
-            test_mcp_config_name=test_mcp_config_name,
-        )
-        if not extraction_steps_complete(Path(data_dir) / doi_hash, steps):
-            incomplete.append(doi_hash)
-        print(f"\nCompleted: {doi_hash}")
+    incomplete = process_hashes(
+        doi_hashes,
+        steps=steps,
+        config=config,
+        data_dir=data_dir,
+        domain=domain,
+        test_mcp_config_name=test_mcp_config_name,
+        max_workers=max_workers,
+    )
 
     print(f"\n{'=' * 60}")
     if incomplete:

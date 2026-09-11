@@ -7,7 +7,7 @@ Two scripts at the repo root:
 | `setup.cmd` | Creates `.venv`, installs runtime deps, checks `.env` / PDFs / scorer |
 | `run.cmd` | Default 5-step pipeline: generate → MCP → extract → KG (`generic-strict`) → score |
 
-You need Python 3.11+ on PATH. Everything else is copied in next to the clone (none of it is in git).
+You need Python 3.11+ on PATH. **Git does not include** the eval PDFs, `.env`, or the scorer checkout — copy those in yourself after clone.
 
 ## 1. Clone
 
@@ -33,9 +33,11 @@ Any OpenAI-compatible endpoint works. Leave `ROOT_DIR` unset.
 
 Do not commit `.env`.
 
-## 3. Eval PDFs
+## 3. Eval PDFs (not in this repo)
 
-Copy the 30 chemistry papers and 30 medical papers:
+The papers are **not committed**. A fresh clone has no PDFs; `setup.cmd` only creates empty folders. Copy the files yourself into the paths below (from a USB drive, another machine, or an existing checkout).
+
+You need the 30 chemistry papers and 30 medical papers:
 
 | Domain | Folder | Filename rule |
 | --- | --- | --- |
@@ -55,15 +57,27 @@ Step 5 of `run.cmd` scores against gold in **`MCP-enhanced-MOPs-Extraction_Repro
 
 Do not edit that checkout. Gold CSV, merge/conversion, and `evaluation.scoring_*` live there; this repo writes scores under its own `scenarios\...\runs\`.
 
-## 5. Install
+## 5. Python venv and install
 
-From the repo root:
+From the **repo root**, on Windows, with CPython 3.11+:
 
 ```powershell
-setup.cmd
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install -r requirements-runtime.txt
+.\.venv\Scripts\python.exe -m pip install -e .
 ```
 
-Fix any `[WARN]` for empty keys, missing PDFs, or a missing scorer before running.
+That is **not** universal:
+
+| Assumption | If it fails |
+| --- | --- |
+| `python` is 3.11+ on PATH | Official installer: `py -3.11 -m venv .venv`. Avoid the Microsoft Store `python` stub. |
+| Windows layout `.venv\Scripts\` | macOS/Linux use `.venv/bin/python` — this guide is Windows-only. |
+| PowerShell | `.\.venv\...` is required. In `cmd.exe`, `.venv\Scripts\python.exe` also works. |
+| Working directory | Must be the clone root (`pyproject.toml` is here). |
+
+`run.cmd` always calls `.\.venv\Scripts\python.exe`. Or skip the block and run `setup.cmd`, which probes `py -3.13` / `3.12` / `-3.11` then `python`, then installs and checks `.env` / PDFs / scorer.
 
 ## 6. Run
 
@@ -77,6 +91,8 @@ run.cmd --domain ontomed
 ```
 
 `--from-step` starts at that step and continues through scoring (`generate` / `mcp` / `extract` / `kg` / `score`, or `1`–`5`).
+
+Default parallelism is **5 workers** on every step: prompt authoring, MCP compile waves, paper extract/KG, TTL convert, and the four chemistry score modules. Override with `run.cmd --workers 3`. One paper still uses one worker.
 
 Scores print at the end and are also written to `generated\ship_reports\`.
 
@@ -93,8 +109,8 @@ Extraction **mints a new** run. To resume an unfinished extract you already star
 
 | Symptom | Check |
 | --- | --- |
-| `[FAIL] .venv is missing` | Run `setup.cmd` |
+| `[FAIL] .venv is missing` | Run the venv block in §5, or `setup.cmd` |
 | empty `REMOTE_API_KEY` | Fill `.env` |
-| missing PDFs | Names must match the table in §3 |
+| missing PDFs | PDFs are not in git. Copy them into the folders in §3, with those filenames. |
 | scorer not found | Set `SCORER_REPO` |
 | chemistry extract cannot start PubChem | Update to a commit that launches `src.mcp_servers.pubchem.main` (in-repo; no extra clone) |

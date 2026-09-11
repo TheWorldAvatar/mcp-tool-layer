@@ -10,6 +10,7 @@ import json
 import os
 import subprocess
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from paths import REPO_ROOT
@@ -45,6 +46,14 @@ SCORE_MODULES = (
     ),
     ("evaluation.scoring_chemicals", ["--full"]),
 )
+DEFAULT_WORKERS = 5
+
+
+def _bounded_workers(requested: int, n_items: int) -> int:
+    count = max(1, int(requested or 1))
+    if n_items <= 0:
+        return 1
+    return min(count, n_items)
 
 
 def convert_runtime(
@@ -81,6 +90,47 @@ def convert_runtime(
     return subprocess.run(command, cwd=repo, check=False).returncode
 
 
+def convert_runtime_many(
+    *,
+    data_dir: Path,
+    output_dir: Path,
+    paper_hashes: list[str],
+    converter_repo: Path | None = None,
+    extra_args: list[str] | None = None,
+    max_workers: int = DEFAULT_WORKERS,
+) -> dict[str, int]:
+    """Convert papers with up to ``max_workers`` parallel subprocesses."""
+    hashes = [item for item in paper_hashes if str(item).strip()]
+    workers = _bounded_workers(max_workers, len(hashes))
+    print(f"[INFO] Convert workers: {workers} (of {len(hashes)} hashes)", flush=True)
+    results: dict[str, int] = {}
+    if workers == 1:
+        for paper_hash in hashes:
+            results[paper_hash] = convert_runtime(
+                data_dir=data_dir,
+                output_dir=output_dir,
+                paper_hash=paper_hash,
+                converter_repo=converter_repo,
+                extra_args=extra_args,
+            )
+        return results
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = {
+            paper_hash: pool.submit(
+                convert_runtime,
+                data_dir=data_dir,
+                output_dir=output_dir,
+                paper_hash=paper_hash,
+                converter_repo=converter_repo,
+                extra_args=extra_args,
+            )
+            for paper_hash in hashes
+        }
+        for paper_hash, future in futures.items():
+            results[paper_hash] = int(future.result())
+    return results
+
+
 def score_four(
     *,
     pred_root: Path,
@@ -88,6 +138,7 @@ def score_four(
     paper_hash: str | None = None,
     paper_hashes: list[str] | None = None,
     scorer_repo: Path,
+    max_workers: int = DEFAULT_WORKERS,
 ) -> dict[str, int]:
     """Run the four official scorers against pred_root. Writes into out_root only.
 
@@ -104,7 +155,8 @@ def score_four(
     if paper_hash and paper_hash not in step_hashes:
         step_hashes.append(paper_hash)
     results: dict[str, int] = {}
-    for module, flags in SCORE_MODULES:
+
+    def _run_module(module: str, flags: list[str]) -> tuple[str, int]:
         dest = out_root / module.rsplit(".", 1)[-1]
         dest.mkdir(parents=True, exist_ok=True)
         command = [
@@ -121,10 +173,26 @@ def score_four(
             for item in step_hashes:
                 command.extend(["--hash", item])
         print("SCORE", " ".join(command), flush=True)
-        results[module] = subprocess.run(
+        return module, subprocess.run(
             command,
             cwd=scorer_repo,
             env=env,
             check=False,
         ).returncode
+
+    workers = _bounded_workers(max_workers, len(SCORE_MODULES))
+    print(f"[INFO] Score-module workers: {workers} (of {len(SCORE_MODULES)} modules)", flush=True)
+    if workers == 1:
+        for module, flags in SCORE_MODULES:
+            name, code = _run_module(module, list(flags))
+            results[name] = code
+        return results
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = [
+            pool.submit(_run_module, module, list(flags))
+            for module, flags in SCORE_MODULES
+        ]
+        for future in futures:
+            name, code = future.result()
+            results[name] = code
     return results

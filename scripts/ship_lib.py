@@ -19,6 +19,7 @@ GENERATION_TAG = "gpt5"
 MAIN_RUN_TAG = "gsm"
 ONTOMED_RUN_TAG = "gsd"
 PROTOCOL = "generic-strict"
+DEFAULT_WORKERS = 5
 MAX_CASES = 30
 MIN_CASES = 1
 
@@ -203,6 +204,13 @@ def latest_scenario_run(scenario: str, tag: str, *, root: Path | None = None) ->
     if not matches:
         return None
     return sorted(matches, key=lambda path: path.name, reverse=True)[0]
+
+
+def bounded_workers(requested: int, n_items: int) -> int:
+    count = max(1, int(requested or 1))
+    if n_items <= 0:
+        return 1
+    return min(count, n_items)
 
 
 def hash_cli(hashes: list[str]) -> list[str]:
