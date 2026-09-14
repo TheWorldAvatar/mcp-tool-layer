@@ -280,6 +280,12 @@ class ExtractionPromptGenerationSmoke(unittest.TestCase):
             text = dest.read_text(encoding="utf-8")
             self.assertIn("find_or_create_om2_quantity_from_label", text)
             self.assertIn("OM2_UNIT_MAP", text)
+            self.assertIn("degreeCelsiusPerHour", text)
+            self.assertNotIn("from .om2_compile import", text)
+            self.assertNotIn("compile_om2_runtime_tables", text)
+            self.assertNotIn("extraction_prompt_generation.runtime_support.om2", text)
+            self.assertIn("_COMPACT_RE", text)
+            self.assertIn("_UNIT_QUANTITY_CLASSES", text)
 
     def test_parse_all_tboxes(self) -> None:
         expected_classes = {
@@ -709,58 +715,28 @@ class ExtractionPromptGenerationSmoke(unittest.TestCase):
         self.assertEqual(resolve_om2_unit("rpm"), OM2.revolutionPerMinute)
         self.assertEqual(resolve_om2_unit("sccm"), OM2.cubicCentimetrePerMinute)
 
-    def test_om2_parses_yield_ranges_and_qualitative_forms(self) -> None:
+    def test_om2_parses_compact_labels_and_rejects_prose(self) -> None:
+        self.assertEqual(parse_om2_quantity_label("4 degC/h"), (4.0, "degc/h"))
+        self.assertEqual(parse_om2_quantity_label("4 degC / h"), (4.0, "degc/h"))
         self.assertEqual(
-            parse_om2_quantity_label(
-                "18% yield (15 mg, 0.009 mmol) based on H2bdc"
-            ),
-            (18.0, "%"),
+            resolve_om2_unit(parse_om2_quantity_label("150°C")[1]), OM2.degreeCelsius
         )
-        self.assertEqual(
-            parse_om2_quantity_label("0.023 g (52% based on H2DCPP)"),
-            (0.023, "g"),
+        self.assertEqual(parse_om2_quantity_label("0.1 M")[1], "M")
+        self.assertEqual(parse_om2_quantity_label("100 mM")[1], "mM")
+        self.assertEqual(parse_om2_quantity_label("8 h", OM2.Duration), (8.0, "h"))
+        with self.assertRaises(ValueError):
+            parse_om2_quantity_label("slowly cooled at about 4 degC / h")
+        with self.assertRaises(ValueError):
+            parse_om2_quantity_label("4 degC/h", OM2.Duration)
+        with self.assertRaises(ValueError):
+            parse_om2_quantity_label("2 h 30 min")
+        with self.assertRaises(ValueError):
+            parse_om2_quantity_label("~3 h")
+        self.assertIsNone(
+            resolve_qualitative_quantity_preset(OM2.Temperature, "at room temperature")
         )
-        self.assertEqual(parse_om2_quantity_label("15 mg, 0.009 mmol")[1], "mg")
-        self.assertEqual(parse_om2_quantity_label("80-100 °C")[0], 80.0)
-        self.assertEqual(parse_om2_quantity_label("from 80 to 100 °C")[0], 80.0)
-        self.assertEqual(resolve_om2_unit(parse_om2_quantity_label("150°C")[1]), OM2.degreeCelsius)
-        self.assertEqual(parse_om2_quantity_label("~3 h")[0], 3.0)
-        self.assertEqual(parse_om2_quantity_label("ca. 5 mL")[0], 5.0)
-        self.assertEqual(parse_om2_quantity_label("2 h 30 min"), (2.5, "h"))
-        self.assertEqual(parse_om2_quantity_label("0.1 M")[1], "molar")
-        self.assertEqual(parse_om2_quantity_label("100 mM")[1], "mmolar")
-        self.assertEqual(
-            parse_om2_quantity_label(
-                "heated to 80 °C for 12 h", quantity_class=OM2.Duration
-            ),
-            (12.0, "h"),
-        )
-        self.assertEqual(
-            parse_om2_quantity_label(
-                "heated to 80 °C for 12 h", quantity_class=OM2.Temperature
-            )[0],
-            80.0,
-        )
-        self.assertEqual(
-            resolve_qualitative_quantity_preset(OM2.Temperature, "at room temperature"),
-            "room temperature",
-        )
-        self.assertEqual(
-            resolve_qualitative_quantity_preset(OM2.Temperature, "r.t."),
-            "room temperature",
-        )
-        self.assertEqual(
-            resolve_qualitative_quantity_preset(OM2.Duration, "o/n"),
-            "overnight",
-        )
-        self.assertEqual(
-            resolve_qualitative_quantity_preset(OM2.Pressure, "in vacuo"),
-            "vacuum",
-        )
-        self.assertEqual(
-            resolve_qualitative_quantity_preset(OM2.Pressure, "under high vacuum"),
-            "vacuum",
-        )
+        self.assertIsNone(resolve_qualitative_quantity_preset(OM2.Duration, "o/n"))
+        self.assertIsNone(resolve_qualitative_quantity_preset(OM2.Pressure, "in vacuo"))
 
     def test_generic_tbox_conditional_heuristics_remain_in_prompts(self) -> None:
         text = Path(

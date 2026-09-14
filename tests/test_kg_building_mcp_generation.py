@@ -324,7 +324,10 @@ def test_generated_scripts_stay_contract_driven() -> None:
     assert "_existing_ordered_member(" in operations
     assert "def prepare_export_graph()" in operations
     assert "rdf_runtime.prepare_graph_for_export(" in operations
-    assert "extra_keep_roots=extra_keep_roots" in operations
+    assert "extra_keep_roots=extra_keep_roots" not in operations
+    assert "objects(None, _MARKER_RESULT)" not in operations.split(
+        "def prepare_export_graph()", 1
+    )[1].split("def ", 1)[0]
     assert "_MARKER_RESULT" in operations
     assert "def skip_semantic_obligation(" in operations
     assert "rdf_runtime.resolve_semantic_skip(obligation_id, reason)" in operations

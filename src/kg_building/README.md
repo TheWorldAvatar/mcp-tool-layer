@@ -52,3 +52,29 @@ characterisation, CBU). Do not copy the 4k-line scorers into this repo.
 MOP derivation is a post-publish hook. OX only writes
 `ontomops_extension_*.ttl`. If `src.agents.mops.cbu_derivation` is not
 in this clone, the hook records a skip.
+
+## Extraction vs KG attribution
+
+After convert/score, split official FNs by whether the ledger already
+stated the fact (`openai/gpt-5.6-sol`, same model as steps synonyms):
+
+```powershell
+python -m src.kg_building.attribution `
+  --pred-root scenarios/mops/runs/<RUN>/merged `
+  --hint-runs scenarios/mops/runs/<PIPE_RUN> `
+  --hash 0c57bac8 `
+  --out-dir scenarios/mops/runs/<RUN>/attribution
+```
+
+One LLM call per paper: FNs are packed together; FPs stay on the
+fingerprint heuristic (they do not move counterfactual F1).
+`--heuristic-only` skips the LLM. Extraction counterfactual F1 is the
+official score after promoting ledger-supported FNs to TP.
+
+**Reporting (s1–s4 pack-level tables):** Steps F1 must be the
+pre-extension-merge independent 30-pack (`s*p30`: 0.847 / 0.838 / 0.836).
+Do not quote merged `s*yd30`/`s*ys30` steps (0.843 / 0.840 / 0.843).
+s4 has no `s4p30`; keep `s4ys30`/`s4yd30` 0.853 until an OntoSyn-only
+30-score exists. Char graph F1 must be `s*yc30` (s1 0.809), not yd30
+0.788. Chem / CBU stay on yd30. Attribution upper limits stay on the
+yd30 Extraction F1 unless that campaign is re-run.

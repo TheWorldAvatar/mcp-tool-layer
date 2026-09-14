@@ -9,12 +9,7 @@ from typing import Any, Mapping
 from rdflib import Graph, URIRef
 from rdflib.namespace import OWL, RDF, RDFS
 
-from src.extraction_prompt_generation.runtime_support.om2 import (
-    OM2_UNIT_MAP,
-    QUALITATIVE_DURATION_PRESETS,
-    QUALITATIVE_PRESSURE_PRESETS,
-    QUALITATIVE_TEMPERATURE_PRESETS,
-)
+from src.extraction_prompt_generation.runtime_support.om2 import OM2_UNIT_MAP
 
 OM2_NS = "http://www.ontology-of-units-of-measure.org/resource/om-2/"
 EXAMPLE_NUMBER = "1"
@@ -129,17 +124,7 @@ def _unit_local_to_class(graph: Graph, quantity_iris: list[str]) -> dict[str, st
 
 
 def _qualitative_by_class(quantity_iris: list[str]) -> dict[str, dict[str, str]]:
-    presets = {
-        "Temperature": QUALITATIVE_TEMPERATURE_PRESETS,
-        "Duration": QUALITATIVE_DURATION_PRESETS,
-        "Pressure": QUALITATIVE_PRESSURE_PRESETS,
-    }
-    result: dict[str, dict[str, str]] = {}
-    for iri in quantity_iris:
-        table = presets.get(_local(iri))
-        if table:
-            result[iri] = dict(table)
-    return result
+    return {iri: {} for iri in quantity_iris}
 
 
 def _aliases_by_class(unit_local_to_class: dict[str, str]) -> dict[str, list[str]]:

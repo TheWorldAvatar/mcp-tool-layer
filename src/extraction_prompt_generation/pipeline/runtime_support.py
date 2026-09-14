@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 from src.extraction_prompt_generation.compile.context import (
     AgenticGenerationContext,
@@ -16,18 +16,36 @@ from src.extraction_prompt_generation.compile.context import (
 from src.extraction_prompt_generation.pipeline.plan import _iteration_plan
 
 
-def write_fixed_om2_runtime(destination: str | Path) -> Path:
-    """Copy the human-maintained OM-2 helpers next to generated scripts."""
-    source = (
-        Path(__file__).resolve().parents[1]
-        / "runtime_support"
-        / "fixed_om2_runtime.py"
+def write_fixed_om2_runtime(
+    destination: str | Path,
+    *,
+    context: AgenticGenerationContext | None = None,
+    surface: Mapping[str, Any] | None = None,
+) -> Path:
+    """Flatten class-aware OM-2 helpers next to generated scripts.
+
+    Tables come from the v2 quantity surface (``om2.ttl`` plus
+    ``om2_unit_aliases.json``) and are inlined so the generated package does
+    not read those files at runtime.
+    """
+    from src.kg_building_mcp_generation_v2.overlay.om2_runtime_emit import (
+        emit_om2_runtime,
     )
+    from src.kg_building_mcp_generation_v2.overlay.quantity_surface import (
+        compile_quantity_surface,
+    )
+
     path = Path(destination)
     if path.exists() and path.is_dir() or path.suffix != ".py":
         path = path / "_fixed_om2_runtime.py"
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(source.read_text(encoding="utf-8"), encoding="utf-8", newline="\n")
+    compiled = surface
+    if compiled is None:
+        units: Mapping[str, Any] = {}
+        if context is not None:
+            units = (context.contract.get("occurrence_surface_units") or {})
+        compiled = compile_quantity_surface(units, context=context)
+    path.write_text(emit_om2_runtime(compiled), encoding="utf-8", newline="\n")
     return path.resolve()
 
 
@@ -59,7 +77,14 @@ def generate_runtime_support_slice(
     scripts_dir = Path(context.scripts_dir)
     scripts_dir.mkdir(parents=True, exist_ok=True)
     written.append(str(write_fixed_rdf_runtime(scripts_dir / "_fixed_rdf_runtime.py")))
-    written.append(str(write_fixed_om2_runtime(scripts_dir / "_fixed_om2_runtime.py")))
+    written.append(
+        str(
+            write_fixed_om2_runtime(
+                scripts_dir / "_fixed_om2_runtime.py",
+                context=context,
+            )
+        )
+    )
     from src.extraction_prompt_generation.config.namespace import (
         write_runtime_namespace_sidecar,
     )

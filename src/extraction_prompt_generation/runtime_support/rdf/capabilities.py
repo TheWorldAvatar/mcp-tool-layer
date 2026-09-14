@@ -790,8 +790,7 @@ def package_om2_quantity_creator() -> Callable[[str, str], str]:
 def create_om2_quantity(quantity_class_iri: str, label: str) -> str:
     """Create a bounded OM-2 quantity from a compact label.
 
-    Numeric labels use ``<number> <unit>``. Temperature also accepts controlled
-    qualitative labels such as ``room temperature`` without inventing a value.
+    Numeric labels use ``<number> <unit>``. The unit must be a compiled alias.
     """
     try:
         iri = package_om2_quantity_creator()(quantity_class_iri, label)

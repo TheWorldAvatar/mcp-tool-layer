@@ -386,7 +386,14 @@ def prepare_graph_for_export(
     ordered_member_contracts: dict[str, dict[str, str]] | None = None,
     extra_keep_roots: list[str] | None = None,
 ) -> dict[str, Any]:
-    """Apply graph-only export repairs without consulting pipeline hints."""
+    """Apply graph-only export repairs without consulting pipeline hints.
+
+    Reachability is outgoing BFS from the session-bound top entity. Duplicate
+    ordered members are unlinked first, then typed nodes that cannot be reached
+    from that root are dropped. ``extra_keep_roots`` is additional known tops,
+    not mutation fingerprints: an unlinked step must not survive because it was
+    created.
+    """
     graph = retained_graph()
     root_text = bound_root_iri()
     if not root_text:

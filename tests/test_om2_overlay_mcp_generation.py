@@ -100,8 +100,8 @@ def test_quantity_surface_derives_facets_and_unit_classes() -> None:
     duration = surface["classes"][DURATION]
     assert "h" in duration["allowed_unit_aliases"]
     assert duration["example_labels"][0].startswith("1 ")
-    assert not duration["example_labels"][0].startswith("overnight")
-    assert "overnight" in duration["qualitative_labels"]
+    assert duration["qualitative_labels"] == []
+    assert "overnight" not in duration["example_labels"]
     assert "create_HeatChill" in surface["example_calls"]["hasStepDuration"]
     assert surface["compact_example_call"].startswith("create_HeatChill(")
     assert "hasStepDuration=" in surface["compact_example_call"]

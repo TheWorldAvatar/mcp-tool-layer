@@ -610,7 +610,8 @@ def compile_fallback_instruction(compiled: Mapping[str, Any]) -> str:
         "Before export_memory, call every public create_* that matches a ledger heading. "
         "Do not export while any of those tools is still unused. After every "
         "heading has exactly one successful semantic operation, call export_memory once. "
-        "Export applies graph-only orphan pruning and ordered-member repairs without reading "
+        "Export applies graph-only orphan pruning from the bound top entity and "
+        "ordered-member repairs without reading "
         "source hints or a pipeline ledger manifest."
     )
 
