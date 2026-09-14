@@ -13,6 +13,7 @@ from extraction_hints import (
     load_hint_entities,
     set_hint_runs,
 )
+from generate_medical_shacl import write_shapes as write_medical_shapes
 from generate_ontomops_shacl import write_shapes as write_ontomops_shapes
 from generate_ontospecies_shacl import write_shapes as write_ontospecies_shapes
 from graph_merge import (
@@ -233,6 +234,24 @@ def _parse_extension(
     }
 
 
+_MEDICAL_SHACL_MARKERS = (
+    "ExclusiveSurgicalApproachShape",
+    "sh:datatype xsd:integer",
+    'sh:in ( "1"^^xsd:string )',
+)
+
+
+def _assert_medical_shacl_oracle(path: Path) -> None:
+    """Refuse the old MedicalCase-label stub so OX cannot skip datatype repair."""
+    text = Path(path).read_text(encoding="utf-8")
+    missing = [marker for marker in _MEDICAL_SHACL_MARKERS if marker not in text]
+    if missing:
+        raise RuntimeError(
+            f"Medical OX SHACL at {path} is missing {missing}; "
+            "regenerate with generate_medical_shacl.py"
+        )
+
+
 def _make_parser(llm, ontology: Path, shacl: Path, prompt: str) -> OntoSynParser:
     return OntoSynParser(
         llm=llm,
@@ -260,6 +279,8 @@ def run_papers(args) -> dict:
     if args.domain == "medical":
         ontology = REPO_ROOT / "data" / "ontologies" / "medical_case_schema_de_non_flat_v4.ttl"
         shacl = HERE / "resources" / "medical_shacl.ttl"
+        write_medical_shapes(shacl)
+        _assert_medical_shacl_oracle(shacl)
         if profile == "generic-noprompt":
             prompt = build_generic_noprompt_medical_prompt()
         elif profile == "with-prompt":

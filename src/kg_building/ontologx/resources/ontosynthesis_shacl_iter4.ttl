@@ -1,4 +1,5 @@
 @prefix ontosyn: <https://www.theworldavatar.com/kg/OntoSyn/> .
+@prefix ontolab: <https://www.theworldavatar.com/kg/OntoLab/> .
 @prefix om-2: <http://www.ontology-of-units-of-measure.org/resource/om-2/> .
 @prefix ontomops: <https://www.theworldavatar.com/kg/ontomops/> .
 @prefix bibo: <http://purl.org/ontology/bibo/> .
@@ -118,7 +119,7 @@ ontosyn:ChemicalSynthesisShape a sh:NodeShape ;
   sh:targetClass ontosyn:ChemicalSynthesis ;
   sh:property [
     sh:path ontosyn:hasEquipment ;
-    sh:class ontosyn:Equipment ;
+    sh:class ontolab:LabEquipment ;
     sh:nodeKind sh:IRI
   ] ;
   sh:property [

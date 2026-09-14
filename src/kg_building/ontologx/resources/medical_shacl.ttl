@@ -1,11 +1,637 @@
-@prefix sh: <http://www.w3.org/ns/shacl#> .
-@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix medical: <https://www.theworldavatar.com/kg/medical/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# OntoMed SHACL shapes for OntoLogX.
+# Generated from data/ontologies/medical_case_schema_de_non_flat_v4.ttl.
+# Datatype ranges follow the T-Box (xsd:string, or xsd:integer for Alter /
+# Verweildauer / Dauer_d_zwischen_TuKo_und_OP).
+# binary_checklist fields accept only "1" and must be omitted when false.
+# Object hops from MedicalCase are optional; do not require every grouping.
+# closedByTypes is omitted so a node may carry extra types.
+
+medical:CaseTimelineShape a sh:NodeShape ;
+  sh:targetClass medical:CaseTimeline ;
+  sh:property [
+    sh:path medical:OP_Datum ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:Same_Day_Surgery ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:praeop_TuKo ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:Entlassdatum ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:Verweildauer ;
+    sh:datatype xsd:integer ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:Dauer_d_zwischen_TuKo_und_OP ;
+    sh:datatype xsd:integer ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] .
+
+medical:ComplicationShape a sh:NodeShape ;
+  sh:targetClass medical:Complication ;
+  sh:property [
+    sh:path medical:Komplikation_j_n ;
+    sh:datatype xsd:string ;
+    sh:in ( "1"^^xsd:string ) ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:Clavien_Dindo ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:Kommentar ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:Fistel ;
+    sh:datatype xsd:string ;
+    sh:in ( "1"^^xsd:string ) ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:Haematothorax ;
+    sh:datatype xsd:string ;
+    sh:in ( "1"^^xsd:string ) ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:Empyem_Komplikation ;
+    sh:datatype xsd:string ;
+    sh:in ( "1"^^xsd:string ) ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:Bronchusstumpf_Anastomoseninsuffizienz ;
+    sh:datatype xsd:string ;
+    sh:in ( "1"^^xsd:string ) ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:Pneumothorax_Komplikation ;
+    sh:datatype xsd:string ;
+    sh:in ( "1"^^xsd:string ) ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:kardiovaskulaer ;
+    sh:datatype xsd:string ;
+    sh:in ( "1"^^xsd:string ) ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:Pneumonie ;
+    sh:datatype xsd:string ;
+    sh:in ( "1"^^xsd:string ) ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:andere_nosokomiale_Infektionen ;
+    sh:datatype xsd:string ;
+    sh:in ( "1"^^xsd:string ) ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:resp_Insuffizienz ;
+    sh:datatype xsd:string ;
+    sh:in ( "1"^^xsd:string ) ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:Niereninsuffizienz ;
+    sh:datatype xsd:string ;
+    sh:in ( "1"^^xsd:string ) ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:Wundheilungsstoerung ;
+    sh:datatype xsd:string ;
+    sh:in ( "1"^^xsd:string ) ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:Tod ;
+    sh:datatype xsd:string ;
+    sh:in ( "1"^^xsd:string ) ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:Drainage_Punktion ;
+    sh:datatype xsd:string ;
+    sh:in ( "1"^^xsd:string ) ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:Reintubation ;
+    sh:datatype xsd:string ;
+    sh:in ( "1"^^xsd:string ) ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:medikamentoese_Therapie ;
+    sh:datatype xsd:string ;
+    sh:in ( "1"^^xsd:string ) ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:Transfusion ;
+    sh:datatype xsd:string ;
+    sh:in ( "1"^^xsd:string ) ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:Endoskopie ;
+    sh:datatype xsd:string ;
+    sh:in ( "1"^^xsd:string ) ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:Reoperation ;
+    sh:datatype xsd:string ;
+    sh:in ( "1"^^xsd:string ) ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] .
+
+medical:DiagnosisShape a sh:NodeShape ;
+  sh:targetClass medical:Diagnosis ;
+  sh:property [
+    sh:path medical:NSCLC ;
+    sh:datatype xsd:string ;
+    sh:in ( "1"^^xsd:string ) ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:SCLC ;
+    sh:datatype xsd:string ;
+    sh:in ( "1"^^xsd:string ) ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:NET ;
+    sh:datatype xsd:string ;
+    sh:in ( "1"^^xsd:string ) ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:Metastasen ;
+    sh:datatype xsd:string ;
+    sh:in ( "1"^^xsd:string ) ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:Art_der_Metastasen ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:MG ;
+    sh:datatype xsd:string ;
+    sh:in ( "1"^^xsd:string ) ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:Thymom ;
+    sh:datatype xsd:string ;
+    sh:in ( "1"^^xsd:string ) ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:Thymus_Ca ;
+    sh:datatype xsd:string ;
+    sh:in ( "1"^^xsd:string ) ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:andere_Mediastinaltumoren ;
+    sh:datatype xsd:string ;
+    sh:in ( "1"^^xsd:string ) ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:Art_des_Mediastinaltumors ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:Mesotheliom ;
+    sh:datatype xsd:string ;
+    sh:in ( "1"^^xsd:string ) ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:Empyem_Diagnose ;
+    sh:datatype xsd:string ;
+    sh:in ( "1"^^xsd:string ) ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:Destroyed_Lung ;
+    sh:datatype xsd:string ;
+    sh:in ( "1"^^xsd:string ) ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:Pneumothorax_Diagnose ;
+    sh:datatype xsd:string ;
+    sh:in ( "1"^^xsd:string ) ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:Pleuraerguss ;
+    sh:datatype xsd:string ;
+    sh:in ( "1"^^xsd:string ) ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:interstitielle_Lungenerkrankung ;
+    sh:datatype xsd:string ;
+    sh:in ( "1"^^xsd:string ) ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:Thoraxtrauma_Haematothorax_Rippenfraktur ;
+    sh:datatype xsd:string ;
+    sh:in ( "1"^^xsd:string ) ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:sonst_Diagnose ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] .
 
 medical:MedicalCaseShape a sh:NodeShape ;
   sh:targetClass medical:MedicalCase ;
   sh:property [
+    sh:path medical:hasPatientInfo ;
+    sh:class medical:PatientInfo ;
+    sh:nodeKind sh:IRI ;
+    sh:minCount 0 ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:hasTimeline ;
+    sh:class medical:CaseTimeline ;
+    sh:nodeKind sh:IRI ;
+    sh:minCount 0 ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:hasSurgicalApproach ;
+    sh:class medical:SurgicalApproach ;
+    sh:nodeKind sh:IRI ;
+    sh:minCount 0 ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:hasProcedure ;
+    sh:class medical:Procedure ;
+    sh:nodeKind sh:IRI
+  ] ;
+  sh:property [
+    sh:path medical:hasSurgicalTeam ;
+    sh:class medical:SurgicalTeam ;
+    sh:nodeKind sh:IRI ;
+    sh:minCount 0 ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:hasDiagnosis ;
+    sh:class medical:Diagnosis ;
+    sh:nodeKind sh:IRI
+  ] ;
+  sh:property [
+    sh:path medical:hasComplication ;
+    sh:class medical:Complication ;
+    sh:nodeKind sh:IRI
+  ] ;
+  sh:property [
+    sh:path medical:hasPathologyOutcome ;
+    sh:class medical:PathologyOutcome ;
+    sh:nodeKind sh:IRI ;
+    sh:minCount 0 ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
     sh:path rdfs:label ;
+    sh:datatype xsd:string ;
     sh:minCount 1 ;
-    sh:message "MedicalCase must have rdfs:label" ;
+    sh:maxCount 1
   ] .
+
+medical:PathologyOutcomeShape a sh:NodeShape ;
+  sh:targetClass medical:PathologyOutcome ;
+  sh:property [
+    sh:path medical:Stadium ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:R0 ;
+    sh:datatype xsd:string ;
+    sh:in ( "1"^^xsd:string ) ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:R1 ;
+    sh:datatype xsd:string ;
+    sh:in ( "1"^^xsd:string ) ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:R2 ;
+    sh:datatype xsd:string ;
+    sh:in ( "1"^^xsd:string ) ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] .
+
+medical:PatientInfoShape a sh:NodeShape ;
+  sh:targetClass medical:PatientInfo ;
+  sh:property [
+    sh:path medical:Name ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:Fall_Nr ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:Geburtsdatum ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:Alter ;
+    sh:datatype xsd:integer ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] .
+
+medical:ProcedureShape a sh:NodeShape ;
+  sh:targetClass medical:Procedure ;
+  sh:property [
+    sh:path medical:atypische_Resektion_5_322 ;
+    sh:datatype xsd:string ;
+    sh:in ( "1"^^xsd:string ) ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:Segmenresektion_5_323_4_7 ;
+    sh:datatype xsd:string ;
+    sh:in ( "1"^^xsd:string ) ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:Lobektomie_Bilobektomie_5_324_5_325 ;
+    sh:datatype xsd:string ;
+    sh:in ( "1"^^xsd:string ) ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:Pneumonektomie_5_327 ;
+    sh:datatype xsd:string ;
+    sh:in ( "1"^^xsd:string ) ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:erw_Pneumonektomie_5_328 ;
+    sh:datatype xsd:string ;
+    sh:in ( "1"^^xsd:string ) ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:offene_Dekortikation_5_344_0_5_344_11_5_344_13_5_345_1 ;
+    sh:datatype xsd:string ;
+    sh:in ( "1"^^xsd:string ) ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:VATS_Dekortikation_5_344_3_5_345_4 ;
+    sh:datatype xsd:string ;
+    sh:in ( "1"^^xsd:string ) ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:Pleurektomie_5_344_1_2_u_4_5 ;
+    sh:datatype xsd:string ;
+    sh:in ( "1"^^xsd:string ) ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:plast_Rekonstruktion_der_Brustwand_5_346 ;
+    sh:datatype xsd:string ;
+    sh:in ( "1"^^xsd:string ) ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:Trachearesektion_und_andere_Eingriffe_an_der_Trachea_5_314_5_316_5_319 ;
+    sh:datatype xsd:string ;
+    sh:in ( "1"^^xsd:string ) ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:Mediastinaltumorresektion_5_342 ;
+    sh:datatype xsd:string ;
+    sh:in ( "1"^^xsd:string ) ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:Pleurodese_5_345_ohne_5_345_1_und_ohne_5_345_4 ;
+    sh:datatype xsd:string ;
+    sh:in ( "1"^^xsd:string ) ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:Thymektomie ;
+    sh:datatype xsd:string ;
+    sh:in ( "1"^^xsd:string ) ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:Mediastinoskopie_1_586_3_1_691_1_5_401_7_5_402_d ;
+    sh:datatype xsd:string ;
+    sh:in ( "1"^^xsd:string ) ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:VAMLA_5_404_8 ;
+    sh:datatype xsd:string ;
+    sh:in ( "1"^^xsd:string ) ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:Thoraxdrainageneinlage_8_144_0_und_5_340_0 ;
+    sh:datatype xsd:string ;
+    sh:in ( "1"^^xsd:string ) ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:Angio_Bronchoplastik ;
+    sh:datatype xsd:string ;
+    sh:in ( "1"^^xsd:string ) ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:ICMB ;
+    sh:datatype xsd:string ;
+    sh:in ( "1"^^xsd:string ) ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:Haematomausraeumung ;
+    sh:datatype xsd:string ;
+    sh:in ( "1"^^xsd:string ) ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:expl_Thorakotomie ;
+    sh:datatype xsd:string ;
+    sh:in ( "1"^^xsd:string ) ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:sonst_Eingriff ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] .
+
+medical:SurgicalApproachShape a sh:NodeShape ;
+  sh:targetClass medical:SurgicalApproach ;
+  sh:property [
+    sh:path medical:offen ;
+    sh:datatype xsd:string ;
+    sh:in ( "1"^^xsd:string ) ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:VATS ;
+    sh:datatype xsd:string ;
+    sh:in ( "1"^^xsd:string ) ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:RATS ;
+    sh:datatype xsd:string ;
+    sh:in ( "1"^^xsd:string ) ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] .
+
+medical:SurgicalTeamShape a sh:NodeShape ;
+  sh:targetClass medical:SurgicalTeam ;
+  sh:property [
+    sh:path medical:Operateur_in ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path medical:Assistent_in ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] .
+
+
+# Comment-level constraints that property SHACL cannot see. Analogous to
+# OntoSyn unique/contiguous hasOrder and NonVacuousGraphShape.
+
+medical:NonVacuousGraphShape a sh:NodeShape ;
+  sh:targetNode medical:GraphIntegrityAnchor ;
+  sh:sparql [
+    sh:message "Graph must contain at least one medical:MedicalCase" ;
+    sh:select '''
+      PREFIX medical: <https://www.theworldavatar.com/kg/medical/>
+      SELECT $this
+      WHERE {
+        FILTER NOT EXISTS { ?case a medical:MedicalCase }
+      }
+    '''
+  ] .
+
+medical:ExclusiveSurgicalApproachShape a sh:NodeShape ;
+  sh:targetClass medical:SurgicalApproach ;
+  sh:sparql [
+    sh:message "Final surgical approach is exclusive: at most one of offen, VATS, RATS may be the string 1" ;
+    sh:select '''
+      PREFIX medical: <https://www.theworldavatar.com/kg/medical/>
+      SELECT $this
+      WHERE {
+        {
+          $this medical:offen ?a .
+          FILTER(STR(?a) = "1")
+          $this medical:VATS ?b .
+          FILTER(STR(?b) = "1")
+        } UNION {
+          $this medical:offen ?a .
+          FILTER(STR(?a) = "1")
+          $this medical:RATS ?b .
+          FILTER(STR(?b) = "1")
+        } UNION {
+          $this medical:VATS ?a .
+          FILTER(STR(?a) = "1")
+          $this medical:RATS ?b .
+          FILTER(STR(?b) = "1")
+        }
+      }
+    '''
+  ] .
+

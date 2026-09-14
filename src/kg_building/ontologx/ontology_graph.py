@@ -141,6 +141,9 @@ def load_ontosynthesis_ontology_graph(ontology_path: str | Path) -> GraphDocumen
                         continue
                     for rng in ranges:
                         mapped_range = rng
+                        # SynthesisGraph has no OntoLab node type. Keep hasEquipment
+                        # in the schema by using the in-TBox subclass ontosyn:Equipment.
+                        # SHACL still uses the T-Box range ontolab:LabEquipment.
                         if rng.startswith("https://www.theworldavatar.com/kg/OntoLab/"):
                             mapped_range = f"{ONTOSYN}Equipment"
                         if mapped_range not in class_iris:

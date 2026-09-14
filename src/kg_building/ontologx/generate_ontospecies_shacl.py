@@ -155,6 +155,30 @@ def _ontology_index() -> tuple[list[str], dict[str, list[tuple[str, str, list[st
     return classes, props_by_class
 
 
+def _xsd_hint(iri: str, ranges: list[str]) -> str | None:
+    """Prefer explicit hints (float|double unions); otherwise T-Box ``rdfs:range``."""
+    hint = DATATYPE_HINTS.get(iri)
+    if hint:
+        return hint
+    seen: list[str] = []
+    for rng in ranges:
+        if rng.startswith(XSD):
+            curie = f"xsd:{rng.rsplit('#', 1)[-1]}"
+            if curie not in seen:
+                seen.append(curie)
+    return "|".join(seen) if seen else None
+
+
+def _append_datatype(block: list[str], hint: str | None) -> None:
+    if not hint:
+        return
+    if "|" in hint:
+        alts = " ".join(f"[ sh:datatype {item} ]" for item in hint.split("|"))
+        block.append(f"    sh:or ( {alts} )")
+        return
+    block.append(f"    sh:datatype {hint}")
+
+
 def _property_block(cls: str, iri: str, kind: str, ranges: list[str]) -> list[str]:
     min_c, max_c = CARDINALITY.get((cls, iri), (None, None))
     block = [f"    sh:path {_curie(iri)}"]
@@ -164,12 +188,7 @@ def _property_block(cls: str, iri: str, kind: str, ranges: list[str]) -> list[st
             block.append(f"    sh:class {_curie(class_range)}")
         block.append("    sh:nodeKind sh:IRI")
     else:
-        hint = DATATYPE_HINTS.get(iri)
-        if hint and "|" in hint:
-            alts = " ".join(f"[ sh:datatype {item} ]" for item in hint.split("|"))
-            block.append(f"    sh:or ( {alts} )")
-        elif hint:
-            block.append(f"    sh:datatype {hint}")
+        _append_datatype(block, _xsd_hint(iri, ranges))
     if min_c is not None:
         block.append(f"    sh:minCount {min_c}")
     if max_c is not None:

@@ -500,8 +500,34 @@ def test_shacl_and_surface_drop_crystallize() -> None:
     assert "hasCrystallizationTargetTemperature" not in shacl
     assert "AddMustLinkAddedChemicalInputShape" not in shacl
     assert "sh:minCount 1" in shacl
+    assert "sh:class ontolab:LabEquipment" in shacl
     assert '"owner_class": "Crystallize"' not in surface
     assert "hasCrystallizationTargetTemperature" not in surface
+
+
+def test_has_equipment_shacl_follows_tbox_labequipment() -> None:
+    from rdflib import Graph, Namespace
+
+    repo = Path(__file__).resolve().parents[1]
+    shacl = Graph()
+    shacl.parse(
+        repo / "src" / "kg_building" / "ontologx" / "resources" / "ontosynthesis_shacl.ttl",
+        format="turtle",
+    )
+    sh = Namespace("http://www.w3.org/ns/shacl#")
+    ontosyn = Namespace("https://www.theworldavatar.com/kg/OntoSyn/")
+    ontolab = Namespace("https://www.theworldavatar.com/kg/OntoLab/")
+    equipment_classes = set()
+    for shape in shacl.subjects(sh.targetClass, ontosyn.ChemicalSynthesis):
+        for prop in shacl.objects(shape, sh.property):
+            if shacl.value(prop, sh.path) == ontosyn.hasEquipment:
+                equipment_classes.add(shacl.value(prop, sh["class"]))
+    uses_classes = {
+        shacl.value(prop, sh["class"])
+        for prop in shacl.subjects(sh.path, ontosyn.usesEquipment)
+    }
+    assert equipment_classes == {ontolab.LabEquipment}
+    assert uses_classes == {ontosyn.Equipment}
 
 
 def test_pipeline_kg_imports_do_not_cycle() -> None:

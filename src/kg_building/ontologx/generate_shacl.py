@@ -19,7 +19,8 @@ ONTOMOPS = "https://www.theworldavatar.com/kg/ontomops/"
 RDFS_NS = "http://www.w3.org/2000/01/rdf-schema#"
 XSD = "http://www.w3.org/2001/XMLSchema#"
 BIBO_DOCUMENT = "http://purl.org/ontology/bibo/Document"
-ONTOLAB_EQUIPMENT = "https://www.theworldavatar.com/kg/OntoLab/LabEquipment"
+ONTOLAB = "https://www.theworldavatar.com/kg/OntoLab/"
+ONTOLAB_EQUIPMENT = f"{ONTOLAB}LabEquipment"
 
 MEASURE_CLASSES = {
     f"{OM2}Temperature",
@@ -129,8 +130,8 @@ def _curie(iri: str) -> str:
         return f"rdfs:{_local(iri)}"
     if iri == BIBO_DOCUMENT:
         return "bibo:Document"
-    if iri == ONTOLAB_EQUIPMENT:
-        return "ontosyn:Equipment"
+    if iri.startswith(ONTOLAB):
+        return f"ontolab:{_local(iri)}"
     return f"<{iri}>"
 
 
@@ -222,6 +223,30 @@ def _ontology_index() -> tuple[list[str], dict[str, list[tuple[str, str, list[st
     return classes, props_by_class, unit_individuals
 
 
+def _xsd_hint(iri: str, ranges: list[str]) -> str | None:
+    """Prefer explicit hints (OM-2 unions); otherwise T-Box ``rdfs:range``."""
+    hint = DATATYPE_HINTS.get(iri)
+    if hint:
+        return hint
+    seen: list[str] = []
+    for rng in ranges:
+        if rng.startswith(XSD):
+            curie = f"xsd:{rng.rsplit('#', 1)[-1]}"
+            if curie not in seen:
+                seen.append(curie)
+    return "|".join(seen) if seen else None
+
+
+def _append_datatype(block: list[str], hint: str | None) -> None:
+    if not hint:
+        return
+    if "|" in hint:
+        alts = " ".join(f"[ sh:datatype {item} ]" for item in hint.split("|"))
+        block.append(f"    sh:or ( {alts} )")
+        return
+    block.append(f"    sh:datatype {hint}")
+
+
 def _property_block(
     cls: str,
     iri: str,
@@ -241,18 +266,11 @@ def _property_block(
             block.append(f"    sh:in ( {listed} )")
     elif kind == "object":
         class_range = next((rng for rng in ranges if not rng.startswith(XSD)), None)
-        if class_range == ONTOLAB_EQUIPMENT:
-            class_range = f"{ONTOSYN}Equipment"
         if class_range:
             block.append(f"    sh:class {_curie(class_range)}")
         block.append("    sh:nodeKind sh:IRI")
     else:
-        hint = DATATYPE_HINTS.get(iri)
-        if hint and "|" in hint:
-            alts = " ".join(f"[ sh:datatype {item} ]" for item in hint.split("|"))
-            block.append(f"    sh:or ( {alts} )")
-        elif hint:
-            block.append(f"    sh:datatype {hint}")
+        _append_datatype(block, _xsd_hint(iri, ranges))
     if min_c is not None:
         block.append(f"    sh:minCount {min_c}")
     if max_c is not None:
@@ -272,6 +290,7 @@ def _render_shapes(
 ) -> str:
     lines = [
         "@prefix ontosyn: <https://www.theworldavatar.com/kg/OntoSyn/> .",
+        "@prefix ontolab: <https://www.theworldavatar.com/kg/OntoLab/> .",
         "@prefix om-2: <http://www.ontology-of-units-of-measure.org/resource/om-2/> .",
         "@prefix ontomops: <https://www.theworldavatar.com/kg/ontomops/> .",
         "@prefix bibo: <http://purl.org/ontology/bibo/> .",
@@ -319,6 +338,8 @@ def generate() -> str:
         header=[
             "# OntoSynthesis SHACL shapes for OntoLogX.",
             "# Generated from data/ontologies/ontosynthesis.ttl plus data/ontologies/om2.ttl.",
+            f"# Object ranges follow the T-Box: hasEquipment is {_curie(ONTOLAB_EQUIPMENT)},",
+            "# not the narrower ontosyn:Equipment subclass used by usesEquipment.",
             "# om-2:hasUnit is an object property to an OM-2 unit individual, not xsd:string.",
             "# closedByTypes is intentionally omitted: gold graphs type steps as both",
             "# the concrete subclass and ontosyn:SynthesisStep.",

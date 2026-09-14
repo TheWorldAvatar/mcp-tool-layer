@@ -1,4 +1,5 @@
 @prefix ontosyn: <https://www.theworldavatar.com/kg/OntoSyn/> .
+@prefix ontolab: <https://www.theworldavatar.com/kg/OntoLab/> .
 @prefix om-2: <http://www.ontology-of-units-of-measure.org/resource/om-2/> .
 @prefix ontomops: <https://www.theworldavatar.com/kg/ontomops/> .
 @prefix bibo: <http://purl.org/ontology/bibo/> .
@@ -9,6 +10,8 @@
 
 # OntoSynthesis SHACL shapes for OntoLogX.
 # Generated from data/ontologies/ontosynthesis.ttl plus data/ontologies/om2.ttl.
+# Object ranges follow the T-Box: hasEquipment is ontolab:LabEquipment,
+# not the narrower ontosyn:Equipment subclass used by usesEquipment.
 # om-2:hasUnit is an object property to an OM-2 unit individual, not xsd:string.
 # closedByTypes is intentionally omitted: gold graphs type steps as both
 # the concrete subclass and ontosyn:SynthesisStep.
@@ -270,7 +273,7 @@ ontosyn:ChemicalSynthesisShape a sh:NodeShape ;
   ] ;
   sh:property [
     sh:path ontosyn:hasEquipment ;
-    sh:class ontosyn:Equipment ;
+    sh:class ontolab:LabEquipment ;
     sh:nodeKind sh:IRI
   ] ;
   sh:property [
