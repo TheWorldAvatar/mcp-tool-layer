@@ -21,6 +21,9 @@ from src.extraction_prompt_generation.generate.extraction_prompts.contracts impo
     _subclass_decision_contract,
     _write_materializable_prompt_component,
 )
+from src.extraction_prompt_generation.generate.extraction_prompts.contracts.scope import (
+    _canonical_iteration_filename_token,
+)
 from src.extraction_prompt_generation.pipeline.formatters import (
     _configured_prompt_addon,
     _format_class_rows,
@@ -443,18 +446,24 @@ def generate_deterministic_prompt_slice(context: AgenticGenerationContext) -> li
     )
     iterations = _iteration_plan(context)
     for iteration in iterations.get("iterations") or []:
-        iter_num = iteration.get("iteration_number")
-        files[f"EXTRACTION_ITER_{iter_num}.md"] = _iteration_extraction_prompt(
+        token = _canonical_iteration_filename_token(
+            iteration.get("iteration_number")
+        )
+        if not token:
+            continue
+        files[f"EXTRACTION_ITER_{token}.md"] = _iteration_extraction_prompt(
             context, iteration
         )
         if iteration.get("has_pre_extraction"):
-            files[f"PRE_EXTRACTION_ITER_{iter_num}.md"] = _pre_extraction_prompt(
+            files[f"PRE_EXTRACTION_ITER_{token}.md"] = _pre_extraction_prompt(
                 context, iteration
             )
         for sub_iteration in iteration.get("sub_iterations") or []:
             if not isinstance(sub_iteration, dict):
                 continue
-            sub_num = str(sub_iteration.get("iteration_number") or "").replace(".", "_")
+            sub_num = _canonical_iteration_filename_token(
+                sub_iteration.get("iteration_number")
+            )
             if sub_num:
                 files[f"EXTRACTION_ITER_{sub_num}.md"] = (
                     _sub_iteration_extraction_prompt(

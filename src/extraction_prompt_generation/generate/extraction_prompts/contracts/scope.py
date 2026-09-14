@@ -60,35 +60,91 @@ def _enrich_iteration_spec_with_compiled_scope(
     return enriched
 
 
-def _prompt_iteration_spec(
+def _canonical_iteration_filename_token(iteration_number: Any) -> str:
+    """Stable EXTRACTION_ITER / PRE_EXTRACTION_ITER suffix for one slot number."""
+    raw = str(iteration_number if iteration_number is not None else "").strip()
+    if not raw:
+        return ""
+    try:
+        number = float(raw)
+    except ValueError:
+        return raw.replace(".", "_")
+    if number.is_integer():
+        return str(int(number))
+    return raw.replace(".", "_")
+
+
+def _iteration_number_tokens(iteration_number: Any) -> set[str]:
+    """Filename tokens that can name one iteration, including JSON 2 vs 2.0."""
+    raw = str(iteration_number if iteration_number is not None else "").strip()
+    tokens: set[str] = set()
+    if raw:
+        tokens.add(raw)
+        tokens.add(raw.replace(".", "_"))
+    canonical = _canonical_iteration_filename_token(iteration_number)
+    if canonical:
+        tokens.add(canonical)
+    return {token for token in tokens if token}
+
+
+def _is_extraction_prompt_filename(name: str) -> bool:
+    upper = str(name or "").upper()
+    return upper.endswith(".MD") and upper.startswith(
+        ("EXTRACTION_ITER_", "PRE_EXTRACTION_ITER_")
+    )
+
+
+def _prompt_uses_iter1_top_entity_contract(
     context: AgenticGenerationContext, target: Path
-) -> dict[str, Any]:
-    """Return the exact iteration/sub-iteration specification owned by a prompt."""
+) -> bool:
+    role = str(getattr(getattr(context, "ontology", None), "role", "") or "")
+    return target.name == "EXTRACTION_ITER_1.md" and role != "extension"
+
+
+def _iteration_plans_for_lookup(
+    context: AgenticGenerationContext,
+) -> list[dict[str, Any]]:
+    """Prefer on-disk runtime iterations, then the in-memory compiled blueprint.
+
+    A partial package can leave `iterations.json` empty, truncated, or stale.
+    The current compile still has `iteration_blueprint`, so lookup must not
+    stop at a hollow disk file.
+    """
+    plans: list[dict[str, Any]] = []
     plan_path = (
         Path(context.output_root)
         / "iterations"
         / context.ontology.name
         / "iterations.json"
     )
-    try:
-        plan = (
-            json.loads(plan_path.read_text(encoding="utf-8"))
-            if plan_path.is_file()
-            else getattr(context, "iteration_blueprint", {})
-        )
-    except (OSError, json.JSONDecodeError):
-        return {}
+    if plan_path.is_file():
+        try:
+            disk_plan = json.loads(plan_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            disk_plan = None
+        if isinstance(disk_plan, dict) and disk_plan.get("iterations"):
+            plans.append(disk_plan)
+    blueprint = getattr(context, "iteration_blueprint", None) or {}
+    if isinstance(blueprint, dict) and blueprint.get("iterations"):
+        if not plans or blueprint is not plans[0]:
+            plans.append(blueprint)
+    return plans
 
-    stem = target.stem
+
+def _match_prompt_iteration_spec(
+    context: AgenticGenerationContext,
+    plan: dict[str, Any],
+    stem: str,
+) -> dict[str, Any]:
     for iteration in plan.get("iterations") or []:
         if not isinstance(iteration, dict):
             continue
-        iter_token = str(iteration.get("iteration_number") or "").replace(".", "_")
-        candidates = {
-            f"EXTRACTION_ITER_{iter_token}",
-            f"PRE_EXTRACTION_ITER_{iter_token}",
+        stems = {
+            f"{prefix}_{token}"
+            for token in _iteration_number_tokens(iteration.get("iteration_number"))
+            for prefix in ("EXTRACTION_ITER", "PRE_EXTRACTION_ITER")
         }
-        if stem in candidates:
+        if stem in stems:
             return _enrich_iteration_spec_with_compiled_scope(
                 context,
                 {
@@ -100,10 +156,13 @@ def _prompt_iteration_spec(
         for sub_iteration in iteration.get("sub_iterations") or []:
             if not isinstance(sub_iteration, dict):
                 continue
-            sub_token = str(sub_iteration.get("iteration_number") or "").replace(
-                ".", "_"
-            )
-            if stem == f"EXTRACTION_ITER_{sub_token}":
+            sub_stems = {
+                f"EXTRACTION_ITER_{token}"
+                for token in _iteration_number_tokens(
+                    sub_iteration.get("iteration_number")
+                )
+            }
+            if stem in sub_stems:
                 parent = _enrich_iteration_spec_with_compiled_scope(
                     context,
                     {
@@ -117,6 +176,82 @@ def _prompt_iteration_spec(
                     "sub_iteration": dict(sub_iteration),
                 }
     return {}
+
+
+def _iteration_plan_containing(
+    context: AgenticGenerationContext, iteration_number: Any
+) -> dict[str, Any]:
+    """Return a lookup plan that lists this iteration, preferring disk then blueprint."""
+    wanted = _iteration_number_tokens(iteration_number)
+    fallback: dict[str, Any] = {}
+    for plan in _iteration_plans_for_lookup(context):
+        if not fallback:
+            fallback = plan
+        for iteration in plan.get("iterations") or []:
+            if not isinstance(iteration, dict):
+                continue
+            if _iteration_number_tokens(iteration.get("iteration_number")) & wanted:
+                return plan
+            for sub_iteration in iteration.get("sub_iterations") or []:
+                if not isinstance(sub_iteration, dict):
+                    continue
+                if (
+                    _iteration_number_tokens(sub_iteration.get("iteration_number"))
+                    & wanted
+                ):
+                    return plan
+    return fallback
+
+
+def _prompt_iteration_spec(
+    context: AgenticGenerationContext, target: Path
+) -> dict[str, Any]:
+    """Return the exact iteration/sub-iteration specification owned by a prompt."""
+    stem = target.stem
+    for plan in _iteration_plans_for_lookup(context):
+        matched = _match_prompt_iteration_spec(context, plan, stem)
+        if matched:
+            return matched
+    return {}
+
+
+def _prompt_can_build_generation_contract(
+    context: AgenticGenerationContext, target: Path
+) -> bool:
+    """True when this markdown file is a planned extraction/pre-extraction slot."""
+    if not _is_extraction_prompt_filename(target.name):
+        return False
+    if _prompt_uses_iter1_top_entity_contract(context, target):
+        return True
+    return bool(_prompt_iteration_spec(context, target))
+
+
+def _planned_extraction_prompt_paths(
+    context: AgenticGenerationContext,
+) -> list[Path]:
+    """EXTRACTION / PRE_EXTRACTION files that belong to the current iteration plan."""
+    prompts_dir = Path(context.prompts_dir)
+    if not prompts_dir.is_dir():
+        return []
+    return [
+        path
+        for path in sorted(prompts_dir.glob("*.md"))
+        if _prompt_can_build_generation_contract(context, path)
+    ]
+
+
+def _unplanned_prompt_artifact_paths(
+    context: AgenticGenerationContext,
+) -> list[Path]:
+    """Leftover markdown in the prompt dir that is not a current generation slot."""
+    prompts_dir = Path(context.prompts_dir)
+    if not prompts_dir.is_dir():
+        return []
+    return [
+        path
+        for path in sorted(prompts_dir.glob("*.md"))
+        if not _prompt_can_build_generation_contract(context, path)
+    ]
 
 
 def _iteration_owned_scope(

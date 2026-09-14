@@ -12,11 +12,15 @@ from src.extraction_prompt_generation.generate.extraction_prompts.contracts.mark
     _NESTED_OWNED_SCALAR_END,
 )
 from src.extraction_prompt_generation.generate.extraction_prompts.contracts.scope import (
+    _canonical_iteration_filename_token,
     _enrich_iteration_spec_with_compiled_scope,
     _is_enrichment_iteration_spec,
     _iteration_has_semantic_scope,
     _iteration_owned_scope,
+    _planned_extraction_prompt_paths,
+    _prompt_can_build_generation_contract,
     _prompt_iteration_spec,
+    _unplanned_prompt_artifact_paths,
 )
 from src.extraction_prompt_generation.generate.extraction_prompts.contracts.tbox_slice import (
     _prompt_tbox_slice,
@@ -83,6 +87,7 @@ __all__ = [
     "_NESTED_OWNED_SCALAR_BEGIN",
     "_NESTED_OWNED_SCALAR_END",
     "_ORDER_HEADING_MANDATE_PATTERNS",
+    "_canonical_iteration_filename_token",
     "_detach_deterministic_tbox_from_pre_prompt",
     "_detach_mechanically_injected_runtime_slots",
     "_detach_nested_owned_scalar_from_prompt",
@@ -102,9 +107,11 @@ __all__ = [
     "_materializable_prompt_component_text",
     "_nested_owned_dependent_scalar_contract",
     "_nested_owned_dependent_scalar_failures",
+    "_planned_extraction_prompt_paths",
     "_pre_extraction_candidate_type_contract",
     "_pre_extraction_tbox_component_text",
     "_prompt_artifact_generation_contract",
+    "_prompt_can_build_generation_contract",
     "_prompt_contains_deterministic_component",
     "_prompt_generation_guidance",
     "_prompt_iteration_spec",
@@ -124,6 +131,7 @@ __all__ = [
     "_subclass_comment_projection",
     "_subclass_decision_contract",
     "_tbox_ancestor_class_locals",
+    "_unplanned_prompt_artifact_paths",
     "_validate_generated_prompt",
     "_validate_generated_prompt_hard_gates",
     "_warning_marked_tbox_contract",

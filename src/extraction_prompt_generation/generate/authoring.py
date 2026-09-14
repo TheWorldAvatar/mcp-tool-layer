@@ -38,6 +38,9 @@ from src.extraction_prompt_generation.generate.extraction_prompts.contracts impo
     _validate_generated_prompt_hard_gates,
     _write_materializable_prompt_component,
 )
+from src.extraction_prompt_generation.generate.extraction_prompts.contracts.scope import (
+    _planned_extraction_prompt_paths,
+)
 from src.extraction_prompt_generation.llm.artifact_editor import (
     EditBackend,
     run_llm_artifact_editor,
@@ -53,12 +56,12 @@ run_llm_unified_diff_editor = run_llm_artifact_editor
 
 
 def _editable_artifacts(context: AgenticGenerationContext) -> list[Path]:
-    """Return extraction-prompt markdown only. KG-building files stay out."""
-    return [
-        path
-        for path in sorted(Path(context.prompts_dir).glob("*.md"))
-        if not path.name.startswith("KG_BUILDING_")
-    ]
+    """Return planned EXTRACTION / PRE_EXTRACTION markdown only.
+
+    Leftover files from a partial package (KG-building prompts, retired
+    iterations, stray markdown) are not generation targets.
+    """
+    return _planned_extraction_prompt_paths(context)
 
 
 def _fixed_artifact_dependency_order(

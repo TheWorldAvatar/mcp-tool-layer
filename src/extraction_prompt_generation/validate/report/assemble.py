@@ -49,6 +49,10 @@ from src.extraction_prompt_generation.validate.report.tool_surface import (
 from src.extraction_prompt_generation.validate.report.ttl import (
     _ttl_export_report,
 )
+from src.extraction_prompt_generation.generate.extraction_prompts.contracts.scope import (
+    _planned_extraction_prompt_paths,
+    _unplanned_prompt_artifact_paths,
+)
 
 
 def build_validation_report(
@@ -163,7 +167,30 @@ def build_validation_report(
         if relative.endswith(".md")
     ]
     run_prompt_checks = bool(include_prompt_checks) or bool(active_prompt_paths)
-    prompt_files = sorted(prompts_dir.glob("*.md")) if prompts_dir.is_dir() else []
+    leftover_prompt_files = (
+        _unplanned_prompt_artifact_paths(context) if prompts_dir.is_dir() else []
+    )
+    prompt_files = (
+        _planned_extraction_prompt_paths(context) if prompts_dir.is_dir() else []
+    )
+    if run_prompt_checks and leftover_prompt_files:
+        record(
+            check_id="generation.unplanned_prompt_artifacts",
+            stage="prompt",
+            check_warnings=[
+                f"{path.name}: leftover prompt file is not in the current "
+                "iteration plan; skipped during resume/validation"
+                for path in leftover_prompt_files
+            ],
+            observed_artifacts=[str(path) for path in leftover_prompt_files],
+            evidence={
+                "hard_gate": False,
+                "skipped_artifacts": [path.name for path in leftover_prompt_files],
+            },
+            message=(
+                "Ignored leftover prompt files that are not current generation slots"
+            ),
+        )
     if run_prompt_checks and prompts_required and not prompt_files:
         record(
             check_id="generation.prompt_artifacts_required",
@@ -316,8 +343,11 @@ def build_validation_report(
             _prompt_tbox_fidelity_report,
             _prompt_runtime_binding_report,
             _iteration_prompt_schema_contract_report,
-        } and stage_mode:
-            result = fn(context, active_prompt_paths)
+        }:
+            result = fn(
+                context,
+                active_prompt_paths if stage_mode else prompt_files,
+            )
         else:
             if fn is _syntax_report:
                 active_python_paths = (

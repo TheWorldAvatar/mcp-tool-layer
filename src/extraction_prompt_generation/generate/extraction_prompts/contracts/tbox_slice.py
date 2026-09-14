@@ -69,6 +69,12 @@ def _prompt_tbox_slice(
             if str(local).strip()
         }
     if not focus_classes and not focus_properties:
+        if not scope_owner:
+            raise ValueError(
+                "Prompt generation requires a matching iteration spec with a "
+                "non-empty semantic_scope (classes or object_properties); "
+                "refusing to invent scope from the top entity fallback"
+            )
         raise ValueError(
             "Prompt generation requires a non-empty semantic_scope "
             "(classes or object_properties) for iteration "

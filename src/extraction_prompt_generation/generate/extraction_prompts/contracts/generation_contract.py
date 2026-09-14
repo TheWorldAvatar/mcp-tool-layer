@@ -6,7 +6,6 @@ Assembles one prompt's T-Box slice, slots, and sub-contracts. Importing
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any
 
@@ -24,6 +23,7 @@ from src.extraction_prompt_generation.generate.extraction_prompts.contracts.role
 )
 from src.extraction_prompt_generation.generate.extraction_prompts.contracts.scope import (
     _iteration_owned_scope,
+    _iteration_plan_containing,
     _prompt_iteration_spec,
 )
 from src.extraction_prompt_generation.generate.extraction_prompts.contracts.sub_contracts import (
@@ -367,6 +367,12 @@ def _prompt_artifact_generation_contract(
         }
         required_links: list[dict[str, Any]] = []
     else:
+        if not iteration_spec:
+            raise ValueError(
+                "Prompt generation has no iteration spec for "
+                f"{target.name}; refusing to invent T-Box scope from the "
+                "top entity fallback"
+            )
         runtime_slots = (
             list(EXTENSION_EXTRACTION_RUNTIME_SLOTS)
             if is_extension
@@ -414,17 +420,7 @@ def _prompt_artifact_generation_contract(
                 "iteration_number"
             )
         if iteration_number is not None:
-            plan_path = (
-                Path(context.output_root)
-                / "iterations"
-                / context.ontology.name
-                / "iterations.json"
-            )
-            plan = (
-                json.loads(plan_path.read_text(encoding="utf-8"))
-                if plan_path.is_file()
-                else getattr(context, "iteration_blueprint", {})
-            )
+            plan = _iteration_plan_containing(context, iteration_number)
             deterministic_property_contract = derive_iteration_property_contract(
                 parsed=context.parsed,
                 compiled_plan=plan,

@@ -16,6 +16,9 @@ from typing import Any
 from src.extraction_prompt_generation.compile.context import (
     AgenticGenerationContext,
 )
+from src.extraction_prompt_generation.generate.extraction_prompts.contracts.scope import (
+    _canonical_iteration_filename_token,
+)
 
 
 def _iteration_plan(context: AgenticGenerationContext) -> dict[str, Any]:
@@ -137,19 +140,22 @@ def _iteration_plan(context: AgenticGenerationContext) -> dict[str, Any]:
             continue
         from src.extraction_prompt_generation.paths import package_prompt_path
 
+        token = _canonical_iteration_filename_token(iter_num)
         iteration["extraction_prompt"] = package_prompt_path(
-            context.ontology.name, f"EXTRACTION_ITER_{iter_num}.md"
+            context.ontology.name, f"EXTRACTION_ITER_{token}.md"
         )
         iteration.setdefault("mcp_set_name", main_cfg["mcp_set_name"])
         iteration.setdefault("mcp_tools", main_cfg["mcp_tools"])
         if iteration.get("has_pre_extraction"):
             iteration["pre_extraction_prompt"] = package_prompt_path(
-                context.ontology.name, f"PRE_EXTRACTION_ITER_{iter_num}.md"
+                context.ontology.name, f"PRE_EXTRACTION_ITER_{token}.md"
             )
         for sub_iteration in iteration.get("sub_iterations") or []:
             if not isinstance(sub_iteration, dict):
                 continue
-            sub_num = str(sub_iteration.get("iteration_number") or "").replace(".", "_")
+            sub_num = _canonical_iteration_filename_token(
+                sub_iteration.get("iteration_number")
+            )
             if sub_num:
                 sub_iteration["extraction_prompt"] = package_prompt_path(
                     context.ontology.name, f"EXTRACTION_ITER_{sub_num}.md"
