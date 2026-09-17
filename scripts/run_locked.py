@@ -44,8 +44,7 @@ from ship_lib import (
     select_eval_cases,
 )
 
-# EXTRACT_MARKER / KG_MARKER live in run_default_pipeline; keep local copies
-# so this script does not import that module's CLI main.
+# EXTRACT_DONE / KG_DONE match run_default_pipeline markers.
 EXTRACT_DONE = ".main_ontology_extractions_done"
 KG_DONE = ".main_kg_building_done"
 
@@ -322,7 +321,7 @@ def run_domain(
         )
         rc = run_logged(argv, env=env, dry_run=args.dry_run)
         if args.dry_run:
-            run_dir = run_dir or Path(f"scenarios/{scenario}/runs/<stamp>_{tag}")
+            run_dir = run_dir or Path(f"scenarios/{scenario}/runs/dryrun_{tag}")
         else:
             run_dir = latest_scenario_run(scenario, tag) if run_dir is None else run_dir
             if run_dir is None:
@@ -331,7 +330,7 @@ def run_domain(
                 raise SystemExit(f"{ontology} Pipeline KG failed")
     if run_dir is None:
         if args.dry_run:
-            run_dir = Path(f"scenarios/{scenario}/runs/<stamp>_{tag}")
+            run_dir = Path(f"scenarios/{scenario}/runs/dryrun_{tag}")
         else:
             raise SystemExit(f"{ontology} run directory is missing")
 
