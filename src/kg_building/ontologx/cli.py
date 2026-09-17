@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import os
 from pathlib import Path
@@ -100,6 +101,19 @@ def main(argv: list[str] | None = None) -> int:
         args.from_main_run = REPO_ROOT / args.from_main_run
     if not args.out_dir.is_absolute():
         args.out_dir = (REPO_ROOT / args.out_dir).resolve()
+    n_hashes = len([item for item in (args.hashes or []) if str(item).strip()])
+    if n_hashes == 0:
+        papers_path = args.papers if args.papers.is_absolute() else (REPO_ROOT / args.papers)
+        try:
+            n_hashes = len(json.loads(papers_path.read_text(encoding="utf-8")).get("papers") or [])
+        except (OSError, json.JSONDecodeError):
+            n_hashes = 0
+    if n_hashes > 2 and not os.environ.get("TWA_OX_ALLOW_MULTIDOC"):
+        print(
+            "[FAIL] Official s1–s4 OX letter jobs take at most 2 papers per process. "
+            "run_locked splits ALL_GROUPS a–o. Set TWA_OX_ALLOW_MULTIDOC=1 only to override."
+        )
+        return 1
     if args.scorer_repo is not None and not args.scorer_repo.is_absolute():
         args.scorer_repo = (REPO_ROOT / args.scorer_repo).resolve()
     elif args.score and args.scorer_repo is None:
