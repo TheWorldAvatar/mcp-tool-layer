@@ -29,6 +29,87 @@ DEFAULT_WORKERS = 5
 MAX_CASES = 30
 MIN_CASES = 1
 
+# Official s1–s4 letter jobs used conda env mcp_layer (Python 3.11).
+LOCKED_PYTHON = (3, 11)
+LOCKED_RUNTIME_VERSIONS = {
+    "mcp": "1.10.1",
+    "fastmcp": "2.10.1",
+    "langchain": "0.3.26",
+    "langchain-core": "0.3.66",
+    "langchain-openai": "0.3.25",
+    "langchain-mcp-adapters": "0.1.7",
+    "langgraph": "0.4.8",
+    "anyio": "4.9.0",
+    "openai": "1.91.0",
+}
+
+
+def default_locked_python() -> Path | None:
+    explicit = str(os.environ.get("TWA_LOCKED_PYTHON") or "").strip()
+    if explicit:
+        path = Path(explicit)
+        return path if path.is_file() else None
+    conda = (
+        Path(os.environ.get("USERPROFILE") or "")
+        / "AppData"
+        / "Local"
+        / "anaconda3"
+        / "envs"
+        / "mcp_layer"
+        / "python.exe"
+    )
+    if conda.is_file():
+        return conda
+    return None
+
+
+def locked_runtime_versions() -> dict[str, str]:
+    import importlib.metadata as metadata
+
+    out = {"python": sys.version.split()[0], "executable": sys.executable or ""}
+    for name in LOCKED_RUNTIME_VERSIONS:
+        try:
+            out[name] = metadata.version(name)
+        except Exception:
+            out[name] = "missing"
+    return out
+
+
+def format_locked_runtime_line() -> str:
+    payload = locked_runtime_versions()
+    parts = [
+        f"python={payload['python']}",
+        *[f"{name}={payload[name]}" for name in LOCKED_RUNTIME_VERSIONS],
+    ]
+    return " ".join(parts)
+
+
+def locked_runtime_mismatches() -> list[str]:
+    problems: list[str] = []
+    if sys.version_info[:2] != LOCKED_PYTHON:
+        problems.append(
+            f"python={sys.version.split()[0]} (locked s1-s4 is 3.11 from mcp_layer)"
+        )
+    payload = locked_runtime_versions()
+    for name, expected in LOCKED_RUNTIME_VERSIONS.items():
+        got = payload.get(name) or "missing"
+        if got != expected:
+            problems.append(f"{name}={got} (locked s1-s4 is {expected})")
+    return problems
+
+
+def assert_locked_runtime() -> None:
+    problems = locked_runtime_mismatches()
+    if not problems:
+        return
+    print("[FAIL] Interpreter is not the official s1-s4 mcp_layer stack:")
+    for item in problems:
+        print(f"  {item}")
+    hint = default_locked_python()
+    if hint is not None:
+        print(f"  use: {hint}")
+    raise SystemExit("locked runtime mismatch")
+
 MAIN_PAPERS = Path("src/kg_building/ontologx/papers_eval30.json")
 ONTOMED_PAPERS = Path("src/kg_building/ontologx/papers_medical.json")
 MAIN_PDF_DIR = Path("scenarios/mops/datasets/eval30")
@@ -158,7 +239,9 @@ def latest_scenario_run(scenario: str, tag: str, *, root: Path | None = None) ->
     matches = [
         path
         for path in folder.iterdir()
-        if path.is_dir() and (path.name == tag or path.name.endswith(f"_{tag}"))
+        if path.is_dir()
+        and not path.name.startswith("ox_")
+        and (path.name == tag or path.name.endswith(f"_{tag}"))
     ]
     if not matches:
         return None

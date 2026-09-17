@@ -21,9 +21,8 @@ function Write-Step([string]$Message) {
 
 function Get-PythonCommand {
     $candidates = @(
-        @("py", "-3.13"),
-        @("py", "-3.12"),
         @("py", "-3.11"),
+        @("py", "-3.12"),
         @("py", "-3"),
         @("python"),
         @("python3")
@@ -69,6 +68,12 @@ if (-not (Test-Path $venvPython)) {
     }
 } else {
     Write-Host "[OK] Reusing .venv"
+}
+
+$venvVersion = (& $venvPython -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')").Trim()
+if ($venvVersion -ne "3.11") {
+    Write-Host "[FAIL] Locked s1-s4 runtime is Python 3.11; .venv is $venvVersion. Delete .venv and re-run setup.cmd with py -3.11 (or use conda env mcp_layer)." -ForegroundColor Red
+    exit 1
 }
 
 Write-Step "Installing dependencies"
