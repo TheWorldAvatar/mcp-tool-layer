@@ -314,6 +314,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("action", choices=("pack", "unpack", "check"))
     parser.add_argument("--what", choices=("all", "pdfs", "mcp"), default="all")
     parser.add_argument("--force", action="store_true", help="Overwrite existing files / zips.")
+    parser.add_argument(
+        "--optional",
+        action="store_true",
+        help="Unpack: warn and continue when a zip is missing (used by setup.cmd).",
+    )
     parser.add_argument("--cases", type=int, default=30)
     parser.add_argument("--domain", choices=("both", "main", "ontomed"), default="both")
     parser.add_argument("--pack", default="s1", help="Chemistry MCP pack id: s1, s2, s3, or s4.")
@@ -330,23 +335,28 @@ def main(argv: list[str] | None = None) -> int:
             pack_mcp(force=args.force)
         return 0
     if args.action == "unpack":
+        missing = False
         if args.what in {"all", "pdfs"}:
             path = pdf_zip_path()
             if path.is_file():
                 unpack_zip(path, force=args.force)
+            elif args.optional:
+                print(f"[WARN] No {path.name}; skip PDF unpack. See docs/ONE_CLICK_RUN.md.")
             else:
                 print(f"[FAIL] Missing {path}")
                 print("       Copy eval30_pdfs.zip into data/eval_bundles/ first.")
-                return 1
+                missing = True
         if args.what in {"all", "mcp"}:
             path = mcp_zip_path()
             if path.is_file():
                 unpack_zip(path, force=args.force)
+            elif args.optional:
+                print(f"[WARN] No {path.name}; skip MCP unpack. See docs/ONE_CLICK_RUN.md.")
             else:
                 print(f"[FAIL] Missing {path}")
                 print("       Copy locked_mcp_packs.zip into data/eval_bundles/ first.")
-                return 1
-        return 0
+                missing = True
+        return 1 if missing else 0
     return print_check(check_inputs(cases=args.cases, domain=args.domain, pack=args.pack))
 
 
