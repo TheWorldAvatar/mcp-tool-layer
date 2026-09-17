@@ -109,8 +109,22 @@ def append_generic_noprompt_graph_rules(
     return text.rstrip() + "\n\n" + _PIPELINE_APPENDIX_HEADER + GENERIC_NOPROMPT_GRAPH_RULES + "\n"
 
 
+def _pack_ontosynthesis_tbox_candidates() -> list[Path]:
+    """Repo-relative pack dumps. No machine-specific absolute paths."""
+    runs = _REPO_ROOT / "generated" / "runs"
+    if not runs.is_dir():
+        return []
+    found = [
+        path
+        for path in sorted(runs.glob("*/ontology_structures/ontosynthesis/parsed.md"))
+        if path.is_file()
+    ]
+    preferred = [path for path in found if "fullpack" in path.parts]
+    return preferred or found
+
+
 def resolve_default_tbox() -> Path:
-    """Prefer the frozen data copy, else the generated ontology_structures dump.
+    """Prefer the frozen data copy, else a generated ontology_structures dump.
 
     Lives here so Pipeline KG can load the handbook without importing OX-local
     ``paths`` (that package is only on sys.path for the OntoLogX CLI).
@@ -121,7 +135,10 @@ def resolve_default_tbox() -> Path:
     candidates: list[Path] = []
     env_root = str(os.environ.get("TWA_GENERATED_ARTIFACT_ROOT") or "").strip()
     if env_root:
-        candidates.append(Path(env_root) / "ontology_structures" / "ontosynthesis" / "parsed.md")
+        env_path = Path(env_root)
+        if not env_path.is_absolute():
+            env_path = _REPO_ROOT / env_path
+        candidates.append(env_path / "ontology_structures" / "ontosynthesis" / "parsed.md")
     current = _REPO_ROOT / "generated" / "current.json"
     if current.is_file():
         try:
@@ -130,9 +147,10 @@ def resolve_default_tbox() -> Path:
             payload = {}
         rel = str(payload.get("path") or "").strip()
         if rel:
-            candidates.append(
-                _REPO_ROOT / rel / "ontology_structures" / "ontosynthesis" / "parsed.md"
-            )
+            rel_path = Path(rel)
+            pack = rel_path if rel_path.is_absolute() else _REPO_ROOT / rel_path
+            candidates.append(pack / "ontology_structures" / "ontosynthesis" / "parsed.md")
+    candidates.extend(_pack_ontosynthesis_tbox_candidates())
     for path in candidates:
         if path.is_file():
             return path
@@ -140,8 +158,15 @@ def resolve_default_tbox() -> Path:
 
 
 def load_ontosynthesis_tbox_text() -> str:
-    """Same T-Box file OX generic-noprompt already resolves."""
+    """Same T-Box file OX generic-noprompt / with-prompt already resolve."""
     path = resolve_default_tbox()
+    if not path.is_file():
+        raise FileNotFoundError(
+            "Missing OntoSynthesis T-Box handbook. Expected "
+            "data/ontologies/ontosynthesis_parsed.md or "
+            "generated/runs/*/ontology_structures/ontosynthesis/parsed.md "
+            f"(resolved {path})"
+        )
     text = path.read_text(encoding="utf-8").strip()
     if not text:
         raise RuntimeError(f"Empty OntoSynthesis T-Box prompt: {path}")

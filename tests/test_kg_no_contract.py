@@ -64,7 +64,7 @@ def test_kg_protocol_env_pins_seed_and_surfaces() -> None:
         assert os.environ["TWA_SEMANTIC_OPERATION_SURFACE"] == "1"
 
 
-def test_resolve_default_tbox_falls_back_to_generated_package() -> None:
+def test_resolve_default_tbox_prefers_frozen_handbook() -> None:
     from src.kg_building.generic_noprompt_graph_rules import (
         load_ontosynthesis_tbox_text,
         resolve_default_tbox as pipeline_resolve,
@@ -73,9 +73,11 @@ def test_resolve_default_tbox_falls_back_to_generated_package() -> None:
 
     path = resolve_default_tbox()
     assert path.is_file()
-    assert path.name == "parsed.md"
+    assert path.name == "ontosynthesis_parsed.md"
+    assert path.parts[-2:] == ("ontologies", "ontosynthesis_parsed.md")
     assert pipeline_resolve() == path
     assert load_ontosynthesis_tbox_text() == path.read_text(encoding="utf-8").strip()
+    assert "Class:" in load_ontosynthesis_tbox_text() or "Add" in load_ontosynthesis_tbox_text()
 
 
 def test_tbox_loader_imports_without_ontologx_on_path() -> None:
