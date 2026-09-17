@@ -21,6 +21,12 @@ extensions_kg_building  → src.kg_building.pipeline.extension
 
 ## OntoLogX
 
+`python -m src.kg_building.ontologx --protocol generic-strict` is the locked
+1:1 CLI. For PDFs, frozen MCP packs, and a one-click extract → Pipeline → OX
+path, see [docs/ONE_CLICK_RUN.md](../../docs/ONE_CLICK_RUN.md). Do not pass
+`--from-main-run` together with `--protocol`.
+
+
 `ontologx/` is the structured-output baseline. The default profile is
 **generic graph rules + strict no-prompt** (same family as the OntoSyn
 official no-contract / strict no-prompt work). Extension layers do not
@@ -35,13 +41,11 @@ derivation step.
 
 ```powershell
 python -m src.kg_building.ontologx `
-  --from-main-run <pipe_run> `
-  --hint-runs <pipe_run> `
-  --extension ontospecies --extension ontomops `
+  --protocol generic-strict `
+  --hint-runs scenarios/mops/runs/<pipeline_run> `
   --hash 0c57bac8 `
-  --out-dir scenarios/mops/runs/ox_ext1 `
-  --mop-derivation `
-  --score --scorer-repo data/third_party_repos/MCP-enhanced-MOPs-Extraction_Reproduction
+  --out-dir scenarios/mops/runs/ox_replay `
+  --score
 ```
 
 `--scorer-repo` is read-only. Isolated convert/score output goes under

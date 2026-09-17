@@ -165,28 +165,35 @@ def _run_jobs_parallel(
             raise SystemExit("failed: " + "; ".join(failures))
 
 
+def _prompt_generation_jobs(args: argparse.Namespace) -> list[list[str]]:
+    """Official s1–s4 authoring: one batch, `--stage all`, workers=5, all domains.
+
+    Chemistry packs wrote ontosynthesis then ontomops/ontospecies (and medical
+    when `--all-domains`). Do not skip extensions: `--test` extract still
+    launches those MCP servers.
+    """
+    common = ["--tag", args.generation_tag, "--stage", "all", *_worker_flags(args)]
+    if args.domain == "both":
+        return [_module_cmd("src.extraction_prompt_generation", "--all-domains", *common)]
+    names: list[str] = []
+    if _want(args.domain, "main"):
+        names.extend(["ontosynthesis", "ontomops", "ontospecies"])
+    if _want(args.domain, "ontomed"):
+        names.append("medical")
+    return [_module_cmd("src.extraction_prompt_generation", name, *common) for name in names]
+
+
 def step_generate(args: argparse.Namespace, env: dict[str, str]) -> Path:
     root = repo_root()
     print("\n=== STEP 1 / 5  GPT-5 extraction prompt generation ===", flush=True)
-    ontologies = []
-    if _want(args.domain, "main"):
-        ontologies.append("ontosynthesis")
-    if _want(args.domain, "ontomed"):
-        ontologies.append("medical")
-    for ontology in ontologies:
-        rc = run_logged(
-            _module_cmd(
-                "src.extraction_prompt_generation",
-                ontology,
-                "--tag",
-                args.generation_tag,
-                *_worker_flags(args),
-            ),
-            env=env,
-            dry_run=args.dry_run,
-        )
+    jobs = _prompt_generation_jobs(args)
+    if not jobs:
+        raise SystemExit("prompt generation has no ontologies for this --domain")
+    for argv in jobs:
+        label = " ".join(argv[3:5])
+        rc = run_logged(argv, env=env, dry_run=args.dry_run)
         if not command_succeeded(rc):
-            raise SystemExit(f"prompt generation failed for {ontology} (exit {rc})")
+            raise SystemExit(f"prompt generation failed ({label}, exit {rc})")
     if args.dry_run:
         return root / "generated" / "runs" / f"<stamp>_{args.generation_tag}"
     return active_generation_root(root)

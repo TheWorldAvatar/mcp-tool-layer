@@ -10,9 +10,16 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import sys
 import zipfile
 from pathlib import Path
 from typing import Iterable
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+if str(Path(__file__).resolve().parent) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from ship_lib import (
     MAIN_PAPERS,
@@ -37,6 +44,21 @@ CHEMISTRY_PACKS = {
 }
 MEDICAL_PACK = Path("generated") / "runs" / "med-s1_newmcp"
 ALL_MCP_PACKS = tuple(CHEMISTRY_PACKS.values()) + (MEDICAL_PACK,)
+
+# Official 0908-fullpack-s1 OntoSynthesis extraction prompts. Byte-identical
+# on s1 / s1_mcp / s1_newmcp. Locked extract must not swap in a later GPT-5
+# authoring (e2e1, slimlock_ext, extv2 extension files, run.cmd `gpt5` tag).
+FROZEN_S1_ONTOSYNTHESIS_PROMPT_SHA256 = {
+    "EXTRACTION_ITER_1.md": "fa489405cf19bb15d62798586fb6ada867eb4223ee770c2b3e0635cf768f7949",
+    "EXTRACTION_ITER_2.md": "6b9369d917b596de2f0cdbd1349bba2650f242208a5715bbf737851450453e7b",
+    "EXTRACTION_ITER_2.materializable.inc": "3bab8d3cd500c0389fdf53e4500881045347763a3f464b90e93caaaf729d4141",
+    "EXTRACTION_ITER_3.md": "9cf6ef2d5d2a9169ad7cec4161c44c84460696ce21464aee1cbcec4ba58088ea",
+    "EXTRACTION_ITER_3.materializable.inc": "889c87effe56c1c65e6891bc0d1ae719bdbd0f7a5535a9d9b99056b4156fa03f",
+    "EXTRACTION_ITER_4.md": "4ec281cfdab7c4172fe1708fb7dc97c6698ccca1eae955dfb58c0937db9d7653",
+    "EXTRACTION_ITER_4.materializable.inc": "02e6ac11c1b851856ba9d7f9b3d8a9389f98e9103d1a354a83dcae86b9583d2e",
+    "PRE_EXTRACTION_ITER_3.md": "bc476864804e5f5895c7d2e93e8ef5f653f5518023aac869ac147f4c72186a62",
+    "PRE_EXTRACTION_ITER_3.materializable.inc": "ebc755b071eef840dd2614c5a1acc99ec512b85f86e19eb18071ecaf442d6080",
+}
 
 SKIP_DIR_NAMES = {"__pycache__", ".pytest_cache", ".git"}
 SKIP_SUFFIXES = {".pyc", ".pyo"}
@@ -74,13 +96,68 @@ def mcp_pack_ready(path: Path) -> bool:
     return path.is_dir() and (path / "scripts").is_dir()
 
 
+def _extraction_prompt_files(pack_root: Path) -> list[Path]:
+    prompts = Path(pack_root) / "prompts"
+    if not prompts.is_dir():
+        return []
+    files: list[Path] = []
+    for path in sorted(prompts.rglob("*")):
+        if not path.is_file():
+            continue
+        name = path.name.upper()
+        if name.startswith(("EXTRACTION_ITER_", "PRE_EXTRACTION_ITER_")):
+            files.append(path)
+    return files
+
+
+def assert_frozen_extraction_prompts(pack_root: Path, *, pack_id: str | None = None) -> None:
+    """Refuse extract if the pack is missing slim-family prompts or s1 drifted."""
+    from src.extraction_prompt_generation.slim_family_lock import (
+        assert_slim_extraction_prompt_family,
+    )
+
+    root = Path(pack_root)
+    files = _extraction_prompt_files(root)
+    if not files:
+        raise FileNotFoundError(
+            f"Frozen pack has no EXTRACTION_ITER / PRE_EXTRACTION prompts: {root}"
+        )
+    for path in files:
+        if path.suffix.lower() != ".md":
+            continue
+        assert_slim_extraction_prompt_family(
+            path.name, path.read_text(encoding="utf-8")
+        )
+    key = str(pack_id or "").strip().lower()
+    if key != "s1":
+        return
+    folder = root / "prompts" / "ontosynthesis"
+    for name, expected in FROZEN_S1_ONTOSYNTHESIS_PROMPT_SHA256.items():
+        path = folder / name
+        if not path.is_file():
+            raise FileNotFoundError(f"s1 extraction prompt missing: {path}")
+        actual = hashlib.sha256(path.read_bytes()).hexdigest()
+        if actual != expected:
+            raise ValueError(
+                f"s1 extraction prompt is not the official 0908-fullpack-s1 file: {name}"
+            )
+
+
 def _posix(path: Path) -> str:
     return path.as_posix()
 
 
 def _safe_zip_member(name: str) -> Path:
-    relative = Path(name.replace("\\", "/"))
-    if relative.is_absolute() or ".." in relative.parts:
+    normalized = name.replace("\\", "/")
+    relative = Path(normalized)
+    drive = len(normalized) >= 2 and normalized[1] == ":"
+    if (
+        normalized.startswith("/")
+        or drive
+        or relative.is_absolute()
+        or bool(relative.anchor)
+        or ".." in relative.parts
+    ):
         raise ValueError(f"Refusing zip member {name!r}")
     return relative
 
