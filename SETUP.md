@@ -9,7 +9,7 @@ Two scripts at the repo root:
 | `pack_eval_inputs.cmd` | Pack or unpack `data/eval_bundles/*.zip` (PDFs + frozen MCP; not in git) |
 | `run.cmd` | Default 5-step pipeline: generate → MCP → extract → KG (`generic-strict`) → score |
 
-You need Python 3.11+ on PATH. **Git does not include** the eval PDFs or `.env` — copy those in yourself after clone. Scoring engines are cloned automatically. Licensed CCDC / CSD software is **not** part of setup; it is only required to finish chemistry **CBU** (see §5).
+Locked s1–s4 needs **Python 3.11** (conda `mcp_layer` or a 3.11 `.venv`). **Git does not include** the eval PDFs or `.env` — copy those in yourself after clone. Unit tests: [docs/LOCKED_TESTS.md](docs/LOCKED_TESTS.md). Scoring engines are cloned automatically. Licensed CCDC / CSD software is **not** part of setup; it is only required to finish chemistry **CBU** (see §5).
 
 ## 1. Clone
 
@@ -93,24 +93,24 @@ That is **not** universal:
 | PowerShell | `.\.venv\...` is required. In `cmd.exe`, `.venv\Scripts\python.exe` also works. |
 | Working directory | Must be the clone root (`pyproject.toml` is here). |
 
-`run.cmd` always calls `.\.venv\Scripts\python.exe`. Or skip the block and run `setup.cmd`, which probes `py -3.13` / `3.12` / `-3.11` then `python`, then installs, checks `.env` / PDFs, and clones scoring engines if needed.
+`setup.cmd` probes `py -3.11` first (official s1–s4 is conda `mcp_layer` / CPython 3.11). Do not use 3.13 for locked runs.
 
 ## 5. CCDC MCP (needed only for CBU)
 
-The CCDC MCP (`src.mcp_servers.ccdc.main`) talks to a **local, licensed** Cambridge Structural Database (CSD) install — the `ccdc` Python package, usually a conda env named `csd311`. `setup.cmd` does **not** install that software. It is not in this repo.
+The CCDC MCP (`src.mcp_servers.ccdc.main`) can answer a small hardcoded MOP table without licensed software. **Live** Cambridge Structural Database (CSD) access — the `ccdc` Python package, usually a conda env named `csd311` — is **opt-in**. `setup.cmd` does **not** install that software. A fresh clone does **not** probe `%USERPROFILE%\...\envs\csd311\python.exe` even if that env exists on the machine.
 
-You need that install to **complete chemistry CBU** (chemical building units). The `mop_derivation` step fetches `.res` / `.cif` crystal files through `get_res_cif_file_by_ccdc`. Without CSD, CBU derivation cannot finish, and the CBU score stays empty or near zero.
+You need that install to **complete chemistry CBU** (chemical building units). The `mop_derivation` step fetches `.res` / `.cif` crystal files through `get_res_cif_file_by_ccdc`. Without `CSD_PYTHON_EXE`, CBU derivation cannot finish, and the CBU score stays empty or near zero.
 
-**Everything else can run without it:** prompt generation, MCP compile, PDF conversion, extraction, KG, PubChem, websearch, OntoMed, and scoring of chemicals / steps / characterisation. A missing CSD env prints `[WARN] CSD python resolve failed` and the pipeline continues. Live CCDC name/DOI search also needs CSD; a small hardcoded MOP table can still resolve some deposition numbers.
+**Everything else can run without it:** prompt generation, MCP compile, PDF conversion, extraction, KG, PubChem, websearch, OntoMed, and scoring of chemicals / steps / characterisation. Unset `CSD_PYTHON_EXE` prints `[WARN] Live CSD disabled (CSD_PYTHON_EXE unset); CCDC MCP is hardcoded-only` and continues.
 
-If you have CSD installed, point the MCP at that env (not `.venv`):
+If you have CSD installed and want live search / CIF fetch, point the MCP at that env (not `.venv`):
 
 ```
 CSD_PYTHON_EXE=C:\Users\<you>\AppData\Local\anaconda3\envs\csd311\python.exe
 CSD_CONDA_ENV=csd311
 ```
 
-Put those in `.env` or the process environment. Default lookup is `%USERPROFILE%\AppData\Local\anaconda3\envs\csd311\python.exe` when `CSD_PYTHON_EXE` is unset. Do not use `mcp_layer` or the repo venv for CSD.
+Put those in `.env` or the process environment. Leave them commented out on a new clone. Do not use `mcp_layer` or the repo venv for CSD.
 
 ## 6. Run
 
@@ -118,7 +118,7 @@ Locked paper-style 1:1 (frozen MCP, Pipeline + OntoLogX):
 
 ```powershell
 run_locked.cmd --check
-run_locked.cmd          # 1 case, both domains, generic-strict
+run_locked.cmd          # 1 case, both domains, Minimal
 run_locked.cmd 30
 run_locked.cmd --list
 ```
@@ -163,4 +163,4 @@ Extraction **mints a new** run. To resume an unfinished extract you already star
 | missing PDFs | PDFs are not in git. Copy `eval30_pdfs.zip` into `data\eval_bundles\` or see [docs/ONE_CLICK_RUN.md](docs/ONE_CLICK_RUN.md). |
 | scorer not found | `setup.cmd` / `run.cmd` clone scoring engines into `data\third_party_repos\`. Needs git. |
 | chemistry extract cannot start PubChem | Update to a commit that launches `src.mcp_servers.pubchem.main` (in-repo; no extra clone) |
-| `[WARN] CSD python resolve failed` / CBU score empty | Expected without licensed CSD. Other steps still run. To finish CBU, install CSD (`csd311` + `ccdc` package) and set `CSD_PYTHON_EXE` as in §5 |
+| `[WARN] Live CSD disabled` / CBU score empty | Expected on a fresh clone. Other steps still run. To finish CBU, install CSD (`csd311` + `ccdc` package) and set `CSD_PYTHON_EXE` as in §5 |

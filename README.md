@@ -25,6 +25,7 @@ directory. You can run the CLI from any folder.
 See [SETUP.md](SETUP.md) for `.env`, PDFs, `setup.cmd`, and `run.cmd`.
 For the frozen-MCP Pipeline vs OntoLogX path (eval zips, no extraction in git),
 see [docs/ONE_CLICK_RUN.md](docs/ONE_CLICK_RUN.md) and `run_locked.cmd`.
+How to run the locked unit tests: [docs/LOCKED_TESTS.md](docs/LOCKED_TESTS.md).
 Licensed CCDC / CSD software is optional: you need it only to finish chemistry CBU; the rest of the pipeline runs without it.
 
 ## Prerequisites
