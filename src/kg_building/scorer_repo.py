@@ -73,7 +73,6 @@ def _candidate_paths(explicit: str | Path | None, root: Path) -> list[Path]:
         candidates.append(Path(env_scorer).expanduser())
     candidates.append(root / LOCAL_SCORER_RELATIVE)
     candidates.append(root.parent / SCORER_DIR_NAME)
-    candidates.append(Path(r"D:\MCP-enhanced-MOPs-Extraction_Reproduction"))
     candidates.append(home / "Documents" / "GitHub" / SCORER_DIR_NAME)
     for name in names:
         candidates.append(home / "Documents" / "GitHub" / name)
