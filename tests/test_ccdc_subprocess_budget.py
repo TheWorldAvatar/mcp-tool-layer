@@ -17,6 +17,42 @@ def test_resolve_csd_python_exe_uses_csd_python_exe_override(
     assert wsl_ccdc.resolve_csd_python_exe() == str(fake.resolve())
 
 
+def test_resolve_csd_python_exe_does_not_probe_conda(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.delenv("CSD_PYTHON_EXE", raising=False)
+    conda_py = (
+        tmp_path
+        / "AppData"
+        / "Local"
+        / "anaconda3"
+        / "envs"
+        / "csd311"
+        / "python.exe"
+    )
+    conda_py.parent.mkdir(parents=True)
+    conda_py.write_text("", encoding="utf-8")
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
+    monkeypatch.setenv("USERNAME", "tester")
+    with pytest.raises(RuntimeError, match="Live CSD is disabled"):
+        wsl_ccdc.resolve_csd_python_exe()
+    assert wsl_ccdc.live_csd_enabled() is False
+
+
+def test_live_csd_disabled_does_not_spawn_subprocess(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("CSD_PYTHON_EXE", raising=False)
+    monkeypatch.setattr(wsl_ccdc, "_lookup_hardcoded_ccdc", lambda _name: [])
+
+    def boom(*_args, **_kwargs):
+        raise AssertionError("must not spawn licensed CSD")
+
+    monkeypatch.setattr(wsl_ccdc.subprocess, "run", boom)
+    assert wsl_ccdc.search_ccdc_by_mop_name("UNKNOWN-MOP") == []
+    assert wsl_ccdc.search_ccdc_by_doi("10.1000/example") == []
+
+
 def test_run_csd_windows_ccdc_uses_hardcoded_interpreter_only(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -128,8 +164,37 @@ def test_subprocess_env_injects_windows_roots(monkeypatch: pytest.MonkeyPatch) -
     assert env["PATH"]
 
 
-def test_csd_lock_wait_timeout_fails_closed(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_ccdc_mcp_env_omits_csd_python_when_unset(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.extraction_runtime.mcp.test_launch import _ccdc_mcp_env
+
+    monkeypatch.delenv("CSD_PYTHON_EXE", raising=False)
+    env = _ccdc_mcp_env({"PYTHONPATH": "repo", "CSD_PYTHON_EXE": "leaked"})
+    assert "CSD_PYTHON_EXE" not in env
+    assert env["FASTMCP_SHOW_SERVER_BANNER"] == "false"
+
+
+def test_ccdc_mcp_env_passes_explicit_csd_python(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from src.extraction_runtime.mcp.test_launch import _ccdc_mcp_env
+
+    fake = tmp_path / "csd-python.exe"
+    fake.write_text("", encoding="utf-8")
+    monkeypatch.setenv("CSD_PYTHON_EXE", str(fake))
+    env = _ccdc_mcp_env({"PYTHONPATH": "repo"})
+    assert env["CSD_PYTHON_EXE"] == str(fake.resolve())
+
+
+def test_csd_lock_wait_timeout_fails_closed(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     from contextlib import contextmanager
+
+    fake = tmp_path / "python.exe"
+    fake.write_text("", encoding="utf-8")
+    monkeypatch.setenv("CSD_PYTHON_EXE", str(fake))
 
     @contextmanager
     def fake_lock():

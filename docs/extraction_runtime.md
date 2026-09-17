@@ -41,9 +41,9 @@ This package does **not** write `KG_BUILDING_ITER_*.md`. KG steps bind hints to 
 
 Runtime validation is fail-soft: shape checks and closed-type lists get a few retries, then the step keeps whatever is valid and moves on. Prefer a partial paper over aborting the run. After the configured steps finish, if a requested extraction marker is still missing (`top_entities.txt`, `.main_ontology_extractions_done`, `.extensions_extractions_done`), the runtime reruns the full step list once (existing artifacts are skipped). Config, discovery, and runtime-init errors still stop the job.
 
-`--test` writes `configs/test_mcp_config_<ontology>_<run>.json` from domain `mcp_capabilities`, then starts `scripts/<ontology>/` from the artifact root. `ccdc` still launches the in-repo server.
+`--test` writes `configs/test_mcp_config_<ontology>_<run>.json` from domain `mcp_capabilities`, then starts `scripts/<ontology>/` from the artifact root. `ccdc` still launches the in-repo server, but **live licensed CSD stays off** unless `CSD_PYTHON_EXE` points at an existing interpreter. A machine-wide `csd311` conda env is not auto-detected.
 
-The CCDC MCP needs a **licensed local CSD** install (`ccdc` Python package; default conda env `csd311`, or `CSD_PYTHON_EXE`). That software is required to **complete CBU** (`mop_derivation` fetches `.res` / `.cif` via `get_res_cif_file_by_ccdc`). Prompt generation, extraction, KG, PubChem, OntoMed, and the chemicals / steps / characterisation scores run without it. If CSD Python is missing, launch prints `[WARN] CSD python resolve failed` and continues. See [SETUP.md](../SETUP.md) §5.
+Live CSD is required only to **complete CBU** (`mop_derivation` fetches `.res` / `.cif` via `get_res_cif_file_by_ccdc`). Prompt generation, extraction, KG, PubChem, OntoMed, and the chemicals / steps / characterisation scores run without it. Unset `CSD_PYTHON_EXE` prints `[WARN] Live CSD disabled` and CCDC answers from the hardcoded MOP table only. See [SETUP.md](../SETUP.md) §5.
 
 ## Two PDF-to-markdown chains
 

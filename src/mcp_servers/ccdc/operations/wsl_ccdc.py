@@ -28,9 +28,6 @@ import sys
 from models.locations import DATA_CCDC_DIR
 from src.utils.source_text_sanitize import sanitize_source_markdown
 
-# Hard-require the licensed CSD conda env. Do not probe mcp_layer / PATH / conda-run fallbacks.
-_DEFAULT_CSD_CONDA_ENV = "csd311"
-
 
 def _diag(*args, **kwargs) -> None:
     """Keep CCDC diagnostics off stdout so stdio MCP messages remain valid."""
@@ -83,12 +80,17 @@ def _subprocess_env() -> dict:
     return out
 
 
-def resolve_csd_python_exe() -> str:
-    """Return the only supported CSD/CCDC Python interpreter (csd311 by default).
+def live_csd_enabled() -> bool:
+    """Live licensed CSD is opt-in. A machine-wide ``csd311`` env is not enough."""
+    override = (os.environ.get("CSD_PYTHON_EXE") or "").strip()
+    return bool(override) and Path(override).is_file()
 
-    Resolution order:
-      1. ``CSD_PYTHON_EXE`` if it points at an existing file
-      2. ``%USERPROFILE%/.../anaconda3|miniconda3/envs/{CSD_CONDA_ENV|csd311}/python.exe``
+
+def resolve_csd_python_exe() -> str:
+    """Return the licensed CSD Python interpreter.
+
+    Live CSD stays off unless ``CSD_PYTHON_EXE`` points at an existing file.
+    Fresh clones must not probe conda ``csd311`` / ProgramData installs.
     """
     override = (os.environ.get("CSD_PYTHON_EXE") or "").strip()
     if override:
@@ -97,51 +99,9 @@ def resolve_csd_python_exe() -> str:
         raise RuntimeError(
             f"CSD_PYTHON_EXE is set but not a file: {override}"
         )
-
-    env_name = (os.environ.get("CSD_CONDA_ENV") or _DEFAULT_CSD_CONDA_ENV).strip() or _DEFAULT_CSD_CONDA_ENV
-    user_profile = (
-        os.environ.get("USERPROFILE")
-        or os.environ.get("HOME")
-        or ""
-    ).strip()
-    username = (os.environ.get("USERNAME") or os.environ.get("USER") or "").strip()
-    roots: list[Path] = []
-    if user_profile:
-        roots.extend(
-            [
-                Path(user_profile) / "AppData" / "Local" / "anaconda3",
-                Path(user_profile) / "AppData" / "Local" / "miniconda3",
-                Path(user_profile) / "anaconda3",
-                Path(user_profile) / "miniconda3",
-            ]
-        )
-    if username:
-        roots.extend(
-            [
-                Path(rf"C:\Users\{username}\AppData\Local\anaconda3"),
-                Path(rf"C:\Users\{username}\anaconda3"),
-            ]
-        )
-    roots.extend(
-        [
-            Path(r"C:\ProgramData\anaconda3"),
-            Path(r"C:\ProgramData\miniconda3"),
-        ]
-    )
-
-    seen: set[str] = set()
-    for root in roots:
-        candidate = root / "envs" / env_name / "python.exe"
-        key = str(candidate).lower()
-        if key in seen:
-            continue
-        seen.add(key)
-        if candidate.is_file():
-            return str(candidate.resolve())
-
     raise RuntimeError(
-        f"CSD Python not found for conda env '{env_name}'. "
-        f"Install that env with the ccdc package, or set CSD_PYTHON_EXE to its python.exe."
+        "Live CSD is disabled. Set CSD_PYTHON_EXE to the licensed CSD python.exe "
+        "to enable crystal fetch and live name/DOI search."
     )
 
 
@@ -266,6 +226,9 @@ def _run_csd_windows_ccdc(args: list[str]) -> subprocess.CompletedProcess:
 
 def _run_csd_windows_ccdc_safe(args: list[str]) -> tuple[int, str, str]:
     """Like :func:`_run_csd_windows_ccdc` but returns on ``TimeoutExpired`` instead of raising."""
+    if not live_csd_enabled():
+        _diag("[CCDC] Live CSD disabled (CSD_PYTHON_EXE unset or not a file); fail closed")
+        return -1, "", "live CSD disabled (CSD_PYTHON_EXE unset)"
     try:
         p = _run_csd_windows_ccdc(args)
         return p.returncode, p.stdout or "", p.stderr or ""

@@ -1,4 +1,5 @@
 from fastmcp import FastMCP
+import asyncio
 import logging
 import re
 import sys
@@ -361,6 +362,10 @@ def instruction_prompt():
 @ccdc_tool_logger
 @mcp.tool(name="search_ccdc_by_mop_name", description="Search the CCDC by compound name e.g., IRMOP-50, MOP-54, etc. Returns a list of (CSD refcode, CCDC number) tuples.")
 async def search_ccdc_by_mop_name(name: str, exact: bool = False) -> str:
+    return await asyncio.to_thread(_search_ccdc_by_mop_name_sync, name, exact)
+
+
+def _search_ccdc_by_mop_name_sync(name: str, exact: bool = False) -> str:
     # Check hardcoded mapping first (raw + sanitized ASCII keys)
     lookup_keys = []
     raw_key = (name or "").strip().lower()
@@ -402,6 +407,10 @@ async def search_ccdc_by_mop_name(name: str, exact: bool = False) -> str:
 @ccdc_tool_logger
 @mcp.tool(name="search_ccdc_by_doi", description="Search the CCDC by DOI. Accepts underscore or URL; returns a table with details.")
 async def search_ccdc_by_doi(doi_like: str) -> str:
+    return await asyncio.to_thread(_search_ccdc_by_doi_sync, doi_like)
+
+
+def _search_ccdc_by_doi_sync(doi_like: str) -> str:
     rows = HARDCODED_DOI_CCDC.get(_normalize_doi_key(doi_like))
     if rows is None:
         rows = _search_ccdc_by_doi(doi_like)
@@ -416,6 +425,10 @@ async def search_ccdc_by_doi(doi_like: str) -> str:
 @ccdc_tool_logger
 @mcp.tool(name="get_res_cif_file_by_ccdc", description="Fetch a structure by CCDC number and write .res/.cif under DATA_CCDC_DIR. Returns a TSV string with file paths.")
 async def get_res_cif_file_by_ccdc(deposition_number: str) -> str:
+    return await asyncio.to_thread(_get_res_cif_file_by_ccdc_sync, deposition_number)
+
+
+def _get_res_cif_file_by_ccdc_sync(deposition_number: str) -> str:
     paths = _get_res_cif_file_by_ccdc(deposition_number)
     # Return simple TSV lines to conform to string-only outputs
     return f"res\t{paths.get('res','')}\n" \
