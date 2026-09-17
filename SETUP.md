@@ -160,7 +160,7 @@ Extraction **mints a new** run. To resume an unfinished extract you already star
 | --- | --- |
 | `[FAIL] .venv is missing` | Run the venv block in §4, or `setup.cmd` |
 | empty `REMOTE_API_KEY` | Fill `.env` |
-| missing PDFs | PDFs are not in git. Copy them into the folders in §3, with those filenames. |
+| missing PDFs | PDFs are not in git. Copy `eval30_pdfs.zip` into `data\eval_bundles\` or see [docs/ONE_CLICK_RUN.md](docs/ONE_CLICK_RUN.md). |
 | scorer not found | `setup.cmd` / `run.cmd` clone scoring engines into `data\third_party_repos\`. Needs git. |
 | chemistry extract cannot start PubChem | Update to a commit that launches `src.mcp_servers.pubchem.main` (in-repo; no extra clone) |
 | `[WARN] CSD python resolve failed` / CBU score empty | Expected without licensed CSD. Other steps still run. To finish CBU, install CSD (`csd311` + `ccdc` package) and set `CSD_PYTHON_EXE` as in §5 |
