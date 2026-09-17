@@ -9,8 +9,6 @@
       "steps": [
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -30,8 +28,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -52,8 +48,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -75,8 +69,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -105,9 +97,6 @@
             "heatingCoolingRate": "N/A",
             "comment": "N/A",
             "underVacuum": false,
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
-            "usedVesselName": "vessel 1",
-            "sealedVessel": true,
             "stir": false,
             "stepNumber": 5,
             "atmosphere": "N/A"
@@ -121,9 +110,6 @@
             "heatingCoolingRate": "slowly",
             "comment": "N/A",
             "underVacuum": false,
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
-            "usedVesselName": "vessel 1",
-            "sealedVessel": true,
             "stir": false,
             "stepNumber": 6,
             "atmosphere": "N/A"
@@ -143,8 +129,6 @@
             ],
             "vacuumFiltration": false,
             "numberOfFiltrations": 1,
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "stepNumber": 7,
             "comment": "Obtain the yellowish-brown crystals",
             "atmosphere": "N/A"
@@ -161,8 +145,6 @@
       "steps": [
         {
           "Add": {
-            "usedVesselName": "vessel 2",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -182,8 +164,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 2",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -204,8 +184,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 2",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -227,8 +205,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 2",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -257,9 +233,6 @@
             "heatingCoolingRate": "N/A",
             "comment": "N/A",
             "underVacuum": false,
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
-            "usedVesselName": "vessel 2",
-            "sealedVessel": true,
             "stir": false,
             "stepNumber": 5,
             "atmosphere": "N/A"
@@ -273,9 +246,6 @@
             "heatingCoolingRate": "slowly",
             "comment": "N/A",
             "underVacuum": false,
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
-            "usedVesselName": "vessel 2",
-            "sealedVessel": true,
             "stir": false,
             "stepNumber": 6,
             "atmosphere": "N/A"
@@ -295,8 +265,6 @@
             ],
             "vacuumFiltration": false,
             "numberOfFiltrations": 1,
-            "usedVesselName": "vessel 2",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "stepNumber": 7,
             "comment": "Obtain the yellowish-brown crystals",
             "atmosphere": "N/A"
@@ -313,8 +281,6 @@
       "steps": [
         {
           "Add": {
-            "usedVesselName": "vessel 3",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -334,8 +300,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 3",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -356,8 +320,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 3",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -379,8 +341,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 3",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -409,9 +369,6 @@
             "heatingCoolingRate": "N/A",
             "comment": "N/A",
             "underVacuum": false,
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
-            "usedVesselName": "vessel 3",
-            "sealedVessel": true,
             "stir": false,
             "stepNumber": 5,
             "atmosphere": "N/A"
@@ -425,9 +382,6 @@
             "heatingCoolingRate": "slowly",
             "comment": "N/A",
             "underVacuum": false,
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
-            "usedVesselName": "vessel 3",
-            "sealedVessel": true,
             "stir": false,
             "stepNumber": 6,
             "atmosphere": "N/A"
@@ -447,8 +401,6 @@
             ],
             "vacuumFiltration": false,
             "numberOfFiltrations": 1,
-            "usedVesselName": "vessel 3",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "stepNumber": 7,
             "comment": "Obtain the yellowish-brown crystals",
             "atmosphere": "N/A"
@@ -465,8 +417,6 @@
       "steps": [
         {
           "Add": {
-            "usedVesselName": "vessel 4",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -486,8 +436,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 4",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -508,8 +456,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 4",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -531,8 +477,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 4",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -561,9 +505,6 @@
             "heatingCoolingRate": "N/A",
             "comment": "N/A",
             "underVacuum": false,
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
-            "usedVesselName": "vessel 4",
-            "sealedVessel": true,
             "stir": false,
             "stepNumber": 5,
             "atmosphere": "N/A"
@@ -577,9 +518,6 @@
             "heatingCoolingRate": "slowly",
             "comment": "N/A",
             "underVacuum": false,
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
-            "usedVesselName": "vessel 4",
-            "sealedVessel": true,
             "stir": false,
             "stepNumber": 6,
             "atmosphere": "N/A"
@@ -599,8 +537,6 @@
             ],
             "vacuumFiltration": false,
             "numberOfFiltrations": 1,
-            "usedVesselName": "vessel 4",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "stepNumber": 7,
             "comment": "Obtain the green crystals",
             "atmosphere": "N/A"
@@ -617,8 +553,6 @@
       "steps": [
         {
           "Add": {
-            "usedVesselName": "vessel 5",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -638,8 +572,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 5",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -660,8 +592,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 5",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -683,8 +613,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 5",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -713,9 +641,6 @@
             "heatingCoolingRate": "N/A",
             "comment": "N/A",
             "underVacuum": false,
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
-            "usedVesselName": "vessel 5",
-            "sealedVessel": true,
             "stir": false,
             "stepNumber": 5,
             "atmosphere": "N/A"
@@ -729,9 +654,6 @@
             "heatingCoolingRate": "slowly",
             "comment": "N/A",
             "underVacuum": false,
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
-            "usedVesselName": "vessel 5",
-            "sealedVessel": true,
             "stir": false,
             "stepNumber": 6,
             "atmosphere": "N/A"
@@ -751,8 +673,6 @@
             ],
             "vacuumFiltration": false,
             "numberOfFiltrations": 1,
-            "usedVesselName": "vessel 5",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "stepNumber": 7,
             "comment": "Obtain the green crystals",
             "atmosphere": "N/A"

@@ -24,9 +24,7 @@
             "isLayered": false,
             "stepNumber": 1,
             "stir": false,
-            "targetPH": -1,
-            "usedVesselName": "vial 1",
-            "usedVesselType": "sealed vial"
+            "targetPH": -1
           }
         },
         {
@@ -45,9 +43,7 @@
             "isLayered": false,
             "stepNumber": 2,
             "stir": false,
-            "targetPH": -1,
-            "usedVesselName": "vial 1",
-            "usedVesselType": "sealed vial"
+            "targetPH": -1
           }
         },
         {
@@ -69,9 +65,7 @@
             "isLayered": false,
             "stepNumber": 3,
             "stir": false,
-            "targetPH": -1,
-            "usedVesselName": "vial 1",
-            "usedVesselType": "sealed vial"
+            "targetPH": -1
           }
         },
         {
@@ -91,9 +85,7 @@
             "isLayered": false,
             "stepNumber": 4,
             "stir": false,
-            "targetPH": -1,
-            "usedVesselName": "vial 1",
-            "usedVesselType": "sealed vial"
+            "targetPH": -1
           }
         },
         {
@@ -115,9 +107,7 @@
             "isLayered": false,
             "stepNumber": 5,
             "stir": false,
-            "targetPH": -1,
-            "usedVesselName": "vial 1",
-            "usedVesselType": "sealed vial"
+            "targetPH": -1
           }
         },
         {
@@ -126,9 +116,7 @@
             "comment": "sonicate for 3 minutes",
             "duration": "3 min",
             "stepNumber": 6,
-            "targetPH": -1,
-            "usedVesselName": "vial 1",
-            "usedVesselType": "sealed vial"
+            "targetPH": -1
           }
         },
         {
@@ -137,14 +125,11 @@
             "comment": "heated at 60 °C for 8 hours and produced rhombic transparent crystals",
             "duration": "8 h",
             "heatingCoolingRate": "N/A",
-            "sealedVessel": true,
             "stepNumber": 7,
             "stir": false,
             "targetTemperature": "60 °C",
             "underVacuum": false,
-            "usedDevice": "N/A",
-            "usedVesselName": "vial 1",
-            "usedVesselType": "sealed vial"
+            "usedDevice": "N/A"
           }
         }
       ]
@@ -173,9 +158,7 @@
             "isLayered": false,
             "stepNumber": 1,
             "stir": false,
-            "targetPH": -1,
-            "usedVesselName": "vial 2",
-            "usedVesselType": "sealed vial"
+            "targetPH": -1
           }
         },
         {
@@ -194,9 +177,7 @@
             "isLayered": false,
             "stepNumber": 2,
             "stir": false,
-            "targetPH": -1,
-            "usedVesselName": "vial 2",
-            "usedVesselType": "sealed vial"
+            "targetPH": -1
           }
         },
         {
@@ -218,9 +199,7 @@
             "isLayered": false,
             "stepNumber": 3,
             "stir": false,
-            "targetPH": -1,
-            "usedVesselName": "vial 2",
-            "usedVesselType": "sealed vial"
+            "targetPH": -1
           }
         },
         {
@@ -240,9 +219,7 @@
             "isLayered": false,
             "stepNumber": 4,
             "stir": false,
-            "targetPH": -1,
-            "usedVesselName": "vial 2",
-            "usedVesselType": "sealed vial"
+            "targetPH": -1
           }
         },
         {
@@ -251,9 +228,7 @@
             "comment": "sonicate for 3 minutes",
             "duration": "3 min",
             "stepNumber": 5,
-            "targetPH": -1,
-            "usedVesselName": "vial 2",
-            "usedVesselType": "sealed vial"
+            "targetPH": -1
           }
         },
         {
@@ -262,14 +237,11 @@
             "comment": "heated at 60 °C for 8 hours",
             "duration": "8 h",
             "heatingCoolingRate": "N/A",
-            "sealedVessel": true,
             "stepNumber": 6,
             "stir": false,
             "targetTemperature": "60 °C",
             "underVacuum": false,
-            "usedDevice": "N/A",
-            "usedVesselName": "vial 2",
-            "usedVesselType": "sealed vial"
+            "usedDevice": "N/A"
           }
         }
       ]

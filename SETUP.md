@@ -7,7 +7,7 @@ Two scripts at the repo root:
 | `setup.cmd` | Creates `.venv`, installs runtime deps, checks `.env` / PDFs, clones scoring engines |
 | `run.cmd` | Default 5-step pipeline: generate → MCP → extract → KG (`generic-strict`) → score |
 
-You need Python 3.11+ on PATH. **Git does not include** the eval PDFs or `.env` — copy those in yourself after clone. Scoring engines are cloned automatically.
+You need Python 3.11+ on PATH. **Git does not include** the eval PDFs or `.env` — copy those in yourself after clone. Scoring engines are cloned automatically. Licensed CCDC / CSD software is **not** part of setup; it is only required to finish chemistry **CBU** (see §5).
 
 ## 1. Clone
 
@@ -70,7 +70,24 @@ That is **not** universal:
 
 `run.cmd` always calls `.\.venv\Scripts\python.exe`. Or skip the block and run `setup.cmd`, which probes `py -3.13` / `3.12` / `-3.11` then `python`, then installs, checks `.env` / PDFs, and clones scoring engines if needed.
 
-## 5. Run
+## 5. CCDC MCP (needed only for CBU)
+
+The CCDC MCP (`src.mcp_servers.ccdc.main`) talks to a **local, licensed** Cambridge Structural Database (CSD) install — the `ccdc` Python package, usually a conda env named `csd311`. `setup.cmd` does **not** install that software. It is not in this repo.
+
+You need that install to **complete chemistry CBU** (chemical building units). The `mop_derivation` step fetches `.res` / `.cif` crystal files through `get_res_cif_file_by_ccdc`. Without CSD, CBU derivation cannot finish, and the CBU score stays empty or near zero.
+
+**Everything else can run without it:** prompt generation, MCP compile, PDF conversion, extraction, KG, PubChem, websearch, OntoMed, and scoring of chemicals / steps / characterisation. A missing CSD env prints `[WARN] CSD python resolve failed` and the pipeline continues. Live CCDC name/DOI search also needs CSD; a small hardcoded MOP table can still resolve some deposition numbers.
+
+If you have CSD installed, point the MCP at that env (not `.venv`):
+
+```
+CSD_PYTHON_EXE=C:\Users\<you>\AppData\Local\anaconda3\envs\csd311\python.exe
+CSD_CONDA_ENV=csd311
+```
+
+Put those in `.env` or the process environment. Default lookup is `%USERPROFILE%\AppData\Local\anaconda3\envs\csd311\python.exe` when `CSD_PYTHON_EXE` is unset. Do not use `mcp_layer` or the repo venv for CSD.
+
+## 6. Run
 
 ```powershell
 run.cmd          # 10 cases, both domains
@@ -86,6 +103,11 @@ run.cmd --domain ontomed
 Default parallelism is **5 workers** on every step: prompt authoring, MCP compile waves, paper extract/KG, TTL convert, and the four chemistry score modules. Override with `run.cmd --workers 3`. One paper still uses one worker.
 
 Scores print at the end and are also written to `generated\ship_reports\`.
+
+Chemistry steps scoring is locked: match steps by type, not list order.
+Vessel is not a scoring switch — the committed gold under
+`data/scorer_assets/full_ground_truth` has no vessel keys. OntoMed gold is
+`data/scorer_assets/medical_cases_new_20260710_all30_corrected.csv`.
 
 ## Resume and dry-run
 
@@ -105,3 +127,4 @@ Extraction **mints a new** run. To resume an unfinished extract you already star
 | missing PDFs | PDFs are not in git. Copy them into the folders in §3, with those filenames. |
 | scorer not found | `setup.cmd` / `run.cmd` clone scoring engines into `data\third_party_repos\`. Needs git. |
 | chemistry extract cannot start PubChem | Update to a commit that launches `src.mcp_servers.pubchem.main` (in-repo; no extra clone) |
+| `[WARN] CSD python resolve failed` / CBU score empty | Expected without licensed CSD. Other steps still run. To finish CBU, install CSD (`csd311` + `ccdc` package) and set `CSD_PYTHON_EXE` as in §5 |

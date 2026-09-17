@@ -4,8 +4,6 @@
       "steps": [
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "stepNumber": 1,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -27,8 +25,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "stepNumber": 2,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -52,8 +48,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "stepNumber": 3,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -76,8 +70,6 @@
         },
         {
           "HeatChill": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "stepNumber": 4,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -87,14 +79,11 @@
             "targetTemperature": "150.0 degree celsius",
             "heatingCoolingRate": "N/A",
             "underVacuum": false,
-            "sealedVessel": true,
             "stir": false
           }
         },
         {
           "HeatChill": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "stepNumber": 5,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -104,14 +93,11 @@
             "targetTemperature": "N/A",
             "heatingCoolingRate": "N/A",
             "underVacuum": false,
-            "sealedVessel": true,
             "stir": false
           }
         },
         {
           "Filter": {
-            "usedVesselName": "N/A",
-            "usedVesselType": "N/A",
             "stepNumber": 6,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -133,8 +119,6 @@
         },
         {
           "Filter": {
-            "usedVesselName": "N/A",
-            "usedVesselType": "N/A",
             "stepNumber": 7,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -156,8 +140,6 @@
         },
         {
           "Dry": {
-            "usedVesselName": "N/A",
-            "usedVesselType": "N/A",
             "stepNumber": 8,
             "atmosphere": "Air",
             "targetPH": -1,

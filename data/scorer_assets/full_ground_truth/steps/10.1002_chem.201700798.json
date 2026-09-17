@@ -8,8 +8,6 @@
       "steps": [
         {
           "Add": {
-            "usedVesselName": "glass vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 1,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -30,8 +28,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "glass vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 2,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -53,8 +49,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "glass vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 3,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -77,8 +71,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "glass vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 4,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -101,8 +93,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "glass vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 5,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -123,8 +113,6 @@
         },
         {
           "HeatChill": {
-            "usedVesselName": "glass vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 6,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -134,14 +122,11 @@
             "targetTemperature": "65 degree celsius",
             "heatingCoolingRate": "n/a",
             "underVacuum": false,
-            "sealedVessel": true,
             "stir": false
           }
         },
         {
           "HeatChill": {
-            "usedVesselName": "glass vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 7,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -151,14 +136,11 @@
             "targetTemperature": "room temperature",
             "heatingCoolingRate": "n/a",
             "underVacuum": false,
-            "sealedVessel": true,
             "stir": false
           }
         },
         {
           "Dry": {
-            "usedVesselName": "glass vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 8,
             "atmosphere": "air",
             "targetPH": -1,

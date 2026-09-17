@@ -4,8 +4,6 @@
       "steps": [
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "stepNumber": 1,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -25,8 +23,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "stepNumber": 2,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -47,8 +43,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "stepNumber": 3,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -69,8 +63,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "stepNumber": 4,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -92,8 +84,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "stepNumber": 5,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -116,8 +106,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "stepNumber": 6,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -138,8 +126,6 @@
         },
         {
           "HeatChill": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "stepNumber": 7,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -149,14 +135,11 @@
             "targetTemperature": "433.0 kelvin",
             "heatingCoolingRate": "N/A",
             "underVacuum": false,
-            "sealedVessel": true,
             "stir": false
           }
         },
         {
           "HeatChill": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "stepNumber": 8,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -166,7 +149,6 @@
             "targetTemperature": "298.0 kelvin",
             "heatingCoolingRate": "N/A",
             "underVacuum": false,
-            "sealedVessel": true,
             "stir": false
           }
         }
@@ -180,8 +162,6 @@
       "steps": [
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "stepNumber": 1,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -202,8 +182,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "stepNumber": 2,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -225,8 +203,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "stepNumber": 3,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -247,8 +223,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "stepNumber": 4,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -270,8 +244,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "stepNumber": 5,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -294,8 +266,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "stepNumber": 6,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -316,8 +286,6 @@
         },
         {
           "HeatChill": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "stepNumber": 7,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -327,14 +295,11 @@
             "targetTemperature": "433.0 kelvin",
             "heatingCoolingRate": "N/A",
             "underVacuum": false,
-            "sealedVessel": true,
             "stir": false
           }
         },
         {
           "HeatChill": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "stepNumber": 8,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -344,7 +309,6 @@
             "targetTemperature": "25.0 degree celsius",
             "heatingCoolingRate": "N/A",
             "underVacuum": false,
-            "sealedVessel": true,
             "stir": false
           }
         }
@@ -358,8 +322,6 @@
       "steps": [
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "stepNumber": 1,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -380,8 +342,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "stepNumber": 2,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -401,8 +361,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "stepNumber": 3,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -423,8 +381,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "stepNumber": 4,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -447,8 +403,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "stepNumber": 5,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -469,8 +423,6 @@
         },
         {
           "HeatChill": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "stepNumber": 6,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -480,14 +432,11 @@
             "targetTemperature": "433.0 kelvin",
             "heatingCoolingRate": "N/A",
             "underVacuum": false,
-            "sealedVessel": true,
             "stir": false
           }
         },
         {
           "HeatChill": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "stepNumber": 7,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -497,7 +446,6 @@
             "targetTemperature": "298.0 kelvin",
             "heatingCoolingRate": "N/A",
             "underVacuum": false,
-            "sealedVessel": true,
             "stir": false
           }
         }
@@ -512,8 +460,6 @@
       "steps": [
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "stepNumber": 1,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -533,8 +479,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "stepNumber": 2,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -555,8 +499,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "stepNumber": 3,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -580,8 +522,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "stepNumber": 4,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -604,8 +544,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "stepNumber": 5,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -628,8 +566,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "stepNumber": 6,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -650,8 +586,6 @@
         },
         {
           "HeatChill": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "stepNumber": 7,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -661,14 +595,11 @@
             "targetTemperature": "433.0 kelvin",
             "heatingCoolingRate": "N/A",
             "underVacuum": false,
-            "sealedVessel": true,
             "stir": false
           }
         },
         {
           "HeatChill": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "stepNumber": 8,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -678,7 +609,6 @@
             "targetTemperature": "298.0 kelvin",
             "heatingCoolingRate": "N/A",
             "underVacuum": false,
-            "sealedVessel": true,
             "stir": false
           }
         }

@@ -4,8 +4,6 @@
       "steps": [
         {
           "Add": {
-            "usedVesselName": "N/A",
-            "usedVesselType": "N/A",
             "stepNumber": 1,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -26,8 +24,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "N/A",
-            "usedVesselType": "N/A",
             "stepNumber": 2,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -47,8 +43,6 @@
         },
         {
           "Stir": {
-            "usedVesselName": "N/A",
-            "usedVesselType": "N/A",
             "stepNumber": 3,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -60,8 +54,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "N/A",
-            "usedVesselType": "N/A",
             "stepNumber": 4,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -84,8 +76,6 @@
         },
         {
           "Stir": {
-            "usedVesselName": "N/A",
-            "usedVesselType": "N/A",
             "stepNumber": 5,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -97,8 +87,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "N/A",
-            "usedVesselType": "N/A",
             "stepNumber": 6,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -118,8 +106,6 @@
         },
         {
           "Stir": {
-            "usedVesselName": "N/A",
-            "usedVesselType": "N/A",
             "stepNumber": 7,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -131,8 +117,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "N/A",
-            "usedVesselType": "N/A",
             "stepNumber": 8,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -152,8 +136,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "N/A",
-            "usedVesselType": "N/A",
             "stepNumber": 9,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -174,8 +156,6 @@
         },
         {
           "Stir": {
-            "usedVesselName": "N/A",
-            "usedVesselType": "N/A",
             "stepNumber": 10,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -187,23 +167,17 @@
         },
         {
           "Transfer": {
-            "usedVesselName": "N/A",
-            "usedVesselType": "N/A",
             "stepNumber": 11,
             "atmosphere": "N/A",
             "targetPH": -1,
             "comment": "Transfer solution to another vessel.",
             "duration": "N/A",
-            "targetVesselName": "vessel 1",
-            "targetVesselType": "Teflon-lined stainless-steel vessel",
             "transferedAmount": "N/A",
             "isLayered": false
           }
         },
         {
           "HeatChill": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "stepNumber": 12,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -213,14 +187,11 @@
             "targetTemperature": "160.0 degree celsius",
             "heatingCoolingRate": "N/A",
             "underVacuum": false,
-            "sealedVessel": true,
             "stir": false
           }
         },
         {
           "HeatChill": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "stepNumber": 13,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -230,7 +201,6 @@
             "targetTemperature": "25.0 degree celsius",
             "heatingCoolingRate": "N/A",
             "underVacuum": false,
-            "sealedVessel": true,
             "stir": false
           }
         }
@@ -246,4 +216,3 @@
     }
   ]
 }
-

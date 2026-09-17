@@ -8,8 +8,6 @@
       "steps": [
         {
           "Add": {
-            "usedVesselName": "20 mL scintillation vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 1,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -30,8 +28,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "20 mL scintillation vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 2,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -54,8 +50,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "20 mL scintillation vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 3,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -77,8 +71,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "20 mL scintillation vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 4,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -101,8 +93,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "20 mL scintillation vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 5,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -122,8 +112,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "20 mL scintillation vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 6,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -146,8 +134,6 @@
         },
         {
           "HeatChill": {
-            "usedVesselName": "20 mL scintillation vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 7,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -157,14 +143,11 @@
             "targetTemperature": "373 kelvin",
             "heatingCoolingRate": "n/a",
             "underVacuum": false,
-            "sealedVessel": true,
             "stir": false
           }
         },
         {
           "Separate": {
-            "usedVesselName": "20 mL scintillation vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 8,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -174,8 +157,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "20 mL scintillation vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 9,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -198,8 +179,6 @@
         },
         {
           "HeatChill": {
-            "usedVesselName": "20 mL scintillation vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 10,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -209,14 +188,11 @@
             "targetTemperature": "298 K",
             "heatingCoolingRate": "n/a",
             "underVacuum": false,
-            "sealedVessel": false,
             "stir": false
           }
         },
         {
           "Add": {
-            "usedVesselName": "20 mL scintillation vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 11,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -237,8 +213,6 @@
         },
         {
           "HeatChill": {
-            "usedVesselName": "20 mL scintillation vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 12,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -248,7 +222,6 @@
             "targetTemperature": "298 K",
             "heatingCoolingRate": "n/a",
             "underVacuum": false,
-            "sealedVessel": false,
             "stir": false
           }
         }
@@ -262,8 +235,6 @@
       "steps": [
         {
           "Add": {
-            "usedVesselName": "100 mL glass jar",
-            "usedVesselType": "glass jar",
             "stepNumber": 1,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -284,8 +255,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "100 mL glass jar",
-            "usedVesselType": "glass jar",
             "stepNumber": 2,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -308,8 +277,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "100 mL glass jar",
-            "usedVesselType": "glass jar",
             "stepNumber": 3,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -332,8 +299,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "20 mL scintillation vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 4,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -354,8 +319,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "20 mL scintillation vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 5,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -378,8 +341,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "4 mL scintillation vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 6,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -399,8 +360,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "4 mL scintillation vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 7,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -420,8 +379,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "4 mL scintillation vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 8,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -444,8 +401,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "4 mL scintillation vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 9,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -468,8 +423,6 @@
         },
         {
           "HeatChill": {
-            "usedVesselName": "4 mL scintillation vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 10,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -479,14 +432,11 @@
             "targetTemperature": "373 kelvin",
             "heatingCoolingRate": "n/a",
             "underVacuum": false,
-            "sealedVessel": true,
             "stir": false
           }
         },
         {
           "Add": {
-            "usedVesselName": "4 mL scintillation vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 11,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -509,8 +459,6 @@
         },
         {
           "HeatChill": {
-            "usedVesselName": "4 mL scintillation vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 12,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -520,14 +468,11 @@
             "targetTemperature": "298 K",
             "heatingCoolingRate": "n/a",
             "underVacuum": false,
-            "sealedVessel": false,
             "stir": false
           }
         },
         {
           "Add": {
-            "usedVesselName": "4 mL scintillation vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 13,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -547,8 +492,6 @@
         },
         {
           "HeatChill": {
-            "usedVesselName": "4 mL scintillation vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 14,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -558,7 +501,6 @@
             "targetTemperature": "298 K",
             "heatingCoolingRate": "n/a",
             "underVacuum": false,
-            "sealedVessel": false,
             "stir": false
           }
         }
@@ -572,8 +514,6 @@
       "steps": [
         {
           "Add": {
-            "usedVesselName": "20 mL scintillation vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 1,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -594,8 +534,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "20 mL scintillation vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 2,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -618,8 +556,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "20 mL scintillation vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 3,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -640,8 +576,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "20 mL scintillation vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 4,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -664,8 +598,6 @@
         },
         {
           "Stir": {
-            "usedVesselName": "20 mL scintillation vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 5,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -677,8 +609,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "20 mL scintillation vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 6,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -699,8 +629,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "20 mL scintillation vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 7,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -724,10 +652,6 @@
         {
           "Transfer": {
             "duration": "n/a",
-            "usedVesselName": "20 mL scintillation vial",
-            "usedVesselType": "glass vial",
-            "targetVesselName": "4 mL scintillation vial",
-            "targetVesselType": "glass vial",
             "stepNumber": 8,
             "isLayered": false,
             "transferedAmount": "1 mL",
@@ -738,10 +662,6 @@
         {
           "Transfer": {
             "duration": "n/a",
-            "usedVesselName": "20 mL scintillation vial",
-            "usedVesselType": "glass vial",
-            "targetVesselName": "4 mL scintillation vial",
-            "targetVesselType": "glass vial",
             "stepNumber": 9,
             "isLayered": false,
             "transferedAmount": "1 mL",
@@ -751,8 +671,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "4 mL scintillation vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 10,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -775,8 +693,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "4 mL scintillation vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 11,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -796,8 +712,6 @@
         },
         {
           "HeatChill": {
-            "usedVesselName": "4 mL scintillation vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 12,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -807,14 +721,11 @@
             "targetTemperature": "358 kelvin",
             "heatingCoolingRate": "n/a",
             "underVacuum": false,
-            "sealedVessel": true,
             "stir": false
           }
         },
         {
           "Add": {
-            "usedVesselName": "4 mL scintillation vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 13,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -834,8 +745,6 @@
         },
         {
           "HeatChill": {
-            "usedVesselName": "4 mL scintillation vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 14,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -845,14 +754,11 @@
             "targetTemperature": "358 kelvin",
             "heatingCoolingRate": "n/a",
             "underVacuum": false,
-            "sealedVessel": true,
             "stir": false
           }
         },
         {
           "HeatChill": {
-            "usedVesselName": "4 mL scintillation vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 15,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -862,14 +768,11 @@
             "targetTemperature": "room temperature",
             "heatingCoolingRate": "n/a",
             "underVacuum": false,
-            "sealedVessel": true,
             "stir": false
           }
         },
         {
           "Separate": {
-            "usedVesselName": "4 mL scintillation vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 16,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -879,8 +782,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "4 mL scintillation vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 17,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -903,8 +804,6 @@
         },
         {
           "HeatChill": {
-            "usedVesselName": "4 mL scintillation vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 18,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -914,14 +813,11 @@
             "targetTemperature": "298 K",
             "heatingCoolingRate": "n/a",
             "underVacuum": false,
-            "sealedVessel": false,
             "stir": false
           }
         },
         {
           "Add": {
-            "usedVesselName": "4 mL scintillation vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 19,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -941,8 +837,6 @@
         },
         {
           "HeatChill": {
-            "usedVesselName": "4 mL scintillation vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 20,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -952,7 +846,6 @@
             "targetTemperature": "298 K",
             "heatingCoolingRate": "n/a",
             "underVacuum": false,
-            "sealedVessel": false,
             "stir": false
           }
         }

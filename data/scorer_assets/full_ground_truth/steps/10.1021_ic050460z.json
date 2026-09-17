@@ -9,8 +9,6 @@
       "steps": [
         {
           "Add": {
-            "usedVesselName": "tube 1",
-            "usedVesselType": "sealed pyrex tube",
             "stepNumber": 1,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -33,8 +31,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "tube 1",
-            "usedVesselType": "sealed pyrex tube",
             "stepNumber": 2,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -57,8 +53,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "tube 1",
-            "usedVesselType": "sealed pyrex tube",
             "stepNumber": 3,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -80,8 +74,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "tube 1",
-            "usedVesselType": "sealed pyrex tube",
             "stepNumber": 4,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -101,8 +93,6 @@
         },
         {
           "HeatChill": {
-            "usedVesselName": "tube 1",
-            "usedVesselType": "sealed pyrex tube",
             "stepNumber": 5,
             "atmosphere": "vacuum",
             "targetPH": -1,
@@ -112,14 +102,11 @@
             "targetTemperature": "120 degree celsius",
             "heatingCoolingRate": "6 degree celsius per hour",
             "underVacuum": true,
-            "sealedVessel": true,
             "stir": false
           }
         },
         {
           "HeatChill": {
-            "usedVesselName": "tube 1",
-            "usedVesselType": "sealed pyrex tube",
             "stepNumber": 6,
             "atmosphere": "vacuum",
             "targetPH": -1,
@@ -129,14 +116,11 @@
             "targetTemperature": "25 degree celsius",
             "heatingCoolingRate": "-6.0 degree celsius per hour",
             "underVacuum": true,
-            "sealedVessel": true,
             "stir": false
           }
         },
         {
           "Filter": {
-            "usedVesselName": "tube 1",
-            "usedVesselType": "sealed pyrex tube",
             "stepNumber": 7,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -156,8 +140,6 @@
         },
         {
           "Evaporate": {
-            "usedVesselName": "tube 1",
-            "usedVesselType": "sealed pyrex tube",
             "stepNumber": 8,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -167,8 +149,6 @@
         },
         {
           "Dry": {
-            "usedVesselName": "tube 1",
-            "usedVesselType": "sealed pyrex tube",
             "stepNumber": 9,
             "atmosphere": "vacuum",
             "targetPH": -1,
@@ -188,8 +168,6 @@
       "steps": [
         {
           "Add": {
-            "usedVesselName": "tube 2",
-            "usedVesselType": "sealed pyrex tube",
             "stepNumber": 1,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -213,8 +191,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "tube 2",
-            "usedVesselType": "sealed pyrex tube",
             "stepNumber": 2,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -237,8 +213,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "tube 2",
-            "usedVesselType": "sealed pyrex tube",
             "stepNumber": 3,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -261,8 +235,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "tube 2",
-            "usedVesselType": "sealed pyrex tube",
             "stepNumber": 4,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -282,8 +254,6 @@
         },
         {
           "HeatChill": {
-            "usedVesselName": "tube 2",
-            "usedVesselType": "sealed pyrex tube",
             "stepNumber": 5,
             "atmosphere": "vacuum",
             "targetPH": -1,
@@ -293,14 +263,11 @@
             "targetTemperature": "160 degree celsius",
             "heatingCoolingRate": "0.1 degree celsius per minute",
             "underVacuum": true,
-            "sealedVessel": true,
             "stir": false
           }
         },
         {
           "HeatChill": {
-            "usedVesselName": "tube 2",
-            "usedVesselType": "sealed pyrex tube",
             "stepNumber": 6,
             "atmosphere": "vacuum",
             "targetPH": -1,
@@ -310,7 +277,6 @@
             "targetTemperature": "25 degree celsius",
             "heatingCoolingRate": "0.1 degree celsius per minute",
             "underVacuum": true,
-            "sealedVessel": true,
             "stir": false
           }
         }
@@ -325,8 +291,6 @@
       "steps": [
         {
           "Add": {
-            "usedVesselName": "tube 3",
-            "usedVesselType": "culture tube",
             "stepNumber": 1,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -349,8 +313,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "tube 3",
-            "usedVesselType": "culture tube",
             "stepNumber": 2,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -370,8 +332,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "tube 3",
-            "usedVesselType": "culture tube",
             "stepNumber": 3,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -391,8 +351,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "tube 3",
-            "usedVesselType": "culture tube",
             "stepNumber": 4,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -413,8 +371,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "tube 3",
-            "usedVesselType": "culture tube",
             "stepNumber": 5,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -437,8 +393,6 @@
         },
         {
           "HeatChill": {
-            "usedVesselName": "tube 3",
-            "usedVesselType": "culture tube",
             "stepNumber": 6,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -448,7 +402,6 @@
             "targetTemperature": "25 degree celsius",
             "heatingCoolingRate": "n/a",
             "underVacuum": false,
-            "sealedVessel": false,
             "stir": false
           }
         }

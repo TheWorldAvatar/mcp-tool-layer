@@ -8,8 +8,6 @@
       "steps": [
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "n/a",
             "stepNumber": 1,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -31,8 +29,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "n/a",
             "stepNumber": 2,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -55,8 +51,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "n/a",
             "stepNumber": 3,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -77,8 +71,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "n/a",
             "stepNumber": 4,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -101,8 +93,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "n/a",
             "stepNumber": 5,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -123,8 +113,6 @@
         },
         {
           "HeatChill": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "n/a",
             "stepNumber": 6,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -134,14 +122,11 @@
             "targetTemperature": "65 degree celsius",
             "heatingCoolingRate": "n/a",
             "underVacuum": false,
-            "sealedVessel": false,
             "stir": false
           }
         },
         {
           "Filter": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "n/a",
             "stepNumber": 7,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -170,8 +155,6 @@
         },
         {
           "Dry": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "n/a",
             "stepNumber": 8,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -190,8 +173,6 @@
       "steps": [
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "n/a",
             "stepNumber": 1,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -211,8 +192,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "n/a",
             "stepNumber": 2,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -234,8 +213,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "n/a",
             "stepNumber": 3,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -258,8 +235,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "n/a",
             "stepNumber": 4,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -280,8 +255,6 @@
         },
         {
           "HeatChill": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "n/a",
             "stepNumber": 5,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -291,14 +264,11 @@
             "targetTemperature": "75 degree celsius",
             "heatingCoolingRate": "n/a",
             "underVacuum": false,
-            "sealedVessel": false,
             "stir": false
           }
         },
         {
           "HeatChill": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "n/a",
             "stepNumber": 6,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -308,14 +278,11 @@
             "targetTemperature": "25 degree celsius",
             "heatingCoolingRate": "n/a",
             "underVacuum": false,
-            "sealedVessel": false,
             "stir": false
           }
         },
         {
           "HeatChill": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "n/a",
             "stepNumber": 7,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -325,14 +292,11 @@
             "targetTemperature": "25 degree celsius",
             "heatingCoolingRate": "n/a",
             "underVacuum": false,
-            "sealedVessel": false,
             "stir": false
           }
         },
         {
           "Filter": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "n/a",
             "stepNumber": 8,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -361,8 +325,6 @@
         },
         {
           "Dry": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "n/a",
             "stepNumber": 9,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -381,8 +343,6 @@
       "steps": [
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "n/a",
             "stepNumber": 1,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -404,8 +364,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "n/a",
             "stepNumber": 2,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -427,8 +385,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "n/a",
             "stepNumber": 3,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -449,8 +405,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "n/a",
             "stepNumber": 4,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -473,8 +427,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "n/a",
             "stepNumber": 5,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -495,8 +447,6 @@
         },
         {
           "HeatChill": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "n/a",
             "stepNumber": 6,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -506,14 +456,11 @@
             "targetTemperature": "room temperature",
             "heatingCoolingRate": "n/a",
             "underVacuum": false,
-            "sealedVessel": false,
             "stir": false
           }
         },
         {
           "Filter": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "n/a",
             "stepNumber": 7,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -542,8 +489,6 @@
         },
         {
           "Dry": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "n/a",
             "stepNumber": 8,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -562,8 +507,6 @@
       "steps": [
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "n/a",
             "stepNumber": 1,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -583,8 +526,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "n/a",
             "stepNumber": 2,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -605,8 +546,6 @@
         },
         {
           "HeatChill": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "n/a",
             "stepNumber": 3,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -616,14 +555,11 @@
             "targetTemperature": "room temperature",
             "heatingCoolingRate": "n/a",
             "underVacuum": false,
-            "sealedVessel": false,
             "stir": false
           }
         },
         {
           "Filter": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "n/a",
             "stepNumber": 4,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -652,8 +588,6 @@
         },
         {
           "Dry": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "n/a",
             "stepNumber": 5,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -671,8 +605,6 @@
       "steps": [
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "n/a",
             "stepNumber": 1,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -695,8 +627,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "n/a",
             "stepNumber": 2,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -718,8 +648,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "n/a",
             "stepNumber": 3,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -741,8 +669,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "n/a",
             "stepNumber": 4,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -765,8 +691,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "n/a",
             "stepNumber": 5,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -786,8 +710,6 @@
         },
         {
           "HeatChill": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "n/a",
             "stepNumber": 6,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -797,14 +719,11 @@
             "targetTemperature": "room temperature",
             "heatingCoolingRate": "n/a",
             "underVacuum": false,
-            "sealedVessel": false,
             "stir": false
           }
         },
         {
           "Filter": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "n/a",
             "stepNumber": 7,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -833,8 +752,6 @@
         },
         {
           "Dry": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "n/a",
             "stepNumber": 8,
             "atmosphere": "n/a",
             "targetPH": -1,

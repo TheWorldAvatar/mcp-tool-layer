@@ -157,14 +157,25 @@ def _clone_scorer(dest: Path, *, root: Path) -> bool:
 
 
 def overlay_scorer_assets(scorer: Path, *, root: Path | None = None) -> None:
-    """Copy gold/GT from this repo so a fresh engine clone can score."""
+    """Copy this repo's gold onto the scoring engines and lock the steps protocol."""
+    from src.kg_building.scorer_protocol import lock_cloned_steps_engine
+
     root = _root(root)
     assets = root / ASSETS_RELATIVE
     gt_src = assets / "full_ground_truth"
-    gt_dest = scorer / "full_ground_truth"
-    if gt_src.is_dir() and not (gt_dest / "steps").is_dir():
-        shutil.copytree(gt_src, gt_dest, dirs_exist_ok=True)
+    gt_dest = Path(scorer) / "full_ground_truth"
+    if gt_src.is_dir():
+        if gt_dest.exists():
+            shutil.rmtree(gt_dest)
+        shutil.copytree(gt_src, gt_dest)
         print(f"[OK] Overlayed scoring gold -> {gt_dest}", flush=True)
+    for relative in (MEDICAL_GOLD, MEDICAL_SCHEMA):
+        src = root / relative
+        if src.is_file():
+            dest = Path(scorer) / relative
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, dest)
+    lock_cloned_steps_engine(scorer)
 
 
 def ensure_scorer_repo(

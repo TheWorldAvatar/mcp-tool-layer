@@ -4,8 +4,6 @@
       "steps": [
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "glass vial",
             "stepNumber": 1,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -26,8 +24,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "glass vial",
             "stepNumber": 2,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -49,10 +45,6 @@
         },
         {
           "Transfer": {
-            "usedVesselName": "solution preparation vessel",
-            "usedVesselType": "N/A",
-            "targetVesselName": "30-cm-long glass tube",
-            "targetVesselType": "glass tube",
             "stepNumber": 3,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -64,8 +56,6 @@
         },
         {
           "HeatChill": {
-            "usedVesselName": "30-cm-long glass tube",
-            "usedVesselType": "glass tube",
             "stepNumber": 4,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -75,14 +65,11 @@
             "targetTemperature": "85.0 degree celsius",
             "heatingCoolingRate": "N/A",
             "underVacuum": false,
-            "sealedVessel": true,
             "stir": false
           }
         },
         {
           "Add": {
-            "usedVesselName": "30-cm-long glass tube",
-            "usedVesselType": "glass tube",
             "stepNumber": 5,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -105,8 +92,6 @@
         },
         {
           "HeatChill": {
-            "usedVesselName": "30-cm-long glass tube",
-            "usedVesselType": "glass tube",
             "stepNumber": 6,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -116,14 +101,11 @@
             "targetTemperature": "25.0 degree celsius",
             "heatingCoolingRate": "N/A",
             "underVacuum": false,
-            "sealedVessel": true,
             "stir": false
           }
         },
         {
           "Add": {
-            "usedVesselName": "30-cm-long glass tube",
-            "usedVesselType": "glass tube",
             "stepNumber": 7,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -146,8 +128,6 @@
         },
         {
           "HeatChill": {
-            "usedVesselName": "30-cm-long glass tube",
-            "usedVesselType": "glass tube",
             "stepNumber": 8,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -157,14 +137,11 @@
             "targetTemperature": "25.0 degree celsius",
             "heatingCoolingRate": "N/A",
             "underVacuum": false,
-            "sealedVessel": true,
             "stir": false
           }
         },
         {
           "Add": {
-            "usedVesselName": "30-cm-long glass tube",
-            "usedVesselType": "glass tube",
             "stepNumber": 9,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -184,8 +161,6 @@
         },
         {
           "HeatChill": {
-            "usedVesselName": "30-cm-long glass tube",
-            "usedVesselType": "glass tube",
             "stepNumber": 10,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -195,14 +170,11 @@
             "targetTemperature": "25.0 degree celsius",
             "heatingCoolingRate": "N/A",
             "underVacuum": false,
-            "sealedVessel": true,
             "stir": false
           }
         },
         {
           "Filter": {
-            "usedVesselName": "30-cm-long glass tube",
-            "usedVesselType": "glass tube",
             "stepNumber": 11,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -214,8 +186,6 @@
         },
         {
           "Dry": {
-            "usedVesselName": "30-cm-long glass tube",
-            "usedVesselType": "glass tube",
             "stepNumber": 12,
             "atmosphere": "N/A",
             "targetPH": -1,

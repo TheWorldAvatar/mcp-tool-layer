@@ -43,6 +43,8 @@ Runtime validation is fail-soft: shape checks and closed-type lists get a few re
 
 `--test` writes `configs/test_mcp_config_<ontology>_<run>.json` from domain `mcp_capabilities`, then starts `scripts/<ontology>/` from the artifact root. `ccdc` still launches the in-repo server.
 
+The CCDC MCP needs a **licensed local CSD** install (`ccdc` Python package; default conda env `csd311`, or `CSD_PYTHON_EXE`). That software is required to **complete CBU** (`mop_derivation` fetches `.res` / `.cif` via `get_res_cif_file_by_ccdc`). Prompt generation, extraction, KG, PubChem, OntoMed, and the chemicals / steps / characterisation scores run without it. If CSD Python is missing, launch prints `[WARN] CSD python resolve failed` and continues. See [SETUP.md](../SETUP.md) §5.
+
 ## Two PDF-to-markdown chains
 
 Pipeline shape comes from the domain config: `execution_profile` selects the base step list, `runtime.extra_steps` appends optional steps, `runtime.vision_required` chooses PDF conversion behavior, and `runtime.scenario_domain` chooses `scenarios/<name>/`. The runtime does not open `meta_task_config` and does not special-case ontology names.
@@ -122,3 +124,12 @@ Templates without `meta_task_config`:
 - `configs/scenarios/pipeline_medical.json`
 
 Extraction model names live in `configs/extraction_models.json` (mostly `gpt-4.1`). Medical vision uses `gpt-4o`.
+
+## Scoring gold
+
+`--score` clones the scoring engines if needed, then overlays gold from this
+repository. Chemistry gold is `data/scorer_assets/full_ground_truth/` (no
+vessel keys). OntoMed gold is
+`data/scorer_assets/medical_cases_new_20260710_all30_corrected.csv`. Steps
+are matched by type, not by list order. Do not pass `--skip-order` or
+`--no-vessel`.

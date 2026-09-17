@@ -9,8 +9,6 @@
       "steps": [
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "glass vial",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -32,8 +30,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 2",
-            "usedVesselType": "glass vial",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -54,8 +50,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 2",
-            "usedVesselType": "glass vial",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -78,8 +72,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 2",
-            "usedVesselType": "glass vial",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -105,9 +97,6 @@
             "heatingCoolingRate": "N/A",
             "comment": "N/A",
             "underVacuum": false,
-            "usedVesselType": "glass vial",
-            "usedVesselName": "vessel 2",
-            "sealedVessel": true,
             "stir": false,
             "stepNumber": 5,
             "atmosphere": "N/A"
@@ -121,9 +110,6 @@
             "heatingCoolingRate": "N/A",
             "comment": "After cooling in air to room temperature",
             "underVacuum": false,
-            "usedVesselType": "glass vial",
-            "usedVesselName": "vessel 2",
-            "sealedVessel": true,
             "stir": false,
             "stepNumber": 6,
             "atmosphere": "N/A"
@@ -144,8 +130,6 @@
             ],
             "vacuumFiltration": false,
             "numberOfFiltrations": 1,
-            "usedVesselName": "vessel 2",
-            "usedVesselType": "glass vial",
             "stepNumber": 7,
             "comment": "Wash the crystals.",
             "atmosphere": "N/A"
@@ -162,8 +146,6 @@
       "steps": [
         {
           "Add": {
-            "usedVesselName": "vessel 3",
-            "usedVesselType": "glass vial",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -185,8 +167,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 3",
-            "usedVesselType": "glass vial",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -207,8 +187,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 3",
-            "usedVesselType": "glass vial",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -231,8 +209,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 3",
-            "usedVesselType": "glass vial",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -258,9 +234,6 @@
             "heatingCoolingRate": "N/A",
             "comment": "N/A",
             "underVacuum": false,
-            "usedVesselType": "glass vial",
-            "usedVesselName": "vessel 3",
-            "sealedVessel": true,
             "stir": false,
             "stepNumber": 5,
             "atmosphere": "N/A"
@@ -274,9 +247,6 @@
             "heatingCoolingRate": "N/A",
             "comment": "After cooling in air to room temperature",
             "underVacuum": false,
-            "usedVesselType": "glass vial",
-            "usedVesselName": "vessel 3",
-            "sealedVessel": true,
             "stir": false,
             "stepNumber": 6,
             "atmosphere": "N/A"
@@ -297,8 +267,6 @@
             ],
             "vacuumFiltration": false,
             "numberOfFiltrations": 1,
-            "usedVesselName": "vessel 3",
-            "usedVesselType": "glass vial",
             "stepNumber": 7,
             "comment": "Wash the crystals.",
             "atmosphere": "N/A"
@@ -315,8 +283,6 @@
       "steps": [
         {
           "Add": {
-            "usedVesselName": "vessel 4",
-            "usedVesselType": "glass vial",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -338,8 +304,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 4",
-            "usedVesselType": "glass vial",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -360,8 +324,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 4",
-            "usedVesselType": "glass vial",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -384,8 +346,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 4",
-            "usedVesselType": "glass vial",
             "stepNumber": 4,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -405,8 +365,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 4",
-            "usedVesselType": "glass vial",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -432,9 +390,6 @@
             "heatingCoolingRate": "N/A",
             "comment": "N/A",
             "underVacuum": false,
-            "usedVesselType": "glass vial",
-            "usedVesselName": "vessel 4",
-            "sealedVessel": true,
             "stir": false,
             "stepNumber": 6,
             "atmosphere": "N/A"
@@ -448,9 +403,6 @@
             "heatingCoolingRate": "N/A",
             "comment": "After cooling in air to room temperature",
             "underVacuum": false,
-            "usedVesselType": "glass vial",
-            "usedVesselName": "vessel 4",
-            "sealedVessel": true,
             "stir": false,
             "stepNumber": 7,
             "atmosphere": "N/A"
@@ -471,8 +423,6 @@
             ],
             "vacuumFiltration": false,
             "numberOfFiltrations": 1,
-            "usedVesselName": "vessel 4",
-            "usedVesselType": "glass vial",
             "stepNumber": 8,
             "comment": "Wash the crystals.",
             "atmosphere": "N/A"
@@ -489,8 +439,6 @@
       "steps": [
         {
           "Add": {
-            "usedVesselName": "vessel 5",
-            "usedVesselType": "glass vial",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -512,8 +460,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 5",
-            "usedVesselType": "glass vial",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -534,8 +480,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 5",
-            "usedVesselType": "glass vial",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -558,8 +502,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 5",
-            "usedVesselType": "glass vial",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -585,9 +527,6 @@
             "heatingCoolingRate": "N/A",
             "comment": "N/A",
             "underVacuum": false,
-            "usedVesselType": "glass vial",
-            "usedVesselName": "vessel 5",
-            "sealedVessel": true,
             "stir": false,
             "stepNumber": 5,
             "atmosphere": "N/A"
@@ -601,9 +540,6 @@
             "heatingCoolingRate": "N/A",
             "comment": "After cooling in air to room temperature",
             "underVacuum": false,
-            "usedVesselType": "glass vial",
-            "usedVesselName": "vessel 5",
-            "sealedVessel": true,
             "stir": false,
             "stepNumber": 6,
             "atmosphere": "N/A"
@@ -624,8 +560,6 @@
             ],
             "vacuumFiltration": false,
             "numberOfFiltrations": 1,
-            "usedVesselName": "vessel 5",
-            "usedVesselType": "glass vial",
             "stepNumber": 7,
             "comment": "Wash the crystals.",
             "atmosphere": "N/A"

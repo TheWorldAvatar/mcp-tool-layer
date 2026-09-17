@@ -22,8 +22,6 @@
             "comment": "add tmbta",
             "stepNumber": 1,
             "stir": false,
-            "usedVesselName": "tube 1",
-            "usedVesselType": "sealed glass tube",
             "isLayered": false,
             "duration": "n/a",
             "targetPH": -1
@@ -45,8 +43,6 @@
             "comment": "add cu(no3)2·3h2o",
             "stepNumber": 2,
             "stir": false,
-            "usedVesselName": "tube 1",
-            "usedVesselType": "sealed glass tube",
             "isLayered": false,
             "duration": "n/a",
             "targetPH": -1
@@ -66,8 +62,6 @@
             "comment": "add pyridine",
             "stepNumber": 3,
             "stir": false,
-            "usedVesselName": "tube 1",
-            "usedVesselType": "sealed glass tube",
             "isLayered": false,
             "duration": "n/a",
             "targetPH": -1
@@ -90,8 +84,6 @@
             "comment": "add dma",
             "stepNumber": 4,
             "stir": false,
-            "usedVesselName": "tube 1",
-            "usedVesselType": "sealed glass tube",
             "isLayered": false,
             "duration": "n/a",
             "targetPH": -1
@@ -113,8 +105,6 @@
             "comment": "add ethanol",
             "stepNumber": 5,
             "stir": false,
-            "usedVesselName": "tube 1",
-            "usedVesselType": "sealed glass tube",
             "isLayered": false,
             "duration": "n/a",
             "targetPH": -1
@@ -122,15 +112,11 @@
         },
         {
           "Transfer": {
-            "usedVesselName": "tube 1",
-            "usedVesselType": "sealed glass tube",
             "stepNumber": 6,
             "atmosphere": "n/a",
             "targetPH": -1,
             "comment": "seal tube",
             "duration": "n/a",
-            "targetVesselName": "tube 1",
-            "targetVesselType": "sealed glass tube",
             "transferedAmount": "n/a",
             "isLayered": false
           }
@@ -141,14 +127,11 @@
             "comment": "heat to 85°c",
             "duration": "48 h",
             "heatingCoolingRate": "n/a",
-            "sealedVessel": true,
             "stepNumber": 7,
             "stir": false,
             "targetTemperature": "85 degree celsius",
             "underVacuum": false,
-            "usedDevice": "n/a",
-            "usedVesselName": "tube 1",
-            "usedVesselType": "sealed glass tube"
+            "usedDevice": "n/a"
           }
         },
         {
@@ -157,14 +140,11 @@
             "comment": "cool to room temperature",
             "duration": "12 h",
             "heatingCoolingRate": "5 degree celsius per hour",
-            "sealedVessel": true,
             "stepNumber": 8,
             "stir": false,
             "targetTemperature": "25 degree celsius",
             "underVacuum": false,
-            "usedDevice": "n/a",
-            "usedVesselName": "tube 1",
-            "usedVesselType": "sealed glass tube"
+            "usedDevice": "n/a"
           }
         }
       ]

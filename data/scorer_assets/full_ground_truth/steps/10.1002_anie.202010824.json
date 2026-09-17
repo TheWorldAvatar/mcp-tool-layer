@@ -9,8 +9,6 @@
       "steps": [
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "glass vial",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -31,8 +29,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "glass vial",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -52,8 +48,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "glass vial",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -76,8 +70,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "glass vial",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -101,8 +93,6 @@
         {
           "Stir": {
             "duration": "10 minutes",
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "glass vial",
             "stepNumber": 5,
             "atmosphere": "N/A",
             "temperature": "N/A",
@@ -112,10 +102,6 @@
         {
           "Transfer": {
             "duration": "N/A",
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "glass vial",
-            "targetVesselName": "vessel 2",
-            "targetVesselType": "Teflon-lined stainless-steel vessel",
             "stepNumber": 6,
             "isLayered": false,
             "transferedAmount": "N/A",
@@ -131,9 +117,6 @@
             "heatingCoolingRate": "N/A",
             "comment": "N/A",
             "underVacuum": false,
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
-            "usedVesselName": "vessel 2",
-            "sealedVessel": true,
             "stir": false,
             "stepNumber": 7,
             "atmosphere": "N/A"
@@ -147,9 +130,6 @@
             "heatingCoolingRate": "N/A",
             "comment": "N/A",
             "underVacuum": false,
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
-            "usedVesselName": "vessel 2",
-            "sealedVessel": true,
             "stir": false,
             "stepNumber": 8,
             "atmosphere": "N/A"
@@ -170,8 +150,6 @@
             ],
             "vacuumFiltration": false,
             "numberOfFiltrations": 1,
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
-            "usedVesselName": "vessel 2",
             "stepNumber": 9,
             "comment": "Obtain the cube-shaped crystals",
             "atmosphere": "N/A"
@@ -188,8 +166,6 @@
       "steps": [
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "glass vial",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -210,8 +186,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "glass vial",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -231,8 +205,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "glass vial",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -255,8 +227,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "glass vial",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -280,8 +250,6 @@
         {
           "Stir": {
             "duration": "10 minutes",
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "glass vial",
             "stepNumber": 5,
             "atmosphere": "N/A",
             "temperature": "N/A",
@@ -291,10 +259,6 @@
         {
           "Transfer": {
             "duration": "N/A",
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "glass vial",
-            "targetVesselName": "vessel 2",
-            "targetVesselType": "Teflon-lined stainless-steel vessel",
             "stepNumber": 6,
             "isLayered": false,
             "transferedAmount": "N/A",
@@ -310,9 +274,6 @@
             "heatingCoolingRate": "N/A",
             "comment": "N/A",
             "underVacuum": false,
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
-            "usedVesselName": "vessel 2",
-            "sealedVessel": true,
             "stir": false,
             "stepNumber": 7,
             "atmosphere": "N/A"
@@ -326,9 +287,6 @@
             "heatingCoolingRate": "N/A",
             "comment": "N/A",
             "underVacuum": false,
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
-            "usedVesselName": "vessel 2",
-            "sealedVessel": true,
             "stir": false,
             "stepNumber": 8,
             "atmosphere": "N/A"
@@ -349,8 +307,6 @@
             ],
             "vacuumFiltration": false,
             "numberOfFiltrations": 1,
-            "usedVesselName": "vessel 2",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "stepNumber": 9,
             "comment": "Obtain the cube-shaped crystals",
             "atmosphere": "N/A"
@@ -367,8 +323,6 @@
       "steps": [
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "glass vial",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -389,8 +343,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "glass vial",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -410,8 +362,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "glass vial",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -434,8 +384,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "glass vial",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -459,8 +407,6 @@
         {
           "Stir": {
             "duration": "10 minutes",
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "glass vial",
             "stepNumber": 5,
             "atmosphere": "N/A",
             "temperature": "N/A",
@@ -470,10 +416,6 @@
         {
           "Transfer": {
             "duration": "N/A",
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "glass vial",
-            "targetVesselName": "vessel 2",
-            "targetVesselType": "Teflon-lined stainless-steel vessel",
             "stepNumber": 6,
             "isLayered": false,
             "transferedAmount": "N/A",
@@ -489,9 +431,6 @@
             "heatingCoolingRate": "N/A",
             "comment": "N/A",
             "underVacuum": false,
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
-            "usedVesselName": "vessel 2",
-            "sealedVessel": true,
             "stir": false,
             "stepNumber": 7,
             "atmosphere": "N/A"
@@ -505,9 +444,6 @@
             "heatingCoolingRate": "N/A",
             "comment": "N/A",
             "underVacuum": false,
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
-            "usedVesselName": "vessel 2",
-            "sealedVessel": true,
             "stir": false,
             "stepNumber": 8,
             "atmosphere": "N/A"
@@ -528,8 +464,6 @@
             ],
             "vacuumFiltration": false,
             "numberOfFiltrations": 1,
-            "usedVesselName": "vessel 2",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "stepNumber": 9,
             "comment": "Obtain the cube-shaped crystals",
             "atmosphere": "N/A"
@@ -546,8 +480,6 @@
       "steps": [
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "glass vial",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -568,8 +500,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "glass vial",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -589,8 +519,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "glass vial",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -613,8 +541,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "glass vial",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -638,8 +564,6 @@
         {
           "Stir": {
             "duration": "10 minutes",
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "glass vial",
             "stepNumber": 5,
             "atmosphere": "N/A",
             "temperature": "N/A",
@@ -649,10 +573,6 @@
         {
           "Transfer": {
             "duration": "N/A",
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "glass vial",
-            "targetVesselName": "vessel 2",
-            "targetVesselType": "Teflon-lined stainless-steel vessel",
             "stepNumber": 6,
             "isLayered": false,
             "transferedAmount": "N/A",
@@ -668,9 +588,6 @@
             "heatingCoolingRate": "N/A",
             "comment": "N/A",
             "underVacuum": false,
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
-            "usedVesselName": "vessel 2",
-            "sealedVessel": true,
             "stir": false,
             "stepNumber": 7,
             "atmosphere": "N/A"
@@ -684,9 +601,6 @@
             "heatingCoolingRate": "N/A",
             "comment": "N/A",
             "underVacuum": false,
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
-            "usedVesselName": "vessel 2",
-            "sealedVessel": true,
             "stir": false,
             "stepNumber": 8,
             "atmosphere": "N/A"
@@ -707,8 +621,6 @@
             ],
             "vacuumFiltration": false,
             "numberOfFiltrations": 1,
-            "usedVesselName": "vessel 2",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "stepNumber": 9,
             "comment": "Obtain the cube-shaped crystals",
             "atmosphere": "N/A"
@@ -725,8 +637,6 @@
       "steps": [
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "glass vial",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -747,8 +657,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "glass vial",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -768,8 +676,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "glass vial",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -792,8 +698,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "glass vial",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -817,8 +721,6 @@
         {
           "Stir": {
             "duration": "10 minutes",
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "glass vial",
             "stepNumber": 5,
             "atmosphere": "N/A",
             "temperature": "N/A",
@@ -828,10 +730,6 @@
         {
           "Transfer": {
             "duration": "N/A",
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "glass vial",
-            "targetVesselName": "vessel 2",
-            "targetVesselType": "Teflon-lined stainless-steel vessel",
             "stepNumber": 6,
             "isLayered": false,
             "transferedAmount": "N/A",
@@ -847,9 +745,6 @@
             "heatingCoolingRate": "N/A",
             "comment": "N/A",
             "underVacuum": false,
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
-            "usedVesselName": "vessel 2",
-            "sealedVessel": true,
             "stir": false,
             "stepNumber": 7,
             "atmosphere": "N/A"
@@ -863,9 +758,6 @@
             "heatingCoolingRate": "N/A",
             "comment": "N/A",
             "underVacuum": false,
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
-            "usedVesselName": "vessel 2",
-            "sealedVessel": true,
             "stir": false,
             "stepNumber": 8,
             "atmosphere": "N/A"
@@ -886,8 +778,6 @@
             ],
             "vacuumFiltration": false,
             "numberOfFiltrations": 1,
-            "usedVesselName": "vessel 2",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "stepNumber": 9,
             "comment": "Obtain the cube-shaped crystals",
             "atmosphere": "N/A"

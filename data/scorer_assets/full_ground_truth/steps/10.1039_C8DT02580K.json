@@ -9,8 +9,6 @@
       "steps": [
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -31,8 +29,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -53,8 +49,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -77,8 +71,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -107,9 +99,6 @@
             "heatingCoolingRate": "N/A",
             "comment": "N/A",
             "underVacuum": false,
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
-            "usedVesselName": "vessel 1",
-            "sealedVessel": true,
             "stir": false,
             "stepNumber": 5,
             "atmosphere": "N/A"
@@ -123,9 +112,6 @@
             "heatingCoolingRate": "N/A",
             "comment": "N/A",
             "underVacuum": false,
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
-            "usedVesselName": "vessel 1",
-            "sealedVessel": true,
             "stir": false,
             "stepNumber": 6,
             "atmosphere": "N/A"
@@ -145,8 +131,6 @@
             ],
             "vacuumFiltration": false,
             "numberOfFiltrations": 1,
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "stepNumber": 7,
             "comment": "Obtained by filtration and washed with EtOH",
             "atmosphere": "N/A"
@@ -155,8 +139,6 @@
         {
           "Dry": {
             "duration": "N/A",
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "pressure": "N/A",
             "temperature": "N/A",
             "stepNumber": 8,
@@ -176,8 +158,6 @@
       "steps": [
         {
           "Add": {
-            "usedVesselName": "vessel 2",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -198,8 +178,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 2",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -219,8 +197,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 2",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -243,8 +219,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 2",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -273,9 +247,6 @@
             "heatingCoolingRate": "N/A",
             "comment": "N/A",
             "underVacuum": false,
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
-            "usedVesselName": "vessel 2",
-            "sealedVessel": true,
             "stir": false,
             "stepNumber": 5,
             "atmosphere": "N/A"
@@ -289,9 +260,6 @@
             "heatingCoolingRate": "N/A",
             "comment": "N/A",
             "underVacuum": false,
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
-            "usedVesselName": "vessel 1",
-            "sealedVessel": true,
             "stir": false,
             "stepNumber": 6,
             "atmosphere": "N/A"
@@ -311,8 +279,6 @@
             ],
             "vacuumFiltration": false,
             "numberOfFiltrations": 1,
-            "usedVesselName": "vessel 2",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "stepNumber": 7,
             "comment": "Obtained by filtration and washed with EtOH",
             "atmosphere": "N/A"
@@ -321,8 +287,6 @@
         {
           "Dry": {
             "duration": "N/A",
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "pressure": "N/A",
             "temperature": "N/A",
             "stepNumber": 8,

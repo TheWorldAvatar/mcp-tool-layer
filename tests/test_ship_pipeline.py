@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import sys
 import tempfile
 import unittest
@@ -167,6 +168,66 @@ class ShipLibTests(unittest.TestCase):
             scorer.mkdir()
             overlay_scorer_assets(scorer)
             self.assertTrue((scorer / "full_ground_truth" / "steps").is_dir())
+            self.assertTrue((scorer / MEDICAL_GOLD).is_file())
+            self.assertTrue((scorer / MEDICAL_SCHEMA).is_file())
+
+    def test_steps_gold_has_no_vessel_fields(self) -> None:
+        from src.kg_building.scorer_protocol import json_has_vessel_keys
+
+        steps = repository_root() / "data" / "scorer_assets" / "full_ground_truth" / "steps"
+        self.assertTrue(steps.is_dir())
+        for path in sorted(steps.glob("*.json")):
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            self.assertFalse(json_has_vessel_keys(payload), msg=path.name)
+
+    def test_overlay_replaces_old_ground_truth(self) -> None:
+        from src.kg_building.scorer_repo import overlay_scorer_assets
+
+        with tempfile.TemporaryDirectory() as raw:
+            scorer = Path(raw) / "engines"
+            stale = scorer / "full_ground_truth" / "steps"
+            stale.mkdir(parents=True)
+            (stale / "stale.json").write_text(
+                '{"Synthesis":[{"steps":[{"Add":{"usedVesselName":"flask"}}]}]}',
+                encoding="utf-8",
+            )
+            overlay_scorer_assets(scorer)
+            self.assertFalse((stale / "stale.json").is_file())
+            sample = next((scorer / "full_ground_truth" / "steps").glob("*.json"))
+            text = sample.read_text(encoding="utf-8")
+            self.assertNotIn("usedVesselName", text)
+
+    def test_lock_cloned_steps_engine(self) -> None:
+        from src.kg_building.scorer_protocol import lock_cloned_steps_engine
+
+        with tempfile.TemporaryDirectory() as raw:
+            scorer = Path(raw) / "engines"
+            path = scorer / "evaluation" / "scoring_steps.py"
+            path.parent.mkdir(parents=True)
+            path.write_text(
+                'VESSEL_FIELDS = {\n'
+                '    "usedVesselName",\n'
+                '    "usedVesselType",\n'
+                '    "targetVesselName",\n'
+                '    "targetVesselType",\n'
+                '}\n'
+                '        if ignore_vessel and key in vessel_fields:\n'
+                '            continue\n'
+                '            if ignore_vessel and k in vessel_fields:\n'
+                '                continue\n'
+                '        evaluate_previous(use_anchored=not args.no_anchor, ignore_vessel=args.no_vessel, short_mode=args.short, skip_order=args.skip_order, ignore_mode=args.ignore, use_new_gt=args.new, use_full_gt=args.full, equivalence_config=equivalence_config)\n'
+                '        evaluate_current(ignore_vessel=args.no_vessel, short_mode=args.short, skip_order=args.skip_order, ignore_mode=args.ignore, use_new_gt=args.new, use_full_gt=args.full, equivalence_config=equivalence_config, hash_filter=set(args.hashes or []), correct_ccdc_by_name=args.correct_ccdc_by_name, pred_root=args.pred_root, out_root=args.out_root)\n',
+                encoding="utf-8",
+            )
+            lock_cloned_steps_engine(scorer)
+            text = path.read_text(encoding="utf-8")
+            self.assertIn("TWA_LOCKED_STEPS_PROTOCOL", text)
+            self.assertIn("skip_order=True", text)
+            self.assertIn("ignore_vessel=False", text)
+            self.assertIn('"sealedVessel"', text)
+            self.assertNotIn("if ignore_vessel and key in vessel_fields", text)
+            lock_cloned_steps_engine(scorer)
+            self.assertEqual(text.count("TWA_LOCKED_STEPS_PROTOCOL"), 1)
 
 
 class ShipCliTests(unittest.TestCase):

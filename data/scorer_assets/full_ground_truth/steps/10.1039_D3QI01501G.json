@@ -9,8 +9,6 @@
       "steps": [
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "glass vial",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -31,8 +29,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "glass vial",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -52,8 +48,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "glass vial",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -76,8 +70,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "glass vial",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -101,10 +93,6 @@
         {
           "Transfer": {
             "duration": "N/A",
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "glass vial",
-            "targetVesselName": "vessel 2",
-            "targetVesselType": "Teflon-lined stainless-steel vessel",
             "stepNumber": 5,
             "isLayered": false,
             "transferedAmount": "N/A",
@@ -120,9 +108,6 @@
             "heatingCoolingRate": "N/A",
             "comment": "N/A",
             "underVacuum": false,
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
-            "usedVesselName": "vessel 2",
-            "sealedVessel": true,
             "stir": false,
             "stepNumber": 6,
             "atmosphere": "Ar"
@@ -136,9 +121,6 @@
             "heatingCoolingRate": "N/A",
             "comment": "N/A",
             "underVacuum": false,
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
-            "usedVesselName": "vessel 2",
-            "sealedVessel": true,
             "stir": false,
             "stepNumber": 7,
             "atmosphere": "Ar"
@@ -149,8 +131,6 @@
             "washingSolvent": [],
             "vacuumFiltration": false,
             "numberOfFiltrations": 1,
-            "usedVesselName": "vessel 2",
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
             "stepNumber": 8,
             "comment": "Obtain green rectangular crystals",
             "atmosphere": "Ar"
@@ -167,8 +147,6 @@
       "steps": [
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "glass vial",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -189,8 +167,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "glass vial",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -210,8 +186,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "glass vial",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -234,8 +208,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "glass vial",
             "addedChemical": [
               {
                 "chemicalName": [
@@ -259,10 +231,6 @@
         {
           "Transfer": {
             "duration": "N/A",
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "glass vial",
-            "targetVesselName": "vessel 2",
-            "targetVesselType": "Teflon-lined stainless-steel vessel",
             "stepNumber": 5,
             "isLayered": false,
             "transferedAmount": "N/A",
@@ -278,9 +246,6 @@
             "heatingCoolingRate": "N/A",
             "comment": "N/A",
             "underVacuum": false,
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
-            "usedVesselName": "vessel 2",
-            "sealedVessel": true,
             "stir": false,
             "stepNumber": 6,
             "atmosphere": "Ar"
@@ -294,9 +259,6 @@
             "heatingCoolingRate": "N/A",
             "comment": "N/A",
             "underVacuum": false,
-            "usedVesselType": "Teflon-lined stainless-steel vessel",
-            "usedVesselName": "vessel 2",
-            "sealedVessel": true,
             "stir": false,
             "stepNumber": 7,
             "atmosphere": "Ar"

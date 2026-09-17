@@ -8,8 +8,6 @@
       "steps": [
         {
           "Add": {
-            "usedVesselName": "15 mL glass vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 1,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -30,8 +28,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "15 mL glass vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 2,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -52,8 +48,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "15 mL glass vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 3,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -76,8 +70,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "15 mL glass vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 4,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -98,8 +90,6 @@
         },
         {
           "HeatChill": {
-            "usedVesselName": "15 mL glass vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 5,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -109,14 +99,11 @@
             "targetTemperature": "90 degree celsius",
             "heatingCoolingRate": "n/a",
             "underVacuum": false,
-            "sealedVessel": true,
             "stir": false
           }
         },
         {
           "Separate": {
-            "usedVesselName": "15 mL glass vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 6,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -126,8 +113,6 @@
         },
         {
           "Filter": {
-            "usedVesselName": "15 mL glass vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 7,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -164,8 +149,6 @@
       "steps": [
         {
           "Add": {
-            "usedVesselName": "15 mL glass vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 1,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -186,8 +169,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "15 mL glass vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 2,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -208,8 +189,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "15 mL glass vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 3,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -232,8 +211,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "15 mL glass vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 4,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -254,8 +231,6 @@
         },
         {
           "HeatChill": {
-            "usedVesselName": "15 mL glass vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 5,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -265,14 +240,11 @@
             "targetTemperature": "90 degree celsius",
             "heatingCoolingRate": "n/a",
             "underVacuum": false,
-            "sealedVessel": true,
             "stir": false
           }
         },
         {
           "Separate": {
-            "usedVesselName": "15 mL glass vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 6,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -282,8 +254,6 @@
         },
         {
           "Filter": {
-            "usedVesselName": "15 mL glass vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 7,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -320,8 +290,6 @@
       "steps": [
         {
           "Add": {
-            "usedVesselName": "15 mL glass vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 1,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -342,8 +310,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "15 mL glass vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 2,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -364,8 +330,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "15 mL glass vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 3,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -388,8 +352,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "15 mL glass vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 4,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -410,8 +372,6 @@
         },
         {
           "HeatChill": {
-            "usedVesselName": "15 mL glass vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 5,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -421,14 +381,11 @@
             "targetTemperature": "90 degree celsius",
             "heatingCoolingRate": "n/a",
             "underVacuum": false,
-            "sealedVessel": true,
             "stir": false
           }
         },
         {
           "Separate": {
-            "usedVesselName": "15 mL glass vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 6,
             "atmosphere": "n/a",
             "targetPH": -1,
@@ -438,8 +395,6 @@
         },
         {
           "Filter": {
-            "usedVesselName": "15 mL glass vial",
-            "usedVesselType": "glass vial",
             "stepNumber": 7,
             "atmosphere": "n/a",
             "targetPH": -1,

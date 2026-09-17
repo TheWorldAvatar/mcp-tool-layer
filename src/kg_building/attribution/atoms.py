@@ -363,7 +363,7 @@ def collect_steps_atoms(
                     step_ctx,
                     len(extra_amounts),
                 )
-            for field_name in ("duration", "atmosphere", "usedVesselType"):
+            for field_name in ("duration", "atmosphere"):
                 gt_val = gt_data.get(field_name)
                 pred_val = pred_data.get(field_name)
                 gt_fp = fingerprint(gt_val)

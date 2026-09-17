@@ -85,7 +85,7 @@ _SELECT_AGG = re.compile(
 _CONV: dict[str, Any] = {}
 
 # Official F1 fields, exclusive by module so one IRI is extra-FP at most once.
-# Steps: --no-vessel skips usedVessel*; usedDevice still scores (HeatChillDevice).
+# Steps gold has no vessel keys; usedDevice still scores (HeatChillDevice).
 # Chemicals F1 is input-name lists only (not supplier/purity/output).
 # Char scores product identity + HNMR/EA/IR values, not characterisation devices.
 # CBU scores MOP CCDC + CBU formula/species names.

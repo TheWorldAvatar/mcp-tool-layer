@@ -4,8 +4,6 @@
       "steps": [
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "glass vial",
             "stepNumber": 1,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -25,8 +23,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "glass vial",
             "stepNumber": 2,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -46,8 +42,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "glass vial",
             "stepNumber": 3,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -70,8 +64,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "glass vial",
             "stepNumber": 4,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -92,8 +84,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "glass vial",
             "stepNumber": 5,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -114,8 +104,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "glass vial",
             "stepNumber": 6,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -135,8 +123,6 @@
         },
         {
           "Sonicate": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "glass vial",
             "stepNumber": 7,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -146,8 +132,6 @@
         },
         {
           "HeatChill": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "glass vial",
             "stepNumber": 8,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -157,7 +141,6 @@
             "targetTemperature": "100.0 degree celsius",
             "heatingCoolingRate": "N/A",
             "underVacuum": false,
-            "sealedVessel": true,
             "stir": false
           }
         }
@@ -173,8 +156,6 @@
       "steps": [
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "glass vial",
             "stepNumber": 1,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -194,8 +175,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "glass vial",
             "stepNumber": 2,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -216,8 +195,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "glass vial",
             "stepNumber": 3,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -238,8 +215,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "glass vial",
             "stepNumber": 4,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -260,8 +235,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "glass vial",
             "stepNumber": 5,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -281,8 +254,6 @@
         },
         {
           "Sonicate": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "glass vial",
             "stepNumber": 6,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -292,8 +263,6 @@
         },
         {
           "HeatChill": {
-            "usedVesselName": "vessel 1",
-            "usedVesselType": "glass vial",
             "stepNumber": 7,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -303,7 +272,6 @@
             "targetTemperature": "100.0 degree celsius",
             "heatingCoolingRate": "N/A",
             "underVacuum": false,
-            "sealedVessel": true,
             "stir": false
           }
         }

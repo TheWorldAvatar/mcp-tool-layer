@@ -2,6 +2,9 @@
 
 Scoring engines stay in the original repo so this package does not copy
 the 4k-line scorers or write into that repo's evaluation/data/.
+
+Steps matching is always by type, not position. Vessel is absent from the
+committed gold; do not pass ``--skip-order`` or ``--no-vessel``.
 """
 
 from __future__ import annotations
@@ -36,9 +39,7 @@ SCORE_MODULES = (
         "evaluation.scoring_steps",
         [
             "--full",
-            "--skip-order",
             "--ignore",
-            "--no-vessel",
             "--llm-synonyms",
             "--llm-synonym-model",
             "openai/gpt-5.6-sol",

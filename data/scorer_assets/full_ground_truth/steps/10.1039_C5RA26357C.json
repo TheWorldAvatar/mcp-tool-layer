@@ -4,8 +4,6 @@
       "steps": [
         {
           "Add": {
-            "usedVesselName": "N/A",
-            "usedVesselType": "N/A",
             "stepNumber": 1,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -26,8 +24,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "N/A",
-            "usedVesselType": "N/A",
             "stepNumber": 2,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -49,8 +45,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "N/A",
-            "usedVesselType": "N/A",
             "stepNumber": 3,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -73,8 +67,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "N/A",
-            "usedVesselType": "N/A",
             "stepNumber": 4,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -96,8 +88,6 @@
         },
         {
           "Stir": {
-            "usedVesselName": "N/A",
-            "usedVesselType": "N/A",
             "stepNumber": 5,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -109,8 +99,6 @@
         },
         {
           "Add": {
-            "usedVesselName": "N/A",
-            "usedVesselType": "N/A",
             "stepNumber": 6,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -131,8 +119,6 @@
         },
         {
           "Stir": {
-            "usedVesselName": "N/A",
-            "usedVesselType": "N/A",
             "stepNumber": 7,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -144,8 +130,6 @@
         },
         {
           "Filter": {
-            "usedVesselName": "N/A",
-            "usedVesselType": "N/A",
             "stepNumber": 8,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -157,8 +141,6 @@
         },
         {
           "Evaporate": {
-            "usedVesselName": "N/A",
-            "usedVesselType": "N/A",
             "stepNumber": 9,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -168,8 +150,6 @@
         },
         {
           "Filter": {
-            "usedVesselName": "N/A",
-            "usedVesselType": "N/A",
             "stepNumber": 10,
             "atmosphere": "N/A",
             "targetPH": -1,
@@ -190,8 +170,6 @@
         },
         {
           "Dry": {
-            "usedVesselName": "N/A",
-            "usedVesselType": "N/A",
             "stepNumber": 11,
             "atmosphere": "N/A",
             "targetPH": -1,
