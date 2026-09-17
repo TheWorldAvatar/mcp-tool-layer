@@ -263,6 +263,7 @@ class ArtifactAndPaperTests(unittest.TestCase):
                     main_ontology_name="ontosynthesis",
                 )
         self.assertEqual(spec["env"]["TWA_MAIN_ONTOLOGY_NAME"], "ontosynthesis")
+        self.assertIn(str(os.getpid()), Path(spec["args"][0]).name)
 
     def test_mcp_merge_preserves_pipeline_main_ontology_env(self) -> None:
         merged = merge_mcp_server_environment(

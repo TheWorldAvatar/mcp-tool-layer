@@ -6,6 +6,7 @@ import asyncio
 import json
 from pathlib import Path
 
+
 from rdflib import Graph, URIRef
 
 from src.extraction_runtime.artifact_root import (

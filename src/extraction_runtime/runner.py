@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import os
 import traceback
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
@@ -196,9 +195,14 @@ def process_hashes(
     test_mcp_config_name: str | None,
     max_workers: int,
 ) -> list[str]:
-    """Run papers with up to ``max_workers`` threads. Returns incomplete hashes in input order."""
-    workers = bounded_workers(max_workers, len(doi_hashes))
-    print(f"[INFO] Paper workers: {workers} (of {len(doi_hashes)} hashes)\n")
+    """Run papers one-by-one in this process.
+
+    Extraction and KG both call ``asyncio.run``. Sharing one process across
+    threads closes the event loop. Parallelism belongs in separate OS
+    processes (``run_locked --workers``), not an in-process ThreadPool.
+    """
+    del max_workers
+    print(f"[INFO] Paper workers: 1 sequential (of {len(doi_hashes)} hashes)\n")
 
     def _one(doi_hash: str) -> tuple[str, bool]:
         print(f"\n{'=' * 60}")
@@ -221,16 +225,9 @@ def process_hashes(
         return doi_hash, complete
 
     complete_by_hash: dict[str, bool] = {}
-    if workers == 1:
-        for doi_hash in doi_hashes:
-            paper, ok = _one(doi_hash)
-            complete_by_hash[paper] = ok
-    else:
-        with ThreadPoolExecutor(max_workers=workers) as pool:
-            futures = [pool.submit(_one, doi_hash) for doi_hash in doi_hashes]
-            for doi_hash, future in zip(doi_hashes, futures):
-                paper, ok = future.result()
-                complete_by_hash[paper] = ok
+    for doi_hash in doi_hashes:
+        paper, ok = _one(doi_hash)
+        complete_by_hash[paper] = ok
     return [doi_hash for doi_hash in doi_hashes if not complete_by_hash.get(doi_hash)]
 
 

@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 import asyncio
+import multiprocessing
+import os
+import sys
 from pathlib import Path
+from typing import Any
 
 from src.extraction_runtime.names import entity_artifact_name
 from src.kg_building.pipeline.main_kg.agent import (
@@ -73,6 +77,106 @@ def should_reuse_published_ttl(
     return dest.stat().st_mtime >= latest_hint
 
 
+def _run_isolated(coro):
+    """Official s1ka shape: one entity, one ``asyncio.run``."""
+    return asyncio.run(coro)
+
+
+def _spawnable_config(config: dict[str, Any]) -> dict[str, Any]:
+    return {key: value for key, value in config.items() if key != "domain"}
+
+
+def _bind_spawned_config(config: dict[str, Any]) -> dict[str, Any]:
+    from src.extraction_runtime.domain_binding import (
+        load_runtime_domain,
+        runtime_domain_from_config,
+    )
+
+    bound = dict(config)
+    if runtime_domain_from_config(bound) is None:
+        bound["domain"] = load_runtime_domain(
+            str(bound.get("ontology_name") or bound.get("ontology") or "ontosynthesis")
+        )
+    return bound
+
+
+def _execute_kg_entity(job: dict[str, Any]) -> dict[str, Any]:
+    """Fresh interpreter entry: one entity, one MCP lifetime, one asyncio.run."""
+    config = _bind_spawned_config(dict(job["config"]))
+    dump = job.get("dump_dir")
+    try:
+        reply, metadata = _run_isolated(
+            run_kg_agent(
+                job["prompt"],
+                config,
+                doi_hash=str(job["doi_hash"]),
+                entity_label=str(job["entity_label"]),
+                entity_uri=str(job.get("entity_uri") or ""),
+                dump_dir=Path(dump) if dump else None,
+            )
+        )
+        return {"ok": True, "reply": reply, "metadata": metadata}
+    except Exception as exc:
+        return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+
+
+def _entity_process_entry(job: dict[str, Any], conn) -> None:
+    try:
+        conn.send(_execute_kg_entity(job))
+    except Exception as exc:
+        conn.send({"ok": False, "error": f"{type(exc).__name__}: {exc}"})
+    finally:
+        conn.close()
+
+
+def _run_kg_agent_for_entity(
+    prompt: str,
+    config: dict[str, Any],
+    *,
+    doi_hash: str,
+    entity_label: str,
+    entity_uri: str,
+    dump_dir: Path,
+) -> tuple[str, dict[str, Any]]:
+    """s1ka is one asyncio.run per entity. Spawn only when MCP stdio would poison the next loop."""
+    job = {
+        "prompt": prompt,
+        "config": _spawnable_config(config),
+        "doi_hash": doi_hash,
+        "entity_label": entity_label,
+        "entity_uri": entity_uri,
+        "dump_dir": str(dump_dir),
+    }
+    flag = str(os.environ.get("TWA_KG_ENTITY_INPROCESS") or "").strip()
+    inprocess = flag == "1" or (flag != "0" and sys.version_info[:2] == (3, 11))
+    if inprocess:
+        result = _execute_kg_entity(job)
+    else:
+        ctx = multiprocessing.get_context("spawn")
+        parent, child = ctx.Pipe(duplex=False)
+        proc = ctx.Process(target=_entity_process_entry, args=(job, child))
+        proc.start()
+        result = None
+        while True:
+            if parent.poll(1.0):
+                result = parent.recv()
+                break
+            if not proc.is_alive():
+                if parent.poll():
+                    result = parent.recv()
+                break
+        proc.join()
+        parent.close()
+        if result is None:
+            result = {
+                "ok": False,
+                "error": f"entity process exited {proc.exitcode} with no result",
+            }
+    if not result.get("ok"):
+        raise RuntimeError(str(result.get("error") or "KG entity process failed"))
+    return str(result.get("reply") or ""), dict(result.get("metadata") or {})
+
+
 def run_step(doi_hash: str, config: dict) -> bool:
     assert_kg_revision_locked_off(config)
     data_dir = config.get("data_dir", "data")
@@ -132,9 +236,12 @@ def run_step(doi_hash: str, config: dict) -> bool:
             ontology=ontology_from_config(config),
             mcp_tools=kg_mcp_binding(config)[1],
         )
-        try:
-            reply, metadata = asyncio.run(
-                run_kg_agent(
+        reply = ""
+        metadata: dict[str, Any] = {}
+        last_error = ""
+        for attempt in range(1, 4):
+            try:
+                reply, metadata = _run_kg_agent_for_entity(
                     prompt,
                     config,
                     doi_hash=doi_hash,
@@ -142,9 +249,16 @@ def run_step(doi_hash: str, config: dict) -> bool:
                     entity_uri=uri,
                     dump_dir=dump_dir,
                 )
-            )
-        except Exception as exc:
-            print(f"  [WARN] KG agent failed for {label}: {exc}; skipping this entity")
+                last_error = ""
+                break
+            except Exception as exc:
+                last_error = str(exc)
+                print(
+                    f"  [WARN] KG agent failed for {label} "
+                    f"(attempt {attempt}/3): {exc}"
+                )
+        if last_error:
+            print(f"  [WARN] skipping this entity after retries: {label}")
             skipped += 1
             continue
         write_main_kg_token_trace(

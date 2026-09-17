@@ -35,12 +35,15 @@ def _generated_server(
         "TWA_SEMANTIC_OPERATION_SURFACE": os.environ.get(
             "TWA_SEMANTIC_OPERATION_SURFACE", "1"
         ),
+        "FASTMCP_SHOW_SERVER_BANNER": os.environ.get(
+            "FASTMCP_SHOW_SERVER_BANNER", "false"
+        ),
     }
     main_py = scripts_dir(ontology_name) / "main.py"
     if not main_py.is_file():
         raise FileNotFoundError(f"Generated MCP main.py not found: {main_py}")
     if artifact_root.name.startswith("generated") or (artifact_root / "scripts").is_dir():
-        launcher = artifact_root / f"_launch_{ontology_name}_mcp.py"
+        launcher = artifact_root / f"_launch_{ontology_name}_mcp_{os.getpid()}.py"
         launcher.write_text(
             "\n".join(
                 [
@@ -85,6 +88,32 @@ def _capability_tools(capabilities: dict[str, Any], *keys: str) -> list[str]:
     return tools
 
 
+def _ccdc_mcp_env(base_env: dict[str, Any]) -> dict[str, Any]:
+    """CCDC stdio env. Live CSD is off unless ``CSD_PYTHON_EXE`` is already set."""
+    explicit = (os.environ.get("CSD_PYTHON_EXE") or "").strip()
+    if explicit and Path(explicit).is_file():
+        env = {**os.environ, **dict(base_env)}
+        env["CSD_PYTHON_EXE"] = str(Path(explicit).resolve())
+        conda_env = (os.environ.get("CSD_CONDA_ENV") or "").strip()
+        if conda_env:
+            env["CSD_CONDA_ENV"] = conda_env
+        env["FASTMCP_SHOW_SERVER_BANNER"] = os.environ.get(
+            "FASTMCP_SHOW_SERVER_BANNER", "false"
+        )
+        print("[OK] Live CSD enabled via CSD_PYTHON_EXE")
+        return env
+    env = dict(base_env)
+    env.pop("CSD_PYTHON_EXE", None)
+    env["FASTMCP_SHOW_SERVER_BANNER"] = os.environ.get(
+        "FASTMCP_SHOW_SERVER_BANNER", "false"
+    )
+    print(
+        "[WARN] Live CSD disabled (CSD_PYTHON_EXE unset); "
+        "CCDC MCP is hardcoded-only"
+    )
+    return env
+
+
 def setup_test_mcp_configs(domain: RuntimeDomain, *, data_dir: str | Path) -> str:
     """Write `configs/test_mcp_config_<ontology>_<run>.json` and return its filename."""
     runtime = Path(data_dir).resolve()
@@ -122,22 +151,12 @@ def setup_test_mcp_configs(domain: RuntimeDomain, *, data_dir: str | Path) -> st
             ext_server = None
         for name in ext_tools:
             if name == "ccdc":
-                ccdc_env = {**os.environ, **(main_server.get("env") or {})}
-                try:
-                    from src.mcp_servers.ccdc.operations.wsl_ccdc import (
-                        resolve_csd_python_exe,
-                    )
-
-                    ccdc_env["CSD_PYTHON_EXE"] = resolve_csd_python_exe()
-                except Exception as exc:
-                    print(f"[WARN] CSD python resolve failed ({exc})")
-                ccdc_env["CSD_CONDA_ENV"] = os.environ.get("CSD_CONDA_ENV", "csd311")
                 test_mcp_config[name] = {
                     "command": python_cmd,
                     "args": ["-m", "src.mcp_servers.ccdc.main"],
                     "transport": "stdio",
                     "cwd": repo,
-                    "env": ccdc_env,
+                    "env": _ccdc_mcp_env(dict(main_server.get("env") or {})),
                 }
                 continue
             if ext_server is None:
@@ -155,7 +174,9 @@ def setup_test_mcp_configs(domain: RuntimeDomain, *, data_dir: str | Path) -> st
         ch if ch.isalnum() or ch in {"_", "-"} else "_" for ch in runtime_tag
     )
     config_path = (
-        repository_root() / "configs" / f"test_mcp_config_{safe_ontology}_{safe_runtime}.json"
+        repository_root()
+        / "configs"
+        / f"test_mcp_config_{safe_ontology}_{safe_runtime}_{os.getpid()}.json"
     )
     config_path.write_text(json.dumps(test_mcp_config, indent=2) + "\n", encoding="utf-8")
     print(f"[OK] Created test MCP config: {config_path}")

@@ -188,6 +188,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     _configure_utf8_stdio()
+    os.environ.setdefault("FASTMCP_SHOW_SERVER_BANNER", "false")
     args = build_parser().parse_args(argv)
     domain = load_runtime_domain(args.ontology, domain_config=args.domain_config)
     vision_override = True if args.vision else False if args.no_vision else None
@@ -255,7 +256,10 @@ def main(argv: list[str] | None = None) -> int:
         print(f"[OK] Extraction model override {config['extraction_model']}")
     if args.protocol or args.until or args.compare_one_shot or args.kg_model or args.extraction_model:
         if not args.config or args.protocol or args.compare_one_shot or args.kg_model or args.extraction_model:
-            _write_run_config(config_path, config)
+            if args.resume and config_path.is_file():
+                print(f"[OK] Resume: keeping existing {config_path.name}")
+            else:
+                _write_run_config(config_path, config)
     if args.workers < 1:
         print("[FAIL] --workers must be at least 1")
         return 1
