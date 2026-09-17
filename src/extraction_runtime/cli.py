@@ -158,6 +158,20 @@ def build_parser() -> argparse.ArgumentParser:
         help="After a protocol run, convert and score into this run's merged/ and scores/.",
     )
     parser.add_argument(
+        "--kg-model",
+        help=(
+            "Override Pipeline KG model after --protocol "
+            "(default openai/gpt-4o-2024-11-20). Use moonshotai/kimi-k3 for s4 Kimi rows."
+        ),
+    )
+    parser.add_argument(
+        "--extraction-model",
+        help=(
+            "Override extract / T-Box-slim model. Chemistry default is gpt-4.1-2025-04-14; "
+            "OntoMed default is gpt-5-2025-08-07."
+        ),
+    )
+    parser.add_argument(
         "--scorer-repo",
         help="Optional scorer checkout. Default: auto-find or clone into data/third_party_repos/.",
     )
@@ -233,8 +247,14 @@ def main(argv: list[str] | None = None) -> int:
             vision_override = False
         args.test = True
         print(f"[OK] Locked 1:1 protocol {args.protocol} (Pipeline no-contract)")
-    if args.protocol or args.until or args.compare_one_shot:
-        if not args.config or args.protocol or args.compare_one_shot:
+    if args.kg_model:
+        config["kg_model"] = str(args.kg_model).strip()
+        print(f"[OK] KG model override {config['kg_model']}")
+    if args.extraction_model:
+        config["extraction_model"] = str(args.extraction_model).strip()
+        print(f"[OK] Extraction model override {config['extraction_model']}")
+    if args.protocol or args.until or args.compare_one_shot or args.kg_model or args.extraction_model:
+        if not args.config or args.protocol or args.compare_one_shot or args.kg_model or args.extraction_model:
             _write_run_config(config_path, config)
     if args.workers < 1:
         print("[FAIL] --workers must be at least 1")

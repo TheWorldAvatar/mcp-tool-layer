@@ -1,0 +1,2 @@
+# Local eval zips are not committed (publisher PDFs and generated MCP).
+*.zip

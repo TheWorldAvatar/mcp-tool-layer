@@ -101,6 +101,12 @@ $medDir = Join-Path $RepoRoot "scenarios\medical\datasets\eval30"
 New-Item -ItemType Directory -Force -Path $mopsDir | Out-Null
 New-Item -ItemType Directory -Force -Path $medDir | Out-Null
 
+$evalInputs = Join-Path $RepoRoot "scripts\eval_inputs.py"
+if (Test-Path $evalInputs) {
+    Write-Step "Eval input zips"
+    & $venvPython $evalInputs unpack --optional
+}
+
 function Count-MainPdfs([string]$Folder) {
     @(Get-ChildItem -LiteralPath $Folder -Filter *.pdf -ErrorAction SilentlyContinue |
         Where-Object { $_.Name -notlike "*_si.pdf" }).Count
@@ -110,8 +116,8 @@ $mopsCount = Count-MainPdfs $mopsDir
 $medCount = @(Get-ChildItem -LiteralPath $medDir -Filter *.pdf -ErrorAction SilentlyContinue).Count
 Write-Host "[OK] Chemistry PDFs: $mopsCount / 30 in $mopsDir"
 Write-Host "[OK] OntoMed PDFs:    $medCount / 30 in $medDir"
-if ($mopsCount -lt 10 -or $medCount -lt 10) {
-    Write-Host "[WARN] Default run.cmd uses 10 cases. Copy eval30 PDFs into those folders (chemistry names use underscores in the DOI, e.g. 10.1002_anie.201811027.pdf)." -ForegroundColor Yellow
+if ($mopsCount -lt 1 -or $medCount -lt 1) {
+    Write-Host "[WARN] PDFs are not in git. Copy eval30_pdfs.zip into data\eval_bundles\ (see docs\ONE_CLICK_RUN.md)." -ForegroundColor Yellow
 }
 
 Write-Step "Scorer engines"
@@ -121,12 +127,17 @@ if ($LASTEXITCODE -ne 0) {
     Write-Host "[WARN] Scoring engines were not cloned. run.cmd will retry. Gold files live in data\scorer_assets." -ForegroundColor Yellow
 }
 
+if (Test-Path $evalInputs) {
+    & $venvPython $evalInputs check
+}
+
 Write-Host ""
 Write-Host "Setup complete." -ForegroundColor Green
 Write-Host "Next:"
 Write-Host "  1. Confirm .env has REMOTE_BASE_URL and REMOTE_API_KEY"
-Write-Host "  2. Confirm eval30 PDFs are in the dataset folders above"
-Write-Host "  3. run.cmd          (10 cases)"
-Write-Host "     run.cmd 20       (20 cases, max 30)"
-Write-Host "     run.cmd --from-step extract"
+Write-Host "  2. Confirm eval zips or PDFs (docs\ONE_CLICK_RUN.md)"
+Write-Host "  3. run_locked.cmd --check"
+Write-Host "     run_locked.cmd          (1 case, Pipeline + OntoLogX)"
+Write-Host "     run_locked.cmd 30"
+Write-Host "     run.cmd                 (10 cases, generate new MCP, Pipeline only)"
 exit 0

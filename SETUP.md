@@ -5,6 +5,8 @@ Two scripts at the repo root:
 | Script | What it does |
 | --- | --- |
 | `setup.cmd` | Creates `.venv`, installs runtime deps, checks `.env` / PDFs, clones scoring engines |
+| `run_locked.cmd` | Frozen-MCP 1:1 run: unpack eval zips if needed, extract, Pipeline KG, OntoLogX |
+| `pack_eval_inputs.cmd` | Pack or unpack `data/eval_bundles/*.zip` (PDFs + frozen MCP; not in git) |
 | `run.cmd` | Default 5-step pipeline: generate → MCP → extract → KG (`generic-strict`) → score |
 
 You need Python 3.11+ on PATH. **Git does not include** the eval PDFs or `.env` — copy those in yourself after clone. Scoring engines are cloned automatically. Licensed CCDC / CSD software is **not** part of setup; it is only required to finish chemistry **CBU** (see §5).
@@ -33,20 +35,43 @@ Any OpenAI-compatible endpoint works. Leave `ROOT_DIR` unset.
 
 Do not commit `.env`.
 
-## 3. Eval PDFs (not in this repo)
+## 3. Eval PDFs and frozen MCP (not in this repo)
 
-The papers are **not committed**. A fresh clone has no PDFs; `setup.cmd` only creates empty folders. Copy the files yourself into the paths below (from a USB drive, another machine, or an existing checkout).
+Git does **not** include PDFs, generated MCP packs, or extraction runtimes.
+The supported way to move them between machines is two zip files. Full
+layout, filenames, and unpack rules: [docs/ONE_CLICK_RUN.md](docs/ONE_CLICK_RUN.md).
 
-You need the 30 chemistry papers and 30 medical papers:
+Put the zips here, then unpack (or let `run_locked.cmd` unpack them):
 
-| Domain | Folder | Filename rule |
+```text
+data\eval_bundles\eval30_pdfs.zip
+data\eval_bundles\locked_mcp_packs.zip
+```
+
+```powershell
+pack_eval_inputs.cmd unpack
+```
+
+On a machine that already has the files:
+
+```powershell
+pack_eval_inputs.cmd pack
+```
+
+If you copy files by hand instead of using the zips:
+
+| What | Folder | Filename rule |
 | --- | --- | --- |
-| Chemistry | `scenarios\mops\datasets\eval30` | DOI with `/` replaced by `_`, e.g. `10.1002_anie.201811027.pdf` |
-| OntoMed | `scenarios\medical\datasets\eval30` | Stem from the paper list, e.g. `10062026 OPR10a.pdf` |
+| Chemistry PDFs | `scenarios\mops\datasets\eval30` | DOI with `/` replaced by `_`, e.g. `10.1002_anie.201811027.pdf` |
+| OntoMed PDFs | `scenarios\medical\datasets\eval30` | Stem from the paper list, e.g. `10062026 OPR10a.pdf` |
+| Chemistry MCP | `generated\runs\0908-fullpack-s1_newmcp` | frozen pack (s2 / s3 / kimi names in the doc) |
+| OntoMed MCP | `generated\runs\med-s1_newmcp` | frozen pack |
 
-Optional SI files are `*_si.pdf`. `run.cmd` defaults to **10** cases, so you need at least that many PDFs in each folder (up to 30).
+Optional chemistry SI files are `*_si.pdf`. Extraction ledgers are **not**
+shipped; `run_locked.cmd` extracts from the PDFs.
 
 Paper order is `src/kg_building/ontologx/papers_eval30.json` and `papers_medical.json`.
+`run.cmd` defaults to **10** cases; `run_locked.cmd` defaults to **1**.
 
 ## 4. Python venv and install
 
@@ -88,6 +113,17 @@ CSD_CONDA_ENV=csd311
 Put those in `.env` or the process environment. Default lookup is `%USERPROFILE%\AppData\Local\anaconda3\envs\csd311\python.exe` when `CSD_PYTHON_EXE` is unset. Do not use `mcp_layer` or the repo venv for CSD.
 
 ## 6. Run
+
+Locked paper-style 1:1 (frozen MCP, Pipeline + OntoLogX):
+
+```powershell
+run_locked.cmd --check
+run_locked.cmd          # 1 case, both domains, generic-strict
+run_locked.cmd 30
+run_locked.cmd --list
+```
+
+Shipped generate-then-Pipeline path (new MCP, no OntoLogX):
 
 ```powershell
 run.cmd          # 10 cases, both domains
