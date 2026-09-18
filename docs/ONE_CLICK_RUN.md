@@ -145,7 +145,45 @@ Replay OntoLogX only, after Pipeline KG is already complete:
 run_locked.cmd --domain main --protocol minimal --pack s1 --cases 30 --builder ox --workers 5 --from-extract scenarios\mops\runs\<lkexs1_run>
 ```
 
-`--from-extract` must be the **extract** folder (`*_lkexs1`). The runner still finds the matching Pipeline KG traces (`*_lks1min`) for the OX token budget.
+`--from-extract` must be the **extract** folder (`*_lkexs1`). The runner still finds the matching Pipeline KG traces (`*_lks1min` / `*_lks1gr` / `*_lks1kg`) for the OX token budget.
+
+### Three chemistry guidances, one extract
+
+Same frozen s1 pack, same 30 papers. Extract once. Each `--protocol` copies
+that ledger and rebuilds Pipeline KG + OntoLogX + scores.
+
+```powershell
+# 1) extract + Minimal KG + OX + scores
+run_locked.cmd --domain main --protocol minimal --pack s1 --cases 30 --builder both --workers 5
+
+# 2) Graph rules (reuse the merged extract folder from step 1)
+run_locked.cmd --domain main --protocol graph-rules --pack s1 --cases 30 --builder both --workers 5 --from-extract scenarios\mops\runs\<stamp>_lkexs1
+
+# 3) KG guidance (same extract)
+run_locked.cmd --domain main --protocol kg-guidance --pack s1 --cases 30 --builder both --workers 5 --from-extract scenarios\mops\runs\<stamp>_lkexs1
+```
+
+`<stamp>_lkexs1` is the **merged** extract (for example `20260917_160559_lkexs1`),
+not a per-paper child (`*_lkexs1a`). If you omit `--from-extract` after step 1,
+the runner reuses the latest complete `lkexs1` it finds.
+
+| `--protocol` | Pipeline KG tag | Merged OX + `scores/` |
+|---|---|---|
+| `minimal` | `*_lks1min` | `ox_lks1min` |
+| `graph-rules` | `*_lks1gr` | `ox_lks1gr` |
+| `kg-guidance` | `*_lks1kg` | `ox_lks1kg` |
+
+Resume OntoLogX + scores only (Pipeline KG already finished; useful after a
+credit or network stop):
+
+```powershell
+run_locked.cmd --domain main --protocol kg-guidance --pack s1 --cases 30 --builder ox --workers 5 --from-extract scenarios\mops\runs\<stamp>_lkexs1
+```
+
+Complete letter folders (`ox_lks1kga` …) are reused; incomplete letters are
+cleaned and rerun. Do not pass an old partial KG folder from a different
+extract — park it (rename) so the runner copies a fresh `*_lks1gr` / `*_lks1kg`
+from the extract you intend.
 
 There is **no** matrix script that fires all 18 chemistry rows plus 4 OntoMed
 rows in one process. Run one protocol × pack × model at a time.

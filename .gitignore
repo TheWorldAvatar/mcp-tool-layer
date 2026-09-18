@@ -19,6 +19,7 @@ __pycache__/
 # LLM journals and local cost logs
 /data/reports/
 /data/log/
+/logs/
 *.log
 
 # Nested third-party clones

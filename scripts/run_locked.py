@@ -1122,7 +1122,11 @@ def build_parser() -> argparse.ArgumentParser:
             "Each process runs exactly one paper, sequentially."
         ),
     )
-    parser.add_argument("--from-extract", type=Path, help="Reuse this chemistry Pipeline run.")
+    parser.add_argument(
+        "--from-extract",
+        type=Path,
+        help="Reuse this chemistry extract run (*_lkexs1). KG + OX rebuild for the chosen --protocol.",
+    )
     parser.add_argument("--from-extract-medical", type=Path, help="Reuse this OntoMed Pipeline run.")
     parser.add_argument(
         "--hash",
@@ -1150,12 +1154,13 @@ def _print_list() -> None:
     print("")
     print("Examples")
     print("  run_locked.cmd")
-    print("  run_locked.cmd --domain main --protocol minimal --cases 5")
-    print("  run_locked.cmd --domain main --protocol graph-rules --cases 5")
-    print("  run_locked.cmd --domain main --protocol kg-guidance --cases 5")
+    print("  run_locked.cmd --domain main --protocol minimal --pack s1 --cases 30 --workers 5")
+    print("  run_locked.cmd --domain main --protocol graph-rules --pack s1 --cases 30 --workers 5 --from-extract scenarios\\mops\\runs\\<stamp>_lkexs1")
+    print("  run_locked.cmd --domain main --protocol kg-guidance --pack s1 --cases 30 --workers 5 --from-extract scenarios\\mops\\runs\\<stamp>_lkexs1")
+    print("  run_locked.cmd --domain main --protocol kg-guidance --pack s1 --cases 30 --builder ox --workers 5 --from-extract scenarios\\mops\\runs\\<stamp>_lkexs1")
     print("  run_locked.cmd --pack s4 --extract-model kimi --kg-model kimi --domain main")
     print("")
-    print("Extraction ledgers are not in git. The script extracts from PDFs.")
+    print("Extract once (lkexs1), then reuse that folder for graph-rules and kg-guidance.")
     print("Inputs: docs/ONE_CLICK_RUN.md")
 
 

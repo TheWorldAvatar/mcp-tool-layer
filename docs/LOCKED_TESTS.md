@@ -102,18 +102,24 @@ run_locked.cmd
 # SI-shaped chemistry Minimal (extract → Pipeline → OX)
 run_locked.cmd --domain main --protocol minimal --pack s1 --cases 30 --workers 5
 
+# Graph rules / KG guidance: reuse that extract (KG + OX + scores only)
+run_locked.cmd --domain main --protocol graph-rules --pack s1 --cases 30 --workers 5 --from-extract scenarios\mops\runs\<stamp>_lkexs1
+run_locked.cmd --domain main --protocol kg-guidance --pack s1 --cases 30 --workers 5 --from-extract scenarios\mops\runs\<stamp>_lkexs1
+
 # OX only, reuse an extract that already finished
 run_locked.cmd --domain main --protocol minimal --pack s1 --cases 30 --builder ox --workers 5 --from-extract scenarios\mops\runs\<stamp>_lkexs1
 ```
+
+Full flag table and resume notes: [ONE_CLICK_RUN.md](ONE_CLICK_RUN.md) §3.
 
 Outputs (gitignored under `scenarios/mops/runs/`):
 
 | Tag | Meaning |
 |---|---|
 | `*_lkexs1` / `*_lkexs1a`… | Extract (merged / letter children) |
-| `*_lks1min` | Pipeline KG Minimal |
-| `ox_lks1mina`…`o` | Official two-paper OX letters |
-| `ox_lks1min` | Merged OX + `scores/` |
+| `*_lks1min` / `*_lks1gr` / `*_lks1kg` | Pipeline KG for Minimal / Graph rules / KG guidance |
+| `ox_lks1mina`…`o` (same for `gr` / `kg`) | Official two-paper OX letters |
+| `ox_lks1min` / `ox_lks1gr` / `ox_lks1kg` | Merged OX + `scores/` |
 
 Steps report: `…/scores/scoring_steps/_overall.md`.
 

@@ -114,13 +114,18 @@ Put those in `.env` or the process environment. Leave them commented out on a ne
 
 ## 6. Run
 
-Locked paper-style 1:1 (frozen MCP, Pipeline + OntoLogX):
+Locked paper-style 1:1 (frozen MCP, Pipeline + OntoLogX). One-click entry is
+`run_locked.cmd`. Chemistry guidances: `--protocol minimal` / `graph-rules` /
+`kg-guidance`. Extract once, then reuse it for the other two. Full commands:
+[docs/ONE_CLICK_RUN.md](docs/ONE_CLICK_RUN.md).
 
 ```powershell
 run_locked.cmd --check
 run_locked.cmd          # 1 case, both domains, Minimal
-run_locked.cmd 30
 run_locked.cmd --list
+run_locked.cmd --domain main --protocol minimal --pack s1 --cases 30 --workers 5
+run_locked.cmd --domain main --protocol graph-rules --pack s1 --cases 30 --workers 5 --from-extract scenarios\mops\runs\<stamp>_lkexs1
+run_locked.cmd --domain main --protocol kg-guidance --pack s1 --cases 30 --workers 5 --from-extract scenarios\mops\runs\<stamp>_lkexs1
 ```
 
 Shipped generate-then-Pipeline path (new MCP, no OntoLogX):
