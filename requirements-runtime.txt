@@ -14,7 +14,7 @@ uvicorn==0.34.3
 sse-starlette==2.3.6
 rdflib==7.6.0
 pyshacl==0.40.1
-pydantic==2.11.5
+pydantic==2.11.7
 pymupdf==1.28.0
 openai==1.91.0
 httpx==0.28.1

@@ -30,15 +30,16 @@ cd <clone-root>
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-Do **not** use Python 3.13. `setup.cmd` refuses that venv; in-process
-asyncio / MCP stdio deadlocks showed up there.
+Use Python 3.11. `setup.cmd` exits unless `.venv` is 3.11. Python 3.13
+showed in-process asyncio / MCP stdio deadlocks on this stack.
 
-Install test extras if `pytest` is missing:
+Install test extras into that same interpreter if `pytest` is missing.
+`pytest` is not in `requirements-runtime.txt`:
 
 ```powershell
-python -m pip install pytest
-python -m pip install -r requirements-runtime.txt
-python -m pip install -e .
+.\.venv\Scripts\python.exe -m pip install pytest
+.\.venv\Scripts\python.exe -m pip install -r requirements-runtime.txt
+.\.venv\Scripts\python.exe -m pip install -e .
 ```
 
 Working directory must be the clone root (`pyproject.toml` is here).
@@ -47,7 +48,7 @@ Working directory must be the clone root (`pyproject.toml` is here).
 
 | File | What it locks | Needs unpacked s1 pack? |
 |---|---|---|
-| `tests/test_locked_one_click.py` | `run_locked` CLI, official OX letters a–o, 1 paper/process extract+KG, s1ka KG config, frozen ITER SHA-256, no prompt regeneration | One test skips if `generated/runs/0908-fullpack-s1_newmcp/prompts` is missing |
+| `tests/test_locked_one_click.py` | `run_locked` CLI, official OX letters a–o, 1 paper/process extract+KG, s1ka KG config, frozen ITER SHA-256, no prompt regeneration | One test skips unless `generated/runs/0908-fullpack-s1_newmcp/prompts/ontosynthesis/EXTRACTION_ITER_1.md` is present |
 | `tests/test_kg_no_contract.py` | T-Box handbook resolution (`data/ontologies/ontosynthesis_parsed.md`) | No |
 | `tests/test_ccdc_subprocess_budget.py` | Live CSD stays off unless `CSD_PYTHON_EXE` is a real file | No |
 | `tests/test_extraction_runtime_paths.py` | MCP launcher filenames include the PID (no shared-file races) | No |
@@ -56,19 +57,19 @@ Working directory must be the clone root (`pyproject.toml` is here).
 Chemistry smoke (fast, no network if packs are absent):
 
 ```powershell
-python -m pytest tests/test_locked_one_click.py tests/test_kg_no_contract.py tests/test_ccdc_subprocess_budget.py -q
+.\.venv\Scripts\python.exe -m pytest tests/test_locked_one_click.py tests/test_kg_no_contract.py tests/test_ccdc_subprocess_budget.py -q
 ```
 
 Full repo tests (longer; some need local data):
 
 ```powershell
-python -m pytest tests -q
+.\.venv\Scripts\python.exe -m pytest tests -q
 ```
 
 One class:
 
 ```powershell
-python -m pytest tests/test_locked_one_click.py::LockedRunnerTests -q
+.\.venv\Scripts\python.exe -m pytest tests/test_locked_one_click.py::LockedRunnerTests -q
 ```
 
 ## What the locked one-click tests assert
@@ -130,7 +131,7 @@ Steps report: `…/scores/scoring_steps/_overall.md`.
 | `run_locked.cmd --cases 5` as the “paper result” | First five of `papers_eval30.json`, not `OFFICIAL5`. Over-weights a few papers. |
 | One OX process with five `--hash` values | Cross-document inventory and stub/full behaviour change. CLI blocks `n>2` unless `TWA_OX_ALLOW_MULTIDOC=1`. |
 | `run.cmd` | Generates **new** MCP with GPT-5. Not the frozen 0908 pack. |
-| Python 3.13 | Different asyncio / MCP lifetime than official `mcp_layer`. |
+| Python other than 3.11 | `setup.cmd` accepts only a 3.11 `.venv`. Python 3.13 also has a different asyncio / MCP lifetime than official `mcp_layer`. |
 | Setting `CSD_PYTHON_EXE` by accident | Live CSD was off on the locked 2026-09-17 clone unless you opt in. |
 
 ## Scoring engines

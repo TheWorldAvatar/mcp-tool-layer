@@ -100,6 +100,13 @@ pack_eval_inputs.cmd pack --force
 Manual copy without zips is still valid: drop PDFs into the two `eval30`
 folders and copy the five `generated/runs/...` pack directories.
 
+The shared Dropbox folder in [SETUP.md](../SETUP.md) contains
+`eval30_chemistry_and_ontomed_pdfs.zip` only. Its members are
+`chemistry/*.pdf` and `ontomed/*.pdf`. Place those files with the manual
+steps in SETUP.md. That archive is separate from `eval30_pdfs.zip`, whose
+members already use the `scenarios/.../eval30/` paths unpacked above. The
+Dropbox folder does not include `locked_mcp_packs.zip`.
+
 ## 3. Run one locked condition
 
 ```powershell
@@ -238,7 +245,7 @@ mcp / langchain / openai wheels. `run_locked.cmd` prefers
 `%USERPROFILE%\AppData\Local\anaconda3\envs\mcp_layer\python.exe`
 
 then `.venv` (must be 3.11). Override with `TWA_LOCKED_PYTHON`.
-`setup.cmd` refuses a 3.13 venv. `requirements-runtime.txt` pins the stack.
+`setup.cmd` builds that `.venv` with `py -3.11` when the launcher is available, then exits unless the virtual environment is Python 3.11. `requirements-runtime.txt` pins the stack, including `fastmcp==2.10.1` and `pydantic==2.11.7`.
 
 ## 7. Costs and extras
 
@@ -253,9 +260,10 @@ then `.venv` (must be 3.11). Override with `TWA_LOCKED_PYTHON`.
 How to run the unit tests, and what each file covers:
 [docs/LOCKED_TESTS.md](LOCKED_TESTS.md).
 
+From the clone root, use the same interpreter `run_locked.cmd` selects. When conda `mcp_layer` is absent, that is the 3.11 `.venv` from `setup.cmd`. `pytest` is not in `requirements-runtime.txt`; install it into that interpreter first (see [LOCKED_TESTS.md](LOCKED_TESTS.md)).
+
 ```powershell
-# from the clone root, same interpreter as locked runs
-%USERPROFILE%\AppData\Local\anaconda3\envs\mcp_layer\python.exe -m pytest tests/test_locked_one_click.py tests/test_kg_no_contract.py tests/test_ccdc_subprocess_budget.py -q
+.\.venv\Scripts\python.exe -m pytest tests/test_locked_one_click.py tests/test_kg_no_contract.py tests/test_ccdc_subprocess_budget.py -q
 ```
 
 ## If something fails

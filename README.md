@@ -28,9 +28,19 @@ see [docs/ONE_CLICK_RUN.md](docs/ONE_CLICK_RUN.md) and `run_locked.cmd`.
 How to run the locked unit tests: [docs/LOCKED_TESTS.md](docs/LOCKED_TESTS.md).
 Licensed CCDC / CSD software is optional: you need it only to finish chemistry CBU; the rest of the pipeline runs without it.
 
+## Reviewer access and reproducibility
+
+**Reviewer quick start.** The public repository is https://github.com/TheWorldAvatar/mcp-tool-layer. [SETUP.md](SETUP.md) is the Windows environment setup: Python 3.11, `.env`, benchmark PDFs, and `setup.cmd`. [docs/ONE_CLICK_RUN.md](docs/ONE_CLICK_RUN.md) is the frozen-package Pipeline vs OntoLogX comparison. [docs/LOCKED_TESTS.md](docs/LOCKED_TESTS.md) is the offline unit tests, which do not call an LLM. [docs/extraction_runtime.md](docs/extraction_runtime.md) is how to run extraction on one generated batch, including your own PDFs.
+
+`run.cmd` builds a new generated MCP workflow and is the path for processing new inputs. `run_locked.cmd` runs the historical frozen-package protocol for the paper's Pipeline vs adapted OntoLogX comparisons. The locked command needs the benchmark PDFs and the frozen generated packages. Those inputs are outside the git clone, so cloning the repository does not by itself reproduce the paper F1 scores.
+
+LLM runs need your own API endpoint and key (`REMOTE_BASE_URL` and `REMOTE_API_KEY` in `.env`) and can incur usage charges. Licensed CCDC/CSD is required only to finish the chemistry CBU evaluation. The Python pipeline, CLI, and offline tests run on an ordinary CPU desktop. This repository does not require a dedicated GPU.
+
+Benchmark PDFs are in a separate Dropbox archive. The manual placement, and the fact that the frozen MCP packs are a further prerequisite, are in [SETUP.md](SETUP.md). The repository licence text for this software is [LICENSE.txt](LICENSE.txt). CCDC/CSD and the benchmark documents are covered by their own terms.
+
 ## Prerequisites
 
-1. Python 3.11+
+1. CPython 3.11. `setup.cmd` exits unless `.venv` is 3.11. Paper reproduction installs that stack from [SETUP.md](SETUP.md) (`requirements-runtime.txt`). The two commands below are only the prompt-generation CLI.
 2. Install generation dependencies from this repository:
 
 ```powershell

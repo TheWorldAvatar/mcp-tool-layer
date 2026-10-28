@@ -14,7 +14,7 @@ Locked s1–s4 needs **Python 3.11** (conda `mcp_layer` or a 3.11 `.venv`). **Gi
 ## 1. Clone
 
 ```powershell
-git clone <this-repo-url> MCP-enhanced-MOPs-Extraction
+git clone https://github.com/TheWorldAvatar/mcp-tool-layer MCP-enhanced-MOPs-Extraction
 cd MCP-enhanced-MOPs-Extraction
 ```
 
@@ -73,27 +73,49 @@ shipped; `run_locked.cmd` extracts from the PDFs.
 Paper order is `src/kg_building/ontologx/papers_eval30.json` and `papers_medical.json`.
 `run.cmd` defaults to **10** cases; `run_locked.cmd` defaults to **1**.
 
+### Benchmark PDFs from the shared archive
+
+The shared folder currently holds one file, `eval30_chemistry_and_ontomed_pdfs.zip` (about 114 MiB):
+
+https://www.dropbox.com/scl/fo/783ms8i0chfxmp96kou7y/AL-EuxEuIhHlP6nzLN_Xyi8?rlkey=xy24kxrnntfpisbjsb9u3dk84&dl=0
+
+After downloading and extracting that archive locally, its top level is `chemistry/` and `ontomed/`. Copy the PDF files inside `chemistry/` into `scenarios\mops\datasets\eval30\`, and the PDF files inside `ontomed/` into `scenarios\medical\datasets\eval30\`. Create those destination folders if they are absent. Copy the files themselves so `eval30` contains the PDFs directly.
+
+Checked on 28 October 2026 against `data/eval_bundles/expected_files.json`: 60 chemistry PDFs (30 papers and 30 `*_si.pdf` files) and 30 OntoMed PDFs. The filename sets match that manifest, and the archive has no further nested directories. With those files in place, `run_locked.cmd --check --cases 30` reported that the required PDF files are present.
+
+The automated bundle `data\eval_bundles\eval30_pdfs.zip` is a separate archive. Its members already use the `scenarios/mops/datasets/eval30/` and `scenarios/medical/datasets/eval30/` paths, and `pack_eval_inputs.cmd unpack` reads that layout. Keep the Dropbox file under its existing name and follow the manual placement above.
+
+That Dropbox folder does not contain `locked_mcp_packs.zip`. The same `--check --cases 30` run still reported `generated\runs\0908-fullpack-s1_newmcp` and `generated\runs\med-s1_newmcp` as missing. PDF placement and a complete locked run are separate steps. Articles and operative notes stay under their own copyright and clinical data-sharing terms. A public download link, permission to redistribute the files, and the ability to finish the historical locked run are three separate questions.
+
 ## 4. Python venv and install
 
-From the **repo root**, on Windows, with CPython 3.11+:
+Core Python, the CLI, and the offline tests are ordinary CPU desktop work. LLM calls go to the remote API in `.env`. No dedicated GPU is required for the local Python steps. Licensed CCDC/CSD is not part of this install; see §5.
+
+Measured on 28 October 2026 on a Windows desktop (build 26200) on the University of Cambridge wired network. The adapter was a Realtek PCIe 2.5GbE controller with a 2.5 Gbit/s link. A `curl` download of 50 MB from Cloudflare completed in 0.37 s (about 1.0 Gbit/s). The Dropbox archive above transferred more slowly, at about 97 Mbit/s. No CCDC/CSD software was installed.
+
+Use CPython 3.11. `setup.cmd` accepts only a 3.11 virtual environment for locked runs. Python 3.11.9 was installed with the user-scope winget package `Python.Python.3.11` (about 28 s). Install the locked stack from `requirements-runtime.txt`. That file pins `fastmcp==2.10.1` and `pydantic==2.11.7`. fastmcp 2.10.1 requires `pydantic>=2.11.7`, so 2.11.7 is the lowest pin that installs with the rest of this file. With 3.11.9 already present, a fresh `.venv`, `pip install --upgrade pip`, `pip install -r requirements-runtime.txt`, and `pip install -e .` finished in 47.6 s: the venv took 5.0 s, the pip upgrade had finished by 8.0 s, the requirements install by 42.8 s, and the editable install by 47.6 s. Most wheels were already in the local pip cache, so a first download of the same set can take longer.
+
+From the **repo root**, in a new terminal after Python is installed (the installer updates `PATH` for new terminals):
 
 ```powershell
-python -m venv .venv
+py -3.11 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install --upgrade pip
 .\.venv\Scripts\python.exe -m pip install -r requirements-runtime.txt
 .\.venv\Scripts\python.exe -m pip install -e .
 ```
 
+`py -3.11` is the selector `setup.cmd` tries first. When more than one Python is installed, `py` with no version can select another one; this command still builds a 3.11 `.venv`. `setup.cmd` exits unless that `.venv` is 3.11. The same four commands are what `setup.cmd` runs for the virtual environment. The Windows Store `python` alias is a different program.
+
 That is **not** universal:
 
 | Assumption | If it fails |
 | --- | --- |
-| `python` is 3.11+ on PATH | Official installer: `py -3.11 -m venv .venv`. Avoid the Microsoft Store `python` stub. |
+| `py -3.11` runs | Open a new terminal after the user-scope install. The interpreter is `%LOCALAPPDATA%\Programs\Python\Python311\python.exe`. |
 | Windows layout `.venv\Scripts\` | macOS/Linux use `.venv/bin/python` — this guide is Windows-only. |
 | PowerShell | `.\.venv\...` is required. In `cmd.exe`, `.venv\Scripts\python.exe` also works. |
 | Working directory | Must be the clone root (`pyproject.toml` is here). |
 
-`setup.cmd` probes `py -3.11` first (official s1–s4 is conda `mcp_layer` / CPython 3.11). Do not use 3.13 for locked runs.
+`setup.cmd` probes `py -3.11` first (official s1–s4 is conda `mcp_layer` / CPython 3.11), then exits unless `.venv` is 3.11.
 
 ## 5. CCDC MCP (needed only for CBU)
 
@@ -144,6 +166,10 @@ run.cmd --domain ontomed
 Default parallelism is **5 workers** on every step: prompt authoring, MCP compile waves, paper extract/KG, TTL convert, and the four chemistry score modules. Override with `run.cmd --workers 3`. One paper still uses one worker.
 
 Scores print at the end and are also written to `generated\ship_reports\`.
+
+### What successful execution produces
+
+`run.cmd` and `run_locked.cmd` write score reports under `generated\ship_reports\`. Locked runs also write extraction and KG outputs under `scenarios\mops\runs\` and `scenarios\medical\runs\`. Both `generated/` and `scenarios/` are gitignored. `run_locked.cmd --check` prints input status and does not call an LLM. These are output locations. A new LLM run follows the protocol; it does not guarantee the same F1 numbers as the historical paper runs. No end-to-end LLM demo time was measured here.
 
 Chemistry steps scoring is locked: match steps by type, not list order.
 Vessel is not a scoring switch — the committed gold under
